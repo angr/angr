@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import angr
 from angr import ailment, claripy, errors
 from angr.engines.ail.callstack import AILCallStack
-from angr.engines.light.engine import SimEngineLightAIL
+from angr.engines.light.engine import SimEngineLightAIL, ail_binop_handler, ail_unop_handler
 from angr.engines.successors import SimSuccessors
 from angr.engines.vex.claripy import ccall
 from angr.rustylib.ailment import RoundingMode  # pylint:disable=import-error
@@ -672,24 +672,29 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert self.frame.stack_ptr is not None
         return claripy.BVV(self.frame.stack_ptr + expr.offset, expr.bits)
 
+    @ail_unop_handler
     def _handle_unop_Neg(self, expr: ailment.UnaryOp):
         v = self._expr_bv(expr.operand)
         return -v
 
+    @ail_unop_handler
     def _handle_unop_Not(self, expr: ailment.UnaryOp):
         v = self._expr_bv(expr.operand)
         return ~v
 
+    @ail_unop_handler
     def _handle_unop_BitwiseNeg(self, expr: ailment.UnaryOp):
         v = self._expr_bv(expr.operand)
         return ~v
 
+    @ail_unop_handler
     def _handle_unop_Abs(self, expr: ailment.UnaryOp) -> DataType:
         value = self._expr(expr.operand)
         if isinstance(value, claripy.ast.FP):
             return claripy.fpAbs(value)
         return self._top(expr.bits)
 
+    @ail_unop_handler
     def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType:
         match expr.operand:
             case ailment.expression.VirtualVariable():
@@ -715,11 +720,13 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             case _:
                 raise errors.AngrRuntimeError(f"Can't handle reference to {expr.operand}")
 
+    @ail_unop_handler
     def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType:
         ptr = self._expr_bv(expr.operand)
         region, offset = self._find_ptr_region(ptr)
         return region.load(offset, expr.size, endness=expr.endness)
 
+    @ail_unop_handler
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType:
         operand = self._expr(expr.operand)
         wtf_expr = claripy.BVV(expr.bits, expr.bits)
@@ -728,6 +735,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             wtf_expr = claripy.If(bit == 1, claripy.BVV(expr.bits - a - 1, expr.bits), wtf_expr)
         return wtf_expr
 
+    @ail_unop_handler
     def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType:
         operand = self._expr(expr.operand)
         wtf_expr = claripy.BVV(expr.bits, expr.bits)
@@ -736,56 +744,70 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             wtf_expr = claripy.If(bit == 1, claripy.BVV(a, expr.bits), wtf_expr)
         return wtf_expr
 
+    @ail_unop_handler
     def _handle_unop_GetMSBs(self, expr: ailment.expression.UnaryOp) -> DataType:
         operand = self._expr(expr.operand)
         size = expr.bits
         bits = [claripy.Extract(i, i, operand) for i in range(size - 1, 6, -8)]
         return claripy.Concat(*bits)
 
+    @ail_unop_handler
     def _handle_unop_unpack(self, expr: ailment.expression.UnaryOp) -> DataType:
         raise NotImplementedError("Not sure what the semantics of this op are")
 
+    @ail_unop_handler
     def _handle_unop_Sqrt(self, expr: ailment.expression.UnaryOp) -> DataType:
         raise NotImplementedError("Not sure how to express this in claripy")
 
+    @ail_unop_handler
     def _handle_unop_RSqrtEst(self, expr: ailment.expression.UnaryOp) -> DataType:
         raise NotImplementedError("Not sure what the semantics of this op are")
 
+    @ail_binop_handler
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) + self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) - self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) * self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) / self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) % self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_AddF(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.ast.fp.fpAdd(
             _claripy_rm(expr.rounding_mode), self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
         )
 
+    @ail_binop_handler
     def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.ast.fp.fpSub(
             _claripy_rm(expr.rounding_mode), self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
         )
 
+    @ail_binop_handler
     def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.ast.fp.fpMul(
             _claripy_rm(expr.rounding_mode), self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
         )
 
+    @ail_binop_handler
     def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.ast.fp.fpDiv(
             _claripy_rm(expr.rounding_mode), self._expr_fp(expr.operands[0]), self._expr_fp(expr.operands[1])
         )
 
+    @ail_binop_handler
     def _handle_binop_AddV(self, expr: ailment.expression.BinaryOp) -> DataType:
         assert expr.vector_size is not None
         return claripy.Concat(
@@ -798,6 +820,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             )
         )
 
+    @ail_binop_handler
     def _handle_binop_SubV(self, expr: ailment.expression.BinaryOp) -> DataType:
         assert expr.vector_size is not None
         return claripy.Concat(
@@ -810,6 +833,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             )
         )
 
+    @ail_binop_handler
     def _handle_binop_MulV(self, expr: ailment.expression.BinaryOp) -> DataType:
         assert expr.vector_size is not None
         return claripy.Concat(
@@ -822,6 +846,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             )
         )
 
+    @ail_binop_handler
     def _handle_binop_DivV(self, expr: ailment.expression.BinaryOp) -> DataType:
         assert expr.vector_size is not None
         return claripy.Concat(
@@ -834,96 +859,118 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             )
         )
 
+    @ail_binop_handler
     def _handle_binop_Mull(self, expr: ailment.expression.BinaryOp) -> DataType:
         a = self._expr_bv(expr.operands[0])
         b = self._expr_bv(expr.operands[1])
         op = claripy.SignExt if expr.signed else claripy.ZeroExt
         return op(expr.bits - len(a), a) * op(expr.bits - len(b), b)
 
+    @ail_binop_handler
     def _handle_binop_MulHiV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure what the semantics of this op are")
 
+    @ail_binop_handler
     def _handle_binop_Xor(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) ^ self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_And(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) & self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_Or(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) | self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_LogicalAnd(self, expr: ailment.expression.BinaryOp) -> DataType:
         a = self._expr_bv(expr.operands[0])
         if (a == 0).is_true():
             return a
         return claripy.If(a != 0, a, self._expr_bv(expr.operands[1]))
 
+    @ail_binop_handler
     def _handle_binop_LogicalOr(self, expr: ailment.expression.BinaryOp) -> DataType:
         a = self._expr_bv(expr.operands[0])
         if (a == 0).is_false():
             return a
         return claripy.If(a == 0, a, self._expr_bv(expr.operands[1]))
 
+    @ail_binop_handler
     def _handle_binop_Shl(self, expr: ailment.expression.BinaryOp) -> DataType:
         shift_amount = self._expr_bv(expr.operands[1])
         if shift_amount.size() < expr.bits:
             shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
         return self._expr_bv(expr.operands[0]) << shift_amount
 
+    @ail_binop_handler
     def _handle_binop_Shr(self, expr: ailment.expression.BinaryOp) -> DataType:
         shift_amount = self._expr_bv(expr.operands[1])
         if shift_amount.size() < expr.bits:
             shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
         return claripy.LShR(self._expr_bv(expr.operands[0]), shift_amount)
 
+    @ail_binop_handler
     def _handle_binop_Sar(self, expr: ailment.expression.BinaryOp) -> DataType:
         shift_amount = self._expr_bv(expr.operands[1])
         if shift_amount.size() < expr.bits:
             shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
         return self._expr_bv(expr.operands[0]) >> shift_amount
 
+    @ail_binop_handler
     def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure what the semantics of this op are")
 
+    @ail_binop_handler
     def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) == self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) != self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) < self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) <= self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) > self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType:
         return self._expr_bv(expr.operands[0]) >= self._expr_bv(expr.operands[1])
 
+    @ail_binop_handler
     def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.Concat(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
 
+    @ail_binop_handler
     def _handle_binop_Rol(self, expr: ailment.expression.BinaryOp) -> DataType:
         shift_amount = self._expr_bv(expr.operands[1])
         if shift_amount.size() < expr.bits:
             shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
         return claripy.RotateLeft(self._expr_bv(expr.operands[0]), shift_amount)
 
+    @ail_binop_handler
     def _handle_binop_Ror(self, expr: ailment.expression.BinaryOp) -> DataType:
         shift_amount = self._expr_bv(expr.operands[1])
         if shift_amount.size() < expr.bits:
             shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
         return claripy.RotateRight(self._expr_bv(expr.operands[0]), shift_amount)
 
+    @ail_binop_handler
     def _handle_binop_Carry(self, expr: ailment.expression.BinaryOp) -> DataType:
         a = self._expr_bv(expr.operands[0])
         b = self._expr_bv(expr.operands[1])
         res = a + b
         return claripy.If(claripy.ULT(res, a), claripy.BVV(1, 1), claripy.BVV(0, 1))
 
+    @ail_binop_handler
     def _handle_binop_SCarry(self, expr: ailment.expression.BinaryOp) -> DataType:
         # TODO am I wrong here? why is this not just expr.signed??
         a = self._expr_bv(expr.operands[0])
@@ -931,9 +978,11 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         res = a + b
         return claripy.If(claripy.SLT(res, a), claripy.BVV(1, 1), claripy.BVV(0, 1))
 
+    @ail_binop_handler
     def _handle_binop_SBorrow(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_InterleaveLOV(self, expr: ailment.expression.BinaryOp) -> DataType:
         assert expr.vector_size is not None
         assert expr.vector_count is not None
@@ -947,6 +996,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         ]
         return claripy.Concat(*itertools.chain.from_iterable(zip(reversed(left_vector), reversed(right_vector))))
 
+    @ail_binop_handler
     def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType:
         assert expr.vector_size is not None
         assert expr.vector_count is not None
@@ -960,51 +1010,66 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         ]
         return claripy.Concat(*itertools.chain.from_iterable(zip(reversed(left_vector), reversed(right_vector))))
 
+    @ail_binop_handler
     def _handle_binop_CasCmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_ExpCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
     def _handle_binop_SarN(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_SarNV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_ShrNV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_ShlNV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_CmpEQV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_CmpNEV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_CmpGEV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_CmpGTV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_CmpLEV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_CmpLTV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_MinV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_MaxV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_HAddV(self, expr: ailment.expression.BinaryOp) -> DataType:
         assert expr.vector_size is not None
         extend = claripy.SignExt if expr.signed else claripy.ZeroExt
@@ -1018,23 +1083,29 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             )
         )
 
+    @ail_binop_handler
     def _handle_binop_QAddV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_QSubV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
     def _handle_binop_QNarrowBin(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_QNarrowBinV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_PermV(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_Set(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
+    @ail_binop_handler
     def _handle_binop_CmpORD(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")

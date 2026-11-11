@@ -22,7 +22,12 @@ from angr.analyses.reaching_definitions.engine_ail import SimEngineRDAIL
 from angr.analyses.typehoon.typevars import ConvertTo, DerivedTypeVariable, TypeVariable, TypeVariableManager
 from angr.analyses.variable_recovery.engine_ail import SimEngineVRAIL
 from angr.analyses.variable_recovery.engine_base import RichR
-from angr.engines.light.engine import longest_prefix_lookup
+from angr.engines.light.engine import (
+    SimEngineNoexprAIL,
+    SimEngineNostmtAIL,
+    ail_binop_handler,
+    longest_prefix_lookup,
+)
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from tests.common import bin_location
 
@@ -40,6 +45,31 @@ class TestLightEngine(TestCase):
         assert longest_prefix_lookup("32to1", mapping) is handle_unop_32to1
         assert longest_prefix_lookup("32to1_foo", mapping) is handle_unop_32to1
         assert longest_prefix_lookup("32to", mapping) is None
+
+    def test_ail_overrides(self):
+        class TestEngineBase(SimEngineNoexprAIL, SimEngineNostmtAIL):
+            def _top(self, bits):
+                return None
+
+            def _is_top(self, expr):
+                return True
+
+            def _process_block_end(self, block, stmt_data, whitelist):
+                return None
+
+        class TestEngine1(TestEngineBase):
+            def _handle_binop_Add(self, expr): ...
+
+        class TestEngine2(TestEngineBase):
+            @ail_binop_handler
+            def _this_doesnt_exist(self, expr): ...
+
+        project = angr.load_shellcode(b"\xc3", arch="amd64")
+        assert TestEngineBase(project)
+        with self.assertRaises(TypeError):
+            assert TestEngine1(project)
+        with self.assertRaises(TypeError):
+            assert TestEngine2(project)
 
     def test_ail_abs_unop_dispatch(self):
         arch = archinfo.ArchAMD64()

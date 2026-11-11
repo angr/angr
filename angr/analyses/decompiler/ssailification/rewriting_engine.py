@@ -46,7 +46,7 @@ from angr.ailment.statement import (
 )
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import call_clobbered_regs
-from angr.engines.light.engine import SimEngineNostmtAIL
+from angr.engines.light.engine import SimEngineNostmtAIL, ail_binop_handler, ail_unop_handler
 from angr.sim_type import SimTypeInt, SimTypeNum
 from angr.utils.ail import is_head_controlled_loop_jump
 
@@ -956,6 +956,8 @@ class SimEngineSSARewriting(
                 self.state.registers[suboff] = vvar
         return Assignment(self.ail_manager.next_atom(), vvar, combined, **orig_tags.tags)
 
+    @ail_binop_handler
+    @ail_unop_handler
     def _unreachable(self, *args, **kwargs):
         assert False
 

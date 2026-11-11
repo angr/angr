@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr.ailment import Expr
+from angr.engines.light import ail_binop_handler
 
 from .engine_base import SimplifierAILEngine, SimplifierAILState
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -11,6 +12,7 @@ _l = logging.getLogger(name=__name__)
 
 
 class ModSimplifierAILEngine(SimplifierAILEngine):
+    @ail_binop_handler
     def _handle_binop_Sub(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])

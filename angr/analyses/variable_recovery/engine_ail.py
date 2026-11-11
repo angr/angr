@@ -10,7 +10,7 @@ from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Str
 from angr.ailment.utils import is_lsb_extract, is_lsb_overwrite
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.translator import TypeTranslator
-from angr.engines.light.engine import SimEngineNostmtAIL
+from angr.engines.light.engine import SimEngineNostmtAIL, ail_binop_handler, ail_unop_handler
 from angr.errors import SimMemoryMissingError
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
 from angr.sim_type import SimTypeFunction, SimTypePointer
@@ -1015,6 +1015,7 @@ class SimEngineVRAIL(
             self._reference(richr, codeloc, src=expr)
         return richr
 
+    @ail_unop_handler
     def _handle_unop_Reference(self, expr: ailment.Expr.UnaryOp):
         operand = expr.operand
         # a stack-passed parameter is a stack variable of the caller's frame (e.g., Go's all-stack ABI0)
@@ -1077,6 +1078,7 @@ class SimEngineVRAIL(
 
         return RichR(self.state.top(expr.bits), typevar=tv, type_constraints=type_constraints)
 
+    @ail_binop_handler
     def _handle_binop_Add(self, expr):
         arg0, arg1 = expr.operands
         r0, r1 = self._expr_pair(arg0, arg1, non_pointer=expr.floating_point)
@@ -1127,6 +1129,7 @@ class SimEngineVRAIL(
 
         return RichR(compute, typevar=typevar, type_constraints=type_constraints)
 
+    @ail_binop_handler
     def _handle_binop_Sub(self, expr):
         arg0, arg1 = expr.operands
         r0, r1 = self._expr_pair(arg0, arg1, non_pointer=expr.floating_point)
@@ -1173,6 +1176,7 @@ class SimEngineVRAIL(
             type_constraints=type_constraints,
         )
 
+    @ail_binop_handler
     def _handle_binop_Mul(self, expr):
         arg0, arg1 = expr.operands
         r0, r1 = self._expr_pair(arg0, arg1, non_pointer=True)
@@ -1210,6 +1214,7 @@ class SimEngineVRAIL(
 
         return RichR(r, typevar=typevar, type_constraints=type_constraints)
 
+    @ail_binop_handler
     def _handle_binop_Mull(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1248,6 +1253,7 @@ class SimEngineVRAIL(
             typevar=r0.typevar,  # FIXME: the size is probably changed
         )
 
+    @ail_binop_handler
     def _handle_binop_Div(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1288,6 +1294,7 @@ class SimEngineVRAIL(
             # | typevar=r0.typevar,  # FIXME: Handle typevars for Div
         )
 
+    @ail_binop_handler
     def _handle_binop_Mod(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1324,6 +1331,7 @@ class SimEngineVRAIL(
             # | typevar=r0.typevar,  # FIXME: Handle typevars for Mod
         )
 
+    @ail_binop_handler
     def _handle_binop_Xor(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1350,6 +1358,7 @@ class SimEngineVRAIL(
         r = self.state.top(expr.bits)
         return RichR(r)
 
+    @ail_binop_handler
     def _handle_binop_Shl(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1365,6 +1374,7 @@ class SimEngineVRAIL(
         shiftamount = r1.data.concrete_value
         return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
+    @ail_binop_handler
     def _handle_binop_Shr(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1407,6 +1417,7 @@ class SimEngineVRAIL(
 
         return RichR(r0.data << shiftamount, typevar=typeconsts.signed_int_type(result_size), type_constraints=None)
 
+    @ail_binop_handler
     def _handle_binop_Sar(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1428,6 +1439,7 @@ class SimEngineVRAIL(
 
         return RichR(r0.data >> shiftamount, typevar=typeconsts.signed_int_type(result_size), type_constraints=None)
 
+    @ail_binop_handler
     def _handle_binop_And(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1445,6 +1457,7 @@ class SimEngineVRAIL(
         r = self.state.top(expr.bits)
         return RichR(r, typevar=typeconsts.unsigned_int_type(result_size))
 
+    @ail_binop_handler
     def _handle_binop_Or(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1462,6 +1475,7 @@ class SimEngineVRAIL(
         r = self.state.top(expr.bits)
         return RichR(r, typevar=typeconsts.unsigned_int_type(result_size))
 
+    @ail_binop_handler
     def _handle_binop_LogicalAnd(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1470,6 +1484,7 @@ class SimEngineVRAIL(
         r = self.state.top(expr.bits)
         return RichR(r, typevar=r0.typevar)
 
+    @ail_binop_handler
     def _handle_binop_LogicalOr(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1486,6 +1501,7 @@ class SimEngineVRAIL(
         r = self.state.top(expr.bits)
         return RichR(r, typevar=r0.typevar)
 
+    @ail_binop_handler
     def _handle_binop_Rol(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1496,6 +1512,7 @@ class SimEngineVRAIL(
         r = self.state.top(result_size)
         return RichR(r)
 
+    @ail_binop_handler
     def _handle_binop_Ror(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1506,6 +1523,7 @@ class SimEngineVRAIL(
         r = self.state.top(result_size)
         return RichR(r)
 
+    @ail_binop_handler
     def _handle_binop_Concat(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1542,6 +1560,7 @@ class SimEngineVRAIL(
             elif var_tv is not None:
                 self.state.add_type_constraint(typevars.Subtype(ft, var_tv))
 
+    @ail_binop_handler
     def _handle_binop_Cmp_Default(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1590,26 +1609,31 @@ class SimEngineVRAIL(
 
         return RichR(self.state.top(expr.bits))
 
+    @ail_binop_handler
     def _handle_binop_CmpLT(self, expr):
         if expr.signed and not expr.floating_point:
             return self._handle_binop_Cmp_Signed(expr)
         return self._handle_binop_Cmp_Default(expr)
 
+    @ail_binop_handler
     def _handle_binop_CmpLE(self, expr):
         if expr.signed and not expr.floating_point:
             return self._handle_binop_Cmp_Signed(expr)
         return self._handle_binop_Cmp_Default(expr)
 
+    @ail_binop_handler
     def _handle_binop_CmpGT(self, expr):
         if expr.signed and not expr.floating_point:
             return self._handle_binop_Cmp_Signed(expr)
         return self._handle_binop_Cmp_Default(expr)
 
+    @ail_binop_handler
     def _handle_binop_CmpGE(self, expr):
         if expr.signed and not expr.floating_point:
             return self._handle_binop_Cmp_Signed(expr)
         return self._handle_binop_Cmp_Default(expr)
 
+    @ail_binop_handler
     def _handle_binop_Default(self, expr):
         arg0, arg1 = expr.operands
 
@@ -1663,6 +1687,7 @@ class SimEngineVRAIL(
     _handle_binop_MaxV = _handle_binop_Default
     _handle_binop_MinV = _handle_binop_Default
 
+    @ail_binop_handler
     def _handle_binop_HAddV(self, expr: ailment.expression.BinaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
         return cast(RichR[claripy.ast.BV | claripy.ast.FP], self._handle_binop_Default(expr))
 
@@ -1681,6 +1706,7 @@ class SimEngineVRAIL(
     _handle_binop_CmpLTV = _handle_binop_Default
     _handle_binop_CmpF = _handle_binop_Default
 
+    @ail_unop_handler
     def _handle_unop_Not(self, expr):
         arg = expr.operands[0]
         expr = self._expr_bv(arg)
@@ -1697,6 +1723,7 @@ class SimEngineVRAIL(
         r = self.state.top(result_size)
         return RichR(r, typevar=expr.typevar)
 
+    @ail_unop_handler
     def _handle_unop_Neg(self, expr):
         unop = expr
         arg = unop.operands[0]
@@ -1729,6 +1756,7 @@ class SimEngineVRAIL(
         r = self.state.top(result_size)
         return RichR(r, typevar=typevar, type_constraints=type_constraints)
 
+    @ail_unop_handler
     def _handle_unop_BitwiseNeg(self, expr):
         arg = expr.operands[0]
         expr = self._expr_bv(arg)
@@ -1745,6 +1773,7 @@ class SimEngineVRAIL(
         r = self.state.top(result_size)
         return RichR(r, typevar=expr.typevar)
 
+    @ail_unop_handler
     def _handle_unop_Abs(self, expr):
         operand = self._expr(expr.operand)
         return cast(
@@ -1752,6 +1781,7 @@ class SimEngineVRAIL(
             RichR(self.state.top(expr.bits), typevar=operand.typevar),
         )
 
+    @ail_unop_handler
     def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
         r = self._expr(expr.operands[0])
         if expr.op in _FP_MATH_UNOPS:

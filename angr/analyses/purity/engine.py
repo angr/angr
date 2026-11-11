@@ -7,7 +7,7 @@ from typing import Any, Self
 
 import angr
 from angr import ailment
-from angr.engines.light import SimEngineLightAIL
+from angr.engines.light import SimEngineLightAIL, ail_binop_handler, ail_unop_handler
 from angr.knowledge_plugins.functions.function import Function
 
 # pylint: disable=arguments-differ,arguments-renamed
@@ -423,25 +423,31 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
 
         return inner
 
+    @ail_unop_handler
     @__concrete_unop
     def _handle_unop_Not(self, v):
         return int(not v)
 
+    @ail_unop_handler
     @__concrete_unop
     def _handle_unop_Neg(self, v):
         return -v
 
+    @ail_unop_handler
     @__concrete_unop
     def _handle_unop_BitwiseNeg(self, v):
         return ~v
 
+    @ail_unop_handler
     def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType_co:
         assert isinstance(expr.operand, ailment.expression.VirtualVariable)
         return frozenset((DataSource(reference_to=expr.operand.varid),))
 
+    @ail_unop_handler
     def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType_co:
         return self._do_load(self._expr(expr.addr))
 
+    @ail_unop_handler
     def _handle_unop_default(self, expr: ailment.Expression) -> DataType_co:
         return self._expr_noconst(expr.operand)
 
@@ -486,12 +492,14 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
 
         return inner
 
+    @ail_binop_handler
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co:
         r = self._handle_binop_Add_basic(expr)  # pylint: disable=no-value-for-parameter
         arg0 = self._expr(expr.operands[0])
         arg1 = self._expr(expr.operands[1])
         return r | arg0 | arg1
 
+    @ail_binop_handler
     def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType_co:
         r = self._handle_binop_Sub_basic(expr)  # pylint: disable=no-value-for-parameter
         arg0 = self._expr(expr.operands[0])
@@ -505,80 +513,99 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
     def _handle_binop_Sub_basic(self, a, b):  # pylint: disable=no-self-use
         return a - b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_Mul(self, a, b):
         return a * b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_Div(self, a, b):
         return a // b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_Mod(self, a, b):
         return a % b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_And(self, a, b):
         return a & b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_Or(self, a, b):
         return a | b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_Xor(self, a, b):
         return a ^ b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_Shl(self, a, b):
         return a << b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_Shr(self, a, b):
         return a >> b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_Sar(self, a, b):
         return a >> b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_LogicalAnd(self, a, b):
         return a and b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_LogicalOr(self, a, b):
         return a or b
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_CmpEQ(self, a, b):
         return int(a == b)
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_CmpNE(self, a, b):
         return int(a != b)
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_CmpLT(self, a, b):
         return int(a < b)
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_CmpLE(self, a, b):
         return int(a <= b)
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_CmpGT(self, a, b):
         return int(a > b)
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_CmpGE(self, a, b):
         return int(a >= b)
 
+    @ail_binop_handler
     @__concrete_binop
     def _handle_binop_Concat(self, a, b):
         if a == 0:
             return b
         return None
 
+    @ail_binop_handler
     def _handle_binop_default(self, expr: ailment.expression.BinaryOp) -> DataType_co:
         return self._expr_noconst(expr.operands[0]) | self._expr_noconst(expr.operands[1])
 
