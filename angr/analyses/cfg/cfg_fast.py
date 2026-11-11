@@ -5763,7 +5763,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             not self._rust_make_functions
             or not isinstance(tmp_functions, RecoveryFunctionManager)
             or self._detect_tail_calls
-            or self._low_priority
             or self.graph.addr_type != "int"
             or self.graph._extra_edge_attrs
             or not self._make_functions_methods_unchanged()

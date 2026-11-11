@@ -1996,11 +1996,20 @@ class CFGBase(Analysis):
         The traversals of make_functions() and everything after them, with a FunctionsBuilder.
         """
         progress_on = self._show_progressbar or self._progress_callback is not None
+        low_priority = self._low_priority
 
         def _progress(lo: float, hi: float, count: int):
-            if not progress_on:
+            if not progress_on and not low_priority:
                 return None
-            return lambda i: self._update_progress(lo + (hi - lo) * (i * 1.0 / count))
+
+            def _on_start(i: int) -> None:
+                # what the Python traversal loop does before each start
+                if low_priority:
+                    self._release_gil(i, 800, 0.000001)
+                if progress_on:
+                    self._update_progress(lo + (hi - lo) * (i * 1.0 / count))
+
+            return _on_start
 
         has_return = self.model._block_addrs_with_return
         builder.traverse(
