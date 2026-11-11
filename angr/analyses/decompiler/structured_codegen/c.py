@@ -236,13 +236,22 @@ def int_operand_signedness(expr: CExpression) -> bool | None:
         if rhs is None:
             return lhs
         return lhs and rhs
-    ws = int_width_and_signedness(unpack_typeref(expr.type))
+    ws = compare_width_and_signedness(unpack_typeref(expr.type))
     return None if ws is None else ws[1]
+
+
+def compare_width_and_signedness(ty: SimType | None) -> tuple[int, bool] | None:
+    """int_width_and_signedness, with a pointer counting as an unsigned integer of its size (C compares it so)."""
+    if isinstance(ty, TypeRef):
+        ty = ty.type
+    if isinstance(ty, SimTypePointer):
+        return None if ty._arch is None else (ty.size, False)
+    return int_width_and_signedness(ty)
 
 
 def is_sign_fixing_cast(cast: CTypeCast) -> bool:
     """A same-width integer cast whose operand C reads with the other signedness, e.g. (long long)x for unsigned x."""
-    s = int_width_and_signedness(cast.src_type)
+    s = compare_width_and_signedness(cast.src_type)
     d = int_width_and_signedness(cast.dst_type)
     if s is None or d is None or s[0] != d[0]:
         return False
@@ -5832,8 +5841,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if expr.op in _ORDER_CMP_OPS and not expr.floating_point:
             cmp_signed = expr.signed
             bits = expr.operands[0].bits
-            lhs = self._compare_operand(lhs, bits, cmp_signed)
-            rhs = self._compare_operand(rhs, bits, cmp_signed)
+            lhs, rhs = self._compare_operands(lhs, rhs, bits, cmp_signed)
 
         return CBinaryOp(
             expr.op,
@@ -5845,12 +5853,27 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             collapsed=expr.depth > self.binop_depth_cutoff,
         )
 
+    def _compare_operands(
+        self, lhs: CExpression, rhs: CExpression, bits: int, signed: bool
+    ) -> tuple[CExpression, CExpression]:
+        lty, rty = unpack_typeref(lhs.type), unpack_typeref(rhs.type)
+        if (
+            isinstance(lty, SimTypePointer)
+            and lty == rty
+            and not isinstance(lhs, CConstant)
+            and not isinstance(rhs, CConstant)
+        ):
+            # two pointers of one type: an ordering of addresses, read as written
+            return lhs, rhs
+        return self._compare_operand(lhs, bits, signed), self._compare_operand(rhs, bits, signed)
+
     def _compare_operand(self, operand: CExpression, bits: int, signed: bool) -> CExpression:
         """
         Make an operand of an integer ordering compare read with the compare's signedness: retype constants (so
         0x80000058 prints as -2147483560 under a signed compare) and cast same-width variables of the other signedness.
+        A pointer reads unsigned.
         """
-        ws = int_width_and_signedness(unpack_typeref(operand.type))
+        ws = compare_width_and_signedness(unpack_typeref(operand.type))
         if ws is None or ws[0] != bits:
             return operand
         if isinstance(operand, CConstant):
@@ -5861,7 +5884,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             ):
                 return operand
             uval = operand.value & ((1 << bits) - 1)
-            if uval < 1 << (bits - 1):
+            if uval < 1 << (bits - 1) and not isinstance(unpack_typeref(operand.type), SimTypePointer):
                 # prints the same either way
                 return operand
             ty = self.default_simtype_from_bits(bits, signed=signed)
