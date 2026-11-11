@@ -875,8 +875,14 @@ impl ResolverChain {
 
     /// `_process_unresolved_indirect_jumps`: every pending jump in address order, each resolved and written back
     /// (`_indirect_jump_resolved`, the deferred set, or `_indirect_jump_unresolved`) before the next one, until
-    /// `should_abort`. Returns the targets.
-    fn resolve_pending<'py>(&mut self, cfg: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PySet>> {
+    /// `should_abort`. Returns the targets. `release_gil(idx, 50, 1e-6)` is called before each jump when given, as
+    /// the Python loop does under `low_priority`.
+    #[pyo3(signature = (cfg, release_gil=None))]
+    fn resolve_pending<'py>(
+        &mut self,
+        cfg: &Bound<'py, PyAny>,
+        release_gil: Option<Bound<'py, PyAny>>,
+    ) -> PyResult<Bound<'py, PySet>> {
         let py = cfg.py();
         let pending = cfg.getattr(intern!(py, "_indirect_jumps_to_resolve"))?;
         let mut jumps: Vec<(u64, Bound<'py, PyAny>)> = Vec::new();
@@ -887,9 +893,12 @@ impl ResolverChain {
         // sorted(..., key=lambda j: j.addr) is stable
         jumps.sort_by_key(|(a, _)| *a);
         let all = PySet::empty(py)?;
-        for (addr, jump) in jumps {
+        for (idx, (addr, jump)) in jumps.into_iter().enumerate() {
             if cfg.getattr(intern!(py, "should_abort"))?.is_truthy()? {
                 break;
+            }
+            if let Some(f) = &release_gil {
+                f.call1((idx, 50, 0.000001))?;
             }
             let (resolved, by, targets, deferred) = self.resolve_deferred(cfg, &jump, true)?;
             if resolved {

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 from .cfg_scan import LoaderSnapshot
@@ -38,8 +39,11 @@ class ResolverChain:
     def resolve_deferred(self, cfg: Any, jump: Any, func_graph_complete: bool = True) -> tuple[bool, Any, Any, bool]:
         """``_process_one_indirect_jump``'s resolver loop: ``(resolved, resolved_by, targets, deferred)``."""
 
-    def resolve_pending(self, cfg: Any) -> set[int]:
-        """``_process_unresolved_indirect_jumps``: resolve and write back every pending jump in address order."""
+    def resolve_pending(self, cfg: Any, release_gil: Callable[[int, int, float], None] | None = None) -> set[int]:
+        """
+        ``_process_unresolved_indirect_jumps``: resolve and write back every pending jump in address order;
+        ``release_gil(idx, 50, 1e-6)`` is called before each one when given.
+        """
 
     def finish(self, cfg: Any) -> None:
         """Publish Rust-owned resolver state (``kb.propagations`` FCP models)."""
