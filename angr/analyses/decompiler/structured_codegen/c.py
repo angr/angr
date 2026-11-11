@@ -1000,8 +1000,9 @@ class CFunction(CConstruct, FunctionNode):  # pylint:disable=abstract-method
                 if v.variable in self.variables_in_use and v.type is not None:
                     _recursively_collect_referenced_structs(v.type, referenced)
 
-        # Types that only appear inside expressions: casts, and constants typed by inference (e.g. the NULL stored
-        # into a pointer-to-struct field). They render a struct name without declaring any variable of that type.
+        # Remaining types:
+        # - Type casts
+        # - Typed constants (e.g. the NULL stored in a pointer-to-struct field)
         if self.statements is not None:
             collector = ExpressionTypeCollector()
             collector.handle(self.statements)
@@ -6257,17 +6258,17 @@ class CStructuredCodeWalker:
 
 
 class ExpressionTypeCollector(CStructuredCodeWalker):
-    """Gather the types that casts and typed constants carry inside a C function body."""
+    """Collect types from C expressions."""
 
     def __init__(self):
         self.types: list = []
 
-    def handle_CTypeCast(self, obj):
+    def handle_CTypeCast(self, obj: CTypeCast):
         self.types.append(obj.dst_type)
         return super().handle_CTypeCast(obj)
 
-    def handle_CConstant(self, obj):
-        ty = getattr(obj, "type", None)
+    def handle_CConstant(self, obj: CConstant):
+        ty = obj.type
         if ty is not None:
             self.types.append(ty)
         return obj

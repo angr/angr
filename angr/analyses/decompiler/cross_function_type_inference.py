@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from angr import Project
     from angr.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.functions import Function
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
 
 @dataclass
@@ -867,17 +868,11 @@ class CrossFunctionTypeInference:
                 ),
             )
 
-    def seed_global_variables(self, var_kb) -> None:
+    def populate_global_variables(self, global_manager: VariableManagerInternal) -> None:
         """
-        Seed the global variable manager of ``var_kb`` with the boundaries of known global data objects, so that
-        variable recovery groups accesses landing inside the same object (e.g. struct members) instead of creating one
-        synthetic global per accessed address.
-
-        Boundaries are taken from the object symbols of the main loaded object. Previously-inferred types are not copied
-        here; Clinic supplies manually assigned types to type inference as ground truth.
+        Populate a global variable manager with the boundaries of known global data objects, so that variable recovery
+        groups accesses landing inside the same object.
         """
-        global_manager = var_kb.variables.get_global_manager(self.flavor)
-
         for symbol in self.project.loader.main_object.symbols:
             if symbol.type != SymbolType.TYPE_OBJECT or not symbol.size:
                 continue

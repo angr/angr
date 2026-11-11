@@ -3666,10 +3666,8 @@ class Clinic(Analysis, Serializable):
         tmp_kb.functions = self.kb.functions
         tmp_kb.register_plugin("variables", self.kb.dec_variables)
         stack_region_vars = self._seed_stack_regions(vvar2vvar, ail_graph, arg_vvars)
-        inference = CrossFunctionTypeInference(self.project, self.kb, self.function, self.flavor)
-        # seed known global object boundaries so that variable recovery can group accesses that fall inside the same
-        # global object (e.g. struct members) instead of splitting them apart.
-        inference.seed_global_variables(tmp_kb)
+        cfti = CrossFunctionTypeInference(self.project, self.kb, self.function, self.flavor)
+        cfti.populate_global_variables(tmp_kb.variables.get_global_manager(self.flavor))
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type: ignore
@@ -3750,7 +3748,7 @@ class Clinic(Analysis, Serializable):
         for arg_i, (_, variable) in arg_vvars.items():
             if any(tv in groundtruth for tv in vr.var_to_typevars[variable]):
                 continue
-            pushed = inference.pushed_union_for_argument(arg_i)
+            pushed = cfti.pushed_union_for_argument(arg_i)
             if pushed is not None:
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = pushed
@@ -3828,11 +3826,11 @@ class Clinic(Analysis, Serializable):
                 self.typehoon = tp
                 # remember the layouts this function's own accesses give its arguments before any union or pin can
                 # rewrite them; they are the only evidence later unions may build on
-                inference.record_own_argument_layouts(arg_vvars, var_manager, vr)
+                cfti.record_own_argument_layouts(arg_vvars, var_manager, vr)
                 # progressively unify partial struct layouts recovered for the same value across multiple callees, pin
                 # the combined type onto the caller-side value, and back-propagate it to the involved callees.
-                inference.unify_callee_argument_structs(vr, var_manager, arg_vvars, inference.value_sources(ail_graph))
-                inference.register_referenced_union_structs(
+                cfti.unify_callee_argument_structs(vr, var_manager, arg_vvars, cfti.value_sources(ail_graph))
+                cfti.register_referenced_union_structs(
                     var_manager, vr, tp.simtypes_solution.values() if tp.simtypes_solution else ()
                 )
             except Exception:  # pylint:disable=broad-except
