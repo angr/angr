@@ -8,9 +8,21 @@ import random
 import unittest
 
 import angr
-from angr.ailment.expression import ITE, BinaryOp, Call, Const, Register, UnaryOp
+from angr import claripy
+from angr.ailment.expression import (
+    ITE,
+    BinaryOp,
+    Call,
+    Const,
+    Convert,
+    Register,
+    UnaryOp,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler.peephole_optimizations import (
+    CarryOfConstAdd,
     ConstBitwiseNeg,
     ConstBswap,
     ConstFlagHelper,
@@ -18,7 +30,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     ExpCmpNEToCmpNE,
 )
 
-from .ail_equivalence import equivalent
+from .ail_equivalence import equivalent, to_claripy
 
 
 class TestConstBswap(unittest.TestCase):
@@ -121,6 +133,44 @@ class TestConstFlagHelper(unittest.TestCase):
         assert opt.optimize(Call(m.next_atom(), "__CFADD__", args=[c(1, 1), c(1, 1)], bits=64)) is None
         assert opt.optimize(Call(m.next_atom(), "__OFUMUL__", args=[c(1, 8), c(2, 8)], bits=64)) is None
         assert opt.optimize(Call(m.next_atom(), "__CFADD__", args=[c(1, 8)], bits=64)) is None
+
+
+class TestCarryOfConstAdd(unittest.TestCase):
+    def setUp(self):
+        self.proj = angr.load_shellcode(b"\x90", "AMD64")
+        self.m = Manager()
+        self.opt = CarryOfConstAdd(self.proj, self.proj.kb, self.m)
+
+    def _call(self, x, c, bits, swap=False):
+        args = [x, Const(self.m.next_atom(), c, bits)]
+        return Call(self.m.next_atom(), "__CFADD__", args=args[::-1] if swap else args, bits=64)
+
+    def test_carry_is_a_range_check(self):
+        for bits in (8, 16, 32, 64):
+            x = VirtualVariable(self.m.next_atom(), 1, bits, VirtualVariableCategory.REGISTER, oident=16)
+            top = 1 << (bits - 1)
+            for c in (0, 1, 2, 17, top - 1, top, top + 1, 2 * top - 2, 2 * top - 1):
+                for swap in (False, True):
+                    out = self.opt.optimize(self._call(x, c, bits, swap))
+                    assert out is not None and out.bits == 64
+                    assert isinstance(out, Const if c == 0 else Convert)
+                    # the carry out of the n-bit sum
+                    cx = to_claripy(x)
+                    ref = (cx.zero_extend(1) + claripy.BVV(c, bits + 1))[bits : bits].zero_extend(63)
+                    solver = claripy.Solver()
+                    solver.add(to_claripy(out) != ref)
+                    assert not solver.satisfiable(), (bits, c)
+
+    def test_left_alone(self):
+        x = VirtualVariable(self.m.next_atom(), 1, 32, VirtualVariableCategory.REGISTER, oident=16)
+        y = VirtualVariable(self.m.next_atom(), 2, 32, VirtualVariableCategory.REGISTER, oident=24)
+        # no constant, two constants (folded elsewhere), mismatched widths, another helper
+        assert self.opt.optimize(Call(self.m.next_atom(), "__CFADD__", args=[x, y], bits=64)) is None
+        two = [Const(self.m.next_atom(), 1, 32), Const(self.m.next_atom(), 2, 32)]
+        assert self.opt.optimize(Call(self.m.next_atom(), "__CFADD__", args=two, bits=64)) is None
+        assert self.opt.optimize(self._call(x, 5, 8)) is None
+        other = Call(self.m.next_atom(), "__OFADD__", args=[x, Const(self.m.next_atom(), 5, 32)], bits=64)
+        assert self.opt.optimize(other) is None
 
 
 if __name__ == "__main__":

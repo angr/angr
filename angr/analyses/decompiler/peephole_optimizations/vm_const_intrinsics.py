@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from angr.ailment.expression import ITE, BinaryOp, Call, Const, UnaryOp
+from angr.ailment.expression import ITE, BinaryOp, Call, Const, Convert, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
 
@@ -142,3 +142,35 @@ class ConstFlagHelper(PeepholeOptimizationExprBase):
             r = sx + sy if expr.target == "__OFADD__" else sx - sy
             flag = not -sign <= r < sign
         return Const(expr.idx, int(flag), expr.bits, **expr.tags)
+
+
+class CarryOfConstAdd(PeepholeOptimizationExprBase):
+    """
+    ``__CFADD__(x, C)`` ==> ``x >= 2**n - C`` (unsigned, at the operands' width n), and 0 when C is 0. The carry of
+    adding a constant is a range check on the other operand.
+    """
+
+    __slots__ = ()
+
+    NAME = "carry of adding a constant"
+    expr_classes = (Call,)
+
+    def optimize(self, expr: Call, **kwargs):
+        if expr.target != "__CFADD__" or not expr.args or len(expr.args) != 2:
+            return None
+        x, c = expr.args
+        if isinstance(x, Const):
+            x, c = c, x
+        if not (isinstance(c, Const) and isinstance(c.value, int)) or isinstance(x, Const):
+            return None
+        bits = x.bits
+        if bits != c.bits or bits not in {8, 16, 32, 64}:
+            return None
+        value = c.value_int & ((1 << bits) - 1)
+        if value == 0:
+            return Const(expr.idx, 0, expr.bits, **expr.tags)
+        bound = Const(self.manager.next_atom(), (1 << bits) - value, bits, **c.tags)
+        cmp = BinaryOp(self.manager.next_atom(), "CmpGE", [x, bound], False, bits=1, **expr.tags)
+        if expr.bits == 1:
+            return cmp
+        return Convert(expr.idx, 1, expr.bits, False, cmp, **expr.tags)
