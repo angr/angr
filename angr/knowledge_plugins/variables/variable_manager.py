@@ -1511,7 +1511,8 @@ class VariableManagerInternal(Serializable):
             for v, subvs in self._phi_variables.items():
                 if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                     continue
-                for subv in subvs:
+                # merging is greedy; a fixed order keeps the result independent of set order
+                for subv in sorted(subvs, key=lambda s: (*VariableManagerInternal._unify_variables_varkey(s), s.ident)):
                     if not class_sets(congruence_classes[v])[1].isdisjoint(class_sets(congruence_classes[subv])[0]):
                         # a phi can name the variable of another slot or register (a forwarded copy source, or a
                         # source read before its definition); never merge variables that are live at the same time
