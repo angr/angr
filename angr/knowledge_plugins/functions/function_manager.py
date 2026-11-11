@@ -9,7 +9,7 @@ import threading
 import weakref
 from collections import OrderedDict, UserDict
 from collections.abc import Generator, Iterator
-from typing import TYPE_CHECKING, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
 
 import cle
 import lmdb
@@ -1630,6 +1630,13 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         info = func._info_data()
         if info:
             self._index.index_info(func.addr, info)
+
+    def index_key_func_info(self, addr: K, info: dict[str, Any]) -> None:
+        """
+        Record every key-function flag that ``info`` carries for the function at ``addr``.
+        """
+        if info:
+            self._index.index_info(addr, info)
 
     #
     # LRU Cache Management (delegates to SpillingFunctionDict when available)

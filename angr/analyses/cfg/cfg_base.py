@@ -2045,15 +2045,25 @@ class CFGBase(Analysis):
         funcs, infos = builder.functions()
         fm = self.kb.functions
         builder.fill_callgraph(fm.callgraph)
+        # a later copy replaces the info; key functions are indexed in the order the copies were made
+        info_of: dict[int, dict] = {}
+        for addr, info in infos:
+            fm.index_key_func_info(addr, info)
+            info_of[addr] = info
         fm.bulk_add_functions(
             [
-                FunctionRecord(addr, graph=graph, syscall=syscall, is_simprocedure=simproc, is_plt=plt, returning=ret)
+                FunctionRecord(
+                    addr,
+                    graph=graph,
+                    syscall=syscall,
+                    is_simprocedure=simproc,
+                    is_plt=plt,
+                    returning=ret,
+                    info=info_of.get(addr),
+                )
                 for addr, graph, syscall, simproc, plt, ret in funcs
             ]
         )
-        for addr, info in infos:
-            # the setter marks the function dirty (it may have been spilled) and indexes key functions
-            fm.get_by_addr(addr).info = info
 
         self._remove_stub_and_empty_functions(builder.empty_functions())
         builder.update_node_functions()
