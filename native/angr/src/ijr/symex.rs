@@ -171,9 +171,11 @@ impl Arena {
 
     pub fn width(&self, id: Id) -> u32 {
         match self.get(id) {
-            Node::C { w, .. } | Node::R { w, .. } | Node::U { w, .. } | Node::Ld { w, .. } | Node::Bin { w, .. } => {
-                w as u32
-            }
+            Node::C { w, .. }
+            | Node::R { w, .. }
+            | Node::U { w, .. }
+            | Node::Ld { w, .. }
+            | Node::Bin { w, .. } => w as u32,
             Node::Conv { wt, .. } => wt as u32,
             Node::Ite { w, .. } | Node::Un { w, .. } => w as u32,
             Node::Cmp { .. } | Node::Not1 { .. } => 1,
@@ -217,7 +219,12 @@ impl Arena {
         if let (Some(x), Some(y)) = (self.const_val(a), self.const_val(b)) {
             return self.konst(eval_cmp(k, w, x, y) as u64, 1);
         }
-        self.intern(Node::Cmp { k, w: w as u8, a, b })
+        self.intern(Node::Cmp {
+            k,
+            w: w as u8,
+            a,
+            b,
+        })
     }
 
     pub fn not1(&mut self, a: Id) -> Id {
@@ -235,7 +242,12 @@ impl Arena {
         if a == b {
             return a;
         }
-        self.intern(Node::Ite { c, a, b, w: w as u8 })
+        self.intern(Node::Ite {
+            c,
+            a,
+            b,
+            w: w as u8,
+        })
     }
 
     /// A 1-bit condition with its negations and 1-bit conversions stripped: `(base, value)` such that `e == v`
@@ -278,7 +290,11 @@ impl Arena {
         else {
             return None;
         };
-        let k2 = if k == CmpKind::Eq { CmpKind::Ne } else { CmpKind::Eq };
+        let k2 = if k == CmpKind::Eq {
+            CmpKind::Ne
+        } else {
+            CmpKind::Eq
+        };
         let other = self.map.get(&Node::Cmp { k: k2, w, a, b })?;
         decided.get(other).map(|&d| !d)
     }
@@ -297,7 +313,12 @@ impl Arena {
     }
 
     /// Replace the ITEs whose conditions `decided` fixes (keyed by `bool_base`).
-    pub fn decide_ites(&mut self, e: Id, decided: &FxHashMap<Id, bool>, memo: &mut FxHashMap<Id, Id>) -> Id {
+    pub fn decide_ites(
+        &mut self,
+        e: Id,
+        decided: &FxHashMap<Id, bool>,
+        memo: &mut FxHashMap<Id, Id>,
+    ) -> Id {
         if let Some(&r) = memo.get(&e) {
             return r;
         }
@@ -321,7 +342,10 @@ impl Arena {
                 }
             }
             Node::Bin { op, w, a, b } => {
-                let (na, nb) = (self.decide_ites(a, decided, memo), self.decide_ites(b, decided, memo));
+                let (na, nb) = (
+                    self.decide_ites(a, decided, memo),
+                    self.decide_ites(b, decided, memo),
+                );
                 if (na, nb) == (a, b) {
                     e
                 } else {
@@ -337,7 +361,10 @@ impl Arena {
                 }
             }
             Node::Cmp { k, w, a, b } => {
-                let (na, nb) = (self.decide_ites(a, decided, memo), self.decide_ites(b, decided, memo));
+                let (na, nb) = (
+                    self.decide_ites(a, decided, memo),
+                    self.decide_ites(b, decided, memo),
+                );
                 if (na, nb) == (a, b) {
                     e
                 } else {
@@ -350,7 +377,11 @@ impl Arena {
             }
             Node::Un { op, w, a } => {
                 let na = self.decide_ites(a, decided, memo);
-                if na == a { e } else { self.un(op, w as u32, na) }
+                if na == a {
+                    e
+                } else {
+                    self.un(op, w as u32, na)
+                }
             }
         };
         memo.insert(e, r);
@@ -395,7 +426,11 @@ impl Arena {
             op = BinOp::Add;
             b = self.konst(y.wrapping_neg(), w);
         }
-        if matches!(op, BinOp::Add | BinOp::Mul | BinOp::And | BinOp::Or | BinOp::Xor) && self.const_val(a).is_some() {
+        if matches!(
+            op,
+            BinOp::Add | BinOp::Mul | BinOp::And | BinOp::Or | BinOp::Xor
+        ) && self.const_val(a).is_some()
+        {
             std::mem::swap(&mut a, &mut b);
         }
         if op == BinOp::Add
@@ -439,7 +474,9 @@ impl Arena {
                 return a;
             }
             if let Node::Conv {
-                k: ConvKind::Zext, wf, ..
+                k: ConvKind::Zext,
+                wf,
+                ..
             } = self.get(a)
                 && c & mask(wf as u32) == mask(wf as u32)
             {
@@ -449,7 +486,12 @@ impl Arena {
         if matches!(op, BinOp::Shl | BinOp::Shr | BinOp::Sar) && self.const_val(b) == Some(0) {
             return a;
         }
-        self.intern(Node::Bin { op, w: w as u8, a, b })
+        self.intern(Node::Bin {
+            op,
+            w: w as u8,
+            a,
+            b,
+        })
     }
 
     pub fn conv(&mut self, k: ConvKind, wf: u32, wt: u32, a: Id) -> Id {
@@ -580,10 +622,18 @@ impl Arena {
                 self.render(b, depth + 1)
             ),
             Node::Cmp { k, w, a, b } => {
-                format!("{k:?}{w}({},{})", self.render(a, depth + 1), self.render(b, depth + 1))
+                format!(
+                    "{k:?}{w}({},{})",
+                    self.render(a, depth + 1),
+                    self.render(b, depth + 1)
+                )
             }
             Node::Bin { op, a, b, .. } => {
-                format!("{op:?}({},{})", self.render(a, depth + 1), self.render(b, depth + 1))
+                format!(
+                    "{op:?}({},{})",
+                    self.render(a, depth + 1),
+                    self.render(b, depth + 1)
+                )
             }
         }
     }
@@ -691,7 +741,10 @@ fn parse_op(name: &str) -> OpKind {
             let Some(d) = c.strip_prefix(p) else { continue };
             let digits = d.trim_end_matches(['U', 'S']);
             let suffix = &d[digits.len()..];
-            if digits.is_empty() || !digits.chars().all(|ch| ch.is_ascii_digit()) || suffix.len() > 1 {
+            if digits.is_empty()
+                || !digits.chars().all(|ch| ch.is_ascii_digit())
+                || suffix.len() > 1
+            {
                 continue;
             }
             let w: u32 = digits.parse().unwrap_or(0);
@@ -900,7 +953,12 @@ pub struct PathState<'a> {
 }
 
 impl<'a> PathState<'a> {
-    pub fn new(ar: &'a mut Arena, arch: &'a SymArch, snap: &'a Snapshot, cvm: Option<&'a FcpTable>) -> Self {
+    pub fn new(
+        ar: &'a mut Arena,
+        arch: &'a SymArch,
+        snap: &'a Snapshot,
+        cvm: Option<&'a FcpTable>,
+    ) -> Self {
         PathState {
             ar,
             arch,
@@ -924,7 +982,10 @@ impl<'a> PathState<'a> {
         self
     }
 
-    pub fn with_pic(mut self, pic: Option<(i32, Option<u64>, &'a rustc_hash::FxHashSet<u64>)>) -> Self {
+    pub fn with_pic(
+        mut self,
+        pic: Option<(i32, Option<u64>, &'a rustc_hash::FxHashSet<u64>)>,
+    ) -> Self {
         self.pic = pic;
         self
     }
@@ -1036,7 +1097,9 @@ impl<'a> PathState<'a> {
         Some(if be {
             data.iter().fold(0u64, |acc, &x| (acc << 8) | x as u64)
         } else {
-            data.iter().rev().fold(0u64, |acc, &x| (acc << 8) | x as u64)
+            data.iter()
+                .rev()
+                .fold(0u64, |acc, &x| (acc << 8) | x as u64)
         })
     }
 
@@ -1054,7 +1117,10 @@ impl<'a> PathState<'a> {
 
     fn split_base(&self, x: Id) -> (Id, i128) {
         if let Node::Bin {
-            op: BinOp::Add, a, b, ..
+            op: BinOp::Add,
+            a,
+            b,
+            ..
         } = self.ar.get(x)
             && let Some(c) = self.ar.const_val(b)
         {
@@ -1173,7 +1239,11 @@ impl<'a> PathState<'a> {
                 }
                 _ => self.opaque_like(ir, e),
             },
-            Expr::Ite { cond, iftrue, iffalse } => {
+            Expr::Ite {
+                cond,
+                iftrue,
+                iffalse,
+            } => {
                 let c = self.ex(ir, tmps, *cond);
                 match (self.ar.const_val(c), int_bits(ir.result_type(e))) {
                     (Some(v), _) => self.ex(ir, tmps, if v != 0 { *iftrue } else { *iffalse }),
@@ -1185,7 +1255,11 @@ impl<'a> PathState<'a> {
                     (None, None) => self.opaque_like(ir, e),
                 }
             }
-            Expr::CCall { callee, retty, args } => {
+            Expr::CCall {
+                callee,
+                retty,
+                args,
+            } => {
                 let w = int_bits(*retty).unwrap_or(64);
                 let ids: Vec<ExprId> = ir.arg_ids(*args).to_vec();
                 let vals: Vec<Id> = ids.iter().map(|&a| self.ex(ir, tmps, a)).collect();
@@ -1238,7 +1312,11 @@ impl<'a> PathState<'a> {
         let (rel, neg) = if x86 { x86_cond(cv)? } else { arm_cond(cv)? };
         let trunc = |ar: &mut Arena, d: Id| {
             let dw = ar.width(d);
-            if dw > w { ar.conv(ConvKind::Trunc, dw, w, d) } else { d }
+            if dw > w {
+                ar.conv(ConvKind::Trunc, dw, w, d)
+            } else {
+                d
+            }
         };
         let a = trunc(self.ar, d1);
         let b = trunc(self.ar, d2);
@@ -1414,7 +1492,9 @@ impl<'a> PathState<'a> {
                 return None;
             }
             if let Some((ebx, _, thunks)) = self.pic
-                && ir.next_const().is_some_and(|callee| thunks.contains(&callee))
+                && ir
+                    .next_const()
+                    .is_some_and(|callee| thunks.contains(&callee))
             {
                 let ret = self.ar.konst(nxt_addr, self.arch.bits);
                 self.put_reg(ebx, self.arch.bits, Some(ret));
@@ -1467,21 +1547,54 @@ mod tests {
                 wt: 32
             }
         ));
-        assert!(matches!(parse_op("Iop_64HIto32"), OpKind::ConvHi { wt: 32 }));
-        assert!(matches!(parse_op("Iop_Add64"), OpKind::Bin { op: BinOp::Add, w: 64 }));
+        assert!(matches!(
+            parse_op("Iop_64HIto32"),
+            OpKind::ConvHi { wt: 32 }
+        ));
+        assert!(matches!(
+            parse_op("Iop_Add64"),
+            OpKind::Bin {
+                op: BinOp::Add,
+                w: 64
+            }
+        ));
         assert!(matches!(
             parse_op("Iop_CmpLT32S"),
-            OpKind::Cmp { k: CmpKind::Lts, w: 32 }
+            OpKind::Cmp {
+                k: CmpKind::Lts,
+                w: 32
+            }
         ));
-        assert!(matches!(parse_op("Iop_CmpNE8"), OpKind::Cmp { k: CmpKind::Ne, w: 8 }));
+        assert!(matches!(
+            parse_op("Iop_CmpNE8"),
+            OpKind::Cmp {
+                k: CmpKind::Ne,
+                w: 8
+            }
+        ));
         assert!(matches!(parse_op("Iop_F64toI32S"), OpKind::Other));
         assert!(matches!(parse_op("Iop_Add32x4"), OpKind::Other));
         assert!(matches!(parse_op("Iop_CmpEQ8x16"), OpKind::Other));
-        assert!(matches!(parse_op("Iop_CtzNat64"), OpKind::Un { op: UnOp::Ctz, w: 64 }));
-        assert!(matches!(parse_op("Iop_ClzNat32"), OpKind::Un { op: UnOp::Clz, w: 32 }));
+        assert!(matches!(
+            parse_op("Iop_CtzNat64"),
+            OpKind::Un {
+                op: UnOp::Ctz,
+                w: 64
+            }
+        ));
+        assert!(matches!(
+            parse_op("Iop_ClzNat32"),
+            OpKind::Un {
+                op: UnOp::Clz,
+                w: 32
+            }
+        ));
         assert!(matches!(
             parse_op("Iop_ExpCmpNE64"),
-            OpKind::Cmp { k: CmpKind::Ne, w: 64 }
+            OpKind::Cmp {
+                k: CmpKind::Ne,
+                w: 64
+            }
         ));
     }
 
@@ -1550,8 +1663,14 @@ mod tests {
 
     #[test]
     fn x86_flag_thunk() {
-        assert_eq!(thunk_op("amd64g_calculate_condition", 8), Some((ThunkKind::Sub, 64)));
-        assert_eq!(thunk_op("x86g_calculate_condition", 6), Some((ThunkKind::Sub, 32)));
+        assert_eq!(
+            thunk_op("amd64g_calculate_condition", 8),
+            Some((ThunkKind::Sub, 64))
+        );
+        assert_eq!(
+            thunk_op("x86g_calculate_condition", 6),
+            Some((ThunkKind::Sub, 32))
+        );
         assert_eq!(x86_cond(7), Some((CmpKind::Leu, true)));
         assert_eq!(arm_cond(9), Some((CmpKind::Leu, false)));
     }

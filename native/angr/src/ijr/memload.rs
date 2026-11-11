@@ -13,7 +13,11 @@ pub(crate) fn is_boring_or_call(jk: u32) -> bool {
 }
 
 /// `vex_block.statements[tmp_stmt_idx]` is `WrTmp(Load(Const))` of a full word: the load address.
-pub(crate) fn const_word_load(ir: &crate::vexir::VexIrsb, stmt_idx: usize, arch_bits: u32) -> Option<u64> {
+pub(crate) fn const_word_load(
+    ir: &crate::vexir::VexIrsb,
+    stmt_idx: usize,
+    arch_bits: u32,
+) -> Option<u64> {
     let Stmt::WrTmp { data, .. } = ir.stmts[stmt_idx] else {
         return None;
     };

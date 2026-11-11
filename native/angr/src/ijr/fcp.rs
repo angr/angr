@@ -13,7 +13,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::cx::{IrSpec, ResolveCx};
 use super::u256::U256;
-use crate::ailment::vex_ffi::{self, ICO_F32, ICO_F32I, ICO_F64, ICO_F64I, ICO_U128, ICO_V128, ICO_V256, ICO_V512};
+use crate::ailment::vex_ffi::{
+    self, ICO_F32, ICO_F32I, ICO_F64, ICO_F64I, ICO_U128, ICO_V128, ICO_V256, ICO_V512,
+};
 use crate::function_graph::NodeKind;
 use crate::recovery_functions::RecoveryFunctions;
 use crate::vexir::{Expr, ExprId, IrConst, Stmt, VexIrsb, op_name};
@@ -90,9 +92,14 @@ impl State {
                     },
                 );
             }
-            None => self
-                .regs
-                .retain(|&off, v| !overlaps(off as i128, (v.bits / 8) as i128, offset as i128, size as i128)),
+            None => self.regs.retain(|&off, v| {
+                !overlaps(
+                    off as i128,
+                    (v.bits / 8) as i128,
+                    offset as i128,
+                    size as i128,
+                )
+            }),
         }
     }
 
@@ -107,16 +114,24 @@ impl State {
                     },
                 );
             }
-            None => self
-                .stack
-                .retain(|&off, v| !overlaps(off as i128, (v.bits / 8) as i128, offset as i128, size as i128)),
+            None => self.stack.retain(|&off, v| {
+                !overlaps(
+                    off as i128,
+                    (v.bits / 8) as i128,
+                    offset as i128,
+                    size as i128,
+                )
+            }),
         }
     }
 
     /// `_merge_states`: registers and stack slots that agree everywhere; the maximum sp and bp (starting at 0).
     fn meet(states: &[Rc<State>]) -> Rc<State> {
         let first = &states[0];
-        let others: Vec<&Rc<State>> = states[1..].iter().filter(|s| !Rc::ptr_eq(s, first)).collect();
+        let others: Vec<&Rc<State>> = states[1..]
+            .iter()
+            .filter(|s| !Rc::ptr_eq(s, first))
+            .collect();
         if others.is_empty() {
             return first.clone();
         }
@@ -147,7 +162,12 @@ pub enum LoadPolicy {
 pub type Decline = &'static str;
 
 /// `cle.Clemory.unpack_word(addr, size, endness)`; Err for sizes the Python one raises on.
-fn unpack_word(cx: &ResolveCx, addr: U256, size: u32, big_endian: bool) -> Result<Option<U256>, Decline> {
+fn unpack_word(
+    cx: &ResolveCx,
+    addr: U256,
+    size: u32,
+    big_endian: bool,
+) -> Result<Option<U256>, Decline> {
     let Some(addr) = addr.to_u64() else {
         return Ok(None);
     };
@@ -156,11 +176,27 @@ fn unpack_word(cx: &ResolveCx, addr: U256, size: u32, big_endian: bool) -> Resul
         if size != sub << 1 || size > 32 {
             return Err("unpack_size");
         }
-        let (lo_off, hi_off) = if big_endian { (sub as u64, 0) } else { (0, sub as u64) };
-        let Some(lo) = unpack_word(cx, U256::from_u64(addr.wrapping_add(lo_off)), sub, big_endian)? else {
+        let (lo_off, hi_off) = if big_endian {
+            (sub as u64, 0)
+        } else {
+            (0, sub as u64)
+        };
+        let Some(lo) = unpack_word(
+            cx,
+            U256::from_u64(addr.wrapping_add(lo_off)),
+            sub,
+            big_endian,
+        )?
+        else {
             return Ok(None);
         };
-        let Some(hi) = unpack_word(cx, U256::from_u64(addr.wrapping_add(hi_off)), sub, big_endian)? else {
+        let Some(hi) = unpack_word(
+            cx,
+            U256::from_u64(addr.wrapping_add(hi_off)),
+            sub,
+            big_endian,
+        )?
+        else {
             return Ok(None);
         };
         let mut bytes = lo.to_le_bytes()[..sub as usize].to_vec();
@@ -204,7 +240,9 @@ fn propagator_may_load(cx: &ResolveCx, addr: U256, size: u32) -> Result<bool, De
             }
         }
     }
-    if (size == cx.arch.bytes && section.is_some_and(|s| s.is_readable)) || segment.is_some_and(|s| s.is_readable) {
+    if (size == cx.arch.bytes && section.is_some_and(|s| s.is_readable))
+        || segment.is_some_and(|s| s.is_readable)
+    {
         let Some(target) = unpack_word(cx, addr, size, cx.arch.memory_be)? else {
             return Ok(false);
         };
@@ -247,7 +285,9 @@ impl Engine<'_> {
             ICO_V128 | ICO_V256 => {
                 // pyvex: each set bit i becomes a 0xff byte i
                 let n = c.bits() as usize / 8;
-                let bytes: Vec<u8> = (0..n).map(|i| if (c.raw >> i) & 1 == 1 { 0xff } else { 0 }).collect();
+                let bytes: Vec<u8> = (0..n)
+                    .map(|i| if (c.raw >> i) & 1 == 1 { 0xff } else { 0 })
+                    .collect();
                 Val::Int(U256::from_le_bytes(&bytes).ok_or("wide_const")?)
             }
             ICO_V512 => return Err("wide_const"),
@@ -323,15 +363,37 @@ impl Engine<'_> {
                 let sp_add = |bits: u32, off: u64, x: U256, sub: bool| -> u64 {
                     // s2u(off +/- x, bits): the result modulo 2**bits
                     let x = x.masked(bits.min(64)).low_u64();
-                    let r = if sub { off.wrapping_sub(x) } else { off.wrapping_add(x) };
-                    if bits >= 64 { r } else { r & ((1u64 << bits) - 1) }
+                    let r = if sub {
+                        off.wrapping_sub(x)
+                    } else {
+                        off.wrapping_add(x)
+                    };
+                    if bits >= 64 {
+                        r
+                    } else {
+                        r & ((1u64 << bits) - 1)
+                    }
                 };
                 match kind {
                     0 | 1 => {
                         let sub = kind == 1;
                         match (op0, op1) {
-                            (Some(Val::Sp { bits: b, off, is_base }), Some(Val::Int(x)))
-                            | (Some(Val::Int(x)), Some(Val::Sp { bits: b, off, is_base })) => {
+                            (
+                                Some(Val::Sp {
+                                    bits: b,
+                                    off,
+                                    is_base,
+                                }),
+                                Some(Val::Int(x)),
+                            )
+                            | (
+                                Some(Val::Int(x)),
+                                Some(Val::Sp {
+                                    bits: b,
+                                    off,
+                                    is_base,
+                                }),
+                            ) => {
                                 if b > 64 {
                                     return Err("wide_sp");
                                 }
@@ -346,7 +408,12 @@ impl Engine<'_> {
                                     return Err("wide_op");
                                 }
                                 Some(Val::Int(
-                                    if sub { x.wrapping_sub(y) } else { x.wrapping_add(y) }.masked(bits),
+                                    if sub {
+                                        x.wrapping_sub(y)
+                                    } else {
+                                        x.wrapping_add(y)
+                                    }
+                                    .masked(bits),
                                 ))
                             }
                             _ => None,
@@ -372,7 +439,10 @@ impl Engine<'_> {
             Stmt::WrTmp { tmp, data } => {
                 if let Some(Expr::Binop { op, .. }) = self.ir.expr(*data) {
                     let name = op_name(*op);
-                    if !(name.starts_with("Iop_Add") || name.starts_with("Iop_Sub") || name.starts_with("Iop_And")) {
+                    if !(name.starts_with("Iop_Add")
+                        || name.starts_with("Iop_Sub")
+                        || name.starts_with("Iop_And"))
+                    {
                         return Ok(());
                     }
                 }
@@ -393,7 +463,9 @@ impl Engine<'_> {
                 let size = self.size_bytes(*data);
                 match v {
                     Some(Val::Sp { off, .. }) if *offset == arch.sp_offset => self.state.sp = off,
-                    Some(Val::Sp { off, .. }) if *offset == arch.bp_offset && !self.bp_as_gpr => self.state.bp = off,
+                    Some(Val::Sp { off, .. }) if *offset == arch.bp_offset && !self.bp_as_gpr => {
+                        self.state.bp = off
+                    }
                     Some(Val::Int(x)) => {
                         self.state.register_written(*offset as i64, size, Some(x));
                         if *offset != arch.ip_offset {
@@ -432,7 +504,8 @@ impl Engine<'_> {
         }
         if jumpkind_name(self.ir.jumpkind) == "Ijk_Call" {
             let arch = &self.cx.arch;
-            self.state.register_written(arch.ret_offset as i64, arch.bytes, None);
+            self.state
+                .register_written(arch.ret_offset as i64, arch.bytes, None);
         }
         Ok(())
     }
@@ -511,7 +584,8 @@ pub fn run_fcp(
     let order: Vec<u32> = match req.blocks {
         None => order,
         Some(blocks) => {
-            let pos: FxHashMap<u32, usize> = order.iter().enumerate().map(|(i, &n)| (n, i)).collect();
+            let pos: FxHashMap<u32, usize> =
+                order.iter().enumerate().map(|(i, &n)| (n, i)).collect();
             let mut needed: FxHashSet<u32> = order
                 .iter()
                 .copied()
@@ -546,7 +620,11 @@ pub fn run_fcp(
     let mut states: FxHashMap<u32, Rc<State>> = FxHashMap::default();
     for n in order {
         let info = &nodes[&n];
-        let inputs: Vec<Rc<State>> = info.preds.iter().filter_map(|p| states.get(p).cloned()).collect();
+        let inputs: Vec<Rc<State>> = info
+            .preds
+            .iter()
+            .filter_map(|p| states.get(p).cloned())
+            .collect();
         let state = if inputs.is_empty() {
             init.clone()
         } else {

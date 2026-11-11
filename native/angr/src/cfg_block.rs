@@ -28,16 +28,17 @@ use rustc_hash::FxHashSet;
 
 use crate::cfg_graph::{BYTES_LOADER, BYTES_MANUAL, CfgGraph, NodeFields};
 use crate::cfg_jobs::{
-    FuncEdge, JK_BORING, JK_CALL, JK_EXCEPTION, JK_FAKERET, JK_RET, JobRec, JobType, NodeRef, ScanState, SrcNode,
-    cpython_set_order, jk_from_vex, jk_intern, jk_name, py_hash_u64,
+    FuncEdge, JK_BORING, JK_CALL, JK_EXCEPTION, JK_FAKERET, JK_RET, JobRec, JobType, NodeRef,
+    ScanState, SrcNode, cpython_set_order, jk_from_vex, jk_intern, jk_name, py_hash_u64,
 };
-use crate::ijr::chain::{ResolverChain, TimelessScan};
 use crate::cfg_scan::{BackendKind, LinearSweep, LoaderSnapshot, addr_in_regions};
 use crate::function_graph::NodeKind;
+use crate::ijr::chain::{ResolverChain, TimelessScan};
 use crate::recovery_functions::{NodeSpec, RecoveryFunctions};
 use crate::segmentlist::SegmentList;
 use crate::vexlift::{
-    IJK_BORING, IJK_NODECODE, LiftOptions, LiftSummary, NextExpr, VexLifter, data_ref_type_str, jumpkind_from_name,
+    IJK_BORING, IJK_NODECODE, LiftOptions, LiftSummary, NextExpr, VexLifter, data_ref_type_str,
+    jumpkind_from_name,
 };
 
 const DEFAULT_STATEMENT: i64 = -2;
@@ -64,7 +65,11 @@ enum ArchKind {
 enum SyscallCheck {
     Never,
     /// `SimUserland`: `(addr - kernel_base) % align == 0 and (addr - kernel_base) // align <= max_number`
-    Userland { kernel_base: u64, align: u64, max_number: u64 },
+    Userland {
+        kernel_base: u64,
+        align: u64,
+        max_number: u64,
+    },
     /// `SimWindows`: membership in the syscall handler dict.
     Dict(Py<PyDict>),
     Callback(Py<PyAny>),
@@ -142,8 +147,15 @@ enum Plan {
     /// A node exists at the job address already.
     Existing { cur: u64, id: u64, func: u64 },
     /// `_generate_cfgnode` gives up without creating a node; `occupy` is its only effect.
-    NoNode { occupy: Option<(u64, u64, &'static str)> },
-    Lifted { cur: u64, summary: Box<LiftSummary>, next_func_addr: Option<u64>, next_func_adj: u64 },
+    NoNode {
+        occupy: Option<(u64, u64, &'static str)>,
+    },
+    Lifted {
+        cur: u64,
+        summary: Box<LiftSummary>,
+        next_func_addr: Option<u64>,
+        next_func_adj: u64,
+    },
 }
 
 /// A successor as `_scan_irsb` enumerates it.
@@ -168,7 +180,12 @@ struct Block<'a> {
 
 impl Block<'_> {
     fn src(&self) -> SrcNode {
-        SrcNode { addr: self.addr, size: self.size as i64, simproc: false, node: NodeRef::Id(self.id) }
+        SrcNode {
+            addr: self.addr,
+            size: self.size as i64,
+            simproc: false,
+            node: NodeRef::Id(self.id),
+        }
     }
 }
 
@@ -209,7 +226,6 @@ pub struct BlockScanner {
     t_flush: std::sync::atomic::AtomicU64,
 }
 
-
 impl BlockScanner {
     fn count(&mut self, key: &str) {
         match self.stats.get_mut(key) {
@@ -223,7 +239,11 @@ impl BlockScanner {
     fn is_syscall_addr(&self, py: Python<'_>, addr: u64) -> PyResult<bool> {
         Ok(match &self.conf.syscall {
             SyscallCheck::Never => false,
-            SyscallCheck::Userland { kernel_base, align, max_number } => {
+            SyscallCheck::Userland {
+                kernel_base,
+                align,
+                max_number,
+            } => {
                 if addr < *kernel_base {
                     false
                 } else {
@@ -255,9 +275,15 @@ impl BlockScanner {
         let progress = if cfg.getattr(intern!(py, "_show_progressbar"))?.is_truthy()?
             || !cfg.getattr(intern!(py, "_progress_callback"))?.is_none()
         {
-            let interval: f64 =
-                py.import(intern!(py, "angr.analyses.cfg.cfg_fast"))?.getattr("PROGRESS_NOTIFY_INTERVAL")?.extract()?;
-            Some((py.import(intern!(py, "time"))?.getattr(intern!(py, "perf_counter"))?, interval))
+            let interval: f64 = py
+                .import(intern!(py, "angr.analyses.cfg.cfg_fast"))?
+                .getattr("PROGRESS_NOTIFY_INTERVAL")?
+                .extract()?;
+            Some((
+                py.import(intern!(py, "time"))?
+                    .getattr(intern!(py, "perf_counter"))?,
+                interval,
+            ))
         } else {
             None
         };
@@ -267,18 +293,33 @@ impl BlockScanner {
                 .getattr(intern!(py, "project"))?
                 .getattr(intern!(py, "_sim_procedures"))?
                 .cast_into::<PyDict>()?,
-            blockid_to_blockkey: model.getattr(intern!(py, "_blockid_to_blockkey"))?.cast_into::<PyDict>()?,
-            node_addrs: if node_addrs.is_none() { None } else { Some(node_addrs) },
-            updated_nonreturning: if updated.is_none() { None } else { Some(updated.cast_into::<PySet>()?) },
+            blockid_to_blockkey: model
+                .getattr(intern!(py, "_blockid_to_blockkey"))?
+                .cast_into::<PyDict>()?,
+            node_addrs: if node_addrs.is_none() {
+                None
+            } else {
+                Some(node_addrs)
+            },
+            updated_nonreturning: if updated.is_none() {
+                None
+            } else {
+                Some(updated.cast_into::<PySet>()?)
+            },
             function_exits: cfg.getattr(intern!(py, "_function_exits"))?,
             block_addrs_with_return: model
                 .getattr(intern!(py, "_block_addrs_with_return"))?
                 .cast_into::<PySet>()?,
-            func_addrs_from_symbols: cfg.getattr(intern!(py, "_function_addresses_from_symbols"))?,
+            func_addrs_from_symbols: cfg
+                .getattr(intern!(py, "_function_addresses_from_symbols"))?,
             eh_frame_boundary_addrs: cfg.getattr(intern!(py, "_eh_frame_boundary_addrs"))?,
             used_prologue_addrs: cfg.getattr(intern!(py, "_used_function_prologue_addrs"))?,
-            known_thunks: cfg.getattr(intern!(py, "_known_thunks"))?.cast_into::<PyDict>()?,
-            seg_list: cfg.getattr(intern!(py, "_seg_list"))?.cast_into::<SegmentList>()?,
+            known_thunks: cfg
+                .getattr(intern!(py, "_known_thunks"))?
+                .cast_into::<PyDict>()?,
+            seg_list: cfg
+                .getattr(intern!(py, "_seg_list"))?
+                .cast_into::<SegmentList>()?,
             progress,
             arm: if self.conf.arch == ArchKind::Arm {
                 Some(ArmCtx {
@@ -296,7 +337,10 @@ impl BlockScanner {
     fn flush(&mut self, ctx: &Ctx<'_>) -> PyResult<()> {
         let t0 = Instant::now();
         let r = self.flush_inner(ctx);
-        self.t_flush.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+        self.t_flush.fetch_add(
+            t0.elapsed().as_nanos() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         r
     }
 
@@ -314,16 +358,24 @@ impl BlockScanner {
             for r in recs {
                 let t = match r {
                     DataRefRec::Memory(irsb_addr, stmt_idx, ins_addr, data_addr, size, sort) => {
-                        (false, irsb_addr, stmt_idx, ins_addr, data_addr, size, sort).into_pyobject(py)?
-                    }
-                    DataRefRec::SegmentBoundary(irsb_addr, stmt_idx, ins_addr, data_addr) => {
-                        (true, irsb_addr, stmt_idx, ins_addr, data_addr, Some(0i64), None::<String>)
+                        (false, irsb_addr, stmt_idx, ins_addr, data_addr, size, sort)
                             .into_pyobject(py)?
                     }
+                    DataRefRec::SegmentBoundary(irsb_addr, stmt_idx, ins_addr, data_addr) => (
+                        true,
+                        irsb_addr,
+                        stmt_idx,
+                        ins_addr,
+                        data_addr,
+                        Some(0i64),
+                        None::<String>,
+                    )
+                        .into_pyobject(py)?,
                 };
                 items.append(t)?;
             }
-            ctx.cfg.call_method1(intern!(py, "_apply_rust_data_refs"), (items,))?;
+            ctx.cfg
+                .call_method1(intern!(py, "_apply_rust_data_refs"), (items,))?;
         }
         Ok(())
     }
@@ -383,12 +435,24 @@ impl BlockScanner {
         }
 
         if self.conf.repeating_threshold > 0 {
-            let run = sweep.repeating_byte_run_length(real_addr, self.conf.repeating_threshold, self.conf.nop_byte);
+            let run = sweep.repeating_byte_run_length(
+                real_addr,
+                self.conf.repeating_threshold,
+                self.conf.nop_byte,
+            );
             if run > 0 {
                 let snap = &self.snapshot.bind(py).get().inner;
-                let is_padding = snap.load_byte(real_addr).is_some_and(|b| self.conf.padding_bytes.contains(&b));
-                let sort = if is_padding { SORT_ALIGNMENT } else { SORT_NODECODE };
-                return Ok(Plan::NoNode { occupy: Some((real_addr, run, sort)) });
+                let is_padding = snap
+                    .load_byte(real_addr)
+                    .is_some_and(|b| self.conf.padding_bytes.contains(&b));
+                let sort = if is_padding {
+                    SORT_ALIGNMENT
+                } else {
+                    SORT_NODECODE
+                };
+                return Ok(Plan::NoNode {
+                    occupy: Some((real_addr, run, sort)),
+                });
             }
         }
 
@@ -426,13 +490,15 @@ impl BlockScanner {
                 if !s.is_executable {
                     return Ok(Plan::NoNode { occupy: None });
                 }
-                distance = (s.end() as i128 - real_addr as i128).min(VEX_IRSB_MAX_SIZE as i128) as i64;
+                distance =
+                    (s.end() as i128 - real_addr as i128).min(VEX_IRSB_MAX_SIZE as i128) as i64;
             } else if let Some(si) = segment {
                 let s = &obj.segments[si];
                 if !s.is_executable {
                     return Ok(Plan::NoNode { occupy: None });
                 }
-                distance = (s.end() as i128 - real_addr as i128).min(VEX_IRSB_MAX_SIZE as i128) as i64;
+                distance =
+                    (s.end() as i128 - real_addr as i128).min(VEX_IRSB_MAX_SIZE as i128) as i64;
             }
         }
 
@@ -440,7 +506,9 @@ impl BlockScanner {
         let next_func_addr = store.ceiling_addr(addr + 1);
         let mut next_func_adj = 0u64;
         if let Some(nfa) = next_func_addr {
-            if self.conf.instruction_alignment == 1 && Self::py_set_contains(&ctx.used_prologue_addrs, nfa)? {
+            if self.conf.instruction_alignment == 1
+                && Self::py_set_contains(&ctx.used_prologue_addrs, nfa)?
+            {
                 next_func_adj = 15;
             }
             let nfa_real = if is_arm { nfa & !1 } else { nfa };
@@ -464,7 +532,8 @@ impl BlockScanner {
         }
         let next_noncode = {
             let seg = ctx.seg_list.borrow();
-            let sorts: std::collections::HashSet<Option<String>> = [Some(SORT_CODE.to_owned())].into_iter().collect();
+            let sorts: std::collections::HashSet<Option<String>> =
+                [Some(SORT_CODE.to_owned())].into_iter().collect();
             seg.next_pos_with_sort_not_in(addr, sorts, Some(distance as u64))
         };
         if let Some(nc) = next_noncode {
@@ -476,7 +545,9 @@ impl BlockScanner {
                 return Ok(Plan::Escape("arm_decoding_assumption"));
             }
             if !self.conf.arm_has_arm_code && addr.is_multiple_of(2) {
-                return Ok(Plan::NoNode { occupy: Some((real_addr, 2, SORT_NODECODE)) });
+                return Ok(Plan::NoNode {
+                    occupy: Some((real_addr, 2, SORT_NODECODE)),
+                });
             }
             if rec.job_type == JobType::CompleteScanning {
                 return Ok(Plan::Escape("arm_complete_scanning"));
@@ -491,7 +562,8 @@ impl BlockScanner {
                 let Some(r4) = store.info_int(cur, "constant_r4")? else {
                     return Ok(Plan::Escape("arm_constant_r4_value"));
                 };
-                let (off, size): (u32, u32) = self.arch_registers.bind(py).get_item("r4")?.extract()?;
+                let (off, size): (u32, u32) =
+                    self.arch_registers.bind(py).get_item("r4")?.extract()?;
                 initial_regs.push((off, size, r4 as u64));
             }
         }
@@ -530,7 +602,8 @@ impl BlockScanner {
                 drop(store);
                 let reg = pc_reg.get_item("reg")?;
                 let value: u64 = pc_reg.get_item("value")?.extract()?;
-                let (offset, size): (u32, u32) = self.arch_registers.bind(py).get_item(reg)?.extract()?;
+                let (offset, size): (u32, u32) =
+                    self.arch_registers.bind(py).get_item(reg)?.extract()?;
                 initial_regs.push((offset, size, value));
             }
         }
@@ -541,16 +614,26 @@ impl BlockScanner {
         let t0 = Instant::now();
         let opts = LiftOptions::cfgfast_main(self.conf.fold_ro_const_loads);
         let result = match mips_gp_scan {
-            Some(g) => lifter.core.lift_block_mips_gp(addr, distance, &initial_regs, &opts, g),
+            Some(g) => lifter
+                .core
+                .lift_block_mips_gp(addr, distance, &initial_regs, &opts, g),
             None => lifter.core.lift_block(addr, distance, &initial_regs, &opts),
         };
-        self.t_lift.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+        self.t_lift.fetch_add(
+            t0.elapsed().as_nanos() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         lock.call_method0(intern!(py, "release"))?;
         match result {
             Ok(summary) if is_arm && (summary.size == 0 || summary.jumpkind == IJK_NODECODE) => {
                 Ok(Plan::Escape("arm_nodecode"))
             }
-            Ok(summary) => Ok(Plan::Lifted { cur, summary: Box::new(summary), next_func_addr, next_func_adj }),
+            Ok(summary) => Ok(Plan::Lifted {
+                cur,
+                summary: Box::new(summary),
+                next_func_addr,
+                next_func_adj,
+            }),
             Err(fb) => Ok(Plan::Escape(match fb.name() {
                 "no_backer" => "lift:no_backer",
                 "unsupported_backer" => "lift:unsupported_backer",
@@ -571,7 +654,9 @@ impl BlockScanner {
     // ------------------------------------------------------------------------------------------------------------
 
     fn seg_occupy(ctx: &Ctx<'_>, addr: u64, size: u64, sort: &str) {
-        ctx.seg_list.borrow_mut().occupy(addr, size, Some(sort.to_owned()));
+        ctx.seg_list
+            .borrow_mut()
+            .occupy(addr, size, Some(sort.to_owned()));
     }
 
     /// The rest of `_generate_cfgnode` after the lift: returns the new node's id, or None.
@@ -596,13 +681,23 @@ impl BlockScanner {
                     let a = src.addr & 0xFFFF_FFFE;
                     Self::py_set_contains(&arm.assumptions, a)?.then_some(Some(a))
                 }
-                None => matches!(rec.job_type, JobType::FunctionPrologue | JobType::CompleteScanning).then_some(None),
+                None => matches!(
+                    rec.job_type,
+                    JobType::FunctionPrologue | JobType::CompleteScanning
+                )
+                .then_some(None),
             };
             if let Some(src_realaddr) = src_realaddr {
                 self.flush(ctx)?;
                 ctx.cfg.call_method1(
                     intern!(py, "_rust_decoding_assumption"),
-                    (src_realaddr, real_addr, summary.size.max(1), is_thumb, jk_name(rec.jumpkind)),
+                    (
+                        src_realaddr,
+                        real_addr,
+                        summary.size.max(1),
+                        is_thumb,
+                        jk_name(rec.jumpkind),
+                    ),
                 )?;
             }
         }
@@ -673,7 +768,9 @@ impl BlockScanner {
             for w in ia.windows(2) {
                 let d = w[1].wrapping_sub(w[0]);
                 if d > 255 {
-                    return Err(PyTypeError::new_err("instruction size does not fit in a byte"));
+                    return Err(PyTypeError::new_err(
+                        "instruction size does not fit in a byte",
+                    ));
                 }
                 sizes.push(d as u8);
             }
@@ -693,7 +790,11 @@ impl BlockScanner {
             simprocedure_name: None,
         };
         let size = summary.size as i64;
-        let id = self.graph.bind(py).get().add_node_fields(addr, size, &fields)?;
+        let id = self
+            .graph
+            .bind(py)
+            .get()
+            .add_node_fields(addr, size, &fields)?;
         ctx.blockid_to_blockkey.set_item(addr, (addr, size))?;
         self.new_node_addrs.push(addr);
         Ok(Some(id))
@@ -707,15 +808,24 @@ impl BlockScanner {
             let length = hooker
                 .getattr(intern!(py, "kwargs"))?
                 .call_method1(intern!(py, "get"), (intern!(py, "length"), 0))?;
-            let length: u32 = if length.is_truthy()? { length.extract()? } else { 0 };
+            let length: u32 = if length.is_truthy()? {
+                length.extract()?
+            } else {
+                0
+            };
             return Ok((NodeKind::Hook, addr, length, false));
         }
         if simprocedure_name.is_none() && !g.node_is_syscall(id)? {
             return Ok((NodeKind::Block, addr, size as u32, g.node_thumb(id)?));
         }
         let kwargs = PyDict::new(py);
-        kwargs.set_item(intern!(py, "cfg_node"), self.resolver.bind(py).call1((id,))?)?;
-        ctx.cfg.call_method(intern!(py, "_snippet_spec"), (), Some(&kwargs))?.extract()
+        kwargs.set_item(
+            intern!(py, "cfg_node"),
+            self.resolver.bind(py).call1((id,))?,
+        )?;
+        ctx.cfg
+            .call_method(intern!(py, "_snippet_spec"), (), Some(&kwargs))?
+            .extract()
     }
 
     fn set_returning_true(&self, py: Python<'_>, func: u64) -> PyResult<()> {
@@ -742,8 +852,15 @@ impl BlockScanner {
                 self.scan_tail(ctx, rec, cur, id, func, None)?;
                 Ok(Vec::new())
             }
-            Plan::Lifted { cur, mut summary, next_func_addr, next_func_adj } => {
-                let Some(id) = self.create_node(ctx, rec, cur, &mut summary, next_func_addr, next_func_adj)? else {
+            Plan::Lifted {
+                cur,
+                mut summary,
+                next_func_addr,
+                next_func_adj,
+            } => {
+                let Some(id) =
+                    self.create_node(ctx, rec, cur, &mut summary, next_func_addr, next_func_adj)?
+                else {
                     return Ok(Vec::new());
                 };
                 let _ = py;
@@ -774,7 +891,9 @@ impl BlockScanner {
 
         // _graph_add_edge
         if let Some(src) = &rec.src {
-            let NodeRef::Id(src_id) = src.node else { unreachable!() };
+            let NodeRef::Id(src_id) = src.node else {
+                unreachable!()
+            };
             self.graph.bind(py).get().add_edge(
                 py,
                 src_id,
@@ -806,7 +925,9 @@ impl BlockScanner {
                 }
                 drop(store);
                 if returning == Some(true) {
-                    scan.borrow_mut().pending.add_returning_function(Some(current_func_addr));
+                    scan.borrow_mut()
+                        .pending
+                        .add_returning_function(Some(current_func_addr));
                 }
             }
         }
@@ -858,9 +979,19 @@ impl BlockScanner {
             NextExpr::Const(v) => Some(v),
             _ => None,
         };
-        succs.push(Succ { stmt_idx: DEFAULT_STATEMENT, ins_addr: default_ins, target: next, jk: jk_from_vex(summary.jumpkind) });
+        succs.push(Succ {
+            stmt_idx: DEFAULT_STATEMENT,
+            ins_addr: default_ins,
+            target: next,
+            jk: jk_from_vex(summary.jumpkind),
+        });
         if let Some(handler) = self.conf.exc_by_end.get(&(addr + summary.size as u64)) {
-            succs.push(Succ { stmt_idx: DEFAULT_STATEMENT, ins_addr: default_ins, target: *handler, jk: JK_EXCEPTION });
+            succs.push(Succ {
+                stmt_idx: DEFAULT_STATEMENT,
+                ins_addr: default_ins,
+                target: *handler,
+                jk: JK_EXCEPTION,
+            });
         }
 
         if is_arm {
@@ -874,7 +1005,10 @@ impl BlockScanner {
             if let Some(arm) = &ctx.arm {
                 for e in &entries[n..] {
                     if e.jumpkind == JK_BORING || e.jumpkind == JK_FAKERET {
-                        arm.relations.call_method1(intern!(py, "add_edge"), (real_addr, e.addr & 0xFFFF_FFFE))?;
+                        arm.relations.call_method1(
+                            intern!(py, "add_edge"),
+                            (real_addr, e.addr & 0xFFFF_FFFE),
+                        )?;
                     }
                 }
             }
@@ -895,7 +1029,12 @@ impl BlockScanner {
     }
 
     /// `CFGFast._mips_determine_function_gp` from the lift-time scan; None when Python must decide.
-    fn mips_gp_from_scan(&self, py: Python<'_>, func: u64, summary: &LiftSummary) -> Option<Option<u64>> {
+    fn mips_gp_from_scan(
+        &self,
+        py: Python<'_>,
+        func: u64,
+        summary: &LiftSummary,
+    ) -> Option<Option<u64>> {
         let scan = summary.mips_gp.as_ref()?;
         // a block cut short at a function start is re-lifted at its new size in Python
         if scan.func_addr != func || scan.insns != summary.instruction_addresses.len() {
@@ -904,9 +1043,18 @@ impl BlockScanner {
         let Some((_, last_addr)) = scan.last_gp else {
             return Some(None);
         };
-        let word = self.snapshot.bind(py).get().inner.load_bytes(last_addr, 4)?;
+        let word = self
+            .snapshot
+            .bind(py)
+            .get()
+            .inner
+            .load_bytes(last_addr, 4)?;
         let word: [u8; 4] = word.try_into().ok()?;
-        let word = if self.conf.big_endian { u32::from_be_bytes(word) } else { u32::from_le_bytes(word) };
+        let word = if self.conf.big_endian {
+            u32::from_be_bytes(word)
+        } else {
+            u32::from_le_bytes(word)
+        };
         // lui (opcode 0x0f with rs = 0): the block only yields the upper half of $gp
         if word & 0xFFE0_0000 == 0x3C00_0000 {
             return Some(None);
@@ -915,17 +1063,34 @@ impl BlockScanner {
     }
 
     /// The bytes of a node (`CFGNode.byte_string`).
-    fn node_bytes(&self, py: Python<'_>, id: u64, addr: u64, size: u64) -> PyResult<Option<Vec<u8>>> {
+    fn node_bytes(
+        &self,
+        py: Python<'_>,
+        id: u64,
+        addr: u64,
+        size: u64,
+    ) -> PyResult<Option<Vec<u8>>> {
         let (mode, manual) = self.graph.bind(py).get().node_bytes_rec(id)?;
         Ok(match mode {
-            BYTES_LOADER => self.snapshot.bind(py).get().inner.load_bytes(addr, size as usize),
+            BYTES_LOADER => self
+                .snapshot
+                .bind(py)
+                .get()
+                .inner
+                .load_bytes(addr, size as usize),
             BYTES_MANUAL => manual,
             _ => None,
         })
     }
 
     /// The X86 `___CxxFrameHandler3` check of `_scan_irsb`; returns the (possibly updated) function address.
-    fn cxx_frame_handler3(&mut self, ctx: &Ctx<'_>, addr: u64, id: u64, func: u64) -> PyResult<u64> {
+    fn cxx_frame_handler3(
+        &mut self,
+        ctx: &Ctx<'_>,
+        addr: u64,
+        id: u64,
+        func: u64,
+    ) -> PyResult<u64> {
         if self.conf.arch != ArchKind::X86 {
             return Ok(func);
         }
@@ -937,12 +1102,15 @@ impl BlockScanner {
         let Some(bytes) = self.node_bytes(py, id, addr, size as u64)? else {
             return Ok(func);
         };
-        if bytes.len() < 13 || bytes[..13] != *b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\xfc" {
+        if bytes.len() < 13
+            || bytes[..13] != *b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\xfc"
+        {
             return Ok(func);
         }
         self.count("callback:cxx_frame_handler3");
         self.flush(ctx)?;
-        ctx.cfg.call_method1(intern!(py, "_mark_cxx_frame_handler3"), (addr,))?;
+        ctx.cfg
+            .call_method1(intern!(py, "_mark_cxx_frame_handler3"), (addr,))?;
         Ok(addr)
     }
 
@@ -960,11 +1128,15 @@ impl BlockScanner {
         let py = ctx.cfg.py();
         if self.conf.arch == ArchKind::X86
             && addr == func
-            && self.node_bytes(py, id, addr, size)?.as_deref() == Some(b"\x8b\x1c\x24\xc3".as_slice())
+            && self.node_bytes(py, id, addr, size)?.as_deref()
+                == Some(b"\x8b\x1c\x24\xc3".as_slice())
         {
             // __x86.get_pc_thunk.bx: mov ebx, dword ptr [esp]; ret
             let ebx = pyo3::types::PyString::new(py, "ebx");
-            self.store.bind(py).borrow_mut().info_set(func, "get_pc".to_owned(), ebx.as_any())?;
+            self.store
+                .bind(py)
+                .borrow_mut()
+                .info_set(func, "get_pc".to_owned(), ebx.as_any())?;
         }
         match self.conf.arch {
             ArchKind::Amd64 | ArchKind::X86 => {
@@ -972,7 +1144,12 @@ impl BlockScanner {
                 if !(delta == 0 || (0 < delta && delta <= 0x20)) {
                     return Ok(());
                 }
-                if self.store.bind(py).borrow().info_contains(func, "bp_as_gpr")? {
+                if self
+                    .store
+                    .bind(py)
+                    .borrow()
+                    .info_contains(func, "bp_as_gpr")?
+                {
                     return Ok(());
                 }
                 // capstone finds `mov ebp/rbp, esp/rsp` or `lea ebp/rbp, [esp/rsp ...]` only where these opcode/ModRM
@@ -981,7 +1158,14 @@ impl BlockScanner {
                     let snap = &self.snapshot.bind(py).get().inner;
                     match snap.load_bytes(addr, size as usize) {
                         Some(bytes) => bytes.windows(2).any(|w| {
-                            matches!((w[0], w[1]), (0x89, 0xE5) | (0x8B, 0xEC) | (0x8D, 0x2C) | (0x8D, 0x6C) | (0x8D, 0xAC))
+                            matches!(
+                                (w[0], w[1]),
+                                (0x89, 0xE5)
+                                    | (0x8B, 0xEC)
+                                    | (0x8D, 0x2C)
+                                    | (0x8D, 0x6C)
+                                    | (0x8D, 0xAC)
+                            )
                         }),
                         None => true,
                     }
@@ -989,17 +1173,25 @@ impl BlockScanner {
                 let bp_as_gpr = if candidate {
                     self.count("callback:bp_as_gpr");
                     self.flush(ctx)?;
-                    ctx.cfg.call_method1(intern!(py, "_bp_as_gpr_by_capstone"), (addr, size))?.is_truthy()?
+                    ctx.cfg
+                        .call_method1(intern!(py, "_bp_as_gpr_by_capstone"), (addr, size))?
+                        .is_truthy()?
                 } else {
                     true
                 };
                 let v = PyBool::new(py, bp_as_gpr).to_owned();
-                self.store.bind(py).borrow_mut().info_set(func, "bp_as_gpr".to_owned(), v.as_any())?;
+                self.store.bind(py).borrow_mut().info_set(
+                    func,
+                    "bp_as_gpr".to_owned(),
+                    v.as_any(),
+                )?;
                 Ok(())
             }
             ArchKind::Mips => {
                 let delta = addr as i128 - func as i128;
-                if !(0..15 * 4).contains(&delta) || self.store.bind(py).borrow().info_contains(func, "gp")? {
+                if !(0..15 * 4).contains(&delta)
+                    || self.store.bind(py).borrow().info_contains(func, "gp")?
+                {
                     return Ok(());
                 }
                 if let Some(found) = self.mips_gp_from_scan(py, func, summary) {
@@ -1020,7 +1212,11 @@ impl BlockScanner {
                     };
                     if let Some(v) = gp {
                         let v = v.into_pyobject(py)?;
-                        self.store.bind(py).borrow_mut().info_set(func, "gp".to_owned(), v.as_any())?;
+                        self.store.bind(py).borrow_mut().info_set(
+                            func,
+                            "gp".to_owned(),
+                            v.as_any(),
+                        )?;
                     }
                     return Ok(());
                 }
@@ -1080,9 +1276,15 @@ impl BlockScanner {
 
     fn process_data_refs(&mut self, ctx: &Ctx<'_>, s: &LiftSummary) -> PyResult<()> {
         let py = ctx.cfg.py();
-        let max_addr: i128 = if self.conf.bits == 32 { 0xFFFF_FFFF } else { 0xFFFF_FFFF_FFFF_FFFF };
+        let max_addr: i128 = if self.conf.bits == 32 {
+            0xFFFF_FFFF
+        } else {
+            0xFFFF_FFFF_FFFF_FFFF
+        };
         let assumption = match &ctx.arm {
-            Some(arm) => arm.assumptions.call_method1(intern!(py, "get"), (s.addr & !1,))?,
+            Some(arm) => arm
+                .assumptions
+                .call_method1(intern!(py, "get"), (s.addr & !1,))?,
             None => py.None().into_bound(py),
         };
         for r in &s.data_refs {
@@ -1090,8 +1292,20 @@ impl BlockScanner {
                 continue;
             }
             let ts = data_ref_type_str(r.data_type);
-            let (dt, is_store) = if ts == "integer(store)" { (SORT_INTEGER, true) } else { (ts, false) };
-            self.add_data_reference(ctx, s.addr, r.stmt_idx as i64, r.ins_addr, r.data_addr, Some(r.data_size as i64), dt)?;
+            let (dt, is_store) = if ts == "integer(store)" {
+                (SORT_INTEGER, true)
+            } else {
+                (ts, false)
+            };
+            self.add_data_reference(
+                ctx,
+                s.addr,
+                r.stmt_idx as i64,
+                r.ins_addr,
+                r.data_addr,
+                Some(r.data_size as i64),
+                dt,
+            )?;
             let occupied = ctx.seg_list.borrow().is_occupied(r.data_addr);
             if !occupied && r.data_size != 0 {
                 let exec = is_store && {
@@ -1104,7 +1318,10 @@ impl BlockScanner {
                     }
                     Self::seg_occupy(ctx, r.data_addr, r.data_size as u64, SORT_UNKNOWN);
                     if !assumption.is_none() {
-                        assumption.call_method1(intern!(py, "add_data_seg"), (r.data_addr, r.data_size))?;
+                        assumption.call_method1(
+                            intern!(py, "add_data_seg"),
+                            (r.data_addr, r.data_size),
+                        )?;
                     }
                 }
             }
@@ -1116,23 +1333,40 @@ impl BlockScanner {
     }
 
     /// `_process_irsb_data_ref_inlined_data`: ARM literal-pool pointers.
-    fn arm_inlined_data(&mut self, ctx: &Ctx<'_>, irsb_addr: u64, r: &crate::vexlift::DataRef) -> PyResult<()> {
+    fn arm_inlined_data(
+        &mut self,
+        ctx: &Ctx<'_>,
+        irsb_addr: u64,
+        r: &crate::vexlift::DataRef,
+    ) -> PyResult<()> {
         let py = ctx.cfg.py();
         let snap = self.snapshot.bind(py).get().inner.clone();
         let readable_section = |a: u64| -> Option<&crate::cfg_scan::RegionInfo> {
             let (oi, si) = snap.find_section_containing(a)?;
             Some(&snap.objects[oi].sections[si])
         };
-        let Some(sec) = readable_section(r.data_addr) else { return Ok(()) };
+        let Some(sec) = readable_section(r.data_addr) else {
+            return Ok(());
+        };
         if !sec.is_readable || sec.is_writable {
             return Ok(());
         }
-        let Some(mut v) = snap.load_word(r.data_addr, r.data_size as usize) else { return Ok(()) };
+        let Some(mut v) = snap.load_word(r.data_addr, r.data_size as usize) else {
+            return Ok(());
+        };
         // a direct pointer
         if let Some(sec2) = readable_section(v)
             && sec2.is_readable
         {
-            self.add_data_reference(ctx, irsb_addr, r.stmt_idx as i64, r.ins_addr, v, None, SORT_UNKNOWN)?;
+            self.add_data_reference(
+                ctx,
+                irsb_addr,
+                r.stmt_idx as i64,
+                r.ins_addr,
+                v,
+                None,
+                SORT_UNKNOWN,
+            )?;
             let align = self.conf.instruction_alignment.max(1);
             if sec2.is_executable && !ctx.seg_list.borrow().is_occupied(v) && v % align == 0 {
                 if !self.conf.arm_has_arm_code && v % 2 != 1 {
@@ -1158,13 +1392,26 @@ impl BlockScanner {
         if let Some(sec3) = readable_section(v)
             && sec3.is_readable
         {
-            self.add_data_reference(ctx, irsb_addr, r.stmt_idx as i64, actual_ref_ins_addr, v, None, SORT_UNKNOWN)?;
+            self.add_data_reference(
+                ctx,
+                irsb_addr,
+                r.stmt_idx as i64,
+                actual_ref_ins_addr,
+                v,
+                None,
+                SORT_UNKNOWN,
+            )?;
         }
         Ok(())
     }
 
     /// `_post_process_successors` (ARM): THUMB IT-block filtering, then no jumps into a function of the other mode.
-    fn arm_post_process_successors(&mut self, ctx: &Ctx<'_>, b: &Block<'_>, succs: Vec<Succ>) -> PyResult<Vec<Succ>> {
+    fn arm_post_process_successors(
+        &mut self,
+        ctx: &Ctx<'_>,
+        b: &Block<'_>,
+        succs: Vec<Succ>,
+    ) -> PyResult<Vec<Succ>> {
         let py = ctx.cfg.py();
         let mut succs = succs;
         if b.addr % 2 == 1 {
@@ -1179,7 +1426,8 @@ impl BlockScanner {
                     .copied()
                     .filter(|t| {
                         let n = jk_name(t.jk);
-                        matches!(n, "Ijk_Boring" | "Ijk_FakeRet" | "Ijk_Call" | "Ijk_Ret") || n.starts_with("Ijk_Sys")
+                        matches!(n, "Ijk_Boring" | "Ijk_FakeRet" | "Ijk_Call" | "Ijk_Ret")
+                            || n.starts_with("Ijk_Sys")
                     })
                     .collect();
                 if filtered.len() == 1 {
@@ -1195,8 +1443,10 @@ impl BlockScanner {
                     all.append((t.stmt_idx, t.ins_addr, t.target, jk_name(t.jk), i))?;
                 }
                 let irsb = Py::new(py, b.summary.clone())?;
-                let kept: Vec<usize> =
-                    ctx.cfg.call_method1(intern!(py, "_rust_post_process_successors"), (irsb, all))?.extract()?;
+                let kept: Vec<usize> = ctx
+                    .cfg
+                    .call_method1(intern!(py, "_rust_post_process_successors"), (irsb, all))?
+                    .extract()?;
                 return Ok(kept.into_iter().map(|i| succs[i]).collect());
             }
         }
@@ -1245,7 +1495,9 @@ impl BlockScanner {
             if let Some(main) = snap.objects.iter().find(|o| o.is_main) {
                 for seg in &main.segments {
                     if seg.vaddr.wrapping_add(seg.memsize) == data_addr {
-                        self.data_refs.push(DataRefRec::SegmentBoundary(irsb_addr, stmt_idx, ins_addr, data_addr));
+                        self.data_refs.push(DataRefRec::SegmentBoundary(
+                            irsb_addr, stmt_idx, ins_addr, data_addr,
+                        ));
                         break;
                     }
                 }
@@ -1265,7 +1517,9 @@ impl BlockScanner {
                 }
             }
         }
-        self.data_refs.push(DataRefRec::Memory(irsb_addr, stmt_idx, ins_addr, data_addr, data_size, sort));
+        self.data_refs.push(DataRefRec::Memory(
+            irsb_addr, stmt_idx, ins_addr, data_addr, data_size, sort,
+        ));
         Ok(())
     }
 
@@ -1287,7 +1541,10 @@ impl BlockScanner {
         self.flush(ctx)?;
         let t0 = Instant::now();
         let r = self.create_jobs_py_inner(ctx, b, succs, i, out);
-        self.t_callback.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+        self.t_callback.fetch_add(
+            t0.elapsed().as_nanos() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         r
     }
 
@@ -1353,9 +1610,21 @@ impl BlockScanner {
         let cfg_node = self.resolver.bind(py).call1((b.id,))?;
         let jobs = ctx.cfg.call_method1(
             intern!(py, "_create_job_call"),
-            (b.addr, irsb, cfg_node, s.stmt_idx, s.ins_addr, b.func, target, jk_name(jk)),
+            (
+                b.addr,
+                irsb,
+                cfg_node,
+                s.stmt_idx,
+                s.ins_addr,
+                b.func,
+                target,
+                jk_name(jk),
+            ),
         );
-        self.t_callback.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+        self.t_callback.fetch_add(
+            t0.elapsed().as_nanos() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         let scan = self.scan.bind(py);
         for j in jobs?.try_iter()? {
             let rec = scan.borrow_mut().ingest(py, &j?)?;
@@ -1380,7 +1649,10 @@ impl BlockScanner {
         let Some(h) = &self.ijr else {
             return Ok(false);
         };
-        let (chain, plt) = (h.chain.clone_ref(py), h.plt_all || h.reverse_plt.contains(&b.addr));
+        let (chain, plt) = (
+            h.chain.clone_ref(py),
+            h.plt_all || h.reverse_plt.contains(&b.addr),
+        );
         let known = h.indirect_jumps.bind(py).contains(b.addr)?;
         let escape = |me: &mut Self, reason: &str| -> PyResult<bool> {
             me.count(&format!("ijr:escape:{reason}"));
@@ -1437,7 +1709,8 @@ impl BlockScanner {
                         self.direct_call(ctx, b, succs, i, t, jk, true, out)?;
                         continue;
                     }
-                    let (to_outside, mut target_func_addr) = self.branching_to_outside(ctx, b, t, jk, succs.len())?;
+                    let (to_outside, mut target_func_addr) =
+                        self.branching_to_outside(ctx, b, t, jk, succs.len())?;
                     if target_func_addr == b.func {
                         // an indirect jump should be jumping to the start of a function instead of resuming the current one
                         target_func_addr = t;
@@ -1469,7 +1742,15 @@ impl BlockScanner {
                 let cfg_node = self.resolver.bind(py).call1((b.id,))?;
                 let jobs = ctx.cfg.call_method1(
                     intern!(py, "_ijr_unresolved_jump"),
-                    (b.addr, irsb, cfg_node, s.stmt_idx, s.ins_addr, b.func, jk_name(jk)),
+                    (
+                        b.addr,
+                        irsb,
+                        cfg_node,
+                        s.stmt_idx,
+                        s.ins_addr,
+                        b.func,
+                        jk_name(jk),
+                    ),
                 )?;
                 let scan = self.scan.bind(py);
                 for j in jobs.try_iter()? {
@@ -1528,9 +1809,16 @@ impl BlockScanner {
                 if jk == JK_RET {
                     self.ret_site(ctx, b)?;
                 } else if self.conf.resolve_indirect_jumps
-                    && (jk == JK_BORING || jk == JK_CALL || jk_str == "Ijk_InvalICache" || is_syscall)
+                    && (jk == JK_BORING
+                        || jk == JK_CALL
+                        || jk_str == "Ijk_InvalICache"
+                        || is_syscall)
                 {
-                    let folded = if jk == JK_BORING || jk == JK_CALL { self.const_folded_next(ctx, b)? } else { None };
+                    let folded = if jk == JK_BORING || jk == JK_CALL {
+                        self.const_folded_next(ctx, b)?
+                    } else {
+                        None
+                    };
                     let Some(t) = folded else {
                         if self.scan_indirect(ctx, b, succs, i, jk, out)? {
                             return Ok(());
@@ -1540,7 +1828,8 @@ impl BlockScanner {
                     if jk == JK_CALL {
                         return self.direct_call(ctx, b, succs, i, t, jk, false, out);
                     }
-                    let (to_outside, mut target_func_addr) = self.branching_to_outside(ctx, b, t, jk, succs.len())?;
+                    let (to_outside, mut target_func_addr) =
+                        self.branching_to_outside(ctx, b, t, jk, succs.len())?;
                     if target_func_addr == b.func {
                         // an indirect jump should be jumping to the start of a function instead of resuming the current one
                         target_func_addr = t;
@@ -1565,8 +1854,13 @@ impl BlockScanner {
                 }
             }
             Some(t) => {
-                if jk == JK_BORING || jk == JK_EXCEPTION || jk_str == "Ijk_InvalICache" || jk_str == "Ijk_Privileged" {
-                    let (to_outside, target_func_addr) = self.branching_to_outside(ctx, b, t, jk, succs.len())?;
+                if jk == JK_BORING
+                    || jk == JK_EXCEPTION
+                    || jk_str == "Ijk_InvalICache"
+                    || jk_str == "Ijk_Privileged"
+                {
+                    let (to_outside, target_func_addr) =
+                        self.branching_to_outside(ctx, b, t, jk, succs.len())?;
                     let edge = FuncEdge::Transition {
                         src: Some(b.src()),
                         dst_addr: t,
@@ -1616,7 +1910,15 @@ impl BlockScanner {
                 {
                     if Self::is_hooked(ctx, t)? {
                         if call_py {
-                            return self.create_job_call_py(ctx, b, &s, t, jk, "hooked_callee", out);
+                            return self.create_job_call_py(
+                                ctx,
+                                b,
+                                &s,
+                                t,
+                                jk,
+                                "hooked_callee",
+                                out,
+                            );
                         }
                         return self.create_jobs_py(ctx, b, succs, i, "hooked_callee", out);
                     }
@@ -1638,7 +1940,15 @@ impl BlockScanner {
                     };
                     if is_plt && self.plt_dynamic_ret_target(ctx, t)? {
                         if call_py {
-                            return self.create_job_call_py(ctx, b, &s, t, jk, "plt_dynamic_ret", out);
+                            return self.create_job_call_py(
+                                ctx,
+                                b,
+                                &s,
+                                t,
+                                jk,
+                                "plt_dynamic_ret",
+                                out,
+                            );
                         }
                         return self.create_jobs_py(ctx, b, succs, i, "plt_dynamic_ret", out);
                     }
@@ -1663,14 +1973,23 @@ impl BlockScanner {
         let NextExpr::Tmp(next_tmp) = b.summary.next else {
             return Ok(None);
         };
-        let Some(cv) = b.summary.const_vals.iter().find(|cv| cv.tmp as i64 == next_tmp as i64) else {
+        let Some(cv) = b
+            .summary
+            .const_vals
+            .iter()
+            .find(|cv| cv.tmp as i64 == next_tmp as i64)
+        else {
             return Ok(None);
         };
         let exec = {
             let sweep = self.sweep.bind(ctx.cfg.py()).borrow();
             addr_in_regions(&sweep.inner.exec_regions, cv.value)
         };
-        if exec || Self::is_hooked(ctx, cv.value)? { Ok(Some(cv.value)) } else { Ok(None) }
+        if exec || Self::is_hooked(ctx, cv.value)? {
+            Ok(Some(cv.value))
+        } else {
+            Ok(None)
+        }
     }
 
     /// `_is_call_returning` of a PLT stub: does it consist of one transition to a hooked DYNAMIC_RET procedure (whose
@@ -1736,7 +2055,11 @@ impl BlockScanner {
             if !callee_might_return {
                 return Ok(());
             }
-            let call_returning = if callee_exists { callee_returning } else { None };
+            let call_returning = if callee_exists {
+                callee_returning
+            } else {
+                None
+            };
             let scan = self.scan.bind(py);
             let mut fr_job = JobRec::new(return_site, cur, JK_FAKERET);
             fr_job.last_addr = Some(b.addr);
@@ -1747,8 +2070,17 @@ impl BlockScanner {
             match call_returning {
                 Some(true) => {
                     fr_job.func_edges = vec![
-                        FuncEdge::FakeRet { src: Some(b.src()), dst_addr: return_site, src_func_addr: cur, confirmed: Some(true) },
-                        FuncEdge::Return { ret_from_addr: target, ret_to_addr: return_site, dst_func_addr: cur },
+                        FuncEdge::FakeRet {
+                            src: Some(b.src()),
+                            dst_addr: return_site,
+                            src_func_addr: cur,
+                            confirmed: Some(true),
+                        },
+                        FuncEdge::Return {
+                            ret_from_addr: target,
+                            ret_to_addr: return_site,
+                            dst_func_addr: cur,
+                        },
                     ];
                     let mut st = scan.borrow_mut();
                     st.register_job(cur, &fr_job);
@@ -1763,7 +2095,8 @@ impl BlockScanner {
                         confirmed: None,
                     }];
                     let mut st = scan.borrow_mut();
-                    st.function_returns.add((Some(target), cur, b.addr, Some(return_site)));
+                    st.function_returns
+                        .add((Some(target), cur, b.addr, Some(return_site)));
                     st.register_job(cur, &fr_job);
                     st.pending.add(fr_job);
                 }
@@ -1778,7 +2111,9 @@ impl BlockScanner {
         let py = ctx.cfg.py();
         let cur = b.func;
         // self._function_exits[cur].add(addr)
-        ctx.function_exits.get_item(cur)?.call_method1(intern!(py, "add"), (b.addr,))?;
+        ctx.function_exits
+            .get_item(cur)?
+            .call_method1(intern!(py, "add"), (b.addr,))?;
         // _function_add_return_site
         let g = self.graph.bind(py).get();
         match g.first_node_at_addr(b.addr)? {
@@ -1791,7 +2126,11 @@ impl BlockScanner {
             }
         }
         self.set_returning_true(py, cur)?;
-        self.scan.bind(py).borrow_mut().pending.add_returning_function(Some(cur));
+        self.scan
+            .bind(py)
+            .borrow_mut()
+            .pending
+            .add_returning_function(Some(cur));
         ctx.block_addrs_with_return.add(b.addr)?;
         Ok(())
     }
@@ -1864,7 +2203,9 @@ impl BlockScanner {
                 self.flush(ctx)?;
                 let irsb = Py::new(py, b.summary.clone())?;
                 let cfg_node = self.resolver.bind(py).call1((b.id,))?;
-                ctx.cfg.call_method1(intern!(py, "_block_restores_lr"), (cfg_node, irsb))?.is_truthy()?
+                ctx.cfg
+                    .call_method1(intern!(py, "_block_restores_lr"), (cfg_node, irsb))?
+                    .is_truthy()?
             };
             if tail_call {
                 tfa = Some(target);
@@ -1941,8 +2282,16 @@ impl BlockScanner {
             resolve_indirect_jumps: cfg.getattr("_resolve_indirect_jumps")?.is_truthy()?,
             collect_data_ref: cfg.getattr("_collect_data_ref")?.is_truthy()?,
             fold_ro_const_loads: cfg.getattr("_fold_ro_const_loads")?.is_truthy()?,
-            repeating_threshold: if threshold.is_truthy()? { threshold.extract()? } else { 0 },
-            nop_byte: if nop_byte.is_none() { None } else { Some(nop_byte.extract()?) },
+            repeating_threshold: if threshold.is_truthy()? {
+                threshold.extract()?
+            } else {
+                0
+            },
+            nop_byte: if nop_byte.is_none() {
+                None
+            } else {
+                Some(nop_byte.extract()?)
+            },
             padding_bytes: padding,
             ibt_marker: ibt,
             exc_by_end: exc_by_end.into_iter().collect(),
@@ -2047,9 +2396,18 @@ impl BlockScanner {
         for (k, v) in &self.stats {
             d.set_item(k, v)?;
         }
-        d.set_item("ns:lift", self.t_lift.load(std::sync::atomic::Ordering::Relaxed))?;
-        d.set_item("ns:callback", self.t_callback.load(std::sync::atomic::Ordering::Relaxed))?;
-        d.set_item("ns:flush", self.t_flush.load(std::sync::atomic::Ordering::Relaxed))?;
+        d.set_item(
+            "ns:lift",
+            self.t_lift.load(std::sync::atomic::Ordering::Relaxed),
+        )?;
+        d.set_item(
+            "ns:callback",
+            self.t_callback.load(std::sync::atomic::Ordering::Relaxed),
+        )?;
+        d.set_item(
+            "ns:flush",
+            self.t_flush.load(std::sync::atomic::Ordering::Relaxed),
+        )?;
         Ok(d)
     }
 }
@@ -2112,10 +2470,14 @@ impl BlockScanner {
             if let Some((perf_counter, interval)) = &ctx.progress {
                 // _calculate_progress_and_notify's own throttle, checked here to save the call
                 let now: f64 = perf_counter.call0()?.extract()?;
-                let last: f64 = ctx.cfg.getattr(intern!(py, "_last_progress_notify"))?.extract()?;
+                let last: f64 = ctx
+                    .cfg
+                    .getattr(intern!(py, "_last_progress_notify"))?
+                    .extract()?;
                 if now - last >= *interval {
                     self.flush(ctx)?;
-                    ctx.cfg.call_method0(intern!(py, "_calculate_progress_and_notify"))?;
+                    ctx.cfg
+                        .call_method0(intern!(py, "_calculate_progress_and_notify"))?;
                 }
             }
             self.scan.bind(py).borrow_mut().pop_front(rec.addr);

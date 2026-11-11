@@ -43,7 +43,11 @@ struct JkTable {
 static JK_TABLE: LazyLock<RwLock<JkTable>> = LazyLock::new(|| {
     let mut names: Vec<&'static str> = JUMPKIND_NAMES.to_vec();
     names.extend(["Ijk_FakeRet", "Ijk_Exception", "Ijk_NoHook"]);
-    let index = names.iter().enumerate().map(|(i, &n)| (n, i as u16)).collect();
+    let index = names
+        .iter()
+        .enumerate()
+        .map(|(i, &n)| (n, i as u16))
+        .collect();
     RwLock::new(JkTable { names, index })
 });
 
@@ -127,7 +131,11 @@ pub fn cpython_set_order(hashes: &[i64]) -> Vec<usize> {
         let mut perturb = hash as u64;
         let mut i = (hash as u64 as usize) & mask;
         loop {
-            let probes = if i + LINEAR_PROBES <= mask { LINEAR_PROBES } else { 0 };
+            let probes = if i + LINEAR_PROBES <= mask {
+                LINEAR_PROBES
+            } else {
+                0
+            };
             for slot in &mut table[i..=i + probes] {
                 if slot.is_none() {
                     *slot = Some((idx, hash));
@@ -135,7 +143,11 @@ pub fn cpython_set_order(hashes: &[i64]) -> Vec<usize> {
                 }
             }
             perturb >>= PERTURB_SHIFT;
-            i = (i.wrapping_mul(5).wrapping_add(1).wrapping_add(perturb as usize)) & mask;
+            i = (i
+                .wrapping_mul(5)
+                .wrapping_add(1)
+                .wrapping_add(perturb as usize))
+                & mask;
         }
     }
 
@@ -175,7 +187,10 @@ pub struct OrderedMap<K, V> {
 
 impl<K: Copy + Eq + Hash, V> Default for OrderedMap<K, V> {
     fn default() -> Self {
-        OrderedMap { entries: Vec::new(), index: FxHashMap::default() }
+        OrderedMap {
+            entries: Vec::new(),
+            index: FxHashMap::default(),
+        }
     }
 }
 
@@ -193,7 +208,9 @@ impl<K: Copy + Eq + Hash, V> OrderedMap<K, V> {
     }
 
     pub fn get(&self, k: &K) -> Option<&V> {
-        self.index.get(k).map(|&i| &self.entries[i].as_ref().unwrap().1)
+        self.index
+            .get(k)
+            .map(|&i| &self.entries[i].as_ref().unwrap().1)
     }
 
     pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
@@ -261,7 +278,15 @@ impl<K: Copy + Eq + Hash, V> OrderedMap<K, V> {
 // Records
 // ---------------------------------------------------------------------------------------------------------------
 
-#[pyclass(eq, eq_int, hash, frozen, from_py_object, module = "angr.rustylib.cfg_jobs", name = "CFGJobType")]
+#[pyclass(
+    eq,
+    eq_int,
+    hash,
+    frozen,
+    from_py_object,
+    module = "angr.rustylib.cfg_jobs",
+    name = "CFGJobType"
+)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JobType {
     #[pyo3(name = "NORMAL")]
@@ -362,18 +387,18 @@ pub enum FuncEdge {
 impl FuncEdge {
     pub fn src(&self) -> Option<&SrcNode> {
         match self {
-            FuncEdge::Transition { src, .. } | FuncEdge::Call { src, .. } | FuncEdge::FakeRet { src, .. } => {
-                src.as_ref()
-            }
+            FuncEdge::Transition { src, .. }
+            | FuncEdge::Call { src, .. }
+            | FuncEdge::FakeRet { src, .. } => src.as_ref(),
             FuncEdge::Return { .. } => None,
         }
     }
 
     fn src_mut(&mut self) -> Option<&mut SrcNode> {
         match self {
-            FuncEdge::Transition { src, .. } | FuncEdge::Call { src, .. } | FuncEdge::FakeRet { src, .. } => {
-                src.as_mut()
-            }
+            FuncEdge::Transition { src, .. }
+            | FuncEdge::Call { src, .. }
+            | FuncEdge::FakeRet { src, .. } => src.as_mut(),
             FuncEdge::Return { .. } => None,
         }
     }
@@ -471,7 +496,12 @@ pub enum JobItem {
 pub type FunctionReturn = (Option<u64>, u64, u64, Option<u64>);
 
 fn function_return_hash(fr: &FunctionReturn) -> i64 {
-    py_hash_tuple(&[py_hash_opt(fr.0), py_hash_u64(fr.1), py_hash_u64(fr.2), py_hash_opt(fr.3)])
+    py_hash_tuple(&[
+        py_hash_opt(fr.0),
+        py_hash_u64(fr.1),
+        py_hash_u64(fr.2),
+        py_hash_opt(fr.3),
+    ])
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -540,7 +570,9 @@ impl PendingJobs {
     }
 
     pub fn add(&mut self, rec: JobRec) {
-        self.jobs.entry_or_insert_with(rec.returning_source, Vec::new).push(rec);
+        self.jobs
+            .entry_or_insert_with(rec.returning_source, Vec::new)
+            .push(rec);
         self.count += 1;
     }
 
@@ -560,10 +592,18 @@ impl PendingJobs {
             return None;
         }
         if !returning {
-            let key = if self.jobs.contains_key(&None) { None } else { self.jobs.last_key()? };
+            let key = if self.jobs.contains_key(&None) {
+                None
+            } else {
+                self.jobs.last_key()?
+            };
             return Some(self.pop_from(key));
         }
-        let key = self.jobs.keys().rev().find(|k| self.returning.contains(k))?;
+        let key = self
+            .jobs
+            .keys()
+            .rev()
+            .find(|k| self.returning.contains(k))?;
         Some(self.pop_from(key))
     }
 
@@ -584,7 +624,10 @@ impl PendingJobs {
     pub fn updated_functions(&self) -> Vec<Option<u64>> {
         let keys: Vec<Option<u64>> = self.updated.keys().collect();
         let hashes: Vec<i64> = keys.iter().map(|&k| py_hash_opt(k)).collect();
-        cpython_set_order(&hashes).into_iter().map(|i| keys[i]).collect()
+        cpython_set_order(&hashes)
+            .into_iter()
+            .map(|i| keys[i])
+            .collect()
     }
 
     /// `PendingJobs.cleanup`: drops the jobs returning from functions now known not to return. `returning_of(addr)`
@@ -598,15 +641,21 @@ impl PendingJobs {
     ) -> PyResult<()> {
         let mut to_remove: Vec<(Option<u64>, Vec<usize>)> = Vec::new();
         for func_addr in self.updated_functions() {
-            let Some(bucket) = self.jobs.get(&func_addr) else { continue };
+            let Some(bucket) = self.jobs.get(&func_addr) else {
+                continue;
+            };
             for (i, pe) in bucket.iter().enumerate() {
-                let Some(src) = pe.returning_source else { continue };
+                let Some(src) = pe.returning_source else {
+                    continue;
+                };
                 match returning_of(src)? {
                     None => warn(src)?,
-                    Some(Some(false)) => match to_remove.iter_mut().find(|(k, _)| *k == Some(src)) {
-                        Some((_, v)) => v.push(i),
-                        None => to_remove.push((Some(src), vec![i])),
-                    },
+                    Some(Some(false)) => {
+                        match to_remove.iter_mut().find(|(k, _)| *k == Some(src)) {
+                            Some((_, v)) => v.push(i),
+                            None => to_remove.push((Some(src), vec![i])),
+                        }
+                    }
                     Some(_) => {}
                 }
             }
@@ -643,7 +692,10 @@ pub struct FunctionReturns {
 
 impl FunctionReturns {
     pub fn add(&mut self, fr: FunctionReturn) {
-        self.map.entry(fr.0).or_default().entry_or_insert_with(fr, || ());
+        self.map
+            .entry(fr.0)
+            .or_default()
+            .entry_or_insert_with(fr, || ());
     }
 
     pub fn contains(&self, callee: Option<u64>) -> bool {
@@ -655,7 +707,12 @@ impl FunctionReturns {
         let set = self.map.remove(&callee)?;
         let frs: Vec<FunctionReturn> = set.keys().collect();
         let hashes: Vec<i64> = frs.iter().map(function_return_hash).collect();
-        Some(cpython_set_order(&hashes).into_iter().map(|i| frs[i]).collect())
+        Some(
+            cpython_set_order(&hashes)
+                .into_iter()
+                .map(|i| frs[i])
+                .collect(),
+        )
     }
 }
 
@@ -728,21 +785,30 @@ impl ScanState {
     ) -> PyResult<Option<SrcNode>> {
         let Some(mut s) = src else { return Ok(None) };
         if s.node == NodeRef::Unbound {
-            let obj = obj.ok_or_else(|| PyTypeError::new_err("unbound source node without an object"))?;
+            let obj =
+                obj.ok_or_else(|| PyTypeError::new_err("unbound source node without an object"))?;
             s.node = self.bind_node(py, obj.bind(py))?;
         }
         Ok(Some(s))
     }
 
     /// The bound source node of a `CFGNode` object, as a `CFGJob(src_node=node)` has it once queued.
-    pub(crate) fn src_node(&mut self, py: Python<'_>, node: &Bound<'_, PyAny>) -> PyResult<SrcNode> {
+    pub(crate) fn src_node(
+        &mut self,
+        py: Python<'_>,
+        node: &Bound<'_, PyAny>,
+    ) -> PyResult<SrcNode> {
         let mut s = src_of(py, node)?;
         s.node = self.bind_node(py, node)?;
         Ok(s)
     }
 
     /// `_deregister_analysis_job(func_addr, obj)` for an object that is not a CFGJob (an `IndirectJump`).
-    pub(crate) fn deregister_object(&mut self, func_addr: u64, obj: &Bound<'_, PyAny>) -> PyResult<()> {
+    pub(crate) fn deregister_object(
+        &mut self,
+        func_addr: u64,
+        obj: &Bound<'_, PyAny>,
+    ) -> PyResult<()> {
         let item = self.item_of(obj)?;
         self.accounting.deregister(func_addr, &item);
         Ok(())
@@ -763,7 +829,9 @@ impl ScanState {
                     if let Some(s) = edge.src_mut()
                         && s.node == NodeRef::Unbound
                     {
-                        let obj = obj.ok_or_else(|| PyTypeError::new_err("unbound source node without an object"))?;
+                        let obj = obj.ok_or_else(|| {
+                            PyTypeError::new_err("unbound source node without an object")
+                        })?;
                         s.node = self.bind_node(py, obj.bind(py))?;
                     }
                     out.push(edge);
@@ -779,7 +847,9 @@ impl ScanState {
             return Ok(JobItem::Job(j.borrow().rec.key()));
         }
         let token = job.as_ptr() as usize;
-        self.tokens.entry(token).or_insert_with(|| job.clone().unbind());
+        self.tokens
+            .entry(token)
+            .or_insert_with(|| job.clone().unbind());
         Ok(JobItem::Token(token))
     }
 
@@ -833,7 +903,11 @@ impl ScanState {
             PyCFGJob {
                 rec,
                 src_obj,
-                edges: if edges.is_empty() { None } else { Some(JobEdges::Rec(edges)) },
+                edges: if edges.is_empty() {
+                    None
+                } else {
+                    Some(JobEdges::Rec(edges))
+                },
             },
         )
     }
@@ -855,7 +929,8 @@ impl ScanState {
     }
 
     pub fn deregister_job(&mut self, func_addr: u64, rec: &JobRec) {
-        self.accounting.deregister(func_addr, &JobItem::Job(rec.key()));
+        self.accounting
+            .deregister(func_addr, &JobItem::Job(rec.key()));
     }
 
     /// `ForwardAnalysis._remove_job` with a predicate over records.
@@ -915,7 +990,11 @@ struct CtxRefs {
 
 impl CtxRefs {
     fn functions_are_ours(&self, py: Python<'_>) -> PyResult<bool> {
-        Ok(self.kb.bind(py).getattr(intern!(py, "functions"))?.is(self.manager.bind(py)))
+        Ok(self
+            .kb
+            .bind(py)
+            .getattr(intern!(py, "functions"))?
+            .is(self.manager.bind(py)))
     }
 }
 
@@ -980,7 +1059,14 @@ impl ScanState {
         sim_procedures: Py<PyDict>,
         errors: Py<PyTuple>,
     ) {
-        self.ctx = Some(Ctx { graph, store, manager, kb, sim_procedures, errors });
+        self.ctx = Some(Ctx {
+            graph,
+            store,
+            manager,
+            kb,
+            sim_procedures,
+            errors,
+        });
     }
 
     // --- job queue ------------------------------------------------------------------------------------------
@@ -1085,9 +1171,21 @@ impl ScanState {
         snapshot: &Bound<'_, LoaderSnapshot>,
         filter: u8,
     ) -> PyResult<Option<Vec<u64>>> {
-        let ScanState { accounting, completed, ctx, .. } = self;
-        let Some(ctx) = ctx.as_ref() else { return Ok(None) };
-        if !ctx.kb.bind(py).getattr(intern!(py, "functions"))?.is(ctx.manager.bind(py)) {
+        let ScanState {
+            accounting,
+            completed,
+            ctx,
+            ..
+        } = self;
+        let Some(ctx) = ctx.as_ref() else {
+            return Ok(None);
+        };
+        if !ctx
+            .kb
+            .bind(py)
+            .getattr(intern!(py, "functions"))?
+            .is(ctx.manager.bind(py))
+        {
             return Ok(None);
         }
         let finished = accounting.finished();
@@ -1112,8 +1210,12 @@ impl ScanState {
         call_site_addr: u64,
         return_to: Option<u64>,
     ) {
-        self.function_returns
-            .add((callee_func_addr, caller_func_addr, call_site_addr, return_to));
+        self.function_returns.add((
+            callee_func_addr,
+            caller_func_addr,
+            call_site_addr,
+            return_to,
+        ));
     }
 
     fn has_function_returns(&self, callee_func_addr: Option<u64>) -> bool {
@@ -1121,7 +1223,10 @@ impl ScanState {
     }
 
     /// Removes and returns the callee's `(callee, caller, call_site, return_to)` tuples, or None.
-    fn take_function_returns(&mut self, callee_func_addr: Option<u64>) -> Option<Vec<FunctionReturn>> {
+    fn take_function_returns(
+        &mut self,
+        callee_func_addr: Option<u64>,
+    ) -> Option<Vec<FunctionReturn>> {
         self.function_returns.take(callee_func_addr)
     }
 
@@ -1129,17 +1234,23 @@ impl ScanState {
 
     #[getter]
     fn pending(slf: &Bound<'_, Self>) -> PendingJobsView {
-        PendingJobsView { scan: slf.clone().unbind() }
+        PendingJobsView {
+            scan: slf.clone().unbind(),
+        }
     }
 
     #[getter]
     fn traced(slf: &Bound<'_, Self>) -> TracedAddresses {
-        TracedAddresses { scan: slf.clone().unbind() }
+        TracedAddresses {
+            scan: slf.clone().unbind(),
+        }
     }
 
     #[getter]
     fn completed(slf: &Bound<'_, Self>) -> CompletedFunctions {
-        CompletedFunctions { scan: slf.clone().unbind() }
+        CompletedFunctions {
+            scan: slf.clone().unbind(),
+        }
     }
 
     fn __repr__(&self) -> String {
@@ -1198,14 +1309,24 @@ fn py_spec(v: Bound<'_, PyAny>) -> PyResult<NodeSpec> {
 }
 
 /// `CFGFast._snippet_spec(cfg_node=...)` for a node of the scan graph.
-fn spec_of_id(ctx: &CtxRefs, refs: &Refs, py: Python<'_>, cfg: &Bound<'_, PyAny>, id: u64) -> PyResult<NodeSpec> {
+fn spec_of_id(
+    ctx: &CtxRefs,
+    refs: &Refs,
+    py: Python<'_>,
+    cfg: &Bound<'_, PyAny>,
+    id: u64,
+) -> PyResult<NodeSpec> {
     let g = ctx.graph.bind(py).get();
     let (addr, size, simprocedure_name) = g.node_view(id)?;
     if let Some(hooker) = ctx.sim_procedures.bind(py).get_item(addr)? {
         let length = hooker
             .getattr(intern!(py, "kwargs"))?
             .call_method1(intern!(py, "get"), (intern!(py, "length"), 0))?;
-        let length: u32 = if length.is_truthy()? { length.extract()? } else { 0 };
+        let length: u32 = if length.is_truthy()? {
+            length.extract()?
+        } else {
+            0
+        };
         return Ok((NodeKind::Hook, addr, length, false));
     }
     if simprocedure_name.is_none() && !g.node_is_syscall(id)? {
@@ -1220,7 +1341,10 @@ fn spec_of_id(ctx: &CtxRefs, refs: &Refs, py: Python<'_>, cfg: &Bound<'_, PyAny>
 fn spec_of_addr(py: Python<'_>, cfg: &Bound<'_, PyAny>, addr: u64) -> PyResult<NodeSpec> {
     let kwargs = PyDict::new(py);
     kwargs.set_item(intern!(py, "addr"), addr)?;
-    kwargs.set_item(intern!(py, "base_state"), cfg.getattr(intern!(py, "_base_state"))?)?;
+    kwargs.set_item(
+        intern!(py, "base_state"),
+        cfg.getattr(intern!(py, "_base_state"))?,
+    )?;
     py_spec(cfg.call_method(intern!(py, "_snippet_spec"), (), Some(&kwargs))?)
 }
 
@@ -1239,7 +1363,8 @@ fn apply_edge<'py>(
     src: Option<Src<'py>>,
 ) -> PyResult<()> {
     let fast_ctx = refs.ctx.as_ref();
-    let fast = fast_ctx.is_some() && (matches!(src, Some(Src::Id(_))) || matches!(e, FuncEdge::Return { .. }));
+    let fast = fast_ctx.is_some()
+        && (matches!(src, Some(Src::Id(_))) || matches!(e, FuncEdge::Return { .. }));
     if !fast {
         return apply_edge_py(py, refs, cfg, e, src);
     }
@@ -1301,7 +1426,14 @@ fn apply_edge<'py>(
             })();
             swallow(py, ctx, r)
         }
-        FuncEdge::Call { dst_addr, src_func_addr, syscall, stmt_idx, ins_addr, .. } => {
+        FuncEdge::Call {
+            dst_addr,
+            src_func_addr,
+            syscall,
+            stmt_idx,
+            ins_addr,
+            ..
+        } => {
             // _function_add_call_edge
             let r = (|| {
                 let from = spec_of_id(ctx, refs, py, cfg, src_id.unwrap())?;
@@ -1319,25 +1451,52 @@ fn apply_edge<'py>(
             })();
             swallow(py, ctx, r)
         }
-        FuncEdge::FakeRet { dst_addr, src_func_addr, confirmed, .. } => {
+        FuncEdge::FakeRet {
+            dst_addr,
+            src_func_addr,
+            confirmed,
+            ..
+        } => {
             // _function_add_fakeret_edge: next(nodes_by_addr(addr)) without a default
             let Some(n) = first_node_at(ctx, py, dst_addr)? else {
                 return Err(PyStopIteration::new_err(()));
             };
             let target = spec_of_id(ctx, refs, py, cfg, n)?;
             let from = spec_of_id(ctx, refs, py, cfg, src_id.unwrap())?;
-            RecoveryFunctions::add_fakeret_to(store, src_func_addr, from, target, confirmed, None, false, None)
+            RecoveryFunctions::add_fakeret_to(
+                store,
+                src_func_addr,
+                from,
+                target,
+                confirmed,
+                None,
+                false,
+                None,
+            )
         }
-        FuncEdge::Return { ret_from_addr, ret_to_addr, dst_func_addr } => {
+        FuncEdge::Return {
+            ret_from_addr,
+            ret_to_addr,
+            dst_func_addr,
+        } => {
             // _function_add_return_edge
             let (target, to_outside) = match first_node_at(ctx, py, ret_to_addr)? {
                 None => (spec_of_addr(py, cfg, ret_to_addr)?, false),
                 Some(n) => {
                     let func = ctx.graph.bind(py).get().node_func(n)?;
-                    (spec_of_id(ctx, refs, py, cfg, n)?, func != Some(dst_func_addr))
+                    (
+                        spec_of_id(ctx, refs, py, cfg, n)?,
+                        func != Some(dst_func_addr),
+                    )
                 }
             };
-            RecoveryFunctions::add_return_from_call(store, dst_func_addr, ret_from_addr, target, to_outside)
+            RecoveryFunctions::add_return_from_call(
+                store,
+                dst_func_addr,
+                ret_from_addr,
+                target,
+                to_outside,
+            )
         }
     }
 }
@@ -1365,10 +1524,16 @@ fn apply_edge_py<'py>(
             if !to_outside {
                 let kwargs = PyDict::new(py);
                 kwargs.set_item(intern!(py, "force_fastpath"), true)?;
-                let dst_node = cfg
-                    .getattr(intern!(py, "model"))?
-                    .call_method(intern!(py, "get_any_node"), (dst_addr,), Some(&kwargs))?;
-                if !dst_node.is_none() && dst_node.getattr(intern!(py, "function_address"))?.ne(src_func_addr)? {
+                let dst_node = cfg.getattr(intern!(py, "model"))?.call_method(
+                    intern!(py, "get_any_node"),
+                    (dst_addr,),
+                    Some(&kwargs),
+                )?;
+                if !dst_node.is_none()
+                    && dst_node
+                        .getattr(intern!(py, "function_address"))?
+                        .ne(src_func_addr)?
+                {
                     to_outside = true;
                 }
             }
@@ -1385,15 +1550,31 @@ fn apply_edge_py<'py>(
                 Some(&kwargs),
             )?;
         }
-        FuncEdge::Call { dst_addr, src_func_addr, syscall, stmt_idx, ins_addr, .. } => {
+        FuncEdge::Call {
+            dst_addr,
+            src_func_addr,
+            syscall,
+            stmt_idx,
+            ins_addr,
+            ..
+        } => {
             let kwargs = PyDict::new(py);
             kwargs.set_item(intern!(py, "syscall"), syscall)?;
             kwargs.set_item(intern!(py, "stmt_idx"), stmt_idx)?;
             kwargs.set_item(intern!(py, "ins_addr"), ins_addr)?;
             let src = refs.src_obj(py, src)?;
-            cfg.call_method(intern!(py, "_function_add_call_edge"), (dst_addr, src, src_func_addr), Some(&kwargs))?;
+            cfg.call_method(
+                intern!(py, "_function_add_call_edge"),
+                (dst_addr, src, src_func_addr),
+                Some(&kwargs),
+            )?;
         }
-        FuncEdge::FakeRet { dst_addr, src_func_addr, confirmed, .. } => {
+        FuncEdge::FakeRet {
+            dst_addr,
+            src_func_addr,
+            confirmed,
+            ..
+        } => {
             let kwargs = PyDict::new(py);
             kwargs.set_item(intern!(py, "confirmed"), confirmed)?;
             let src = refs.src_obj(py, src)?;
@@ -1403,7 +1584,11 @@ fn apply_edge_py<'py>(
                 Some(&kwargs),
             )?;
         }
-        FuncEdge::Return { ret_from_addr, ret_to_addr, dst_func_addr } => {
+        FuncEdge::Return {
+            ret_from_addr,
+            ret_to_addr,
+            dst_func_addr,
+        } => {
             cfg.call_method1(
                 intern!(py, "_function_add_return_edge"),
                 (ret_from_addr, ret_to_addr, dst_func_addr),
@@ -1414,7 +1599,10 @@ fn apply_edge_py<'py>(
 }
 
 /// The scan state of a CFGFast object, if it has one.
-fn scan_of<'py>(py: Python<'py>, cfg: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, ScanState>>> {
+fn scan_of<'py>(
+    py: Python<'py>,
+    cfg: &Bound<'py, PyAny>,
+) -> PyResult<Option<Bound<'py, ScanState>>> {
     let scan = cfg.getattr(intern!(py, "_scan"))?;
     if scan.is_none() {
         return Ok(None);
@@ -1424,7 +1612,11 @@ fn scan_of<'py>(py: Python<'py>, cfg: &Bound<'py, PyAny>) -> PyResult<Option<Bou
 
 impl ScanState {
     /// Applies function edges of a stored record (nodes bound) in order.
-    pub fn apply_edges(slf: &Bound<'_, Self>, cfg: &Bound<'_, PyAny>, edges: &[FuncEdge]) -> PyResult<()> {
+    pub fn apply_edges(
+        slf: &Bound<'_, Self>,
+        cfg: &Bound<'_, PyAny>,
+        edges: &[FuncEdge],
+    ) -> PyResult<()> {
         let py = slf.py();
         let refs = slf.borrow().refs(py).for_apply(py)?;
         for e in edges {
@@ -1432,8 +1624,12 @@ impl ScanState {
                 None => None,
                 Some(s) => Some(match s.node {
                     NodeRef::Id(id) => Src::Id(id),
-                    NodeRef::Orphan(k) => Src::Obj(slf.borrow().orphans[k as usize].bind(py).clone()),
-                    NodeRef::Unbound => return Err(PyTypeError::new_err("unbound source node in a stored edge")),
+                    NodeRef::Orphan(k) => {
+                        Src::Obj(slf.borrow().orphans[k as usize].bind(py).clone())
+                    }
+                    NodeRef::Unbound => {
+                        return Err(PyTypeError::new_err("unbound source node in a stored edge"));
+                    }
                 }),
             };
             apply_edge(py, &refs, cfg, e, src)?;
@@ -1445,7 +1641,10 @@ impl ScanState {
 fn refs_of(py: Python<'_>, cfg: &Bound<'_, PyAny>) -> PyResult<Refs> {
     match scan_of(py, cfg)? {
         Some(scan) => scan.borrow().refs(py).for_apply(py),
-        None => Ok(Refs { resolver: None, ctx: None }),
+        None => Ok(Refs {
+            resolver: None,
+            ctx: None,
+        }),
     }
 }
 
@@ -1463,7 +1662,11 @@ fn src_for<'py>(
                 Some(ctx) => o.getattr(intern!(py, "_store"))?.is(ctx.graph.bind(py)),
                 None => false,
             };
-            if in_graph { Some(Src::Id(o.getattr(intern!(py, "_id"))?.extract()?)) } else { Some(Src::Obj(o)) }
+            if in_graph {
+                Some(Src::Id(o.getattr(intern!(py, "_id"))?.extract()?))
+            } else {
+                Some(Src::Obj(o))
+            }
         }
         (Some(s), None) => match s.node {
             NodeRef::Id(id) => Some(Src::Id(id)),
@@ -1501,7 +1704,10 @@ fn src_of(py: Python<'_>, node: &Bound<'_, PyAny>) -> PyResult<SrcNode> {
     })
 }
 
-fn opt_src(py: Python<'_>, node: Option<&Bound<'_, PyAny>>) -> PyResult<(Option<SrcNode>, Option<Py<PyAny>>)> {
+fn opt_src(
+    py: Python<'_>,
+    node: Option<&Bound<'_, PyAny>>,
+) -> PyResult<(Option<SrcNode>, Option<Py<PyAny>>)> {
     match node {
         Some(n) if !n.is_none() => Ok((Some(src_of(py, n)?), Some(n.clone().unbind()))),
         _ => Ok((None, None)),
@@ -1634,7 +1840,11 @@ impl PyCFGJob {
             Some(JobEdges::Rec(v)) => {
                 let mut out = Vec::with_capacity(v.len());
                 for (e, obj) in v {
-                    out.push(edge_object(py, e.clone(), obj.as_ref().map(|o| o.clone_ref(py)))?);
+                    out.push(edge_object(
+                        py,
+                        e.clone(),
+                        obj.as_ref().map(|o| o.clone_ref(py)),
+                    )?);
                 }
                 Ok(Some(PyList::new(py, out)?.unbind()))
             }
@@ -1651,7 +1861,9 @@ impl PyCFGJob {
             None => Vec::new(),
             Some(JobEdges::Py(v)) => v,
             Some(JobEdges::Rec(_)) => {
-                self.edges = self.func_edges(py)?.map(|l| JobEdges::Py(l.bind(py).extract().unwrap()));
+                self.edges = self
+                    .func_edges(py)?
+                    .map(|l| JobEdges::Py(l.bind(py).extract().unwrap()));
                 match self.edges.take() {
                     Some(JobEdges::Py(v)) => v,
                     _ => Vec::new(),
@@ -1664,7 +1876,11 @@ impl PyCFGJob {
     }
 
     #[pyo3(signature = (cfg, clear=false))]
-    fn apply_function_edges(slf: &Bound<'_, Self>, cfg: &Bound<'_, PyAny>, clear: bool) -> PyResult<()> {
+    fn apply_function_edges(
+        slf: &Bound<'_, Self>,
+        cfg: &Bound<'_, PyAny>,
+        clear: bool,
+    ) -> PyResult<()> {
         let py = slf.py();
         enum Work {
             Rec(Vec<(FuncEdge, Option<Py<PyAny>>)>),
@@ -1676,9 +1892,11 @@ impl PyCFGJob {
                 None => return Ok(()),
                 Some(JobEdges::Rec(v)) if v.is_empty() => return Ok(()),
                 Some(JobEdges::Py(v)) if v.is_empty() => return Ok(()),
-                Some(JobEdges::Rec(v)) => {
-                    Work::Rec(v.iter().map(|(e, o)| (e.clone(), o.as_ref().map(|o| o.clone_ref(py)))).collect())
-                }
+                Some(JobEdges::Rec(v)) => Work::Rec(
+                    v.iter()
+                        .map(|(e, o)| (e.clone(), o.as_ref().map(|o| o.clone_ref(py))))
+                        .collect(),
+                ),
                 Some(JobEdges::Py(v)) => Work::Py(v.iter().map(|e| e.clone_ref(py)).collect()),
             }
         };
@@ -1758,7 +1976,10 @@ fn edge_of(obj: &Bound<'_, PyAny>) -> PyResult<(FuncEdge, Option<Py<PyAny>>)> {
     if let Ok(e) = obj.cast::<PyReturnEdge>() {
         return Ok(inner(&e.borrow().0));
     }
-    Err(PyTypeError::new_err(format!("{} is not a function edge", obj.get_type().name()?)))
+    Err(PyTypeError::new_err(format!(
+        "{} is not a function edge",
+        obj.get_type().name()?
+    )))
 }
 
 pub struct EdgeInner {
@@ -1870,7 +2091,15 @@ impl PyCallEdge {
     ) -> PyResult<Self> {
         let (src, src_obj) = opt_src(py, src_node)?;
         Ok(PyCallEdge(EdgeInner {
-            e: FuncEdge::Call { src, dst_addr, ret_addr, src_func_addr, syscall, stmt_idx, ins_addr },
+            e: FuncEdge::Call {
+                src,
+                dst_addr,
+                ret_addr,
+                src_func_addr,
+                syscall,
+                stmt_idx,
+                ins_addr,
+            },
             src_obj,
         }))
     }
@@ -1925,7 +2154,15 @@ impl PyFakeRetEdge {
         confirmed: Option<bool>,
     ) -> PyResult<Self> {
         let (src, src_obj) = opt_src(py, src_node)?;
-        Ok(PyFakeRetEdge(EdgeInner { e: FuncEdge::FakeRet { src, dst_addr, src_func_addr, confirmed }, src_obj }))
+        Ok(PyFakeRetEdge(EdgeInner {
+            e: FuncEdge::FakeRet {
+                src,
+                dst_addr,
+                src_func_addr,
+                confirmed,
+            },
+            src_obj,
+        }))
     }
 
     #[getter]
@@ -1958,7 +2195,14 @@ pub struct PyReturnEdge(EdgeInner);
 impl PyReturnEdge {
     #[new]
     fn py_new(ret_from_addr: u64, ret_to_addr: u64, dst_func_addr: u64) -> Self {
-        PyReturnEdge(EdgeInner { e: FuncEdge::Return { ret_from_addr, ret_to_addr, dst_func_addr }, src_obj: None })
+        PyReturnEdge(EdgeInner {
+            e: FuncEdge::Return {
+                ret_from_addr,
+                ret_to_addr,
+                dst_func_addr,
+            },
+            src_obj: None,
+        })
     }
 
     #[getter]
@@ -2013,20 +2257,29 @@ impl PendingJobsView {
     #[pyo3(signature = (returning=true))]
     fn pop_job(&self, py: Python<'_>, returning: bool) -> PyResult<Option<Py<PyCFGJob>>> {
         let rec = self.scan.borrow_mut(py).pending.pop(returning);
-        rec.map(|r| ScanState::emit(self.scan.bind(py), r)).transpose()
+        rec.map(|r| ScanState::emit(self.scan.bind(py), r))
+            .transpose()
     }
 
     fn all_jobs(&self, py: Python<'_>) -> PyResult<Vec<Py<PyCFGJob>>> {
         let recs: Vec<JobRec> = self.scan.borrow(py).pending.iter().cloned().collect();
-        recs.into_iter().map(|r| ScanState::emit(self.scan.bind(py), r)).collect()
+        recs.into_iter()
+            .map(|r| ScanState::emit(self.scan.bind(py), r))
+            .collect()
     }
 
     fn add_returning_function(&self, py: Python<'_>, func_addr: Option<u64>) {
-        self.scan.borrow_mut(py).pending.add_returning_function(func_addr);
+        self.scan
+            .borrow_mut(py)
+            .pending
+            .add_returning_function(func_addr);
     }
 
     fn add_nonreturning_function(&self, py: Python<'_>, func_addr: Option<u64>) {
-        self.scan.borrow_mut(py).pending.add_nonreturning_function(func_addr);
+        self.scan
+            .borrow_mut(py)
+            .pending
+            .add_nonreturning_function(func_addr);
     }
 
     fn clear_updated_functions(&self, py: Python<'_>) {
@@ -2041,7 +2294,10 @@ impl PendingJobsView {
     /// Drops the pending jobs of callees now known not to return and deregisters them.
     fn cleanup(&self, py: Python<'_>) -> PyResult<()> {
         let refs = self.scan.borrow(py).refs(py);
-        let ctx = refs.ctx.as_ref().ok_or_else(|| PyTypeError::new_err("the scan state is not bound"))?;
+        let ctx = refs
+            .ctx
+            .as_ref()
+            .ok_or_else(|| PyTypeError::new_err("the scan state is not bound"))?;
         let functions = ctx.kb.bind(py).getattr(intern!(py, "functions"))?;
         let ours = functions.is(ctx.manager.bind(py));
         let store = ctx.store.bind(py);
@@ -2054,7 +2310,11 @@ impl PendingJobsView {
                 return Ok(None);
             }
             let r = f.getattr(intern!(py, "returning"))?;
-            Ok(Some(if r.is_none() { None } else { Some(r.is_truthy()?) }))
+            Ok(Some(if r.is_none() {
+                None
+            } else {
+                Some(r.is_truthy()?)
+            }))
         };
         let warn = |addr: u64| -> PyResult<()> {
             let logger = py
@@ -2062,12 +2322,19 @@ impl PendingJobsView {
                 .call_method1(intern!(py, "getLogger"), ("angr.analyses.cfg.cfg_fast",))?;
             logger.call_method1(
                 intern!(py, "warning"),
-                ("An expected function at %s is not found. Please report it to Fish.", addr),
+                (
+                    "An expected function at %s is not found. Please report it to Fish.",
+                    addr,
+                ),
             )?;
             Ok(())
         };
         let mut scan = self.scan.borrow_mut(py);
-        let ScanState { pending, accounting, .. } = &mut *scan;
+        let ScanState {
+            pending,
+            accounting,
+            ..
+        } = &mut *scan;
         pending.cleanup(returning_of, warn, |job| {
             accounting.deregister(job.func_addr, &JobItem::Job(job.key()));
         })
@@ -2170,8 +2437,16 @@ fn head_block_bytes(g: &FunctionGraph, snap: &Snapshot, addr: u64) -> Option<Vec
 }
 
 /// Whether CFGFast._function_completed(addr) can change anything; it mirrors each byte test of the Python code.
-fn completed_candidate(py: Python<'_>, store: &RecoveryFunctions, snap: &Snapshot, addr: u64, filter: u8) -> bool {
-    let Ok(rec) = store.rec(addr) else { return false };
+fn completed_candidate(
+    py: Python<'_>,
+    store: &RecoveryFunctions,
+    snap: &Snapshot,
+    addr: u64,
+    filter: u8,
+) -> bool {
+    let Ok(rec) = store.rec(addr) else {
+        return false;
+    };
     let g = rec.graph.bind(py).borrow();
     match filter {
         1 => match g.local_count() {
@@ -2258,7 +2533,10 @@ mod tests {
         // a set of small ints iterates in slot order: by value modulo the table size
         assert_eq!(cpython_set_order(&[5, 1, 3]), vec![1, 2, 0]);
         // list(set) after adding 5, 13, 21, 2**40, 7, 1 on CPython 3.14
-        let hashes: Vec<i64> = [5u64, 13, 21, 1 << 40, 7, 1].iter().map(|&v| py_hash_u64(v)).collect();
+        let hashes: Vec<i64> = [5u64, 13, 21, 1 << 40, 7, 1]
+            .iter()
+            .map(|&v| py_hash_u64(v))
+            .collect();
         assert_eq!(cpython_set_order(&hashes), vec![3, 5, 0, 4, 1, 2]);
         assert_eq!(py_hash_u64(u64::MAX), 7);
         assert_eq!(py_hash_u64((1 << 61) - 1), 0);

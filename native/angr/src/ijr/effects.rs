@@ -16,7 +16,11 @@ pub struct JtInfo {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Effect {
     /// `cfg._seg_list.occupy(addr, size, sort)`.
-    SegOccupy { addr: u64, size: u64, sort: &'static str },
+    SegOccupy {
+        addr: u64,
+        size: u64,
+        sort: &'static str,
+    },
     /// JumpTableResolver's write to `cfg.indirect_jumps[addr]` for a resolved table.
     IjJumptable {
         addr: u64,

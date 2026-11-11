@@ -92,7 +92,9 @@ impl Resolver for Amd64ElfGotResolver {
         j: &JumpSite,
     ) -> PyResult<Decision<bool>> {
         let jk = jumpkind_name(j.jumpkind);
-        Ok(Decision::Done(jk == "Ijk_Call" || (jk == "Ijk_Boring" && j.addr == j.func_addr)))
+        Ok(Decision::Done(
+            jk == "Ijk_Call" || (jk == "Ijk_Boring" && j.addr == j.func_addr),
+        ))
     }
 
     fn resolve(
@@ -153,14 +155,23 @@ mod tests {
             Some(IndirectOperand::RipSlot(0x0ff7))
         );
         // jmp rax, call qword ptr [rax + 8], notrack jmp qword ptr [rax*8 + 0x1234]
-        assert_eq!(decode_indirect_operand(0, &[0xff, 0xe0]), Some(IndirectOperand::Other));
-        assert_eq!(decode_indirect_operand(0, &[0xff, 0x50, 0x08]), Some(IndirectOperand::Other));
+        assert_eq!(
+            decode_indirect_operand(0, &[0xff, 0xe0]),
+            Some(IndirectOperand::Other)
+        );
+        assert_eq!(
+            decode_indirect_operand(0, &[0xff, 0x50, 0x08]),
+            Some(IndirectOperand::Other)
+        );
         assert_eq!(
             decode_indirect_operand(0, &[0x3e, 0xff, 0x24, 0xc5, 0x34, 0x12, 0, 0]),
             Some(IndirectOperand::Other)
         );
         // address-size prefix, other opcodes
-        assert_eq!(decode_indirect_operand(0, &[0x67, 0xff, 0x15, 1, 0, 0, 0]), None);
+        assert_eq!(
+            decode_indirect_operand(0, &[0x67, 0xff, 0x15, 1, 0, 0, 0]),
+            None
+        );
         assert_eq!(decode_indirect_operand(0, &[0xe8, 0, 0, 0, 0]), None);
     }
 }

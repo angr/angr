@@ -14,7 +14,9 @@ use pyo3::types::{PyList, PyTuple};
 
 use crate::ailment::vex_ffi::{self, IRConst, IRExpr, IRSB, IRStmt};
 use crate::ailment::vexop_names::{IOP_BASE, IROP_NAMES};
-use crate::vexlift::{Fallback, IJK_NODECODE, LiftOptions, LifterCore, VEXLiftResult, jumpkind_name};
+use crate::vexlift::{
+    Fallback, IJK_NODECODE, LiftOptions, LifterCore, VEXLiftResult, jumpkind_name,
+};
 
 pub type ExprId = u32;
 /// No expression (a NULL `IRExpr*`).
@@ -251,7 +253,10 @@ fn intern_callee(p: *const c_char) -> &'static str {
     if p.is_null() {
         return "";
     }
-    let mut names = NAMES.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap();
+    let mut names = NAMES
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap();
     // libVEX helper names are string literals, so the pointer identifies the name
     names.entry(p as usize).or_insert_with(|| {
         Box::leak(
@@ -354,7 +359,11 @@ impl Copier<'_> {
         Ok((self.exprs.len() - 1) as ExprId)
     }
 
-    unsafe fn arg_list(&mut self, mut p: *mut *mut IRExpr, limit: usize) -> Result<(u32, u32), Fallback> {
+    unsafe fn arg_list(
+        &mut self,
+        mut p: *mut *mut IRExpr,
+        limit: usize,
+    ) -> Result<(u32, u32), Fallback> {
         let mut ids = Vec::new();
         while !p.is_null() && !unsafe { *p }.is_null() && ids.len() < limit {
             ids.push(unsafe { self.expr(*p) }?);
@@ -465,7 +474,9 @@ impl Copier<'_> {
                         nfx_state: d.n_fx_state,
                     }
                 }
-                IST_MBE => Stmt::Mbe { event: ist.mbe.event },
+                IST_MBE => Stmt::Mbe {
+                    event: ist.mbe.event,
+                },
                 IST_EXIT => Stmt::Exit {
                     guard: self.expr(ist.exit.guard)?,
                     dst: IrConst::from_c(ist.exit.dst),
@@ -519,7 +530,9 @@ pub(crate) unsafe fn copy_ir(r: *const VEXLiftResult, addr: u64) -> Result<VexIr
     let next = unsafe { c.expr(irsb.next) }?;
     let tyenv = unsafe {
         let te = &*c.irsb.tyenv;
-        (0..te.types_used.max(0) as usize).map(|i| *te.types.add(i)).collect()
+        (0..te.types_used.max(0) as usize)
+            .map(|i| *te.types.add(i))
+            .collect()
     };
     let insts = r.insts.max(0) as usize;
     Ok(VexIrsb {
@@ -550,7 +563,10 @@ impl VexIrsb {
     }
 
     pub fn tmp_type(&self, tmp: u32) -> u32 {
-        self.tyenv.get(tmp as usize).copied().unwrap_or(vex_ffi::ITY_INVALID)
+        self.tyenv
+            .get(tmp as usize)
+            .copied()
+            .unwrap_or(vex_ffi::ITY_INVALID)
     }
 
     /// pyvex `expr.result_type(tyenv)`.
@@ -562,8 +578,12 @@ impl VexIrsb {
             Some(Expr::RdTmp(t)) => self.tmp_type(*t),
             Some(Expr::Const(c)) => c.ty(),
             Some(Expr::CCall { retty, .. }) => *retty,
-            Some(Expr::Unop { op, .. }) | Some(Expr::Binop { op, .. }) => vex_ffi::op_result_type(*op),
-            Some(Expr::Triop { op, .. }) | Some(Expr::Qop { op, .. }) => vex_ffi::op_result_type(*op),
+            Some(Expr::Unop { op, .. }) | Some(Expr::Binop { op, .. }) => {
+                vex_ffi::op_result_type(*op)
+            }
+            Some(Expr::Triop { op, .. }) | Some(Expr::Qop { op, .. }) => {
+                vex_ffi::op_result_type(*op)
+            }
             Some(Expr::Ite { iftrue, .. }) => self.result_type(*iftrue),
             _ => ITY_INVALID,
         }
@@ -741,8 +761,10 @@ impl VexIrsb {
                 let bytes: Vec<u8> = (0..nbytes)
                     .map(|i| if (c.raw >> i) & 1 == 1 { 0xff } else { 0 })
                     .collect();
-                py.get_type::<pyo3::types::PyInt>()
-                    .call_method1("from_bytes", (pyo3::types::PyBytes::new(py, &bytes), "little"))?
+                py.get_type::<pyo3::types::PyInt>().call_method1(
+                    "from_bytes",
+                    (pyo3::types::PyBytes::new(py, &bytes), "little"),
+                )?
             }
             _ => c.raw.into_pyobject(py)?.into_any(),
         };
@@ -764,10 +786,18 @@ impl VexIrsb {
             )
                 .into_pyobject(py)?,
             Expr::RdTmp(t) => ("RdTmp", *t).into_pyobject(py)?,
-            Expr::Qop { op, args } => ("Qop", op_name(*op), self.py_list(py, args)?).into_pyobject(py)?,
-            Expr::Triop { op, args } => ("Triop", op_name(*op), self.py_list(py, args)?).into_pyobject(py)?,
-            Expr::Binop { op, args } => ("Binop", op_name(*op), self.py_list(py, args)?).into_pyobject(py)?,
-            Expr::Unop { op, arg } => ("Unop", op_name(*op), self.py_list(py, &[*arg])?).into_pyobject(py)?,
+            Expr::Qop { op, args } => {
+                ("Qop", op_name(*op), self.py_list(py, args)?).into_pyobject(py)?
+            }
+            Expr::Triop { op, args } => {
+                ("Triop", op_name(*op), self.py_list(py, args)?).into_pyobject(py)?
+            }
+            Expr::Binop { op, args } => {
+                ("Binop", op_name(*op), self.py_list(py, args)?).into_pyobject(py)?
+            }
+            Expr::Unop { op, arg } => {
+                ("Unop", op_name(*op), self.py_list(py, &[*arg])?).into_pyobject(py)?
+            }
             Expr::Load { end, ty, addr } => (
                 "Load",
                 vex_ffi::endness_str(*end),
@@ -776,14 +806,22 @@ impl VexIrsb {
             )
                 .into_pyobject(py)?,
             Expr::Const(c) => ("Const", Self::py_const(py, c)?).into_pyobject(py)?,
-            Expr::Ite { cond, iftrue, iffalse } => (
+            Expr::Ite {
+                cond,
+                iftrue,
+                iffalse,
+            } => (
                 "ITE",
                 self.py_expr(py, *cond)?,
                 self.py_expr(py, *iftrue)?,
                 self.py_expr(py, *iffalse)?,
             )
                 .into_pyobject(py)?,
-            Expr::CCall { callee, retty, args } => (
+            Expr::CCall {
+                callee,
+                retty,
+                args,
+            } => (
                 "CCall",
                 type_name(*retty),
                 *callee,
@@ -797,7 +835,10 @@ impl VexIrsb {
     }
 
     fn py_list<'py>(&self, py: Python<'py>, ids: &[ExprId]) -> PyResult<Bound<'py, PyTuple>> {
-        let items = ids.iter().map(|&i| self.py_expr(py, i)).collect::<PyResult<Vec<_>>>()?;
+        let items = ids
+            .iter()
+            .map(|&i| self.py_expr(py, i))
+            .collect::<PyResult<Vec<_>>>()?;
         PyTuple::new(py, items)
     }
 
@@ -806,9 +847,16 @@ impl VexIrsb {
         let t: Bound<'py, PyTuple> = match s {
             Stmt::NoOp => ("NoOp",).into_pyobject(py)?,
             Stmt::IMark { addr, len, delta } => ("IMark", *addr, *len, *delta).into_pyobject(py)?,
-            Stmt::AbiHint { base, len, nia } => ("AbiHint", e(*base)?, *len, e(*nia)?).into_pyobject(py)?,
+            Stmt::AbiHint { base, len, nia } => {
+                ("AbiHint", e(*base)?, *len, e(*nia)?).into_pyobject(py)?
+            }
             Stmt::Put { offset, data } => ("Put", *offset, e(*data)?).into_pyobject(py)?,
-            Stmt::PutI { descr, ix, data, bias } => (
+            Stmt::PutI {
+                descr,
+                ix,
+                data,
+                bias,
+            } => (
                 "PutI",
                 (descr.base, type_name(descr.elem_ty), descr.n_elems),
                 e(*ix)?,
@@ -837,9 +885,19 @@ impl VexIrsb {
                 e(*guard)?,
             )
                 .into_pyobject(py)?,
-            Stmt::StoreG { end, addr, data, guard } => {
-                ("StoreG", vex_ffi::endness_str(*end), e(*addr)?, e(*data)?, e(*guard)?).into_pyobject(py)?
-            }
+            Stmt::StoreG {
+                end,
+                addr,
+                data,
+                guard,
+            } => (
+                "StoreG",
+                vex_ffi::endness_str(*end),
+                e(*addr)?,
+                e(*data)?,
+                e(*guard)?,
+            )
+                .into_pyobject(py)?,
             Stmt::Cas {
                 addr,
                 data_lo,
@@ -866,7 +924,14 @@ impl VexIrsb {
                 result,
                 addr,
                 storedata,
-            } => ("LLSC", vex_ffi::endness_str(*end), *result, e(*addr)?, e(*storedata)?).into_pyobject(py)?,
+            } => (
+                "LLSC",
+                vex_ffi::endness_str(*end),
+                *result,
+                e(*addr)?,
+                e(*storedata)?,
+            )
+                .into_pyobject(py)?,
             Stmt::Dirty {
                 callee,
                 guard,

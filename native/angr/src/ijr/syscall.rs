@@ -35,14 +35,21 @@ impl FastPath {
             Some(m) => {
                 let mut out = HashMap::new();
                 for (jk, abi) in m {
-                    let code = jumpkind_from_name(&jk)
-                        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("unknown jumpkind {jk}")))?;
+                    let code = jumpkind_from_name(&jk).ok_or_else(|| {
+                        pyo3::exceptions::PyValueError::new_err(format!("unknown jumpkind {jk}"))
+                    })?;
                     out.insert(code, abi);
                 }
                 Some(out)
             }
         };
-        Ok(FastPath { num_reg, abis, opt_level, stub_addr, stubs: HashMap::new() })
+        Ok(FastPath {
+            num_reg,
+            abis,
+            opt_level,
+            stub_addr,
+            stubs: HashMap::new(),
+        })
     }
 }
 
@@ -139,7 +146,11 @@ fn op_class(op: u32) -> OpClass {
 }
 
 fn mask(v: u64, bits: u32) -> u64 {
-    if bits >= 64 { v } else { v & ((1u64 << bits) - 1) }
+    if bits >= 64 {
+        v
+    } else {
+        v & ((1u64 << bits) - 1)
+    }
 }
 
 /// Ok(value) when the fastpath engine evaluates `e` without raising (None: not a known constant), Err(()) otherwise.
@@ -182,7 +193,11 @@ fn eval(ir: &VexIrsb, tmps: &[Option<u64>], e: ExprId) -> Result<Option<u64>, ()
                 _ => None,
             })
         }
-        Expr::Ite { cond, iftrue, iffalse } => {
+        Expr::Ite {
+            cond,
+            iftrue,
+            iffalse,
+        } => {
             for x in [*cond, *iftrue, *iffalse] {
                 eval(ir, tmps, x)?;
             }
@@ -249,7 +264,9 @@ impl Resolver for SyscallResolver {
         _cfg: &Bound<'_, PyAny>,
         j: &JumpSite,
     ) -> PyResult<Decision<bool>> {
-        Ok(Decision::Done(self.os_resolves_syscalls && jumpkind_name(j.jumpkind).starts_with("Ijk_Sys")))
+        Ok(Decision::Done(
+            self.os_resolves_syscalls && jumpkind_name(j.jumpkind).starts_with("Ijk_Sys"),
+        ))
     }
 
     fn resolve(
@@ -302,7 +319,11 @@ impl Resolver for SyscallResolver {
         let stub = match fast.stubs.get(&key) {
             Some(&s) => s,
             None => {
-                let s: u64 = fast.stub_addr.bind(py).call1((num, key.1.as_deref()))?.extract()?;
+                let s: u64 = fast
+                    .stub_addr
+                    .bind(py)
+                    .call1((num, key.1.as_deref()))?
+                    .extract()?;
                 fast.stubs.insert(key, s);
                 s
             }

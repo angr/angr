@@ -37,7 +37,10 @@ pub enum X86Head {
 }
 
 fn is_legacy_prefix(b: u8) -> bool {
-    matches!(b, 0xF0 | 0xF2 | 0xF3 | 0x2E | 0x36 | 0x3E | 0x26 | 0x64 | 0x65 | 0x66 | 0x67)
+    matches!(
+        b,
+        0xF0 | 0xF2 | 0xF3 | 0x2E | 0x36 | 0x3E | 0x26 | 0x64 | 0x65 | 0x66 | 0x67
+    )
 }
 
 /// Classify the first instruction in `bytes` (decoded in 64-bit mode if `is_64`). Conservative: anything not
@@ -80,7 +83,11 @@ pub fn classify_x86_head(bytes: &[u8], is_64: bool) -> X86Head {
             Some(m) if m >> 6 == 3 => {
                 let reg = ((m >> 3) & 7) | ((rex & 4) << 1);
                 let rm = (m & 7) | ((rex & 1) << 3);
-                if reg == rm { X86Head::Unknown } else { X86Head::Effectful }
+                if reg == rm {
+                    X86Head::Unknown
+                } else {
+                    X86Head::Effectful
+                }
             }
             Some(_) => X86Head::Effectful,
             None => X86Head::Unknown,
@@ -107,7 +114,11 @@ pub fn classify_x86_head(bytes: &[u8], is_64: bool) -> X86Head {
                         .map(|d| d.iter().all(|&x| x == 0))
                         .unwrap_or(true),
                 };
-                if zero_disp { X86Head::Unknown } else { X86Head::Effectful }
+                if zero_disp {
+                    X86Head::Unknown
+                } else {
+                    X86Head::Effectful
+                }
             }
             None => X86Head::Unknown,
         },
@@ -143,7 +154,10 @@ pub const X86_NOPS: [&[u8]; 17] = [
 
 /// The length of the nop from `X86_NOPS` that `bytes` starts with.
 pub fn x86_nop_len(bytes: &[u8]) -> Option<usize> {
-    X86_NOPS.iter().find(|n| bytes.starts_with(n)).map(|n| n.len())
+    X86_NOPS
+        .iter()
+        .find(|n| bytes.starts_with(n))
+        .map(|n| n.len())
 }
 
 /// The nop length `_remove_redundant_overlapping_blocks` computes for a block lifted at `addr` with at most
@@ -373,7 +387,11 @@ impl OverlapScan {
     /// The next overlapping `(a_key, b_key, big_nop)` that Python must handle; `resolve` must be called before
     /// asking for the next one. `big_nop` tells whether the bytes between a and b are all nops, None if they must be
     /// lifted to find out. Pairs that the Python code would leave alone are skipped here.
-    fn next_overlap(&mut self, py: Python<'_>, graph: &CfgGraph) -> PyResult<Option<(Key, Key, Option<bool>)>> {
+    fn next_overlap(
+        &mut self,
+        py: Python<'_>,
+        graph: &CfgGraph,
+    ) -> PyResult<Option<(Key, Key, Option<bool>)>> {
         if self.pending_b.is_some() {
             return Err(PyRuntimeError::new_err("resolve() the previous pair first"));
         }
@@ -517,7 +535,9 @@ fn x86_alignment_verdict(
         return Ok(None);
     }
     let succs = g.local_successors(node)?;
-    Ok(Some(succs.len() == 1 && g.node_addr(succs[0])? == g.node_addr(node)?))
+    Ok(Some(
+        succs.len() == 1 && g.node_addr(succs[0])? == g.node_addr(node)?,
+    ))
 }
 
 /// `x86_leading_nop_len` for Python tests.
@@ -536,7 +556,10 @@ fn py_x86_all_nops(bytes: &[u8], is_64: bool) -> Option<bool> {
 
 pub fn cfg_post(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<OverlapScan>()?;
-    m.add("X86_NOPS", X86_NOPS.iter().map(|n| n.to_vec()).collect::<Vec<_>>())?;
+    m.add(
+        "X86_NOPS",
+        X86_NOPS.iter().map(|n| n.to_vec()).collect::<Vec<_>>(),
+    )?;
     m.add_function(wrap_pyfunction!(py_x86_leading_nop_len, m)?)?;
     m.add_function(wrap_pyfunction!(py_x86_all_nops, m)?)?;
     m.add_function(wrap_pyfunction!(x86_alignment_verdicts, m)?)?;

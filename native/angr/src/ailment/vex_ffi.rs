@@ -646,11 +646,13 @@ pub type TypeOfPrimopFn = unsafe extern "C" fn(
 );
 
 /// `Bool register_readonly_region(ULong start, ULong size, unsigned char* content)`.
-pub type RegisterReadonlyRegionFn = unsafe extern "C" fn(start: u64, size: u64, content: *const u8) -> u8;
+pub type RegisterReadonlyRegionFn =
+    unsafe extern "C" fn(start: u64, size: u64, content: *const u8) -> u8;
 /// `void deregister_all_readonly_regions(void)`.
 pub type DeregisterAllReadonlyRegionsFn = unsafe extern "C" fn();
 /// `Bool register_initial_register_value(UInt offset, UInt size, ULong value)`.
-pub type RegisterInitialRegisterValueFn = unsafe extern "C" fn(offset: u32, size: u32, value: u64) -> u8;
+pub type RegisterInitialRegisterValueFn =
+    unsafe extern "C" fn(offset: u32, size: u32, value: u64) -> u8;
 /// `Bool reset_initial_register_values(void)`.
 pub type ResetInitialRegisterValuesFn = unsafe extern "C" fn() -> u8;
 
@@ -705,7 +707,10 @@ fn resolve_all(py: pyo3::Python<'_>) -> Symbols {
     Symbols {
         vex_lift: sym_as::<VexLiftFn>(handle, "vex_lift"),
         type_of_primop: sym_as::<TypeOfPrimopFn>(handle, "typeOfPrimop"),
-        register_readonly_region: sym_as::<RegisterReadonlyRegionFn>(handle, "register_readonly_region"),
+        register_readonly_region: sym_as::<RegisterReadonlyRegionFn>(
+            handle,
+            "register_readonly_region",
+        ),
         deregister_all_readonly_regions: sym_as::<DeregisterAllReadonlyRegionsFn>(
             handle,
             "deregister_all_readonly_regions",
@@ -740,11 +745,15 @@ pub fn register_readonly_region_fn() -> Option<RegisterReadonlyRegionFn> {
 }
 
 pub fn deregister_all_readonly_regions_fn() -> Option<DeregisterAllReadonlyRegionsFn> {
-    SYMBOLS.get().and_then(|s| s.deregister_all_readonly_regions)
+    SYMBOLS
+        .get()
+        .and_then(|s| s.deregister_all_readonly_regions)
 }
 
 pub fn register_initial_register_value_fn() -> Option<RegisterInitialRegisterValueFn> {
-    SYMBOLS.get().and_then(|s| s.register_initial_register_value)
+    SYMBOLS
+        .get()
+        .and_then(|s| s.register_initial_register_value)
 }
 
 pub fn reset_initial_register_values_fn() -> Option<ResetInitialRegisterValuesFn> {

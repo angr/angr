@@ -498,7 +498,11 @@ impl Segment {
             + self.proxy_of.capacity() * 16
             + self.ins_pool.capacity()
             + (self.names.len() + self.spnames.len()) * 64
-            + self.manual.values().map(|v| v.capacity() + 48).sum::<usize>()
+            + self
+                .manual
+                .values()
+                .map(|v| v.capacity() + 48)
+                .sum::<usize>()
     }
 
     fn flags(&self, local: u32) -> u16 {
@@ -1032,7 +1036,11 @@ impl Segment {
         let p: SegPayloadV2 =
             postcard::from_bytes(data).map_err(|e| StoreError::Corrupt(e.to_string()))?;
         Segment::from_payload(SegPayload {
-            nodes: p.nodes.into_iter().map(|n| n.map(NodeRecV2::upgrade)).collect(),
+            nodes: p
+                .nodes
+                .into_iter()
+                .map(|n| n.map(NodeRecV2::upgrade))
+                .collect(),
             edges: p.edges,
             ins_pool: Vec::new(),
             names: Vec::new(),
@@ -3369,7 +3377,10 @@ mod tests {
         let got = g.node_fields(a).unwrap();
         assert_eq!(got.func, None);
         assert_eq!(got.no_ret, Some(true));
-        assert_eq!((got.ins_base, got.ins_sizes.as_slice()), (0x11, &[1u8, 1, 1, 1, 0][..]));
+        assert_eq!(
+            (got.ins_base, got.ins_sizes.as_slice()),
+            (0x11, &[1u8, 1, 1, 1, 0][..])
+        );
         assert_eq!(got.name, None);
         // blob round trip (compacts the pool) and paging keep the fields
         let header = g.header_bytes().unwrap();
@@ -3378,7 +3389,8 @@ mod tests {
         assert_eq!(back.node_fields(a).unwrap(), got);
         assert_eq!(back.node_view(a).unwrap(), (0x10, 4, None));
         assert_eq!(back.node_views().unwrap().len(), 2);
-        g.attach_backend(Box::new(MemoryBackend::default()), 1).unwrap();
+        g.attach_backend(Box::new(MemoryBackend::default()), 1)
+            .unwrap();
         assert_eq!(g.node_fields(a).unwrap(), got);
         assert!(g.remove_node(a).unwrap());
         let (a2, _) = g.add_node(0x10, 4).unwrap();
@@ -3397,12 +3409,16 @@ mod tests {
                 }),
                 None,
             ],
-            edges: vec![(0, 0, EdgeRec {
-                ins_addr: NO_INS_ADDR,
-                stmt_idx: NO_STMT_IDX,
-                jk: 0,
-                present: Present::P1,
-            })],
+            edges: vec![(
+                0,
+                0,
+                EdgeRec {
+                    ins_addr: NO_INS_ADDR,
+                    stmt_idx: NO_STMT_IDX,
+                    jk: 0,
+                    present: Present::P1,
+                },
+            )],
         };
         let blob = postcard::to_stdvec(&v2).unwrap();
         let h = Header {
@@ -3438,10 +3454,7 @@ mod tests {
             call_dst: bool,
         },
         #[allow(dead_code)]
-        Proxy {
-            slot: u32,
-            local: u32,
-        },
+        Proxy { slot: u32, local: u32 },
     }
 
     #[derive(Serialize)]

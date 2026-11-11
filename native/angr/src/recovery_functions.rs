@@ -16,8 +16,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyInt, PyString};
 
 use crate::function_graph::{
-    EdgeKind, EndpointKind, FunctionGraph, NodeKind, SiteKind, PRESENT_CONFIRMED, PRESENT_INS_ADDR,
-    PRESENT_OUTSIDE, PRESENT_STMT_IDX, PRESENT_TYPE,
+    EdgeKind, EndpointKind, FunctionGraph, NodeKind, PRESENT_CONFIRMED, PRESENT_INS_ADDR,
+    PRESENT_OUTSIDE, PRESENT_STMT_IDX, PRESENT_TYPE, SiteKind,
 };
 use crate::ordered_map::OrderedMap;
 
@@ -175,7 +175,10 @@ impl CallGraph {
     }
 
     pub fn number_of_edges(&self) -> usize {
-        self.succ.values().map(|m| m.values().map(Vec::len).sum::<usize>()).sum()
+        self.succ
+            .values()
+            .map(|m| m.values().map(Vec::len).sum::<usize>())
+            .sum()
     }
 }
 
@@ -194,7 +197,11 @@ fn missing(addr: u64) -> PyErr {
 }
 
 fn delta_of(spec: NodeSpec) -> i32 {
-    if spec.0 == NodeKind::Block && spec.3 { -1 } else { 0 }
+    if spec.0 == NodeKind::Block && spec.3 {
+        -1
+    } else {
+        0
+    }
 }
 
 /// Graph mutators replicating the `Function` methods; each logs onto the record.
@@ -208,7 +215,8 @@ impl FuncOps<'_> {
     pub(crate) fn register(&mut self, is_local: bool, spec: NodeSpec) -> u32 {
         let (kind, addr, size, thumb) = spec;
         let (idx, _created, new_local, changed) =
-            self.g.register_node(is_local, kind, addr, size, thumb, delta_of(spec));
+            self.g
+                .register_node(is_local, kind, addr, size, thumb, delta_of(spec));
         if !changed {
             return idx;
         }
@@ -245,7 +253,9 @@ impl FuncOps<'_> {
         confirmed: bool,
     ) {
         self.g
-            .add_edge(src, dst, kind, present, outside, ins_addr, stmt_idx, confirmed)
+            .add_edge(
+                src, dst, kind, present, outside, ins_addr, stmt_idx, confirmed,
+            )
             .expect("node ids come from this graph");
         self.rec.log(LOG_ADD_EDGE, src, dst);
     }
@@ -272,7 +282,11 @@ impl FuncOps<'_> {
         if outside {
             let _ = self.g.add_site(src, SiteKind::Jumpout);
         }
-        let kind = if is_exception { EdgeKind::Exception } else { EdgeKind::Transition };
+        let kind = if is_exception {
+            EdgeKind::Exception
+        } else {
+            EdgeKind::Transition
+        };
         if let Some(dst) = dst {
             self.add_edge(
                 src,
@@ -286,7 +300,11 @@ impl FuncOps<'_> {
             );
         }
         if outside {
-            let ep = if is_exception { EndpointKind::Exception } else { EndpointKind::Transition };
+            let ep = if is_exception {
+                EndpointKind::Exception
+            } else {
+                EndpointKind::Transition
+            };
             let _ = self.g.add_endpoint(src, ep);
         }
     }
@@ -305,7 +323,11 @@ impl FuncOps<'_> {
     ) {
         let src = self.register(true, from);
         let dst = self.graph_node(to_func);
-        let kind = if syscall { EdgeKind::Syscall } else { EdgeKind::Call };
+        let kind = if syscall {
+            EdgeKind::Syscall
+        } else {
+            EdgeKind::Call
+        };
         self.add_edge(
             src,
             dst,
@@ -325,7 +347,13 @@ impl FuncOps<'_> {
     }
 
     /// `Function.fakeret_to`
-    pub(crate) fn fakeret_to(&mut self, from: NodeSpec, to: NodeSpec, confirmed: Option<bool>, to_outside: bool) {
+    pub(crate) fn fakeret_to(
+        &mut self,
+        from: NodeSpec,
+        to: NodeSpec,
+        confirmed: Option<bool>,
+        to_outside: bool,
+    ) {
         let src = self.register(true, from);
         let dst = if confirmed == Some(true) {
             self.register(!to_outside, to)
@@ -450,7 +478,9 @@ impl RecoveryFunctions {
     /// Creates the record of a new function (returning unknown, callgraph node added).
     pub fn create_record(&mut self, py: Python<'_>, addr: u64) -> PyResult<Py<FunctionGraph>> {
         if self.funcs.contains_key(&addr) {
-            return Err(PyValueError::new_err(format!("function {addr:#x} already exists")));
+            return Err(PyValueError::new_err(format!(
+                "function {addr:#x} already exists"
+            )));
         }
         let graph = FunctionGraph::untracked(py, FunctionGraph::new(addr))?;
         self.funcs.insert(addr, FuncRecord::new(graph.clone()));
@@ -475,7 +505,9 @@ impl RecoveryFunctions {
         if slf.borrow().funcs.contains_key(&addr) {
             Ok(())
         } else {
-            Err(PyValueError::new_err(format!("the factory did not create function {addr:#x}")))
+            Err(PyValueError::new_err(format!(
+                "the factory did not create function {addr:#x}"
+            )))
         }
     }
 
@@ -545,7 +577,9 @@ impl RecoveryFunctions {
         info: &Bound<'_, PyDict>,
     ) -> PyResult<()> {
         if self.funcs.contains_key(&addr) {
-            return Err(PyValueError::new_err(format!("function {addr:#x} already exists")));
+            return Err(PyValueError::new_err(format!(
+                "function {addr:#x} already exists"
+            )));
         }
         let mut rec = FuncRecord::new(graph);
         rec.name = name;
@@ -558,7 +592,8 @@ impl RecoveryFunctions {
         rec.is_alignment = is_alignment;
         rec.returning = returning;
         for (k, v) in info.iter() {
-            rec.info.insert(k.extract::<String>()?, InfoValue::from_py(&v));
+            rec.info
+                .insert(k.extract::<String>()?, InfoValue::from_py(&v));
         }
         self.funcs.insert(addr, rec);
         self.update_returning_sets(addr, returning);
@@ -614,7 +649,11 @@ impl RecoveryFunctions {
             return Vec::new();
         }
         let it = self.funcs.range((lo, hi)).map(|(&a, _)| a);
-        if reverse { it.rev().collect() } else { it.collect() }
+        if reverse {
+            it.rev().collect()
+        } else {
+            it.collect()
+        }
     }
 
     pub fn ceiling_addr(&self, addr: u64) -> Option<u64> {
@@ -765,7 +804,9 @@ impl RecoveryFunctions {
     }
 
     pub fn info_set(&mut self, addr: u64, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
-        self.rec_mut(addr)?.info.insert(key, InfoValue::from_py(value));
+        self.rec_mut(addr)?
+            .info
+            .insert(key, InfoValue::from_py(value));
         Ok(())
     }
 
@@ -840,7 +881,9 @@ impl RecoveryFunctions {
 
     /// The number of local blocks of a function, or None if it does not exist.
     pub fn block_count(&self, py: Python<'_>, addr: u64) -> Option<usize> {
-        self.funcs.get(&addr).map(|r| r.graph.bind(py).borrow().local_count())
+        self.funcs
+            .get(&addr)
+            .map(|r| r.graph.bind(py).borrow().local_count())
     }
 
     pub fn addrs_with_block_count(&self, py: Python<'_>, count: usize) -> Vec<u64> {
@@ -859,7 +902,9 @@ impl RecoveryFunctions {
 
     pub fn cg_add_edge(&mut self, u: u64, v: u64, ty: u8) -> PyResult<bool> {
         if ty > CG_EXCEPTION {
-            return Err(PyValueError::new_err(format!("unknown callgraph edge type {ty}")));
+            return Err(PyValueError::new_err(format!(
+                "unknown callgraph edge type {ty}"
+            )));
         }
         Ok(self.callgraph.add_edge(u, v, ty))
     }
@@ -908,10 +953,7 @@ impl RecoveryFunctions {
 
     pub fn cg_in_degree(&self, n: u64) -> PyResult<usize> {
         let preds = self.callgraph.pred.get(&n).ok_or_else(|| missing(n))?;
-        Ok(preds
-            .keys()
-            .map(|u| self.callgraph.succ[u][&n].len())
-            .sum())
+        Ok(preds.keys().map(|u| self.callgraph.succ[u][&n].len()).sum())
     }
 
     pub fn cg_out_degree(&self, n: u64) -> PyResult<usize> {
@@ -920,7 +962,10 @@ impl RecoveryFunctions {
     }
 
     pub fn cg_has_edge(&self, u: u64, v: u64) -> bool {
-        self.callgraph.succ.get(&u).is_some_and(|m| m.contains_key(&v))
+        self.callgraph
+            .succ
+            .get(&u)
+            .is_some_and(|m| m.contains_key(&v))
     }
 
     /// `(u, v, type)` of every out-edge of `n`, or of every edge when `n` is None.
@@ -1013,7 +1058,8 @@ impl RecoveryFunctions {
         let mut this = slf.borrow_mut();
         {
             let mut ops = this.ops(py, function_addr)?;
-            ops.g.add_call_site(from_node.1, to_addr, retn_node.map(|n| n.1));
+            ops.g
+                .add_call_site(from_node.1, to_addr, retn_node.map(|n| n.1));
             if let Some(to_addr) = to_addr {
                 ops.call_to(
                     from_node,
@@ -1057,7 +1103,8 @@ impl RecoveryFunctions {
         this.ops(py, function_addr)?
             .fakeret_to(from_node, to_node, confirmed, to_outside);
         if to_outside && let Some(to_function_addr) = to_function_addr {
-            this.callgraph.add_edge(function_addr, to_function_addr, CG_FAKERET);
+            this.callgraph
+                .add_edge(function_addr, to_function_addr, CG_FAKERET);
         }
         Ok(())
     }
@@ -1076,7 +1123,11 @@ impl RecoveryFunctions {
     }
 
     /// `FunctionManager._add_return_from`
-    pub fn add_return_from(slf: &Bound<'_, Self>, function_addr: u64, from_node: NodeSpec) -> PyResult<()> {
+    pub fn add_return_from(
+        slf: &Bound<'_, Self>,
+        function_addr: u64,
+        from_node: NodeSpec,
+    ) -> PyResult<()> {
         let py = slf.py();
         Self::ensure_function(slf, function_addr, false)?;
         let mut this = slf.borrow_mut();
@@ -1098,8 +1149,14 @@ impl RecoveryFunctions {
         let py = slf.py();
         Self::ensure_function(slf, function_addr, false)?;
         let mut this = slf.borrow_mut();
-        this.ops(py, function_addr)?
-            .transit_to(from_node, Some(to_node), false, ins_addr, stmt_idx, is_exception);
+        this.ops(py, function_addr)?.transit_to(
+            from_node,
+            Some(to_node),
+            false,
+            ins_addr,
+            stmt_idx,
+            is_exception,
+        );
         Ok(())
     }
 
@@ -1126,10 +1183,21 @@ impl RecoveryFunctions {
                 ops.add_jumpout_site(from_node);
                 return Ok(());
             };
-            ops.transit_to(from_node, Some(to_node), true, ins_addr, stmt_idx, is_exception);
+            ops.transit_to(
+                from_node,
+                Some(to_node),
+                true,
+                ins_addr,
+                stmt_idx,
+                is_exception,
+            );
         }
         if let Some(to_function_addr) = to_function_addr {
-            let ty = if is_exception { CG_EXCEPTION } else { CG_TRANSITION };
+            let ty = if is_exception {
+                CG_EXCEPTION
+            } else {
+                CG_TRANSITION
+            };
             this.callgraph.add_edge(function_addr, to_function_addr, ty);
         }
         Ok(())

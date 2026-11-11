@@ -15,7 +15,11 @@ use crate::recovery_functions::RecoveryFunctions;
 enum SyscallCheck {
     Never,
     /// `SimUserland.is_syscall_addr`
-    Userland { kernel_base: u64, align: u64, max_number: u64 },
+    Userland {
+        kernel_base: u64,
+        align: u64,
+        max_number: u64,
+    },
     /// `SimWindows`: membership in the syscall handler dict.
     Dict(Py<PyDict>),
     /// `is_syscall_addr(addr)`
@@ -40,7 +44,11 @@ impl ReturningAnalyzer {
     fn maybe_syscall(&self, py: Python<'_>, addr: u64) -> PyResult<bool> {
         Ok(match &self.syscall {
             SyscallCheck::Never => false,
-            SyscallCheck::Userland { kernel_base, align, max_number } => {
+            SyscallCheck::Userland {
+                kernel_base,
+                align,
+                max_number,
+            } => {
                 addr >= *kernel_base && {
                     let off = addr - kernel_base;
                     off.is_multiple_of(*align) && off / align <= *max_number
@@ -53,7 +61,12 @@ impl ReturningAnalyzer {
     }
 
     /// `n.sim_procedure.__class__ == UnresolvableJumpTarget` for a HookNode successor.
-    fn is_unresolvable_jump_target(&self, py: Python<'_>, g: &FunctionGraph, idx: u32) -> PyResult<bool> {
+    fn is_unresolvable_jump_target(
+        &self,
+        py: Python<'_>,
+        g: &FunctionGraph,
+        idx: u32,
+    ) -> PyResult<bool> {
         if g.node_kind(idx)? != NodeKind::Hook {
             return Ok(false);
         }
@@ -78,7 +91,9 @@ impl ReturningAnalyzer {
                 Some(v) => Some(!v.is_truthy()?),
                 None => None,
             },
-            None if self.maybe_syscall(py, addr)? => self.syscall_returning.call1(py, (addr,))?.extract(py)?,
+            None if self.maybe_syscall(py, addr)? => {
+                self.syscall_returning.call1(py, (addr,))?.extract(py)?
+            }
             None => None,
         };
         if no_ret.is_some() {
@@ -208,7 +223,12 @@ impl ReturningAnalyzer {
     /// One `_analyze_function_features` pass seeded with `seeds` (`_updated_nonreturning_functions`). Returning
     /// statuses are written to the store as they are determined. Returns the `functions_return` and
     /// `functions_do_not_return` lists.
-    fn analyze(&self, py: Python<'_>, seeds: Vec<u64>, all_completed: bool) -> PyResult<(Vec<u64>, Vec<u64>)> {
+    fn analyze(
+        &self,
+        py: Python<'_>,
+        seeds: Vec<u64>,
+        all_completed: bool,
+    ) -> PyResult<(Vec<u64>, Vec<u64>)> {
         let mut work = seeds;
         work.sort_unstable();
         let mut analyzed: FxHashSet<u64> = FxHashSet::default();
@@ -219,7 +239,9 @@ impl ReturningAnalyzer {
             if !self.store.borrow(py).is_returning_unknown(addr) {
                 continue;
             }
-            let Some(returning) = self.determine(py, addr, all_completed)? else { continue };
+            let Some(returning) = self.determine(py, addr, all_completed)? else {
+                continue;
+            };
             let mut store = self.store.borrow_mut(py);
             store.set_returning(addr, Some(returning))?;
             if returning {

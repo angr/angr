@@ -5,13 +5,20 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
-use super::{Decision, Effects, IrSpec, JumpSite, Outcome, Phase, ResolveCx, Resolver, make_resolver};
-use crate::cfg_jobs::{FuncEdge, JobRec, ScanState, SrcNode, cpython_set_order, jk_intern, py_hash_u64};
+use super::{
+    Decision, Effects, IrSpec, JumpSite, Outcome, Phase, ResolveCx, Resolver, make_resolver,
+};
+use crate::cfg_jobs::{
+    FuncEdge, JobRec, ScanState, SrcNode, cpython_set_order, jk_intern, py_hash_u64,
+};
 use crate::cfg_scan::LoaderSnapshot;
 use crate::vexlift::{NextExpr, VEX_IRSB_MAX_SIZE, VexLifter, jumpkind_from_name, jumpkind_name};
 
 enum Entry {
-    Rust { imp: Box<dyn Resolver>, twin: Py<PyAny> },
+    Rust {
+        imp: Box<dyn Resolver>,
+        twin: Py<PyAny>,
+    },
     Py(Py<PyAny>),
 }
 
@@ -33,7 +40,9 @@ impl<'py> PyBlock<'py> {
         let v = match &self.given {
             Some(b) if self.has_stmts => b.clone(),
             // _resolve_indirect_jump_timelessly: "make sure there are statements"
-            Some(b) => self.cfg.call_method1(intern!(py, "_ijr_stmt_block"), (b,))?,
+            Some(b) => self
+                .cfg
+                .call_method1(intern!(py, "_ijr_stmt_block"), (b,))?,
             // _process_one_indirect_jump: self._lift(jump.addr)
             None => self.cfg.call_method1(intern!(py, "_lift"), (self.addr,))?,
         };
@@ -66,12 +75,18 @@ pub struct ResolverChain {
 }
 
 fn targets_vec(t: &Bound<'_, PyAny>) -> Option<Vec<u64>> {
-    t.try_iter().ok()?.map(|x| x.ok()?.extract::<u64>().ok()).collect()
+    t.try_iter()
+        .ok()?
+        .map(|x| x.ok()?.extract::<u64>().ok())
+        .collect()
 }
 
 fn outcome_repr(o: &Outcome) -> String {
     match o {
-        Outcome::Resolved(t) => format!("resolved {:?}", t.iter().map(|x| format!("{x:#x}")).collect::<Vec<_>>()),
+        Outcome::Resolved(t) => format!(
+            "resolved {:?}",
+            t.iter().map(|x| format!("{x:#x}")).collect::<Vec<_>>()
+        ),
         Outcome::Unresolved => "unresolved".into(),
         Outcome::Deferred => "deferred".into(),
     }
@@ -194,11 +209,17 @@ impl ResolverChain {
     ) -> PyResult<bool> {
         let py = cfg.py();
         if let Phase::Deferred { .. } = j.phase {
-            obj.setattr(intern!(py, "base_state"), cfg.getattr(intern!(py, "_base_state"))?)?;
+            obj.setattr(
+                intern!(py, "base_state"),
+                cfg.getattr(intern!(py, "_base_state"))?,
+            )?;
         }
         let b = block.get()?;
-        obj.call_method1(intern!(py, "filter"), (cfg, j.addr, j.func_addr, b, jumpkind))?
-            .is_truthy()
+        obj.call_method1(
+            intern!(py, "filter"),
+            (cfg, j.addr, j.func_addr, b, jumpkind),
+        )?
+        .is_truthy()
     }
 
     fn py_resolve<'py>(
@@ -211,8 +232,13 @@ impl ResolverChain {
         let py = cfg.py();
         let b = block.get()?;
         let r = match j.phase {
-            Phase::Timeless => obj.call_method1(intern!(py, "resolve"), (cfg, j.addr, j.func_addr, b, jumpkind))?,
-            Phase::Deferred { func_graph_complete } => {
+            Phase::Timeless => obj.call_method1(
+                intern!(py, "resolve"),
+                (cfg, j.addr, j.func_addr, b, jumpkind),
+            )?,
+            Phase::Deferred {
+                func_graph_complete,
+            } => {
                 let kw = PyDict::new(py);
                 kw.set_item(intern!(py, "func_graph_complete"), func_graph_complete)?;
                 obj.call_method(
@@ -256,17 +282,18 @@ impl ResolverChain {
 
         if shadow {
             // Rust first, so that it sees the state the twin sees; the twin's answer is the one kept
-            let rust: Result<(bool, Option<Outcome>), &'static str> = match imp.filter(py, cx, cfg, j)? {
-                Decision::Python(r) => Err(r),
-                Decision::Done(false) => Ok((false, None)),
-                Decision::Done(true) => {
-                    let mut fx = Effects::default();
-                    match imp.resolve(py, cx, cfg, j, &mut fx)? {
-                        Decision::Python(r) => Err(r),
-                        Decision::Done(o) => Ok((true, Some(o))),
+            let rust: Result<(bool, Option<Outcome>), &'static str> =
+                match imp.filter(py, cx, cfg, j)? {
+                    Decision::Python(r) => Err(r),
+                    Decision::Done(false) => Ok((false, None)),
+                    Decision::Done(true) => {
+                        let mut fx = Effects::default();
+                        match imp.resolve(py, cx, cfg, j, &mut fx)? {
+                            Decision::Python(r) => Err(r),
+                            Decision::Done(o) => Ok((true, Some(o))),
+                        }
                     }
-                }
-            };
+                };
             let pf = Self::py_filter(twin, cfg, j, jumpkind, block)?;
             let pa = if pf {
                 Some(Self::py_resolve(twin, cfg, j, jumpkind, block)?)
@@ -275,10 +302,15 @@ impl ResolverChain {
             };
             if let Some(detail) = imp.shadow_detail() {
                 if let Some(a) = &pa {
-                    let targets = if a.resolved { targets_vec(&a.targets) } else { None };
+                    let targets = if a.resolved {
+                        targets_vec(&a.targets)
+                    } else {
+                        None
+                    };
                     let tables = super::jumptable::py_jumptables(cfg, j.addr)?;
                     Self::record_classified(
-                        mismatches, cfg, j, kind, detail, a.resolved, a.deferred, targets, tables, true,
+                        mismatches, cfg, j, kind, detail, a.resolved, a.deferred, targets, tables,
+                        true,
                     )?;
                 }
                 return Ok(pa);
@@ -290,7 +322,15 @@ impl ResolverChain {
                 }
                 Ok((rf, ro)) => {
                     if *rf != pf {
-                        Self::record(mismatches, py, j, kind, "filter", rf.to_string(), pf.to_string())?;
+                        Self::record(
+                            mismatches,
+                            py,
+                            j,
+                            kind,
+                            "filter",
+                            rf.to_string(),
+                            pf.to_string(),
+                        )?;
                     } else if let (Some(o), Some(a)) = (ro, &pa) {
                         let po = answer_outcome(a);
                         if po.as_ref() != Some(o) {
@@ -298,7 +338,15 @@ impl ResolverChain {
                                 Some(p) => outcome_repr(p),
                                 None => format!("unparsed {}", a.targets.repr()?),
                             };
-                            Self::record(mismatches, py, j, kind, "resolve", outcome_repr(o), prepr)?;
+                            Self::record(
+                                mismatches,
+                                py,
+                                j,
+                                kind,
+                                "resolve",
+                                outcome_repr(o),
+                                prepr,
+                            )?;
                         } else {
                             cx.count(&format!("{kind}:shadow_same"));
                         }
@@ -338,10 +386,15 @@ impl ResolverChain {
                 if py_shadow.is_some()
                     && let Some(detail) = imp.shadow_detail()
                 {
-                    let targets = if a.resolved { targets_vec(&a.targets) } else { None };
+                    let targets = if a.resolved {
+                        targets_vec(&a.targets)
+                    } else {
+                        None
+                    };
                     let tables = super::jumptable::py_jumptables(cfg, j.addr)?;
                     Self::record_classified(
-                        mismatches, cfg, j, kind, detail, a.resolved, a.deferred, targets, tables, true,
+                        mismatches, cfg, j, kind, detail, a.resolved, a.deferred, targets, tables,
+                        true,
                     )?;
                 }
                 Ok(Some(a))
@@ -353,15 +406,24 @@ impl ResolverChain {
                 {
                     // the twin's answer on the same state; its effects on the IndirectJump are undone
                     let fgc = match j.phase {
-                        Phase::Deferred { func_graph_complete } => func_graph_complete,
+                        Phase::Deferred {
+                            func_graph_complete,
+                        } => func_graph_complete,
                         Phase::Timeless => true,
                     };
                     let b = block.get()?;
-                    let r = f.bind(py).call1((cfg, twin, j.addr, j.func_addr, b, jumpkind, fgc))?;
-                    let (resolved, deferred, targets, tables): (bool, bool, Option<Vec<u64>>, Bound<'py, PyAny>) =
-                        r.extract()?;
+                    let r = f
+                        .bind(py)
+                        .call1((cfg, twin, j.addr, j.func_addr, b, jumpkind, fgc))?;
+                    let (resolved, deferred, targets, tables): (
+                        bool,
+                        bool,
+                        Option<Vec<u64>>,
+                        Bound<'py, PyAny>,
+                    ) = r.extract()?;
                     Self::record_classified(
-                        mismatches, cfg, j, kind, detail, resolved, deferred, targets, tables, false,
+                        mismatches, cfg, j, kind, detail, resolved, deferred, targets, tables,
+                        false,
                     )?;
                 }
                 if let Outcome::Resolved(_) = o {
@@ -460,7 +522,9 @@ impl ResolverChain {
         };
         let ResolverChain { cx, timeless, .. } = self;
         for e in timeless.iter_mut() {
-            let Entry::Rust { imp, .. } = e else { unreachable!() };
+            let Entry::Rust { imp, .. } = e else {
+                unreachable!()
+            };
             match imp.filter(py, cx, cfg, &site)? {
                 Decision::Done(false) => continue,
                 Decision::Done(true) => {}
@@ -561,14 +625,15 @@ impl ResolverChain {
     ) -> PyResult<(bool, Bound<'py, PyAny>)> {
         let py = cfg.py();
         // the pre-check: a cross-instruction-optimized re-lift with a constant next resolves the jump
-        let python_precheck = |block: &Bound<'py, PyAny>| -> PyResult<Option<(bool, Bound<'py, PyAny>)>> {
-            let r = cfg.call_method1(intern!(py, "_timeless_precheck"), (block,))?;
-            if r.is_none() {
-                return Ok(None);
-            }
-            let (a, b): (Bound<'py, PyAny>, Bound<'py, PyAny>) = r.extract()?;
-            Ok(Some((a.is_truthy()?, b)))
-        };
+        let python_precheck =
+            |block: &Bound<'py, PyAny>| -> PyResult<Option<(bool, Bound<'py, PyAny>)>> {
+                let r = cfg.call_method1(intern!(py, "_timeless_precheck"), (block,))?;
+                if r.is_none() {
+                    return Ok(None);
+                }
+                let (a, b): (Bound<'py, PyAny>, Bound<'py, PyAny>) = r.extract()?;
+                Ok(Some((a.is_truthy()?, b)))
+            };
         let decided = if self.rust_precheck {
             let rust = self.rust_precheck(py, block_addr, block_size)?;
             if self.shadow {
@@ -578,14 +643,17 @@ impl ResolverChain {
                     Ok(r) => {
                         let pr: Option<Option<u64>> = match &p {
                             None => Some(None),
-                            Some((true, t)) => targets_vec(t).and_then(|v| (v.len() == 1).then(|| Some(v[0]))),
+                            Some((true, t)) => {
+                                targets_vec(t).and_then(|v| (v.len() == 1).then(|| Some(v[0])))
+                            }
                             Some((false, _)) => None,
                         };
                         if pr.as_ref() != Some(r) {
                             let site = JumpSite {
                                 addr,
                                 func_addr,
-                                jumpkind: jumpkind_from_name(&jumpkind.extract::<String>()?).unwrap_or(u32::MAX),
+                                jumpkind: jumpkind_from_name(&jumpkind.extract::<String>()?)
+                                    .unwrap_or(u32::MAX),
                                 phase: Phase::Timeless,
                                 block: IrSpec {
                                     addr: block_addr,
@@ -734,7 +802,9 @@ impl ResolverChain {
             addr,
             func_addr,
             jumpkind: jk.unwrap_or(u32::MAX),
-            phase: Phase::Deferred { func_graph_complete },
+            phase: Phase::Deferred {
+                func_graph_complete,
+            },
             // self._lift(jump.addr)
             block: IrSpec {
                 addr,
@@ -795,7 +865,12 @@ impl ResolverChain {
                 deferred = true;
             }
         }
-        Ok((false, py.None().into_bound(py), py.None().into_bound(py), deferred))
+        Ok((
+            false,
+            py.None().into_bound(py),
+            py.None().into_bound(py),
+            deferred,
+        ))
     }
 
     /// `_process_unresolved_indirect_jumps`: every pending jump in address order, each resolved and written back
@@ -819,7 +894,10 @@ impl ResolverChain {
             let (resolved, by, targets, deferred) = self.resolve_deferred(cfg, &jump, true)?;
             if resolved {
                 if !self.write_back_resolved(cfg, &jump, &by, &targets)? {
-                    cfg.call_method1(intern!(py, "_indirect_jump_resolved"), (&jump, addr, by, &targets))?;
+                    cfg.call_method1(
+                        intern!(py, "_indirect_jump_resolved"),
+                        (&jump, addr, by, &targets),
+                    )?;
                 }
             } else if deferred {
                 cfg.getattr(intern!(py, "_deferred_indirect_jumps"))?
@@ -869,7 +947,9 @@ impl ResolverChain {
         let ins_addr: Option<u64> = jump.getattr(intern!(py, "ins_addr"))?.extract()?;
         let stmt_idx: Option<i64> = jump.getattr(intern!(py, "stmt_idx"))?.extract()?;
         let store = self.cx.functions(py, cfg)?;
-        let functions = cfg.getattr(intern!(py, "kb"))?.getattr(intern!(py, "functions"))?;
+        let functions = cfg
+            .getattr(intern!(py, "kb"))?
+            .getattr(intern!(py, "functions"))?;
         // for addr in set(targets)
         let mut uniq: Vec<u64> = Vec::with_capacity(target_list.len());
         for t in target_list {
@@ -885,8 +965,10 @@ impl ResolverChain {
                 Some(s) => s.bind(py).borrow().contains(t),
                 None => functions.contains(t)?,
             };
-            let to_outside =
-                is_call || is_vtable || in_functions || !self.cx.snap.addrs_belong_to_same_section(source_addr, t);
+            let to_outside = is_call
+                || is_vtable
+                || in_functions
+                || !self.cx.snap.addrs_belong_to_same_section(source_addr, t);
             let target_func_addr = if is_vtable {
                 let kwargs = PyDict::new(py);
                 kwargs.set_item(intern!(py, "create"), true)?;
@@ -945,7 +1027,10 @@ impl ResolverChain {
             st.push_job(job);
         }
         scan.borrow_mut().deregister_object(func_addr, jump)?;
-        cfg.call_method1(intern!(py, "_indirect_jump_resolved_done"), (jump, by, targets))?;
+        cfg.call_method1(
+            intern!(py, "_indirect_jump_resolved_done"),
+            (jump, by, targets),
+        )?;
         self.cx.count("write_back:rust");
         Ok(true)
     }
@@ -1018,13 +1103,15 @@ impl ResolverChain {
             include_imarks,
             control_dependence,
         };
-        Ok(match super::blade::blade(py, &mut self.cx, addr, dst_stmt_idx, &p)? {
-            Ok(s) => {
-                let nodes: Vec<super::blade::SliceLoc> = s.nodes.keys().copied().collect();
-                (nodes, s.edges()).into_pyobject(py)?.into_any()
-            }
-            Err(d) => d.into_pyobject(py)?.into_any(),
-        })
+        Ok(
+            match super::blade::blade(py, &mut self.cx, addr, dst_stmt_idx, &p)? {
+                Ok(s) => {
+                    let nodes: Vec<super::blade::SliceLoc> = s.nodes.keys().copied().collect();
+                    (nodes, s.edges()).into_pyobject(py)?.into_any()
+                }
+                Err(d) => d.into_pyobject(py)?.into_any(),
+            },
+        )
     }
 
     /// Run the Rust JumpTableResolver on one jump (deferred phase) with a trace: ``(verdict json, trace lines)``.

@@ -30,7 +30,12 @@ const PARAMS: BladeParams = BladeParams {
 };
 
 impl ArmElfFastResolver {
-    fn load(cx: &ResolveCx, addr: u64, size: u32, big_endian: bool) -> Result<Option<u64>, &'static str> {
+    fn load(
+        cx: &ResolveCx,
+        addr: u64,
+        size: u32,
+        big_endian: bool,
+    ) -> Result<Option<u64>, &'static str> {
         if !matches!(size, 1 | 2 | 4 | 8) {
             return Err("load_size");
         }
@@ -193,12 +198,19 @@ impl Resolver for ArmElfFastResolver {
             return Ok(Decision::Done(Outcome::Unresolved));
         }
         let first_succ = slice.nodes[&source].succs.first().copied();
-        let Some(stmt) = usize::try_from(source.1).ok().and_then(|i| block.stmts.get(i)) else {
+        let Some(stmt) = usize::try_from(source.1)
+            .ok()
+            .and_then(|i| block.stmts.get(i))
+        else {
             return Ok(Decision::Python("stmt_index"));
         };
         let r = match stmt {
-            Stmt::WrTmp { tmp, data } => self.resolve_default(cx, &block, *tmp, *data, first_succ, fx),
-            Stmt::Put { offset, data } => self.resolve_put(cx, &block, *offset, *data, first_succ, fx),
+            Stmt::WrTmp { tmp, data } => {
+                self.resolve_default(cx, &block, *tmp, *data, first_succ, fx)
+            }
+            Stmt::Put { offset, data } => {
+                self.resolve_put(cx, &block, *offset, *data, first_succ, fx)
+            }
             _ => Ok(Outcome::Unresolved),
         };
         Ok(match r {

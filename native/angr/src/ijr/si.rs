@@ -17,7 +17,11 @@ pub struct Si {
 
 impl Si {
     pub fn konst(v: u128) -> Self {
-        Si { lo: v, hi: v, st: 0 }
+        Si {
+            lo: v,
+            hi: v,
+            st: 0,
+        }
     }
 
     pub fn count(&self) -> u128 {
@@ -207,7 +211,11 @@ pub fn norm_guard(ar: &Arena, g: Id, truth: bool) -> Vec<(Id, u128, u128)> {
                     let c = c as i128;
                     if truth {
                         let hi = if lt { c - 1 } else { c };
-                        if hi >= 0 { vec![(a, 0, hi as u128)] } else { Vec::new() }
+                        if hi >= 0 {
+                            vec![(a, 0, hi as u128)]
+                        } else {
+                            Vec::new()
+                        }
                     } else {
                         let lo = if lt { c } else { c + 1 };
                         if lo as u128 <= m {
@@ -228,7 +236,11 @@ pub fn norm_guard(ar: &Arena, g: Id, truth: bool) -> Vec<(Id, u128, u128)> {
                         }
                     } else {
                         let hi = if lt { c } else { c - 1 };
-                        if hi >= 0 { vec![(b, 0, hi as u128)] } else { Vec::new() }
+                        if hi >= 0 {
+                            vec![(b, 0, hi as u128)]
+                        } else {
+                            Vec::new()
+                        }
                     }
                 }
                 _ => Vec::new(),
@@ -259,7 +271,10 @@ pub fn push_down(ar: &Arena, cons: &[(Id, u128, u128)], amd64: bool) -> Ranges {
         let m = mask(w) as u128;
         match ar.get(e) {
             Node::Bin {
-                op: BinOp::Add, a, b, ..
+                op: BinOp::Add,
+                a,
+                b,
+                ..
             } => {
                 if let Some(c) = ar.const_val(b) {
                     let c = c as u128;
@@ -271,7 +286,10 @@ pub fn push_down(ar: &Arena, cons: &[(Id, u128, u128)], amd64: bool) -> Ranges {
                 }
             }
             Node::Bin {
-                op: BinOp::Shr, a, b, ..
+                op: BinOp::Shr,
+                a,
+                b,
+                ..
             } => {
                 // x >> k in [lo, hi]  <=>  x in [lo << k, ((hi + 1) << k) - 1]
                 if let Some(k) = ar.const_val(b)
@@ -387,7 +405,9 @@ fn relation(ar: &Arena, g: Id, truth: bool) -> Option<(Id, Id, bool, u32)> {
 /// `e` without zero extensions.
 fn strip_zext(ar: &Arena, mut e: Id) -> Id {
     while let Node::Conv {
-        k: ConvKind::Zext, a, ..
+        k: ConvKind::Zext,
+        a,
+        ..
     } = ar.get(e)
     {
         e = a;
@@ -397,7 +417,14 @@ fn strip_zext(ar: &Arena, mut e: Id) -> Id {
 
 /// Ranges of the arena's `(u + c) - v` nodes with `{u, v} = {x, y}` (zero extensions aside) when `x < y` (`x <= y`
 /// when not strict): `c + (x - y)` or `c + (y - x)`, kept only when it does not wrap.
-fn differences(ar: &Arena, ranges: &Ranges, snap: &Snapshot, x: Id, y: Id, strict: bool) -> Vec<(Id, u128, u128)> {
+fn differences(
+    ar: &Arena,
+    ranges: &Ranges,
+    snap: &Snapshot,
+    x: Id,
+    y: Id,
+    strict: bool,
+) -> Vec<(Id, u128, u128)> {
     let mut out = Vec::new();
     let mut ev = SiEval::new(ar, ranges, snap);
     let (Some(sx), Some(sy)) = (ev.eval(x, 0), ev.eval(y, 0)) else {
@@ -458,7 +485,10 @@ pub fn path_ranges(ar: &Arena, guards: &[(Id, bool)], amd64: bool, snap: &Snapsh
             None => {}
         }
     }
-    let rels: Vec<(Id, Id, bool, u32)> = guards.iter().filter_map(|&(g, t)| relation(ar, g, t)).collect();
+    let rels: Vec<(Id, Id, bool, u32)> = guards
+        .iter()
+        .filter_map(|&(g, t)| relation(ar, g, t))
+        .collect();
     let mut ranges = push_down(ar, &cons, amd64);
     // the other guards may rule one of the intervals out, or narrow the operand so that the range pushes down
     for _ in 0..3 {
@@ -466,7 +496,10 @@ pub fn path_ranges(ar: &Arena, guards: &[(Id, bool)], amd64: bool, snap: &Snapsh
         // differences of related values: (x + c) - y with x < y is c + (x - y), at most c - 1
         for &(x, y, strict, _) in &rels {
             for (id, lo, hi) in differences(ar, &ranges, snap, x, y, strict) {
-                if ranges.get(&id).is_none_or(|&(clo, chi)| lo > clo || hi < chi) {
+                if ranges
+                    .get(&id)
+                    .is_none_or(|&(clo, chi)| lo > clo || hi < chi)
+                {
                     cons.push((id, lo, hi));
                     changed = true;
                 }
@@ -496,7 +529,9 @@ pub fn path_ranges(ar: &Arena, guards: &[(Id, bool)], amd64: bool, snap: &Snapsh
             // the operand's value from its own inputs, and the other guards on it
             let mut without = ranges.clone();
             let own = without.remove(&x);
-            let fwd = SiEval::new(ar, &without, snap).eval(x, 0).map(|si| (si.lo, si.hi));
+            let fwd = SiEval::new(ar, &without, snap)
+                .eval(x, 0)
+                .map(|si| (si.lo, si.hi));
             let (klo, khi) = match (fwd, own) {
                 (Some((a, b)), Some((c, d))) => (a.max(c), b.min(d)),
                 (Some(k), None) | (None, Some(k)) => k,
@@ -509,7 +544,10 @@ pub fn path_ranges(ar: &Arena, guards: &[(Id, bool)], amd64: bool, snap: &Snapsh
                 (false, true) => m1,
                 _ => continue,
             };
-            if ranges.get(&x).is_none_or(|&(lo, hi)| one.0 > lo || one.1 < hi) {
+            if ranges
+                .get(&x)
+                .is_none_or(|&(lo, hi)| one.0 > lo || one.1 < hi)
+            {
                 cons.push((x, one.0, one.1));
                 changed = true;
             }
@@ -599,7 +637,10 @@ impl<'a> SiEval<'a> {
                 wf,
                 a,
                 ..
-            } => Some(self.value_bits(a, depth + 1).map_or(wf as u32, |b| b.min(wf as u32))),
+            } => Some(
+                self.value_bits(a, depth + 1)
+                    .map_or(wf as u32, |b| b.min(wf as u32)),
+            ),
             _ => None,
         };
         match (from_range, structural) {
@@ -614,7 +655,11 @@ impl<'a> SiEval<'a> {
         let m = mask(w) as u128;
         match ar.get(e) {
             Node::C { v, .. } => Some(Si::konst(v as u128)),
-            Node::R { .. } | Node::U { .. } | Node::Cmp { .. } | Node::Not1 { .. } | Node::Ite { .. } => None,
+            Node::R { .. }
+            | Node::U { .. }
+            | Node::Cmp { .. }
+            | Node::Not1 { .. }
+            | Node::Ite { .. } => None,
             // a bit count of a nonzero value below 2^bits, bits < w (a count up to w bounds nothing useful)
             Node::Un { op, w, a } => {
                 let w = w as u32;
@@ -660,7 +705,9 @@ impl<'a> SiEval<'a> {
             }
             // the source width is not a bound: a guard or a mask must bound it
             Node::Conv {
-                k: ConvKind::Zext, a, ..
+                k: ConvKind::Zext,
+                a,
+                ..
             } => self.eval(a, depth + 1),
             Node::Conv {
                 k: ConvKind::Sext,
@@ -669,10 +716,16 @@ impl<'a> SiEval<'a> {
                 ..
             } => {
                 let s = self.eval(a, depth + 1)?;
-                if s.hi >= (1u128 << (wf - 1)) { None } else { Some(s) }
+                if s.hi >= (1u128 << (wf - 1)) {
+                    None
+                } else {
+                    Some(s)
+                }
             }
             Node::Conv {
-                k: ConvKind::Trunc, a, ..
+                k: ConvKind::Trunc,
+                a,
+                ..
             } => {
                 let s = self.eval(a, depth + 1)?;
                 if s.hi > m { None } else { Some(s) }
@@ -703,7 +756,11 @@ impl<'a> SiEval<'a> {
                     {
                         st = x.st;
                     }
-                    return Some(if hi != 0 { Si { lo: 0, hi, st } } else { Si::konst(0) });
+                    return Some(if hi != 0 {
+                        Si { lo: 0, hi, st }
+                    } else {
+                        Si::konst(0)
+                    });
                 }
                 let (sa, sb) = (sa?, sb?);
                 match op {
@@ -737,7 +794,11 @@ impl<'a> SiEval<'a> {
                         Some(Si {
                             lo,
                             hi,
-                            st: if lo == hi { 0 } else { gcd(sa.st, sb.st).max(1) },
+                            st: if lo == hi {
+                                0
+                            } else {
+                                gcd(sa.st, sb.st).max(1)
+                            },
                         })
                     }
                     BinOp::Mul => {
@@ -856,7 +917,10 @@ mod tests {
         let lt = ar.cmp(CmpKind::Lts, 64, x, c);
         assert_eq!(
             signed_range(&ar, lt, false),
-            Some((x, SignedRange::Two((0, i64::MAX as u128), (neg64, u64::MAX as u128))))
+            Some((
+                x,
+                SignedRange::Two((0, i64::MAX as u128), (neg64, u64::MAX as u128))
+            ))
         );
         assert!(!path_ranges(&ar, &[(lt, false)], true, &snap).contains_key(&x));
         // x <s 0 on the same path leaves the negative interval, so x + 0x40 is in [0, 0x3f]
@@ -866,7 +930,14 @@ mod tests {
         assert_eq!(ranges.get(&x), Some(&(neg64, u64::MAX as u128)));
         let k = ar.konst(0x40, 64);
         let idx = ar.bin(BinOp::Add, 64, x, k);
-        assert_eq!(eval(&ar, &ranges, idx), Some(Si { lo: 0, hi: 0x3f, st: 1 }));
+        assert_eq!(
+            eval(&ar, &ranges, idx),
+            Some(Si {
+                lo: 0,
+                hi: 0x3f,
+                st: 1
+            })
+        );
         // a mask rules out the negative interval of x <s 0x10
         let r = ar.reg(24, 64);
         let m = ar.konst(0xffff, 64);
@@ -888,7 +959,14 @@ mod tests {
         let z = ar.konst(0, 64);
         let nz = ar.cmp(CmpKind::Eq, 64, mask16, z);
         let ranges = path_ranges(&ar, &[(nz, false)], true, &snap);
-        assert_eq!(eval(&ar, &ranges, ctz), Some(Si { lo: 0, hi: 15, st: 1 }));
+        assert_eq!(
+            eval(&ar, &ranges, ctz),
+            Some(Si {
+                lo: 0,
+                hi: 15,
+                st: 1
+            })
+        );
         // without the zero test the count may be 64
         assert_eq!(eval(&ar, &Ranges::default(), ctz), None);
         // cmp rdx, r8; jb not taken: r8 <= bsf, so r8 is below 16
@@ -904,9 +982,23 @@ mod tests {
         let sum = ar.bin(BinOp::Add, 64, mx, f);
         let idx = ar.bin(BinOp::Sub, 64, sum, my);
         let ranges = path_ranges(&ar, &[(lt, true)], true, &snap);
-        assert_eq!(eval(&ar, &ranges, idx), Some(Si { lo: 0, hi: 14, st: 1 }));
+        assert_eq!(
+            eval(&ar, &ranges, idx),
+            Some(Si {
+                lo: 0,
+                hi: 14,
+                st: 1
+            })
+        );
         // unrelated: the interval difference
-        assert_eq!(eval(&ar, &Ranges::default(), idx), Some(Si { lo: 0, hi: 30, st: 1 }));
+        assert_eq!(
+            eval(&ar, &Ranges::default(), idx),
+            Some(Si {
+                lo: 0,
+                hi: 30,
+                st: 1
+            })
+        );
     }
 
     #[test]
@@ -924,11 +1016,23 @@ mod tests {
         let d = ar.bin(BinOp::Add, 64, x, m40);
         let c20 = ar.konst(0x20, 64);
         let lt20 = ar.cmp(CmpKind::Ltu, 64, d, c20);
-        let ranges = path_ranges(&ar, &[(lt80, true), (lt40, false), (lt20, false)], true, &snap);
+        let ranges = path_ranges(
+            &ar,
+            &[(lt80, true), (lt40, false), (lt20, false)],
+            true,
+            &snap,
+        );
         assert_eq!(ranges.get(&x), Some(&(0x60, 0x7f)));
         let m60 = ar.konst((-0x60i64) as u64, 64);
         let idx = ar.bin(BinOp::Add, 64, x, m60);
-        assert_eq!(eval(&ar, &ranges, idx), Some(Si { lo: 0, hi: 0x1f, st: 1 }));
+        assert_eq!(
+            eval(&ar, &ranges, idx),
+            Some(Si {
+                lo: 0,
+                hi: 0x1f,
+                st: 1
+            })
+        );
     }
 
     #[test]
@@ -991,6 +1095,13 @@ mod tests {
         // a mask is
         let m = ar.konst(0xf, 64);
         let masked = ar.bin(BinOp::And, 64, zb, m);
-        assert_eq!(eval(&ar, &Ranges::default(), masked), Some(Si { lo: 0, hi: 15, st: 1 }));
+        assert_eq!(
+            eval(&ar, &Ranges::default(), masked),
+            Some(Si {
+                lo: 0,
+                hi: 15,
+                st: 1
+            })
+        );
     }
 }

@@ -63,7 +63,8 @@ fn jump_target_reg(ir: &VexIrsb) -> Option<i32> {
     let next_tmp = ir.next_tmp()?;
     for s in ir.stmts.iter().rev() {
         match s {
-            Stmt::Put { offset, data } if matches!(ir.expr(*data), Some(Expr::RdTmp(t)) if *t == next_tmp) => {
+            Stmt::Put { offset, data } if matches!(ir.expr(*data), Some(Expr::RdTmp(t)) if *t == next_tmp) =>
+            {
                 return Some(*offset);
             }
             Stmt::WrTmp { tmp, data } if *tmp == next_tmp => {
@@ -106,7 +107,11 @@ impl MipsElfFastResolver {
         }
     }
 
-    fn initial_regs(cx: &ResolveCx, func_addr: u64, gp: Option<u64>) -> Option<Vec<(u32, u32, u64)>> {
+    fn initial_regs(
+        cx: &ResolveCx,
+        func_addr: u64,
+        gp: Option<u64>,
+    ) -> Option<Vec<(u32, u32, u64)>> {
         let (t9_off, t9_size) = *cx.arch.registers.get("t9")?;
         let mut regs = vec![(t9_off as u32, t9_size, func_addr)];
         if let Some(gp) = gp {
@@ -135,7 +140,10 @@ impl MipsElfFastResolver {
         let crate::vexlift::NextExpr::Tmp(target_tmp) = s.next else {
             return Ok(Ok(None));
         };
-        if let Some(cv) = s.const_vals.iter().find(|cv| cv.tmp as i64 == target_tmp as i64)
+        if let Some(cv) = s
+            .const_vals
+            .iter()
+            .find(|cv| cv.tmp as i64 == target_tmp as i64)
             && cx.is_target_valid(py, cv.value)?
         {
             return Ok(Ok(Some(cv.value)));
@@ -162,14 +170,18 @@ impl MipsElfFastResolver {
             return Ok(Err("registers"));
         };
         let opts = Self::const_prop_opts(cx);
-        let first = match cx.ir_with(py, first_block_addr, VEX_IRSB_MAX_SIZE as i64, &regs, &opts)? {
-            Ok(ir) => ir,
-            Err(fb) => return Ok(Err(fb.name())),
-        };
+        let first =
+            match cx.ir_with(py, first_block_addr, VEX_IRSB_MAX_SIZE as i64, &regs, &opts)? {
+                Ok(ir) => ir,
+                Err(fb) => return Ok(Err(fb.name())),
+            };
         let Some(tmp) = last_reg_setting_tmp(&first, reg) else {
             return Ok(Ok(Case2::Failure));
         };
-        if let Some(&(_, v)) = first.const_vals.iter().find(|(t, _)| *t as i64 == tmp as i64)
+        if let Some(&(_, v)) = first
+            .const_vals
+            .iter()
+            .find(|(t, _)| *t as i64 == tmp as i64)
             && cx.is_target_valid(py, v)?
         {
             return Ok(Ok(Case2::Success(v)));

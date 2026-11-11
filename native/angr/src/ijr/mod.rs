@@ -100,10 +100,20 @@ pub trait Resolver {
         Ok(Vec::new())
     }
     /// Around a call handed to the twin (a decline): sync state the twin reads or writes (caches in the KB).
-    fn before_twin(&mut self, _py: Python<'_>, _cfg: &Bound<'_, PyAny>, _j: &JumpSite) -> PyResult<()> {
+    fn before_twin(
+        &mut self,
+        _py: Python<'_>,
+        _cfg: &Bound<'_, PyAny>,
+        _j: &JumpSite,
+    ) -> PyResult<()> {
         Ok(())
     }
-    fn after_twin(&mut self, _py: Python<'_>, _cfg: &Bound<'_, PyAny>, _j: &JumpSite) -> PyResult<()> {
+    fn after_twin(
+        &mut self,
+        _py: Python<'_>,
+        _cfg: &Bound<'_, PyAny>,
+        _j: &JumpSite,
+    ) -> PyResult<()> {
         Ok(())
     }
     /// When the chain is released: publish Rust-owned state the Python resolver would have left behind.
@@ -148,7 +158,9 @@ pub fn make_resolver(
         })),
         "X86PeIatResolver" => Some(Box::new(x86::X86PeIatResolver)),
         "AMD64PeIatResolver" => Some(Box::new(x86::Amd64PeIatResolver {
-            windows: ctx.get_item("simos_windows")?.is_some_and(|v| v.is_truthy().unwrap_or(false)),
+            windows: ctx
+                .get_item("simos_windows")?
+                .is_some_and(|v| v.is_truthy().unwrap_or(false)),
         })),
         "X86ElfPicPltResolver" => Some(Box::new(x86::X86ElfPicPltResolver {
             is_x86: twin
@@ -161,12 +173,20 @@ pub fn make_resolver(
         "SyscallResolver" => {
             let fast = twin.call_method0(pyo3::intern!(py, "rust_fast_path"))?;
             Some(Box::new(syscall::SyscallResolver {
-                os_resolves_syscalls: twin.getattr(pyo3::intern!(py, "_os_resolves_syscalls"))?.is_truthy()?,
-                fast: if fast.is_none() { None } else { Some(syscall::FastPath::from_py(&fast)?) },
+                os_resolves_syscalls: twin
+                    .getattr(pyo3::intern!(py, "_os_resolves_syscalls"))?
+                    .is_truthy()?,
+                fast: if fast.is_none() {
+                    None
+                } else {
+                    Some(syscall::FastPath::from_py(&fast)?)
+                },
             }))
         }
         "ConstantResolver" => {
-            let max_func_nodes: usize = twin.getattr(pyo3::intern!(py, "max_func_nodes"))?.extract()?;
+            let max_func_nodes: usize = twin
+                .getattr(pyo3::intern!(py, "max_func_nodes"))?
+                .extract()?;
             let shadow_blade = ctx
                 .get_item("shadow_blade")?
                 .filter(|b| !b.is_none())
@@ -205,7 +225,8 @@ pub fn make_resolver(
                 None => 100_000,
             };
             Some(Box::new(jumptable::JumpTableResolver::new(
-                twin.getattr(pyo3::intern!(py, "resolve_calls"))?.is_truthy()?,
+                twin.getattr(pyo3::intern!(py, "resolve_calls"))?
+                    .is_truthy()?,
                 &arch_name,
                 arches.contains(&arch_name),
                 skip,

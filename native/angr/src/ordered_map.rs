@@ -103,7 +103,9 @@ impl<K: Copy + Eq + Hash, V> OrderedMap<K, V> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
-        self.slots.iter().filter_map(|s| s.as_ref().map(|(k, v)| (k, v)))
+        self.slots
+            .iter()
+            .filter_map(|s| s.as_ref().map(|(k, v)| (k, v)))
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &K> {

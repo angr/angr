@@ -26,7 +26,14 @@ pub struct CvmMapping {
 #[pymethods]
 impl CvmMapping {
     /// `mapping[CodeLocation(block_addr, stmt_idx, ins_addr=ins_addr)][VEXReg(offset, size)]`, or None.
-    fn reg(&self, block_addr: u64, stmt_idx: i32, ins_addr: i64, offset: i32, size: u32) -> Option<U256> {
+    fn reg(
+        &self,
+        block_addr: u64,
+        stmt_idx: i32,
+        ins_addr: i64,
+        offset: i32,
+        size: u32,
+    ) -> Option<U256> {
         self.table
             .get(&(block_addr, stmt_idx, ins_addr), &Var::Reg(offset, size))
     }
@@ -140,7 +147,11 @@ pub struct FcpService {
 #[pymethods]
 impl FcpService {
     #[new]
-    fn new(lifter: Py<VexLifter>, snapshot: &LoaderSnapshot, ctx: &Bound<'_, PyDict>) -> PyResult<Self> {
+    fn new(
+        lifter: Py<VexLifter>,
+        snapshot: &LoaderSnapshot,
+        ctx: &Bound<'_, PyDict>,
+    ) -> PyResult<Self> {
         let shadow = match ctx.get_item("shadow")? {
             Some(v) => v.is_truthy()?,
             None => false,
@@ -191,9 +202,14 @@ impl FcpService {
             }
         };
         self.cx.count("ConstantValueManager:rust");
-        Ok(Py::new(py, CvmMapping { table: Rc::new(table) })?
-            .into_bound(py)
-            .into_any())
+        Ok(Py::new(
+            py,
+            CvmMapping {
+                table: Rc::new(table),
+            },
+        )?
+        .into_bound(py)
+        .into_any())
     }
 
     /// Shadow mode: record a difference between a Rust mapping and the Python one's rows.

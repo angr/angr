@@ -61,26 +61,50 @@ impl ConstantResolver {
         let Some(e) = self.cache.get(&func) else {
             return Ok(());
         };
-        let view = Py::new(py, FcpTableView { table: e.table.clone() })?;
-        let model = self.publish.bind(py).call1((cfg, func, view, e.function_block_count))?;
+        let view = Py::new(
+            py,
+            FcpTableView {
+                table: e.table.clone(),
+            },
+        )?;
+        let model = self
+            .publish
+            .bind(py)
+            .call1((cfg, func, view, e.function_block_count))?;
         self.models.insert(func, model.unbind());
         self.rust_newer.shift_remove(&func);
         Ok(())
     }
 
-    fn py_model<'py>(py: Python<'py>, cfg: &Bound<'py, PyAny>, func: u64) -> PyResult<Bound<'py, PyAny>> {
+    fn py_model<'py>(
+        py: Python<'py>,
+        cfg: &Bound<'py, PyAny>,
+        func: u64,
+    ) -> PyResult<Bound<'py, PyAny>> {
         cfg.getattr(intern!(py, "kb"))?
             .getattr(intern!(py, "propagations"))?
             .call_method1(intern!(py, "get"), (("FCP", func),))
     }
 
     /// Bring the Rust cache entry of `func` up to date with `kb.propagations` after the Python twin ran.
-    fn import_model(&mut self, py: Python<'_>, cfg: &Bound<'_, PyAny>, func: u64) -> PyResult<bool> {
+    fn import_model(
+        &mut self,
+        py: Python<'_>,
+        cfg: &Bound<'_, PyAny>,
+        func: u64,
+    ) -> PyResult<bool> {
         let model = Self::py_model(py, cfg, func)?;
-        if model.is_none() || self.models.get(&func).is_some_and(|m| m.bind(py).is(&model)) {
+        if model.is_none()
+            || self
+                .models
+                .get(&func)
+                .is_some_and(|m| m.bind(py).is(&model))
+        {
             return Ok(true);
         }
-        let count: usize = model.getattr(intern!(py, "function_block_count"))?.extract()?;
+        let count: usize = model
+            .getattr(intern!(py, "function_block_count"))?
+            .extract()?;
         let Some(rows) = table_from_py(&model.getattr(intern!(py, "replacements"))?)? else {
             return Ok(false);
         };
@@ -110,7 +134,10 @@ type TableRows = Vec<(CodeLoc, Vec<(Var, U256)>)>;
 fn table_from_py(replacements: &Bound<'_, PyAny>) -> PyResult<Option<TableRows>> {
     let py = replacements.py();
     let mut out = Vec::new();
-    for item in replacements.call_method0(intern!(py, "items"))?.try_iter()? {
+    for item in replacements
+        .call_method0(intern!(py, "items"))?
+        .try_iter()?
+    {
         let (loc, vars): (Bound<'_, PyAny>, Bound<'_, PyAny>) = item?.extract()?;
         let block_addr: u64 = loc.getattr(intern!(py, "block_addr"))?.extract()?;
         let stmt_idx: i32 = loc.getattr(intern!(py, "stmt_idx"))?.extract()?;
@@ -241,7 +268,9 @@ fn loaded_from_dynamic_addr(
                 return Ok(Err("stmt_index"));
             };
             if let Stmt::IMark { .. } = stmt {
-                if let Err(d) = enqueue_preds(slice, &(pred_addr, stmt_idx), depth, &mut queue, &mut seen) {
+                if let Err(d) =
+                    enqueue_preds(slice, &(pred_addr, stmt_idx), depth, &mut queue, &mut seen)
+                {
                     return Ok(Err(d));
                 }
                 continue;
@@ -271,7 +300,12 @@ fn get_reg(ir: &VexIrsb, tmp: u32) -> Option<i32> {
 }
 
 /// `_check_jump_target_is_compared_against`
-fn compared_against(py: Python<'_>, cx: &mut ResolveCx, slice: &SliceGraph, loc: SliceLoc) -> PyResult<CheckResult> {
+fn compared_against(
+    py: Python<'_>,
+    cx: &mut ResolveCx,
+    slice: &SliceGraph,
+    loc: SliceLoc,
+) -> PyResult<CheckResult> {
     let site = match cx.ir(py, &cross_spec(cx, loc.0))? {
         Ok(ir) => ir,
         Err(fb) => return Ok(Err(fb.name())),
@@ -319,7 +353,9 @@ fn compared_against(py: Python<'_>, cx: &mut ResolveCx, slice: &SliceGraph, loc:
                             let Some(Expr::RdTmp(arg_tmp)) = ir.expr(arg) else {
                                 continue;
                             };
-                            let Some(def) = ir.tmp_def_stmt(*arg_tmp) else { continue };
+                            let Some(def) = ir.tmp_def_stmt(*arg_tmp) else {
+                                continue;
+                            };
                             if let Stmt::WrTmp { data: d, .. } = ir.stmts[def]
                                 && let Some(Expr::Get { offset, .. }) = ir.expr(d)
                                 && *offset == next_reg
@@ -428,7 +464,10 @@ impl Resolver for ConstantResolver {
             && rec.graph.bind(py).borrow().local_count() == e.function_block_count
         {
             let block_loc: CodeLoc = (block.addr, tmp_stmt_idx as i32, tmp_ins_addr as i64);
-            let target = e.table.get(&block_loc, &Var::Tmp(next_tmp)).and_then(|v| v.to_u64());
+            let target = e
+                .table
+                .get(&block_loc, &Var::Tmp(next_tmp))
+                .and_then(|v| v.to_u64());
             let valid = match target {
                 Some(t) => cx.is_target_valid(py, t)?,
                 None => false,
@@ -506,7 +545,12 @@ impl Resolver for ConstantResolver {
         Ok(Decision::Done(Outcome::Unresolved))
     }
 
-    fn before_twin(&mut self, py: Python<'_>, cfg: &Bound<'_, PyAny>, j: &JumpSite) -> PyResult<()> {
+    fn before_twin(
+        &mut self,
+        py: Python<'_>,
+        cfg: &Bound<'_, PyAny>,
+        j: &JumpSite,
+    ) -> PyResult<()> {
         if self.rust_newer.contains(&j.func_addr) {
             self.publish_one(py, cfg, j.func_addr)?;
         }
@@ -547,18 +591,28 @@ impl Resolver for ConstantResolver {
             let rn: Vec<SliceLoc> = slice.nodes.keys().copied().collect();
             let re = slice.edges();
             if rn != nodes || re != edges {
-                out.push(("blade", format!("{rn:?} {re:?}"), format!("{nodes:?} {edges:?}")));
+                out.push((
+                    "blade",
+                    format!("{rn:?} {re:?}"),
+                    format!("{nodes:?} {edges:?}"),
+                ));
             }
         }
         let func = j.func_addr;
         let model = Self::py_model(py, cfg, func)?;
-        let python_changed = !model.is_none() && !self.models.get(&func).is_some_and(|m| m.bind(py).is(&model));
+        let python_changed = !model.is_none()
+            && !self
+                .models
+                .get(&func)
+                .is_some_and(|m| m.bind(py).is(&model));
         let rust_changed = self.last_fcp_func.take() == Some(func);
         if python_changed || rust_changed {
             let py_rows = if model.is_none() {
                 None
             } else {
-                let count: usize = model.getattr(intern!(py, "function_block_count"))?.extract()?;
+                let count: usize = model
+                    .getattr(intern!(py, "function_block_count"))?
+                    .extract()?;
                 table_from_py(&model.getattr(intern!(py, "replacements"))?)?.map(|r| (count, r))
             };
             let rust_rows = self.cache.get(&func).map(|e| {

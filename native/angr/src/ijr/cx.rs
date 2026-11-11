@@ -141,13 +141,19 @@ pub struct ResolveCx {
 
 impl ResolveCx {
     /// Built from the dict `angr.analyses.cfg.indirect_jump_resolvers.rust.build_chain` passes.
-    pub fn new(snap: Arc<Snapshot>, lifter: Py<VexLifter>, ctx: &Bound<'_, PyDict>) -> PyResult<Self> {
+    pub fn new(
+        snap: Arc<Snapshot>,
+        lifter: Py<VexLifter>,
+        ctx: &Bound<'_, PyDict>,
+    ) -> PyResult<Self> {
         let item = |k: &str| -> PyResult<Bound<'_, PyAny>> {
             ctx.get_item(k)?
                 .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(k.to_owned()))
         };
         let functions = match (item("functions")?, item("functions_store")?) {
-            (f, s) if !f.is_none() && !s.is_none() => Some((f.unbind(), s.extract::<Py<RecoveryFunctions>>()?)),
+            (f, s) if !f.is_none() && !s.is_none() => {
+                Some((f.unbind(), s.extract::<Py<RecoveryFunctions>>()?))
+            }
             _ => None,
         };
         Ok(ResolveCx {
@@ -174,11 +180,17 @@ impl ResolveCx {
     }
 
     /// The scan's function store, if `cfg.kb.functions` is still the manager the chain was built with.
-    pub fn functions(&self, py: Python<'_>, cfg: &Bound<'_, PyAny>) -> PyResult<Option<Py<RecoveryFunctions>>> {
+    pub fn functions(
+        &self,
+        py: Python<'_>,
+        cfg: &Bound<'_, PyAny>,
+    ) -> PyResult<Option<Py<RecoveryFunctions>>> {
         let Some((mgr, store)) = &self.functions else {
             return Ok(None);
         };
-        let cur = cfg.getattr(intern!(py, "kb"))?.getattr(intern!(py, "functions"))?;
+        let cur = cfg
+            .getattr(intern!(py, "kb"))?
+            .getattr(intern!(py, "functions"))?;
         Ok(cur.is(mgr.bind(py)).then(|| store.clone_ref(py)))
     }
 
@@ -239,7 +251,9 @@ impl ResolveCx {
         let lifter = self.lifter.borrow(py);
         let lock = lifter.lock.bind(py);
         lock.call_method0(intern!(py, "acquire"))?;
-        let result = lifter.core.lift_ir(spec.addr, spec.max_size, &[], &opts, &mut is_stop);
+        let result = lifter
+            .core
+            .lift_ir(spec.addr, spec.max_size, &[], &opts, &mut is_stop);
         lock.call_method0(intern!(py, "release"))?;
         drop(lifter);
         if let Some(e) = err {
@@ -273,7 +287,9 @@ impl ResolveCx {
         let lifter = self.lifter.borrow(py);
         let lock = lifter.lock.bind(py);
         lock.call_method0(intern!(py, "acquire"))?;
-        let result = lifter.core.lift_ir(addr, max_size, initial_regs, opts, &mut is_stop);
+        let result = lifter
+            .core
+            .lift_ir(addr, max_size, initial_regs, opts, &mut is_stop);
         lock.call_method0(intern!(py, "release"))?;
         drop(lifter);
         if let Some(e) = err {

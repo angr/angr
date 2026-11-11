@@ -183,9 +183,12 @@ impl MemoryDataStore {
     fn sort_obj<'py>(&mut self, py: Python<'py>, sort: u16) -> Option<Bound<'py, PyString>> {
         while self.sort_py.len() < self.inner.sorts.names.len() {
             let name = self.inner.sorts.names[self.sort_py.len()].as_deref();
-            self.sort_py.push(name.map(|n| PyString::intern(py, n).unbind()));
+            self.sort_py
+                .push(name.map(|n| PyString::intern(py, n).unbind()));
         }
-        self.sort_py[sort as usize].as_ref().map(|s| s.bind(py).clone())
+        self.sort_py[sort as usize]
+            .as_ref()
+            .map(|s| s.bind(py).clone())
     }
 
     fn rec(&self, addr: u64) -> PyResult<&MdRec> {
@@ -330,7 +333,11 @@ impl MemoryDataStore {
         Ok(())
     }
 
-    pub fn sort<'py>(&mut self, py: Python<'py>, addr: u64) -> PyResult<Option<Bound<'py, PyString>>> {
+    pub fn sort<'py>(
+        &mut self,
+        py: Python<'py>,
+        addr: u64,
+    ) -> PyResult<Option<Bound<'py, PyString>>> {
         let sort = self.rec(addr)?.sort;
         Ok(self.sort_obj(py, sort))
     }
@@ -360,7 +367,11 @@ impl MemoryDataStore {
         Ok(())
     }
 
-    pub fn content<'py>(&self, py: Python<'py>, addr: u64) -> PyResult<Option<Bound<'py, PyBytes>>> {
+    pub fn content<'py>(
+        &self,
+        py: Python<'py>,
+        addr: u64,
+    ) -> PyResult<Option<Bound<'py, PyBytes>>> {
         Ok(self
             .rec(addr)?
             .content
@@ -378,7 +389,14 @@ impl MemoryDataStore {
     pub fn records<'py>(
         &mut self,
         py: Python<'py>,
-    ) -> Vec<(u64, Option<i128>, Option<i128>, Option<Bound<'py, PyString>>, Option<i128>, Option<u64>)> {
+    ) -> Vec<(
+        u64,
+        Option<i128>,
+        Option<i128>,
+        Option<Bound<'py, PyString>>,
+        Option<i128>,
+        Option<u64>,
+    )> {
         let rows: Vec<(u64, MdRec)> = self
             .inner
             .recs
@@ -526,7 +544,11 @@ struct Guesser<'a, 'py> {
 
 /// `(sort, size, content)`; sort None means "unknown".
 type Guess = (Option<u16>, Option<i128>, Option<Vec<u8>>);
-type GuessPy<'py> = (Option<Bound<'py, PyString>>, Option<i128>, Option<Bound<'py, PyBytes>>);
+type GuessPy<'py> = (
+    Option<Bound<'py, PyString>>,
+    Option<i128>,
+    Option<Bound<'py, PyBytes>>,
+);
 
 fn utf16le_decodes(data: &[u8], n: usize) -> bool {
     let s = &data[..data.len().min(n * 2)];
@@ -593,7 +615,9 @@ impl Guesser<'_, '_> {
         let mut i: i128 = 0;
         while i < max_pointer_array_size {
             if let Some(ptr) = snap.load_word(data_addr.wrapping_add(i as u64), ptr_size as usize) {
-                if snap.find_section_containing(ptr).is_some() || snap.find_segment_containing(ptr).is_some() {
+                if snap.find_section_containing(ptr).is_some()
+                    || snap.find_segment_containing(ptr).is_some()
+                {
                     pointers_count += 1;
                 } else {
                     break;
@@ -602,7 +626,11 @@ impl Guesser<'_, '_> {
             i += ptr_size as i128;
         }
         if pointers_count > 0 {
-            return Ok((Some(SORT_POINTER_ARRAY), Some(ptr_size as i128 * pointers_count), None));
+            return Ok((
+                Some(SORT_POINTER_ARRAY),
+                Some(ptr_size as i128 * pointers_count),
+                None,
+            ));
         }
 
         let non_zero_max_size = if max_size == 0 { 1024 } else { max_size };
@@ -614,7 +642,8 @@ impl Guesser<'_, '_> {
         };
 
         // UTF-16 string
-        if data.len() >= 4 && data[1] == 0 && data[2] != 0 && data[3] == 0 && is_printable(data[0]) {
+        if data.len() >= 4 && data[1] == 0 && data[2] != 0 && data[3] == 0 && is_printable(data[0])
+        {
             let can_decode = |n: usize| utf16le_decodes(&data, n);
             if can_decode(4) || can_decode(5) || can_decode(6) {
                 let mut running_failures = 0;
@@ -638,7 +667,11 @@ impl Guesser<'_, '_> {
                     if string_data.ends_with(b"\x00\x00") {
                         string_data.truncate(string_data.len() - 2);
                     }
-                    return Ok((Some(SORT_UNICODE), Some(last_success as i128 * 2), Some(string_data)));
+                    return Ok((
+                        Some(SORT_UNICODE),
+                        Some(last_success as i128 * 2),
+                        Some(string_data),
+                    ));
                 }
             }
         }
@@ -646,7 +679,8 @@ impl Guesser<'_, '_> {
         // ASCII string
         if !data.is_empty() {
             let zero_pos = data.iter().position(|&c| c == 0);
-            let prefix_printable = zero_pos.is_some_and(|z| z > 0 && data[..z].iter().all(|&c| is_printable(c)));
+            let prefix_printable =
+                zero_pos.is_some_and(|z| z > 0 && data[..z].iter().all(|&c| is_printable(c)));
             if prefix_printable || data.iter().all(|&c| is_printable(c)) {
                 let string_data = match zero_pos {
                     None => data.clone(),
@@ -656,20 +690,27 @@ impl Guesser<'_, '_> {
                 if zero_pos.is_some_and(|z| z != 0) {
                     string_len += 1;
                 }
-                return Ok((Some(SORT_STRING), Some(string_len.min(1024)), Some(string_data)));
+                return Ok((
+                    Some(SORT_STRING),
+                    Some(string_len.min(1024)),
+                    Some(string_data),
+                ));
             }
         }
 
         // code reference
         if self.has_xrefs
             && self.seg_list.is_some()
-            && self.seg_occupied_by(data_addr).is_some_and(|s| s.as_deref() == Some("code"))
+            && self
+                .seg_occupied_by(data_addr)
+                .is_some_and(|s| s.as_deref() == Some("code"))
         {
             return Ok((Some(SORT_CODE_REFERENCE), Some(0), None));
         }
 
         if let Some(fallback) = fallback {
-            let r: Option<(String, Option<i128>)> = fallback.call1((data_addr, max_size))?.extract()?;
+            let r: Option<(String, Option<i128>)> =
+                fallback.call1((data_addr, max_size))?.extract()?;
             if let Some((sort, size)) = r {
                 let sort = self.store.borrow_mut().inner.sorts.intern(Some(&sort));
                 return Ok((Some(sort), size, None));
@@ -681,11 +722,14 @@ impl Guesser<'_, '_> {
 }
 
 fn in_regions(regions: &[(u64, u64)], addr: u64) -> bool {
-    regions.iter().any(|&(start, end)| start <= addr && addr < end)
+    regions
+        .iter()
+        .any(|&(start, end)| start <= addr && addr < end)
 }
 
 fn to_u64(v: i128) -> PyResult<u64> {
-    u64::try_from(v).map_err(|_| PyOverflowError::new_err("memory data address or size out of range"))
+    u64::try_from(v)
+        .map_err(|_| PyOverflowError::new_err("memory data address or size out of range"))
 }
 
 /// `CFGModel.tidy_data_references`. Returns `(new data found, new memory data addresses)`.
@@ -780,7 +824,13 @@ pub fn tidy_data_references<'py>(
             Some(b) => b - data_addr as i128,
             None => 0,
         };
-        store.borrow_mut().inner.recs.get_mut(&data_addr).expect("checked").max_size = Some(max_size);
+        store
+            .borrow_mut()
+            .inner
+            .recs
+            .get_mut(&data_addr)
+            .expect("checked")
+            .max_size = Some(max_size);
     }
 
     let mut new_data_found = false;
@@ -808,7 +858,8 @@ pub fn tidy_data_references<'py>(
 
         let guessed = rec.sort == SORT_UNKNOWN
             || rec.sort == SORT_UNSPECIFIED
-            || (rec.sort == SORT_INTEGER && (rec.size == Some(0) || rec.size == Some(ptr_size as i128)));
+            || (rec.sort == SORT_INTEGER
+                && (rec.size == Some(0) || rec.size == Some(ptr_size as i128)));
         let (data_type, data_size, content) = if guessed {
             g.guess(data_addr, rec.max_size, guess_fallback)?
         } else {
@@ -894,7 +945,8 @@ pub fn tidy_data_references<'py>(
                                 }
                             }
                             None => {
-                                let next_data_addr = store.borrow().inner.next_addr(ptr.wrapping_add(1));
+                                let next_data_addr =
+                                    store.borrow().inner.next_addr(ptr.wrapping_add(1));
                                 let max_data_size = match next_data_addr {
                                     None => 100,
                                     Some(n) => n as i128 - ptr as i128,
@@ -935,13 +987,20 @@ pub fn tidy_data_references<'py>(
                 let mut max_data_size = max_size;
                 if let Some(seg) = seg_list
                     && let Some(next_occupied) =
-                        seg.borrow().next_pos_with_sort_not_in(data_addr, empty_sorts.clone(), None)
+                        seg.borrow()
+                            .next_pos_with_sort_not_in(data_addr, empty_sorts.clone(), None)
                     && next_occupied > data_addr
                 {
                     max_data_size = max_data_size.min(next_occupied as i128 - data_addr as i128);
                 }
                 size = Some(max_data_size);
-                store.borrow_mut().inner.recs.get_mut(&data_addr).expect("record exists").size = size;
+                store
+                    .borrow_mut()
+                    .inner
+                    .recs
+                    .get_mut(&data_addr)
+                    .expect("record exists")
+                    .size = size;
             }
         }
 
@@ -1002,7 +1061,10 @@ mod tests {
 
     #[test]
     fn utf16_prefix_validity() {
-        let data = "ab\u{1F600}c".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<u8>>();
+        let data = "ab\u{1F600}c"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<u8>>();
         assert!(utf16le_decodes(&data, 2));
         // the prefix ends between the two halves of a surrogate pair
         assert!(!utf16le_decodes(&data, 3));
@@ -1029,7 +1091,10 @@ mod tests {
         add(0x20, b"x", 2);
         add(0x30, b"y", 2);
         assert_eq!(s.merge_string_references(256, 0.5), 1);
-        assert_eq!(s.inner.recs[&0x10].content.as_deref(), Some(b"abcd".as_slice()));
+        assert_eq!(
+            s.inner.recs[&0x10].content.as_deref(),
+            Some(b"abcd".as_slice())
+        );
         assert_eq!(s.inner.recs[&0x10].reference_size, Some(4));
     }
 }

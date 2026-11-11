@@ -131,7 +131,10 @@ mod tests {
         let a = U256([u64::MAX, u64::MAX, 0, 0]);
         let b = U256::from_u64(1);
         assert_eq!(a.wrapping_add(b), U256([0, 0, 1, 0]));
-        assert_eq!(U256::ZERO.wrapping_sub(b).masked(64), U256::from_u64(u64::MAX));
+        assert_eq!(
+            U256::ZERO.wrapping_sub(b).masked(64),
+            U256::from_u64(u64::MAX)
+        );
         assert_eq!(a.masked(70), U256([u64::MAX, 63, 0, 0]));
         assert_eq!(a.masked(256), a);
     }

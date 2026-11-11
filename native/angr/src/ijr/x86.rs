@@ -45,7 +45,12 @@ fn decode_x86_abs_operand(bytes: &[u8]) -> Option<Option<u64>> {
         return Some((disp != 0).then_some(disp));
     }
     let sib = rm == 4;
-    if sib && md == 0 && bytes.get(i + 2).is_some_and(|s| s & 7 == 5 && (s >> 3) & 7 == 4) {
+    if sib
+        && md == 0
+        && bytes
+            .get(i + 2)
+            .is_some_and(|s| s & 7 == 5 && (s >> 3) & 7 == 4)
+    {
         // [disp32] through a SIB byte without base and index: capstone reports it like the plain form
         return None;
     }
@@ -67,7 +72,11 @@ pub struct X86PeIatResolver;
 
 impl X86PeIatResolver {
     /// `factory.block(addr).capstone.insns[-1]`'s first operand.
-    fn operand(py: Python<'_>, cx: &mut ResolveCx, addr: u64) -> PyResult<Result<Option<u64>, &'static str>> {
+    fn operand(
+        py: Python<'_>,
+        cx: &mut ResolveCx,
+        addr: u64,
+    ) -> PyResult<Result<Option<u64>, &'static str>> {
         let spec = IrSpec {
             addr,
             max_size: VEX_IRSB_MAX_SIZE as i64,
@@ -82,7 +91,11 @@ impl X86PeIatResolver {
         let Some((a, len)) = last_insn(&ir) else {
             return Ok(Err("no_insn"));
         };
-        let Some(bytes) = cx.snap.load_bytes(a, len as usize).filter(|b| b.len() == len as usize) else {
+        let Some(bytes) = cx
+            .snap
+            .load_bytes(a, len as usize)
+            .filter(|b| b.len() == len as usize)
+        else {
             return Ok(Err("no_bytes"));
         };
         Ok(decode_x86_abs_operand(&bytes).ok_or("operand"))
@@ -144,7 +157,11 @@ pub struct Amd64PeIatResolver {
 
 impl Amd64PeIatResolver {
     /// `factory.block(addr, size=block.size).capstone.insns[-1]`'s rip-relative slot.
-    fn slot(py: Python<'_>, cx: &mut ResolveCx, j: &JumpSite) -> PyResult<Result<Option<u64>, &'static str>> {
+    fn slot(
+        py: Python<'_>,
+        cx: &mut ResolveCx,
+        j: &JumpSite,
+    ) -> PyResult<Result<Option<u64>, &'static str>> {
         let ir = match cx.ir(py, &j.block)? {
             Ok(ir) => ir,
             Err(fb) => return Ok(Err(fb.name())),
@@ -153,7 +170,11 @@ impl Amd64PeIatResolver {
         let Some((a, len)) = last_insn(&ir) else {
             return Ok(Err("no_insn"));
         };
-        let Some(bytes) = cx.snap.load_bytes(a, len as usize).filter(|b| b.len() == len as usize) else {
+        let Some(bytes) = cx
+            .snap
+            .load_bytes(a, len as usize)
+            .filter(|b| b.len() == len as usize)
+        else {
             return Ok(Err("no_bytes"));
         };
         Ok(match decode_indirect_operand(a, &bytes) {
@@ -269,8 +290,14 @@ mod tests {
 
     #[test]
     fn abs_operands() {
-        assert_eq!(decode_x86_abs_operand(&[0xff, 0x15, 0x10, 0x20, 0x40, 0]), Some(Some(0x402010)));
-        assert_eq!(decode_x86_abs_operand(&[0xff, 0x25, 0, 0, 0, 0]), Some(None));
+        assert_eq!(
+            decode_x86_abs_operand(&[0xff, 0x15, 0x10, 0x20, 0x40, 0]),
+            Some(Some(0x402010))
+        );
+        assert_eq!(
+            decode_x86_abs_operand(&[0xff, 0x25, 0, 0, 0, 0]),
+            Some(None)
+        );
         assert_eq!(decode_x86_abs_operand(&[0xff, 0xd0]), Some(None));
         assert_eq!(decode_x86_abs_operand(&[0xff, 0x50, 0x08]), Some(None));
         assert_eq!(decode_x86_abs_operand(&[0xe8, 0, 0, 0, 0]), None);

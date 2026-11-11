@@ -11,7 +11,9 @@ use rustc_hash::FxHashSet;
 use super::cx::{IrSpec, ResolveCx};
 use super::fcp::Decline;
 use super::u256::U256;
-use crate::ailment::vex_ffi::{ICO_F32, ICO_F32I, ICO_F64, ICO_F64I, ICO_U128, ICO_V128, ICO_V256, ICO_V512};
+use crate::ailment::vex_ffi::{
+    ICO_F32, ICO_F32I, ICO_F64, ICO_F64I, ICO_U128, ICO_V128, ICO_V256, ICO_V512,
+};
 use crate::vexir::{Expr, ExprId, Stmt, VexIrsb, op_name};
 use crate::vexlift::{IJK_NODECODE, VEX_IRSB_MAX_SIZE, jumpkind_name};
 
@@ -133,7 +135,9 @@ pub fn sim_slicer(
                 ICO_F32 | ICO_F32I | ICO_F64 | ICO_F64I => Alias::Float,
                 ICO_V128 | ICO_V256 => {
                     let n = c.bits() as usize / 8;
-                    let bytes: Vec<u8> = (0..n).map(|i| if (c.raw >> i) & 1 == 1 { 0xff } else { 0 }).collect();
+                    let bytes: Vec<u8> = (0..n)
+                        .map(|i| if (c.raw >> i) & 1 == 1 { 0xff } else { 0 })
+                        .collect();
                     Alias::Int(U256::from_le_bytes(&bytes).ok_or("wide_const")?)
                 }
                 ICO_V512 | ICO_U128 => return Err("wide_const"),
@@ -148,7 +152,9 @@ pub fn sim_slicer(
                 let a = fwd(ir, args[0], temps, sp_off, bp_off, sp, bp)?;
                 let b = fwd(ir, args[1], temps, sp_off, bp_off, sp, bp)?;
                 match (a, b) {
-                    (Some(Alias::Int(a)), Some(Alias::Int(b))) => Some(Alias::Int(a.wrapping_add(b).masked(bits))),
+                    (Some(Alias::Int(a)), Some(Alias::Int(b))) => {
+                        Some(Alias::Int(a.wrapping_add(b).masked(bits)))
+                    }
                     (Some(_), Some(_)) => return Err("float_alias"),
                     _ => None,
                 }
@@ -216,7 +222,11 @@ pub fn sim_slicer(
                     }
                 }
             }
-            Some(Expr::Ite { cond, iftrue, iffalse }) => {
+            Some(Expr::Ite {
+                cond,
+                iftrue,
+                iffalse,
+            }) => {
                 bwd(ir, *cond, cx, aliases, tmps, regs, stack)?;
                 bwd(ir, *iftrue, cx, aliases, tmps, regs, stack)?;
                 bwd(ir, *iffalse, cx, aliases, tmps, regs, stack)?;
@@ -259,7 +269,11 @@ pub fn sim_slicer(
                 _ => false,
             },
             Stmt::LoadG {
-                dst, guard, addr, alt, ..
+                dst,
+                guard,
+                addr,
+                alt,
+                ..
             } if tmps.contains(dst) => {
                 tmps.remove(dst);
                 bwd(ir, *guard, cx, &aliases, &mut tmps, &mut regs, &mut stack)?;
@@ -319,8 +333,15 @@ impl Blade<'_> {
         };
         let edges = g.with_store(|s| {
             let mut out = Vec::new();
-            for (src, rec) in s.in_edges_rec(id)?.into_iter().take(self.p.max_predecessors) {
-                let jk = rec.jumpkind_code().and_then(|c| s.jumpkind_str(c)).map(str::to_owned);
+            for (src, rec) in s
+                .in_edges_rec(id)?
+                .into_iter()
+                .take(self.p.max_predecessors)
+            {
+                let jk = rec
+                    .jumpkind_code()
+                    .and_then(|c| s.jumpkind_str(c))
+                    .map(str::to_owned);
                 out.push((src, s.node_key(src)?.0, jk, rec.stmt_idx_opt()));
             }
             Ok(out)
@@ -367,7 +388,15 @@ impl Blade<'_> {
             *prev = tpl;
             *has_statement = true;
         };
-        sim_slicer(self.cx, ir, tmps, regs, stack, self.p.include_imarks, &mut cb)
+        sim_slicer(
+            self.cx,
+            ir,
+            tmps,
+            regs,
+            stack,
+            self.p.include_imarks,
+            &mut cb,
+        )
     }
 
     fn backward(&mut self, dst_run: u64, dst_stmt_idx: i64) -> PyResult<Result<(), Decline>> {
@@ -424,7 +453,15 @@ impl Blade<'_> {
                 if self.skip_pred(pred_addr, &jk)? {
                     continue;
                 }
-                if let Err(d) = self.recursive(self.p.max_level - 1, pred, pred_addr, &regs, &stack, prev, stmt_idx)? {
+                if let Err(d) = self.recursive(
+                    self.p.max_level - 1,
+                    pred,
+                    pred_addr,
+                    &regs,
+                    &stack,
+                    prev,
+                    stmt_idx,
+                )? {
                     return Ok(Err(d));
                 }
             }
@@ -464,7 +501,9 @@ impl Blade<'_> {
         let mut prev = tpl;
         if self.p.control_dependence {
             for (i, s) in ir.stmts.iter().enumerate() {
-                let Stmt::Exit { guard, jk, .. } = s else { continue };
+                let Stmt::Exit { guard, jk, .. } = s else {
+                    continue;
+                };
                 if jumpkind_name(*jk) != "Ijk_Boring" {
                     continue;
                 }
@@ -477,7 +516,15 @@ impl Blade<'_> {
             }
         }
         let mut has_statement = false;
-        let res = match self.slicer(&ir, temps, regs, stack, run_addr, &mut prev, &mut has_statement) {
+        let res = match self.slicer(
+            &ir,
+            temps,
+            regs,
+            stack,
+            run_addr,
+            &mut prev,
+            &mut has_statement,
+        ) {
             Ok(r) => r,
             Err(d) => return Ok(Err(d)),
         };
@@ -497,7 +544,9 @@ impl Blade<'_> {
                 if self.skip_pred(pred_addr, &jk)? {
                     continue;
                 }
-                if let Err(d) = self.recursive(level - 1, pred, pred_addr, &regs, &stack, prev, stmt_idx)? {
+                if let Err(d) =
+                    self.recursive(level - 1, pred, pred_addr, &regs, &stack, prev, stmt_idx)?
+                {
                     return Ok(Err(d));
                 }
             }
@@ -515,7 +564,13 @@ pub fn blade(
     p: &BladeParams,
 ) -> PyResult<Result<SliceGraph, Decline>> {
     // AngrBladeError when the target is not in the graph
-    if cx.graph.bind(py).borrow().first_node_at_addr(dst_run)?.is_none() {
+    if cx
+        .graph
+        .bind(py)
+        .borrow()
+        .first_node_at_addr(dst_run)?
+        .is_none()
+    {
         return Ok(Err("blade_no_node"));
     }
     let mut b = Blade {

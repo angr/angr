@@ -18,8 +18,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyBytes, PyDict, PyTuple};
 
 use crate::ailment::vex_ffi::{
-    self, ICO_U1, ICO_U8, ICO_U16, ICO_U32, ICO_U64, IEX_CONST, IEX_RDTMP, IRConst, IRSB, IST_EXIT, VexArchInfo,
-    VexCacheInfo,
+    self, ICO_U1, ICO_U8, ICO_U16, ICO_U32, ICO_U64, IEX_CONST, IEX_RDTMP, IRConst, IRSB, IST_EXIT,
+    VexArchInfo, VexCacheInfo,
 };
 
 pub const MAX_EXITS: usize = 400;
@@ -189,7 +189,12 @@ pub enum NextExpr {
 }
 
 /// A conditional exit (`Ist_Exit`) of the block.
-#[pyclass(name = "Exit", module = "angr.rustylib.vexlift", frozen, from_py_object)]
+#[pyclass(
+    name = "Exit",
+    module = "angr.rustylib.vexlift",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Debug)]
 pub struct Exit {
     #[pyo3(get)]
@@ -220,7 +225,12 @@ impl Exit {
 }
 
 /// A data reference collected by libpyvex (`pyvex.data_ref.DataRef`).
-#[pyclass(name = "DataRef", module = "angr.rustylib.vexlift", frozen, from_py_object)]
+#[pyclass(
+    name = "DataRef",
+    module = "angr.rustylib.vexlift",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Debug)]
 pub struct DataRef {
     #[pyo3(get)]
@@ -255,7 +265,12 @@ impl DataRef {
 }
 
 /// A constant tmp value from lift-time constant propagation (`pyvex.const_val.ConstVal`).
-#[pyclass(name = "ConstVal", module = "angr.rustylib.vexlift", frozen, from_py_object)]
+#[pyclass(
+    name = "ConstVal",
+    module = "angr.rustylib.vexlift",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone, Debug)]
 pub struct ConstVal {
     #[pyo3(get)]
@@ -269,7 +284,10 @@ pub struct ConstVal {
 #[pymethods]
 impl ConstVal {
     fn __repr__(&self) -> String {
-        format!("<ConstVal t{} = {:#x} at stmt {}>", self.tmp, self.value, self.stmt_idx)
+        format!(
+            "<ConstVal t{} = {:#x} at stmt {}>",
+            self.tmp, self.value, self.stmt_idx
+        )
     }
 }
 
@@ -326,9 +344,17 @@ pub struct MipsGpScan {
 
 impl LiftSummary {
     /// `CFGFast._is_branch_vex_artifact_only`: a non-final Boring exit back to its own instruction (CAS retry).
-    pub fn is_branch_vex_artifact_only(&self, branch_delay_slot: bool, branch_ins_addr: u64, exit: &Exit) -> bool {
+    pub fn is_branch_vex_artifact_only(
+        &self,
+        branch_delay_slot: bool,
+        branch_ins_addr: u64,
+        exit: &Exit,
+    ) -> bool {
         !branch_delay_slot
-            && self.instruction_addresses.last().is_some_and(|&last| branch_ins_addr != last)
+            && self
+                .instruction_addresses
+                .last()
+                .is_some_and(|&last| branch_ins_addr != last)
             && exit.dst == branch_ins_addr
             && exit.jumpkind == IJK_BORING
     }
@@ -352,7 +378,9 @@ impl LiftSummary {
                     } else {
                         self.addr.wrapping_add(self.size as u64)
                     };
-                    if (next_ins_addr as i128 - e.ins_addr as i128) <= (e.ins_addr as i128 - ia[idx - 1] as i128) {
+                    if (next_ins_addr as i128 - e.ins_addr as i128)
+                        <= (e.ins_addr as i128 - ia[idx - 1] as i128)
+                    {
                         branch_ins_addr = ia[idx - 1];
                     }
                 }
@@ -379,8 +407,8 @@ impl LiftSummary {
 
     #[setter]
     fn set_jumpkind(&mut self, name: &str) -> PyResult<()> {
-        self.jumpkind =
-            jumpkind_from_name(name).ok_or_else(|| PyValueError::new_err(format!("unknown jumpkind {name}")))?;
+        self.jumpkind = jumpkind_from_name(name)
+            .ok_or_else(|| PyValueError::new_err(format!("unknown jumpkind {name}")))?;
         Ok(())
     }
 
@@ -420,8 +448,11 @@ impl LiftSummary {
     /// pyvex `IRSB.exit_statements` shape: (ins_addr, stmt_idx, Exit) per conditional exit.
     #[getter]
     fn exit_statements<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        let items: Vec<(u64, i32, Exit)> =
-            self.exits.iter().map(|e| (e.ins_addr, e.stmt_idx, e.clone())).collect();
+        let items: Vec<(u64, i32, Exit)> = self
+            .exits
+            .iter()
+            .map(|e| (e.ins_addr, e.stmt_idx, e.clone()))
+            .collect();
         PyTuple::new(py, items)
     }
 
@@ -438,7 +469,10 @@ impl LiftSummary {
 
     /// (stmt_idx, branch_ins_addr, target, jumpkind) per conditional exit; see [`LiftSummary::conditional_successors`].
     #[pyo3(name = "conditional_successors")]
-    fn py_conditional_successors(&self, branch_delay_slot: bool) -> Vec<(i32, u64, u64, &'static str)> {
+    fn py_conditional_successors(
+        &self,
+        branch_delay_slot: bool,
+    ) -> Vec<(i32, u64, u64, &'static str)> {
         self.conditional_successors(branch_delay_slot)
             .into_iter()
             .map(|s| (s.stmt_idx, s.ins_addr, s.dst, jumpkind_name(s.jumpkind)))
@@ -654,7 +688,11 @@ impl LifterCore {
             return None;
         }
         let b = &self.backers[idx - 1];
-        if addr - b.start < b.len as u64 { Some(b) } else { None }
+        if addr - b.start < b.len as u64 {
+            Some(b)
+        } else {
+            None
+        }
     }
 
     /// `ClemoryReadOnlyView.load(addr, n)` for the single-backer case; None when it would read across backers.
@@ -772,7 +810,10 @@ impl LifterCore {
 ///
 /// # Safety
 /// `r` must be the live `_lift_r` of a successful lift.
-pub(crate) unsafe fn summarize(r: *const VEXLiftResult, addr: u64) -> Result<LiftSummary, Fallback> {
+pub(crate) unsafe fn summarize(
+    r: *const VEXLiftResult,
+    addr: u64,
+) -> Result<LiftSummary, Fallback> {
     let r = unsafe { &*r };
     let size = r.size;
     if r.irsb.is_null() || size <= 0 {
@@ -831,7 +872,8 @@ pub(crate) unsafe fn summarize(r: *const VEXLiftResult, addr: u64) -> Result<Lif
         });
     }
 
-    let data_refs: Vec<DataRef> = r.data_refs[..(r.data_ref_count.max(0) as usize).min(MAX_DATA_REFS)]
+    let data_refs: Vec<DataRef> = r.data_refs
+        [..(r.data_ref_count.max(0) as usize).min(MAX_DATA_REFS)]
         .iter()
         .map(|d| DataRef {
             data_addr: d.data_addr,
@@ -841,7 +883,8 @@ pub(crate) unsafe fn summarize(r: *const VEXLiftResult, addr: u64) -> Result<Lif
             ins_addr: d.ins_addr,
         })
         .collect();
-    let const_vals: Vec<ConstVal> = r.const_vals[..(r.const_val_count.max(0) as usize).min(MAX_CONST_VALS)]
+    let const_vals: Vec<ConstVal> = r.const_vals
+        [..(r.const_val_count.max(0) as usize).min(MAX_CONST_VALS)]
         .iter()
         .map(|c| ConstVal {
             tmp: c.tmp,
@@ -873,8 +916,15 @@ const IOP_ADD32: u32 = crate::ailment::vexop_names::IOP_BASE + 3;
 ///
 /// # Safety
 /// `r` must be the live `_lift_r` of a successful lift.
-pub(crate) unsafe fn mips32_gp_scan(r: *const VEXLiftResult, gp_off: i32, t9_off: i32, func_addr: u64) -> MipsGpScan {
-    use vex_ffi::{IEX_BINOP, IEX_GET, IRExpr, IST_ABIHINT, IST_IMARK, IST_NOOP, IST_PUT, IST_WRTMP, ITY_I32};
+pub(crate) unsafe fn mips32_gp_scan(
+    r: *const VEXLiftResult,
+    gp_off: i32,
+    t9_off: i32,
+    func_addr: u64,
+) -> MipsGpScan {
+    use vex_ffi::{
+        IEX_BINOP, IEX_GET, IRExpr, IST_ABIHINT, IST_IMARK, IST_NOOP, IST_PUT, IST_WRTMP, ITY_I32,
+    };
     debug_assert_eq!(crate::ailment::vexop_names::IROP_NAMES[3], "Iop_Add32");
     let irsb = unsafe { &*(*r).irsb };
     let n = irsb.stmts_used.max(0) as usize;
@@ -894,7 +944,12 @@ pub(crate) unsafe fn mips32_gp_scan(r: *const VEXLiftResult, gp_off: i32, t9_off
             _ => {}
         }
     }
-    let mut scan = MipsGpScan { func_addr, insns, last_gp, value: None };
+    let mut scan = MipsGpScan {
+        func_addr,
+        insns,
+        last_gp,
+        value: None,
+    };
     let Some((last, _)) = last_gp else {
         return scan;
     };
@@ -907,11 +962,18 @@ pub(crate) unsafe fn mips32_gp_scan(r: *const VEXLiftResult, gp_off: i32, t9_off
     let mut t9 = Some(func_addr);
     let n_tmps = unsafe { (*irsb.tyenv).types_used.max(0) as usize };
     let mut tmps: Vec<Option<u64>> = vec![None; n_tmps];
-    fn ev(e: *const IRExpr, tmps: &[Option<u64>], regs: (i32, Option<u64>, i32, Option<u64>)) -> Option<u64> {
+    fn ev(
+        e: *const IRExpr,
+        tmps: &[Option<u64>],
+        regs: (i32, Option<u64>, i32, Option<u64>),
+    ) -> Option<u64> {
         let e = unsafe { &*e };
         match e.tag {
             IEX_CONST => unsafe { const_int_value(e.iex.con.con) },
-            IEX_RDTMP => tmps.get(unsafe { e.iex.rdtmp.tmp } as usize).copied().flatten(),
+            IEX_RDTMP => tmps
+                .get(unsafe { e.iex.rdtmp.tmp } as usize)
+                .copied()
+                .flatten(),
             IEX_GET => {
                 let g = unsafe { e.iex.get };
                 if g.ty != ITY_I32 {
@@ -996,8 +1058,11 @@ impl VexLifter {
         lock: Py<PyAny>,
     ) -> PyResult<Self> {
         vex_ffi::init_symbols(py);
-        if vex_ffi::vex_lift_fn().is_none() || vex_ffi::reset_initial_register_values_fn().is_none() {
-            return Err(PyRuntimeError::new_err("libpyvex symbols not found (is pyvex imported?)"));
+        if vex_ffi::vex_lift_fn().is_none() || vex_ffi::reset_initial_register_values_fn().is_none()
+        {
+            return Err(PyRuntimeError::new_err(
+                "libpyvex symbols not found (is pyvex imported?)",
+            ));
         }
         let guest = crate::ailment::convert_vex::vex_arch_int(vex_arch)
             .ok_or_else(|| PyValueError::new_err(format!("unsupported VexArch {vex_arch}")))?;
@@ -1013,7 +1078,9 @@ impl VexLifter {
             table.push(Backer { start, len, buf });
         }
         if table.windows(2).any(|w| w[0].start > w[1].start) {
-            return Err(PyValueError::new_err("backers must be sorted by start address"));
+            return Err(PyValueError::new_err(
+                "backers must be sorted by start address",
+            ));
         }
         Ok(VexLifter {
             core: LifterCore {
@@ -1048,7 +1115,10 @@ impl VexLifter {
             Ok(summary) => {
                 self.last_fallback = None;
                 let real_addr = if self.core.is_arm { addr & !1 } else { addr };
-                let bytes = self.core.load(real_addr, summary.size as usize).map(|b| PyBytes::new(py, b));
+                let bytes = self
+                    .core
+                    .load(real_addr, summary.size as usize)
+                    .map(|b| PyBytes::new(py, b));
                 Ok(Some((summary, bytes)))
             }
             Err(fb) => {
@@ -1073,7 +1143,9 @@ impl VexLifter {
         };
         let lock = self.lock.bind(py);
         lock.call_method0("acquire")?;
-        let result = self.core.lift_block(addr, VEX_IRSB_MAX_SIZE as i64, &[], &opts);
+        let result = self
+            .core
+            .lift_block(addr, VEX_IRSB_MAX_SIZE as i64, &[], &opts);
         lock.call_method0("release")?;
         match result {
             Ok(summary) => {
@@ -1114,8 +1186,12 @@ impl VexLifter {
             max_inst: VEX_MAX_INSTRUCTIONS,
         };
         let mut is_stop = |a: u64| {
-            hooks.as_ref().is_some_and(|h| h.contains(a).unwrap_or(false))
-                || stop_points.as_ref().is_some_and(|s| s.contains(a).unwrap_or(false))
+            hooks
+                .as_ref()
+                .is_some_and(|h| h.contains(a).unwrap_or(false))
+                || stop_points
+                    .as_ref()
+                    .is_some_and(|s| s.contains(a).unwrap_or(false))
         };
         let lock = self.lock.bind(py);
         lock.call_method0("acquire")?;
@@ -1156,13 +1232,20 @@ static RO_REGION_BUFFERS: Mutex<Vec<PyBuffer<u8>>> = Mutex::new(Vec::new());
 /// libpyvex `register_readonly_region(start, size, content)`: `content` must support the buffer protocol and is
 /// kept alive until `deregister_all_readonly_regions`.
 #[pyfunction]
-fn register_readonly_region(py: Python<'_>, start: u64, size: u64, content: Bound<'_, PyAny>) -> PyResult<bool> {
+fn register_readonly_region(
+    py: Python<'_>,
+    start: u64,
+    size: u64,
+    content: Bound<'_, PyAny>,
+) -> PyResult<bool> {
     vex_ffi::init_symbols(py);
     let f = vex_ffi::register_readonly_region_fn()
         .ok_or_else(|| PyRuntimeError::new_err("libpyvex register_readonly_region not found"))?;
     let buf = PyBuffer::<u8>::get(&content)?;
     if !buf.is_c_contiguous() {
-        return Err(PyValueError::new_err("content must be a contiguous bytes-like buffer"));
+        return Err(PyValueError::new_err(
+            "content must be a contiguous bytes-like buffer",
+        ));
     }
     let ok = unsafe { f(start, size, buf.buf_ptr() as *const u8) } != 0;
     RO_REGION_BUFFERS.lock().unwrap().push(buf);
@@ -1173,8 +1256,9 @@ fn register_readonly_region(py: Python<'_>, start: u64, size: u64, content: Boun
 #[pyfunction]
 fn deregister_all_readonly_regions(py: Python<'_>) -> PyResult<()> {
     vex_ffi::init_symbols(py);
-    let f = vex_ffi::deregister_all_readonly_regions_fn()
-        .ok_or_else(|| PyRuntimeError::new_err("libpyvex deregister_all_readonly_regions not found"))?;
+    let f = vex_ffi::deregister_all_readonly_regions_fn().ok_or_else(|| {
+        PyRuntimeError::new_err("libpyvex deregister_all_readonly_regions not found")
+    })?;
     unsafe { f() };
     RO_REGION_BUFFERS.lock().unwrap().clear();
     Ok(())
@@ -1182,10 +1266,16 @@ fn deregister_all_readonly_regions(py: Python<'_>) -> PyResult<()> {
 
 /// libpyvex `register_initial_register_value(offset, size, value)`.
 #[pyfunction]
-fn register_initial_register_value(py: Python<'_>, offset: u32, size: u32, value: u64) -> PyResult<bool> {
+fn register_initial_register_value(
+    py: Python<'_>,
+    offset: u32,
+    size: u32,
+    value: u64,
+) -> PyResult<bool> {
     vex_ffi::init_symbols(py);
-    let f = vex_ffi::register_initial_register_value_fn()
-        .ok_or_else(|| PyRuntimeError::new_err("libpyvex register_initial_register_value not found"))?;
+    let f = vex_ffi::register_initial_register_value_fn().ok_or_else(|| {
+        PyRuntimeError::new_err("libpyvex register_initial_register_value not found")
+    })?;
     Ok(unsafe { f(offset, size, value) } != 0)
 }
 
@@ -1193,8 +1283,9 @@ fn register_initial_register_value(py: Python<'_>, offset: u32, size: u32, value
 #[pyfunction]
 fn reset_initial_register_values(py: Python<'_>) -> PyResult<bool> {
     vex_ffi::init_symbols(py);
-    let f = vex_ffi::reset_initial_register_values_fn()
-        .ok_or_else(|| PyRuntimeError::new_err("libpyvex reset_initial_register_values not found"))?;
+    let f = vex_ffi::reset_initial_register_values_fn().ok_or_else(|| {
+        PyRuntimeError::new_err("libpyvex reset_initial_register_values not found")
+    })?;
     Ok(unsafe { f() } != 0)
 }
 
