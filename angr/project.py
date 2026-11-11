@@ -28,6 +28,7 @@ from .simos import SimOS, os_mapping
 
 if TYPE_CHECKING:
     from angr.go.utils.version import GoVersionRange
+    from angr.rustylib.cfg_scan import LoaderSnapshot
 
 l = logging.getLogger(name=__name__)
 
@@ -269,6 +270,8 @@ class Project:
         self._language_confidence: str | None = None
         self._detected_languages: list[str] | None = None
         self._go_version_range: Any = _UNSET
+        # (key, snapshot) of the last loader_snapshot()
+        self._loader_snapshot_cache: tuple[tuple, LoaderSnapshot] | None = None
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
             self.simos, "is_javavm_with_jni_support", False
@@ -860,6 +863,7 @@ class Project:
                     "analyses",
                     "_llm_client",
                     "_pcode_block_lifter",
+                    "_loader_snapshot_cache",
                 }
             }
         finally:
@@ -870,6 +874,7 @@ class Project:
         self.__dict__.setdefault("_go_version_range", _UNSET)
         self._llm_client = _UNSET
         self._pcode_block_lifter = None
+        self._loader_snapshot_cache = None
         try:
             self._initialize_analyses_hub()
         except AngrNoPluginError:
@@ -990,6 +995,24 @@ class Project:
 
             self._go_version_range = go_version_range(self)
         return self._go_version_range
+
+    def loader_snapshot(self) -> LoaderSnapshot:
+        """
+        A LoaderSnapshot of the loader, rebuilt only when objects are loaded or removed, a memory backer is added or
+        replaced, or an object gains symbols. The snapshot shares the backers, so in-place memory writes are visible.
+        """
+        from angr.analyses.cfg import loader_snapshot  # pylint:disable=import-outside-toplevel
+
+        loader = self.loader
+        key = (
+            tuple((id(obj), len(obj.symbols)) for obj in loader.all_objects),
+            tuple((start, id(data)) for start, data in loader.memory.backers()),
+        )
+        cached = self._loader_snapshot_cache
+        if cached is None or cached[0] != key:
+            cached = (key, loader_snapshot.build_loader_snapshot(loader, self.arch))
+            self._loader_snapshot_cache = cached
+        return cached[1]
 
     @property
     def goos(self) -> str | None:

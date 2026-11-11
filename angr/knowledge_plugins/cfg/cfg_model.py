@@ -725,7 +725,7 @@ class CFGModel(Serializable):
                                     memory_data dict for the last time.
         :param new_mem_data_addrs:  If given, addresses of the memory data entries created for pointer targets are
                                     added to it.
-        :param snapshot:            A LoaderSnapshot of the project's loader; one is taken if not given.
+        :param snapshot:            A LoaderSnapshot of the project's loader; Project.loader_snapshot() if not given.
         :return:                    True if new data entries are found, False otherwise.
         """
 
@@ -753,10 +753,8 @@ class CFGModel(Serializable):
         return new_data_found
 
     def _take_loader_snapshot(self) -> LoaderSnapshot:
-        from angr.analyses.cfg.loader_snapshot import build_loader_snapshot  # pylint:disable=import-outside-toplevel
-
         assert self.project is not None
-        return build_loader_snapshot(self.project.loader, self.project.arch)
+        return self.project.loader_snapshot()
 
     def _plt_xref_check(self, xrefs: XRefManager | None, seg_list: SegmentList | None) -> Callable | None:
         """`plt_xref(data_addr)`: is `data_addr` read by a PLT stub (a GOT PLT slot)? None when it never is."""
