@@ -24,14 +24,12 @@ pub struct FastPath {
     stubs: HashMap<(u64, Option<String>), u64>,
 }
 
+/// `((offset, size) of the syscall number register, jumpkind -> ABI, opt_level, stub_addr)`
+type FastPathArgs = ((i32, u32), Option<HashMap<String, String>>, i32, Py<PyAny>);
+
 impl FastPath {
     pub fn from_py(t: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let (num_reg, abis, opt_level, stub_addr): (
-            (i32, u32),
-            Option<HashMap<String, String>>,
-            i32,
-            Py<PyAny>,
-        ) = t.extract()?;
+        let (num_reg, abis, opt_level, stub_addr): FastPathArgs = t.extract()?;
         let abis = match abis {
             None => None,
             Some(m) => {

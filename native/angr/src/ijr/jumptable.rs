@@ -1345,7 +1345,7 @@ impl JumpTableResolver {
                 break;
             }
             if b.table > a.table {
-                if (b.table - a.table) % a.stride != 0 {
+                if !(b.table - a.table).is_multiple_of(a.stride) {
                     break;
                 }
                 let drop = ((b.table - a.table) / a.stride) as usize;

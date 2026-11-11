@@ -756,10 +756,10 @@ impl LifterCore {
                 bytes_offset,
             )
         };
-        if !initial_regs.is_empty() {
-            if let Some(reset) = vex_ffi::reset_initial_register_values_fn() {
-                unsafe { reset() };
-            }
+        if !initial_regs.is_empty()
+            && let Some(reset) = vex_ffi::reset_initial_register_values_fn()
+        {
+            unsafe { reset() };
         }
         if lift_r.is_null() {
             return Err(Fallback::LiftFailed);

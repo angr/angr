@@ -43,7 +43,7 @@ impl ReturningAnalyzer {
             SyscallCheck::Userland { kernel_base, align, max_number } => {
                 addr >= *kernel_base && {
                     let off = addr - kernel_base;
-                    off % align == 0 && off / align <= *max_number
+                    off.is_multiple_of(*align) && off / align <= *max_number
                 }
             }
             SyscallCheck::Dict(d) => d.bind(py).contains(addr)?,

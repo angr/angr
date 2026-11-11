@@ -1257,10 +1257,7 @@ impl<'a> PathState<'a> {
                     _ => return None,
                 }
             }
-            ThunkKind::Add if x86 => match add_cond(self.ar, rel, w, a, b) {
-                Some(c) => c,
-                None => return None,
-            },
+            ThunkKind::Add if x86 => add_cond(self.ar, rel, w, a, b)?,
             ThunkKind::Add => return None,
         };
         Some(if neg { self.ar.not1(c) } else { c })

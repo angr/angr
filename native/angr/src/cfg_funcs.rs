@@ -434,6 +434,7 @@ impl FunctionsBuilder {
     }
 
     /// `FunctionManager._add_fakeret_to`
+    #[allow(clippy::too_many_arguments)]
     fn add_fakeret_to(
         &mut self,
         py: Python<'_>,
@@ -456,6 +457,7 @@ impl FunctionsBuilder {
     }
 
     /// `FunctionManager._add_transition_to`
+    #[allow(clippy::too_many_arguments)]
     fn add_transition_to(
         &mut self,
         py: Python<'_>,

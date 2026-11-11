@@ -169,10 +169,10 @@ impl MipsElfFastResolver {
         let Some(tmp) = last_reg_setting_tmp(&first, reg) else {
             return Ok(Ok(Case2::Failure));
         };
-        if let Some(&(_, v)) = first.const_vals.iter().find(|(t, _)| *t as i64 == tmp as i64) {
-            if cx.is_target_valid(py, v)? {
-                return Ok(Ok(Case2::Success(v)));
-            }
+        if let Some(&(_, v)) = first.const_vals.iter().find(|(t, _)| *t as i64 == tmp as i64)
+            && cx.is_target_valid(py, v)?
+        {
+            return Ok(Ok(Case2::Success(v)));
         }
         Ok(Ok(Case2::Failure))
     }

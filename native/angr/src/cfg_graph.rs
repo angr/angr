@@ -345,6 +345,9 @@ impl From<StoreError> for PyErr {
 
 type SResult<T> = Result<T, StoreError>;
 
+/// `(id, addr, size, simprocedure_name)`
+type NodeView = (u64, u64, i64, Option<String>);
+
 // --- backends ----------------------------------------------------------------------------------
 
 /// Where evicted segment blobs go. Keys are window numbers (`addr >> shift`).
@@ -1040,7 +1043,7 @@ impl Segment {
 }
 
 enum Slot {
-    Resident(Segment),
+    Resident(Box<Segment>),
     /// Undecoded blob not (yet) handed to a backend.
     Cold(Vec<u8>),
     /// Held by the backend.
@@ -1195,7 +1198,7 @@ impl Store {
             ..Segment::default()
         };
         self.resident_bytes += seg.bytes;
-        self.slots.push(Slot::Resident(seg));
+        self.slots.push(Slot::Resident(Box::new(seg)));
         s
     }
 
@@ -1251,7 +1254,7 @@ impl Store {
         seg.dirty = from_cold;
         self.resident_bytes += seg.bytes;
         self.stats.loads += 1;
-        self.slots[slot as usize] = Slot::Resident(seg);
+        self.slots[slot as usize] = Slot::Resident(Box::new(seg));
         Ok(())
     }
 
@@ -1389,7 +1392,7 @@ impl Store {
                 rebuilt.dirty = seg.dirty;
                 rebuilt.last_used = seg.last_used;
                 self.resident_bytes = self.resident_bytes + rebuilt.bytes - seg.bytes;
-                *seg = rebuilt;
+                **seg = rebuilt;
             }
         }
         Ok(())
@@ -1602,7 +1605,7 @@ impl Store {
     }
 
     /// `(id, addr, size, simprocedure_name)` of every live node in insertion order.
-    pub fn node_views(&mut self) -> SResult<Vec<(u64, u64, i64, Option<String>)>> {
+    pub fn node_views(&mut self) -> SResult<Vec<NodeView>> {
         let mut out = Vec::with_capacity(self.n_live);
         if self.all_resident() {
             for &id in &self.order {
@@ -2790,7 +2793,7 @@ impl CfgGraph {
     }
 
     /// `(id, addr, size, simprocedure_name)` of every live node in insertion order.
-    pub fn node_views(&self) -> PyResult<Vec<(u64, u64, i64, Option<String>)>> {
+    pub fn node_views(&self) -> PyResult<Vec<NodeView>> {
         let mut g = self.lock()?;
         Ok(g.store.node_views()?)
     }

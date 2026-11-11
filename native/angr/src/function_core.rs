@@ -147,6 +147,9 @@ pub fn new_function_objects<'py>(
     Ok(out)
 }
 
+/// `(functions, their info dicts)`
+type BulkFunctions<'py> = (Vec<Bound<'py, PyAny>>, Vec<Bound<'py, PyDict>>);
+
 type RecordTuple = (
     u64,
     String,
@@ -222,8 +225,8 @@ impl FunctionCore {
         self.returning
     }
 
-    #[getter]
-    fn from_signature(&self) -> Option<&str> {
+    #[getter(from_signature)]
+    fn get_from_signature(&self) -> Option<&str> {
         self.from_signature.as_deref()
     }
 
@@ -352,7 +355,7 @@ impl FunctionCore {
         cls: &Bound<'py, PyType>,
         store: PyRef<'py, RecoveryFunctions>,
         addrs: Option<Vec<u64>>,
-    ) -> PyResult<(Vec<Bound<'py, PyAny>>, Vec<Bound<'py, PyDict>>)> {
+    ) -> PyResult<BulkFunctions<'py>> {
         let py = cls.py();
         let addrs = addrs.unwrap_or_else(|| store.funcs.keys().copied().collect());
         let mut recs = Vec::with_capacity(addrs.len());

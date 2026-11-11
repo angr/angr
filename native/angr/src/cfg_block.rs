@@ -143,7 +143,7 @@ enum Plan {
     Existing { cur: u64, id: u64, func: u64 },
     /// `_generate_cfgnode` gives up without creating a node; `occupy` is its only effect.
     NoNode { occupy: Option<(u64, u64, &'static str)> },
-    Lifted { cur: u64, summary: LiftSummary, next_func_addr: Option<u64>, next_func_adj: u64 },
+    Lifted { cur: u64, summary: Box<LiftSummary>, next_func_addr: Option<u64>, next_func_adj: u64 },
 }
 
 /// A successor as `_scan_irsb` enumerates it.
@@ -228,7 +228,7 @@ impl BlockScanner {
                     false
                 } else {
                     let off = addr - kernel_base;
-                    off % align == 0 && off / align <= *max_number
+                    off.is_multiple_of(*align) && off / align <= *max_number
                 }
             }
             SyscallCheck::Dict(d) => d.bind(py).contains(addr)?,
@@ -475,7 +475,7 @@ impl BlockScanner {
             if Self::py_set_contains(&arm.assumptions, real_addr)? {
                 return Ok(Plan::Escape("arm_decoding_assumption"));
             }
-            if !self.conf.arm_has_arm_code && addr % 2 == 0 {
+            if !self.conf.arm_has_arm_code && addr.is_multiple_of(2) {
                 return Ok(Plan::NoNode { occupy: Some((real_addr, 2, SORT_NODECODE)) });
             }
             if rec.job_type == JobType::CompleteScanning {
@@ -550,7 +550,7 @@ impl BlockScanner {
             Ok(summary) if is_arm && (summary.size == 0 || summary.jumpkind == IJK_NODECODE) => {
                 Ok(Plan::Escape("arm_nodecode"))
             }
-            Ok(summary) => Ok(Plan::Lifted { cur, summary, next_func_addr, next_func_adj }),
+            Ok(summary) => Ok(Plan::Lifted { cur, summary: Box::new(summary), next_func_addr, next_func_adj }),
             Err(fb) => Ok(Plan::Escape(match fb.name() {
                 "no_backer" => "lift:no_backer",
                 "unsupported_backer" => "lift:unsupported_backer",
@@ -748,7 +748,7 @@ impl BlockScanner {
                 };
                 let _ = py;
                 let func = self.cxx_frame_handler3(ctx, rec.addr, id, cur)?;
-                self.scan_tail(ctx, rec, cur, id, func, Some(summary))
+                self.scan_tail(ctx, rec, cur, id, func, Some(*summary))
             }
         }
     }
@@ -1822,7 +1822,7 @@ impl BlockScanner {
             // model.get_any_node(target): on ARM an even target also finds the THUMB node at target + 1
             let g = self.graph.bind(py).get();
             let mut n = g.first_node_at_addr(target)?;
-            if n.is_none() && is_arm && target % 2 == 0 {
+            if n.is_none() && is_arm && target.is_multiple_of(2) {
                 n = g.first_node_at_addr(target + 1)?;
             }
             if let Some(n) = n {

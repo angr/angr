@@ -21,11 +21,9 @@ impl Si {
     }
 
     pub fn count(&self) -> u128 {
-        if self.st == 0 {
-            1
-        } else {
-            (self.hi - self.lo) / self.st + 1
-        }
+        (self.hi - self.lo)
+            .checked_div(self.st)
+            .map_or(1, |q| q + 1)
     }
 }
 
@@ -860,7 +858,7 @@ mod tests {
             signed_range(&ar, lt, false),
             Some((x, SignedRange::Two((0, i64::MAX as u128), (neg64, u64::MAX as u128))))
         );
-        assert!(path_ranges(&ar, &[(lt, false)], true, &snap).get(&x).is_none());
+        assert!(!path_ranges(&ar, &[(lt, false)], true, &snap).contains_key(&x));
         // x <s 0 on the same path leaves the negative interval, so x + 0x40 is in [0, 0x3f]
         let z = ar.konst(0, 64);
         let neg = ar.cmp(CmpKind::Lts, 64, x, z);

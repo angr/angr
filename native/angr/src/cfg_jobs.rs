@@ -128,9 +128,9 @@ pub fn cpython_set_order(hashes: &[i64]) -> Vec<usize> {
         let mut i = (hash as u64 as usize) & mask;
         loop {
             let probes = if i + LINEAR_PROBES <= mask { LINEAR_PROBES } else { 0 };
-            for j in i..=i + probes {
-                if table[j].is_none() {
-                    table[j] = Some((idx, hash));
+            for slot in &mut table[i..=i + probes] {
+                if slot.is_none() {
+                    *slot = Some((idx, hash));
                     return;
                 }
             }

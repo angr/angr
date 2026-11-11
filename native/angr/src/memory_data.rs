@@ -526,13 +526,14 @@ struct Guesser<'a, 'py> {
 
 /// `(sort, size, content)`; sort None means "unknown".
 type Guess = (Option<u16>, Option<i128>, Option<Vec<u8>>);
+type GuessPy<'py> = (Option<Bound<'py, PyString>>, Option<i128>, Option<Bound<'py, PyBytes>>);
 
 fn utf16le_decodes(data: &[u8], n: usize) -> bool {
     let s = &data[..data.len().min(n * 2)];
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return false;
     }
-    let units = s.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]]));
+    let units = s.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c));
     char::decode_utf16(units).all(|c| c.is_ok())
 }
 
@@ -973,7 +974,7 @@ pub fn guess_data_type<'py>(
     has_xrefs: bool,
     plt_xref: Option<&Bound<'py, PyAny>>,
     guess_fallback: Option<&Bound<'py, PyAny>>,
-) -> PyResult<(Option<Bound<'py, PyString>>, Option<i128>, Option<Bound<'py, PyBytes>>)> {
+) -> PyResult<GuessPy<'py>> {
     let snap_arc = snapshot.get().inner.clone();
     let g = Guesser {
         snap: &snap_arc,

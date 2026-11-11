@@ -1324,7 +1324,7 @@ pub fn find_go_stack_check_preambles(
     let mut positions: BTreeSet<usize> = BTreeSet::new();
     for anchor in pre.anchors {
         for pos in find_all_overlapping(blob, anchor) {
-            if (base.wrapping_add(pos as u64)) % pre.alignment as u64 == 0 {
+            if (base.wrapping_add(pos as u64)).is_multiple_of(pre.alignment as u64) {
                 positions.insert(pos);
             }
         }
@@ -1471,9 +1471,9 @@ pub fn func_addrs_from_prologues(
                         continue;
                     }
                     let aligned = if is_arm {
-                        position % 4 == 0
+                        position.is_multiple_of(4)
                     } else {
-                        position % alignment == 0
+                        position.is_multiple_of(alignment)
                     };
                     if aligned {
                         let mapped = position.wrapping_add(base);
@@ -1486,7 +1486,7 @@ pub fn func_addrs_from_prologues(
             for regex in &thumb_regexes {
                 for m in prolog_match_starts(regex, backer, lo, endpos, fallback)? {
                     let position = m as u64 + start_;
-                    if position % alignment == 0 {
+                    if position.is_multiple_of(alignment) {
                         let mapped = position.wrapping_add(base);
                         if addr_in_regions(exec_regions, mapped) {
                             found.push(mapped + 1);
@@ -1534,7 +1534,7 @@ pub(crate) static PRINTABLE: LazyLock<[bool; 256]> = LazyLock::new(|| {
     for b in 0x20u8..0x7f {
         t[b as usize] = true;
     }
-    for b in [b'\t', b'\n', b'\r'] {
+    for b in *b"\t\n\r" {
         t[b as usize] = true;
     }
     t
@@ -1608,19 +1608,20 @@ impl Sweep {
             }
             Some(r) => Some(r),
         };
-        if let Some(c) = curr {
-            if !self.inside_regions(c) {
-                curr = self.next_address_in_regions(c);
-            }
+        if let Some(c) = curr
+            && !self.inside_regions(c)
+        {
+            curr = self.next_address_in_regions(c);
         }
         let mut curr = curr?;
         if seg_list.has_blocks() {
             curr = seg_list.next_free_pos(curr)?;
         }
-        if let Some(a) = alignment {
-            if a > 0 && curr % a > 0 {
-                curr = curr - curr % a + a;
-            }
+        if let Some(a) = alignment
+            && a > 0
+            && curr % a > 0
+        {
+            curr = curr - curr % a + a;
         }
         let mut accepted = false;
         for &(start, end) in &self.regions {
@@ -1643,10 +1644,10 @@ impl Sweep {
 
     /// `CFGFast._update_unscanned_addr`.
     pub fn update_unscanned_addr(&mut self, new_addr: u64) {
-        if let Some(r) = self.resume_from {
-            if r > new_addr {
-                self.resume_from = Some(new_addr);
-            }
+        if let Some(r) = self.resume_from
+            && r > new_addr
+        {
+            self.resume_from = Some(new_addr);
         }
     }
 
@@ -1889,10 +1890,10 @@ impl Sweep {
             let Some(val) = bytes.byte(addr)? else {
                 break;
             };
-            if let Some(last) = last_byte {
-                if val != last.wrapping_add(1) {
-                    break;
-                }
+            if let Some(last) = last_byte
+                && val != last.wrapping_add(1)
+            {
+                break;
             }
             last_byte = Some(val);
             ramp_length += 1;
@@ -2295,7 +2296,7 @@ impl LinearSweep {
         seg_list: PyRef<'_, SegmentList>,
         alignment: Option<u64>,
     ) -> Option<u64> {
-        self.inner.next_unscanned_addr(&*seg_list, alignment)
+        self.inner.next_unscanned_addr(&seg_list, alignment)
     }
 
     fn update_unscanned_addr(&mut self, new_addr: u64) {
@@ -2344,7 +2345,7 @@ impl LinearSweep {
         cutoff_addr: i64,
         window_size: u64,
     ) -> f64 {
-        Sweep::nodecode_bytes_ratio(&*seg_list, cutoff_addr, window_size)
+        Sweep::nodecode_bytes_ratio(&seg_list, cutoff_addr, window_size)
     }
 
     #[pyo3(signature = (start_addr, min_length_nullterminated=3, min_length_non_nullterminated=13, byte_loader=None))]

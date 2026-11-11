@@ -11,7 +11,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use indexmap::IndexMap;
-use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
+use pyo3::exceptions::{PyKeyError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyInt, PyString};
 
