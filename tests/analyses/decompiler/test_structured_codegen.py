@@ -29,6 +29,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CUnaryOp,
     CVariable,
     CVariableField,
+    MakeTypecastsImplicit,
     c_return_type,
     qualifies_for_simple_cast,
     type_layout_key,
@@ -316,6 +317,54 @@ class TestRightShiftRendering(unittest.TestCase):
                 assert text.count(f"signed_status{width}(") == 1
                 assert source.prototype == prototype
                 assert not result.structuring_failures
+
+
+class TestPointerSignedCompare(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        project = angr.load_shellcode(b"\xc3", arch="amd64")
+        cfg = project.analyses.CFGFast(normalize=True)
+        codegen = project.analyses.Decompiler(0, cfg=cfg.model).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
+
+    def _cmp(self, op: str, lhs: CExpression, rhs: CExpression, signed: bool) -> str:
+        cg = self.codegen
+        lhs, rhs = cg._compare_operands(lhs, rhs, 64, signed)
+        expr = CBinaryOp(op, lhs, rhs, signed=signed, codegen=cg)
+        return MakeTypecastsImplicit().handle(expr).c_repr()
+
+    def test_a_pointer_under_a_signed_compare_is_cast(self):
+        cg = self.codegen
+        arch = cg.project.arch
+        void_p = SimTypePointer(SimTypeBottom(label="void")).with_arch(arch)
+        ull = SimTypeLongLong(signed=False).with_arch(arch)
+        p = CVariable(SimRegisterVariable(0, 8, name="p"), variable_type=void_p, codegen=cg)
+        q = CVariable(SimRegisterVariable(8, 8, name="q"), variable_type=void_p, codegen=cg)
+        u = CVariable(SimRegisterVariable(16, 8, name="u"), variable_type=ull, codegen=cg)
+
+        def null():
+            return CConstant(0, void_p, codegen=cg)
+
+        assert self._cmp("CmpLT", p, null(), True) == "(long long)p < 0"
+        assert self._cmp("CmpGT", p, CConstant(2**64 - 1, void_p, codegen=cg), True) == "(long long)p > -0x1"
+        # two pointers of one type read as written; of two types, cast
+        assert self._cmp("CmpLT", p, q, True) == "p < q"
+        char_p = SimTypePointer(SimTypeChar()).with_arch(arch)
+        s = CVariable(SimRegisterVariable(24, 8, name="s"), variable_type=char_p, codegen=cg)
+        assert self._cmp("CmpLT", p, s, True) == "(long long)p < (long long)s"
+        p_plus_u = CBinaryOp("Add", p, u, codegen=cg)
+        assert self._cmp("CmpLT", p_plus_u, CConstant(0, ull, codegen=cg), True) == "(long long)(p + u) < 0"
+        p_minus_q = CBinaryOp("Sub", p, q, codegen=cg)
+        assert self._cmp("CmpLT", p_minus_q, CConstant(0, ull, codegen=cg), True) == "(long long)(p - q) < 0"
+
+    def test_a_pointer_under_an_unsigned_compare_is_left_alone(self):
+        cg = self.codegen
+        void_p = SimTypePointer(SimTypeBottom(label="void")).with_arch(cg.project.arch)
+        p = CVariable(SimRegisterVariable(0, 8, name="p"), variable_type=void_p, codegen=cg)
+        q = CVariable(SimRegisterVariable(8, 8, name="q"), variable_type=void_p, codegen=cg)
+        assert self._cmp("CmpLT", p, q, False) == "p < q"
+        assert self._cmp("CmpLT", p, CConstant(0, void_p, codegen=cg), False) == "p < NULL"
 
 
 class TestStoreWidth(unittest.TestCase):
