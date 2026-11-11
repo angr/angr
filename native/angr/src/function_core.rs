@@ -821,8 +821,7 @@ impl FunctionIndex {
         self.name_changed(addr, None, name);
     }
 
-    /// The cache part of `FunctionManager.__delitem__`. Key functions are kept: they survive the deletion and
-    /// re-creation of a function.
+    /// The cache part of `FunctionManager.__delitem__`.
     pub fn function_removed(&mut self, addr: u64, previous_names: Vec<String>) {
         self.nonreturning.remove(&addr);
         self.unknown_returning.remove(&addr);
@@ -840,6 +839,9 @@ impl FunctionIndex {
             if let Some(s) = self.old_name_to_addrs.get_mut(&old) {
                 s.shift_remove(&addr);
             }
+        }
+        for addrs in self.key_funcs.values_mut() {
+            addrs.shift_remove(&addr);
         }
     }
 

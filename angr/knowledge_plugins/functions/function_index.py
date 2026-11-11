@@ -226,6 +226,8 @@ class PyFunctionIndex:
         self._from_signature.pop(addr, None)
         for old_name in previous_names:
             self._old_name_to_addrs.get(old_name, {}).pop(addr, None)
+        for addrs in self._key_funcs.values():
+            addrs.pop(addr, None)
 
     def clear_caches(self) -> None:
         addrs = self._addrs
