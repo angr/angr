@@ -139,7 +139,17 @@ class GraphVVarDefs(Mapping[int, Expression]):
     any block the vvar is used in. Built on first lookup.
     """
 
-    __slots__ = ("_defs", "_graph", "_phis", "_resolved", "bool_value_memo", "known_bits_memo", "phi_known_bits")
+    __slots__ = (
+        "_deflocs",
+        "_defs",
+        "_frame_info",
+        "_graph",
+        "_phis",
+        "_resolved",
+        "bool_value_memo",
+        "known_bits_memo",
+        "phi_known_bits",
+    )
 
     def __init__(self, graph: networkx.DiGraph):
         self._graph = graph
@@ -154,6 +164,88 @@ class GraphVVarDefs(Mapping[int, Expression]):
         self.phi_known_bits: dict[int, tuple[int, int]] | None = None
         # varid -> the defined value as a function of one boolean (SingleBoolToITE), or a failure marker
         self.bool_value_memo: dict[int, object] = {}
+        # varid -> (block, statement index) of the definitions in _defs
+        self._deflocs: dict[int, tuple[Block, int]] = {}
+        self._frame_info = None
+
+    def def_location(self, varid: int) -> tuple[Block, int] | None:
+        self._build()
+        return self._deflocs.get(varid)
+
+    def stack_read_clobbered(self, vvar: VirtualVariable, use_block: Block, use_idx: int, frame_regs) -> bool:
+        """
+        Whether a statement on some path from the definition of the stack variable to its read at (use_block, use_idx)
+        may write the slot behind SSA's back: a call reached by an escaped address of the slot's object. The
+        propagator's rule for moving frame reads.
+        """
+        loc = self.def_location(vvar.varid)
+        if loc is None:
+            return True
+        if self._frame_info is None:
+            # pylint:disable=import-outside-toplevel
+            from angr.analyses.decompiler.block_walkers import PURE_INTRINSIC_CALLS
+            from angr.analyses.s_propagator import _FLAG_HELPER_CALLS, _addr_region, _FrameEscapeCollector
+
+            collector = _FrameEscapeCollector(frame_regs, PURE_INTRINSIC_CALLS | _FLAG_HELPER_CALLS)
+            sites: dict[Block, list[tuple[int, tuple[float, float]]]] = {}
+            writers: dict[Block, list[int]] = {}
+            for block in self._graph.nodes():
+                for idx, stmt in enumerate(block.statements):
+                    collector.reset()
+                    collector.walk_statement(stmt, block, idx)
+                    for addr in collector.escaped:
+                        sites.setdefault(block, []).append((idx, _addr_region(addr, None)))
+                    if collector.writes:
+                        writers.setdefault(block, []).append(idx)
+            self._frame_info = sites, writers, {(block.addr, block.idx): block for block in self._graph.nodes()}
+        sites, writers, nodes = self._frame_info
+        if not writers:
+            return False
+        use_node = nodes.get((use_block.addr, use_block.idx))
+        if use_node is None:
+            return True
+        def_block, def_idx = loc
+        # the writers between the definition and the read, including those after the read when a loop re-executes it
+        between = []
+        visited = set()
+        queue = [(use_node, True)]
+        while queue:
+            block, initial = queue.pop()
+            if initial:
+                end = use_idx
+            else:
+                if block in visited:
+                    continue
+                visited.add(block)
+                end = len(block.statements)
+            start = def_idx + 1 if block is def_block else 0
+            between += [(block, i) for i in writers.get(block, ()) if start <= i < end]
+            if block is not def_block:
+                queue.extend((pred, False) for pred in self._graph.predecessors(block))
+        if not between:
+            return False
+        lo, hi = vvar.stack_offset, vvar.stack_offset + vvar.size
+        first_escape = {}
+        for block, block_sites in sites.items():
+            idxs = [idx for idx, (rlo, rhi) in block_sites if rlo < hi and lo < rhi]
+            if idxs:
+                first_escape[block] = min(idxs)
+        if not first_escape:
+            return False
+        if any(first_escape.get(block, i + 1) <= i for block, i in between):
+            return True
+        # an escape in a block from which some writer is reachable
+        seen = set()
+        queue = [pred for block, _ in between for pred in self._graph.predecessors(block)]
+        while queue:
+            block = queue.pop()
+            if block in seen:
+                continue
+            seen.add(block)
+            if block in first_escape:
+                return True
+            queue.extend(self._graph.predecessors(block))
+        return False
 
     def _build(self) -> dict[int, tuple[Expression, dict[int, Expression], int | None]]:
         if self._defs is None:
@@ -161,7 +253,7 @@ class GraphVVarDefs(Mapping[int, Expression]):
             phis: dict[int, tuple[int, list[VirtualVariable | None]] | None] = {}
             for block in self._graph.nodes():
                 tmps = BlockDefs(block.statements).tmps
-                for stmt in block.statements:
+                for idx, stmt in enumerate(block.statements):
                     if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                         dst = stmt.dst
                         if dst.varid in defs:
@@ -174,6 +266,7 @@ class GraphVVarDefs(Mapping[int, Expression]):
                         else:
                             reg = dst.oident if dst.category == VirtualVariableCategory.REGISTER else None
                             defs[dst.varid] = (stmt.src, tmps, reg)
+                            self._deflocs[dst.varid] = block, idx
             self._defs = {varid: d for varid, d in defs.items() if d is not None}
             self._phis = {varid: srcs for varid, srcs in phis.items() if srcs is not None}
         return self._defs
