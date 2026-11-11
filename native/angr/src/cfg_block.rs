@@ -217,6 +217,8 @@ pub struct BlockScanner {
     conf: Config,
     data_refs: Vec<DataRefRec>,
     new_node_addrs: Vec<u64>,
+    /// `(addr, lifted size)` of each new node in creation order, for `cfg._cfb_add_rust_blocks`; None without a CFB.
+    cfb_blocks: Option<Vec<(u64, u32)>>,
     stats: IndexMap<String, u64>,
     /// `_eh_frame_boundary_addrs_sorted` and the list object it was copied from.
     eh_sorted: Vec<u64>,
@@ -349,6 +351,13 @@ impl BlockScanner {
 
     fn flush_inner(&mut self, ctx: &Ctx<'_>) -> PyResult<()> {
         let py = ctx.cfg.py();
+        if let Some(blocks) = &mut self.cfb_blocks
+            && !blocks.is_empty()
+        {
+            let blocks = std::mem::take(blocks);
+            ctx.cfg
+                .call_method1(intern!(py, "_cfb_add_rust_blocks"), (blocks,))?;
+        }
         if !self.new_node_addrs.is_empty() {
             let addrs = std::mem::take(&mut self.new_node_addrs);
             if let Some(na) = &ctx.node_addrs {
@@ -738,6 +747,8 @@ impl BlockScanner {
             }
         }
 
+        // the CFB gets the block as lifted, before the shrink below
+        let lifted_size = summary.size;
         if let Some(nfa) = next_func_addr
             && next_func_adj > 0
             && summary.addr + summary.size as u64 >= nfa
@@ -800,6 +811,9 @@ impl BlockScanner {
             .add_node_fields(addr, size, &fields)?;
         ctx.blockid_to_blockkey.set_item(addr, (addr, size))?;
         self.new_node_addrs.push(addr);
+        if let Some(blocks) = &mut self.cfb_blocks {
+            blocks.push((addr, lifted_size));
+        }
         Ok(Some(id))
     }
 
@@ -2327,6 +2341,7 @@ impl BlockScanner {
             conf,
             data_refs: Vec::new(),
             new_node_addrs: Vec::new(),
+            cfb_blocks: None,
             stats: IndexMap::new(),
             eh_sorted: Vec::new(),
             eh_list: None,
@@ -2335,6 +2350,12 @@ impl BlockScanner {
             t_callback: Default::default(),
             t_flush: Default::default(),
         })
+    }
+
+    /// Hand each new node to `cfg._cfb_add_rust_blocks` (at every flush) so that the CFBlanket gets the blocks the
+    /// Python path would add.
+    fn set_cfb(&mut self, enabled: bool) {
+        self.cfb_blocks = enabled.then(Vec::new);
     }
 
     /// Resolve indirect jumps through `chain` without escaping to `_create_jobs` where possible. `plt_all` and

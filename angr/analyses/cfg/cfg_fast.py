@@ -1670,6 +1670,31 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 else None
             ),
         )
+        if self._cfb is not None:
+            self._block_scanner.set_cfb(True)
+
+    def _cfb_block(self, addr: int, size: int) -> Block:
+        """
+        The Block that the Python path hands to the CFBlanket for a block the Rust lifter lifted: the same lift
+        options, lifted lazily.
+        """
+        return self._lift(
+            addr,
+            size=size,
+            collect_data_refs=True,
+            strict_block_end=True,
+            load_from_ro_regions=True,
+            const_prop=self._fold_ro_const_loads,
+        )
+
+    def _cfb_add_rust_blocks(self, blocks: list[tuple[int, int]]) -> None:
+        """
+        Add the blocks of the nodes that the Rust per-block scan created to the CFBlanket, in creation order.
+        """
+        assert self._cfb is not None
+        is_arm = is_arm_arch(self.project.arch)
+        for addr, size in blocks:
+            self._cfb.add_obj(addr & ~1 if is_arm else addr, self._cfb_block(addr, size))
 
     def _rust_decoding_assumption(
         self, src_realaddr: int | None, real_addr: int, size: int, is_thumb: bool, jumpkind: str
@@ -6321,13 +6346,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         Set up direct libVEX lifting for the main scan, or return None when the Python lifting path must be used
         for every block: the Rust lifter reproduces exactly one configuration of ``Block.vex_nostmt`` (the default
         VEX engine lifting from the loader's read-only memory view with libVEX as the first registered lifter and no
-        post-processors), and anything else (pcode, self-modifying code, patches/base state, a CFBlanket, extra
-        lifters) keeps the Python path.
+        post-processors), and anything else (pcode, self-modifying code, patches/base state, extra lifters) keeps
+        the Python path. A CFBlanket gets lazily lifted Blocks for the Rust-lifted blocks (_cfb_block).
         """
         engine = self.project.factory.default_engine
         if not isinstance(engine, VEXLifter) or engine.selfmodifying_code or engine._single_step:
             return None
-        if self._base_state is not None or self.project.kb.patches.values() or self._cfb is not None:
+        if self._base_state is not None or self.project.kb.patches.values():
             return None
         arch = self.project.arch
         arch_lifters = pyvex_lifters.get(arch.name)
@@ -6885,6 +6910,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if nodecode_size > 0:
                     self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
 
+            # the CFB gets the block as lifted, before the shrink below
+            cfb_block_size = irsb.size if irsb is not None else 0
             if (
                 irsb is not None
                 and next_func_addr is not None
@@ -6943,7 +6970,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 byte_string=irsb_string,
             )
             if self._cfb is not None:
-                self._cfb.add_obj(real_addr, lifted_block)
+                self._cfb.add_obj(
+                    real_addr, lifted_block if lifted_block is not None else self._cfb_block(addr, cfb_block_size)
+                )
 
             self._model.add_node(addr, cfg_node)
 
