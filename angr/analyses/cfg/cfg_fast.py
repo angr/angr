@@ -3454,6 +3454,24 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     self.kb.labels[security_cookie_addr] = "_security_cookie"
                 # identify _security_init_cookie and _security_check_cookie
                 xrefs = self.kb.xrefs.get_xrefs_by_dst(security_cookie_addr)
+                # the matchers need a cookie reference at the function's first instruction (_security_check_cookie
+                # and the win8 _security_init_cookie) or, in a function built from a normalized CFG, at the last
+                # instruction of one of its blocks (_security_init_cookie); other functions are not loaded
+                ref_ins_addrs = {xref.ins_addr for xref in xrefs}
+                last_ins_ref_funcs: set[int] | None = None
+                if self.normalized:
+                    last_ins_ref_funcs = set()
+                    graph = self.model.graph._graph
+                    node_addrs = self.model.node_addrs
+                    for ins_addr in ref_ins_addrs:
+                        for node_addr in node_addrs.irange(max(ins_addr - VEX_IRSB_MAX_SIZE, 0), ins_addr):
+                            if not any(
+                                node_addr + graph.node_key(nid)[1] > ins_addr for nid in graph.nodes_at_addr(node_addr)
+                            ):
+                                continue
+                            for node in self.model.nodes_by_addr(node_addr):
+                                if node.instruction_addrs and node.instruction_addrs[-1] == ins_addr:
+                                    last_ins_ref_funcs.add(node.function_address)
                 tested_func_addrs = set()
                 for xref in xrefs:
                     assert xref.block_addr is not None
@@ -3462,23 +3480,29 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         continue
                     func_addr = cfg_node.function_address
                     if func_addr not in tested_func_addrs and self.kb.functions.contains_addr(func_addr):
-                        func = self.kb.functions.get_by_addr(func_addr)
-                        if not security_check_cookie_found and is_function_security_check_cookie(
-                            func, self.project, security_cookie_addr
-                        ):
-                            security_check_cookie_found = True
-                            func.is_default_name = False
-                            func.name = "_security_check_cookie"
-                        elif (
-                            not security_init_cookie_found
-                            and is_function_security_init_cookie(func, self.project, security_cookie_addr)
-                        ) or (
-                            not security_init_cookie_found
-                            and is_function_security_init_cookie_win8(func, self.project, security_cookie_addr)
-                        ):
-                            security_init_cookie_found = True
-                            func.is_default_name = False
-                            func.name = "_security_init_cookie"
+                        first_ins_ref = func_addr in ref_ins_addrs
+                        try_check = not security_check_cookie_found and first_ins_ref
+                        try_init = not security_init_cookie_found and (
+                            last_ins_ref_funcs is None or func_addr in last_ins_ref_funcs
+                        )
+                        try_init_win8 = not security_init_cookie_found and first_ins_ref
+                        if try_check or try_init or try_init_win8:
+                            func = self.kb.functions.get_by_addr(func_addr)
+                            if try_check and is_function_security_check_cookie(
+                                func, self.project, security_cookie_addr
+                            ):
+                                security_check_cookie_found = True
+                                func.is_default_name = False
+                                func.name = "_security_check_cookie"
+                            elif (
+                                try_init and is_function_security_init_cookie(func, self.project, security_cookie_addr)
+                            ) or (
+                                try_init_win8
+                                and is_function_security_init_cookie_win8(func, self.project, security_cookie_addr)
+                            ):
+                                security_init_cookie_found = True
+                                func.is_default_name = False
+                                func.name = "_security_init_cookie"
                         tested_func_addrs.add(func_addr)
                     if security_init_cookie_found and security_check_cookie_found:
                         # both are found. exit from the loop
