@@ -18,9 +18,8 @@ class IndirectJumps(KnowledgeBasePlugin, dict):
     def copy(self):
         o = IndirectJumps(self._kb)
         o.unresolved.update(self.unresolved)
-        o.resolved = {}
-        for k, v in self.resolved.items():
-            o.resolved[k] = v
+        o.resolved = {k: list(v) for k, v in self.resolved.items()}
+        return o
 
     def update_resolved_addrs(self, indirect_address: int, resolved_addresses: list[int]):
         # sanity check on usage

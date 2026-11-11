@@ -56,6 +56,7 @@ class DbKnowledgeBase(Base):
     dec_var_collections = relationship("DbDecVariableCollection", back_populates="kb")
     structured_code = relationship("DbStructuredCode", back_populates="kb")
     decompilation_caches = relationship("DbDecompilationCache", back_populates="kb")
+    plugin_data = relationship("DbKbPluginData", back_populates="kb")
 
 
 class DbCFGModel(Base):
@@ -313,3 +314,23 @@ class DbCallsitePrototype(Base):
     kind = Column(Integer)  # CallsitePrototypeKind value
     cc = Column(TEXT)  # JSON, as in function.proto
     prototype = Column(TEXT)  # JSON, as in function.proto
+
+
+class DbKbPluginData(Base):
+    """
+    Models the state of one knowledge base plugin as a JSON document, for plugins small enough not to need a table of
+    their own. A separate table so databases created before it existed remain loadable: ``create_all`` adds missing
+    tables.
+    """
+
+    __tablename__ = "kb_plugin_data"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(
+        Integer,
+        ForeignKey("knowledgebases.id"),
+        nullable=False,
+    )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="plugin_data")
+    plugin = Column(String, index=True)  # knowledge base plugin name
+    data = Column(TEXT)  # JSON

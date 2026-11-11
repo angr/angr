@@ -8,10 +8,17 @@ from .callgraph import CallGraphSerializer
 from .callsite_prototypes import CallsitePrototypesSerializer
 from .cfg_model import CFGModelSerializer
 from .comments import CommentsSerializer
+from .custom_strings import CustomStringsSerializer
 from .funcs import FunctionManagerSerializer
+from .go_globals import GoGlobalsSerializer
+from .go_signatures import GoSignaturesSerializer
+from .indirect_jumps import IndirectJumpsSerializer
 from .labels import LabelsSerializer
+from .obfuscations import ObfuscationsSerializer
+from .patches import PatchesSerializer
 from .patterns import PatternsSerializer
 from .structured_code import StructuredCodeManagerSerializer
+from .types import TypesStoreSerializer
 from .variables import VariableManagerSerializer
 from .xrefs import XRefsSerializer
 
@@ -49,6 +56,16 @@ class KnowledgeBaseSerializer:
         PatternsSerializer.dump(session, db_kb, kb.patterns)
         LabelsSerializer.dump(session, db_kb, kb.labels)
         CallsitePrototypesSerializer.dump(session, db_kb, kb.callsite_prototypes)
+        ObfuscationsSerializer.dump(session, db_kb, kb.obfuscations)
+        CustomStringsSerializer.dump(session, db_kb, kb.custom_strings)
+        TypesStoreSerializer.dump(session, db_kb, kb.types)
+        PatchesSerializer.dump(session, db_kb, kb.patches)
+        IndirectJumpsSerializer.dump(session, db_kb, kb.indirect_jumps)
+        # Go plugins are only created for Go binaries
+        if kb.has_plugin("go_signatures"):
+            GoSignaturesSerializer.dump(session, db_kb, kb.go_signatures)
+        if kb.has_plugin("go_globals"):
+            GoGlobalsSerializer.dump(session, db_kb, kb.go_globals)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
         VariableManagerSerializer.dump_dvars(session, db_kb, kb.dec_variables)
         StructuredCodeManagerSerializer.dump(session, db_kb, kb.decompilations)
@@ -106,6 +123,19 @@ class KnowledgeBaseSerializer:
 
         # Load call-site prototypes (empty for databases written before the table existed)
         kb.callsite_prototypes = CallsitePrototypesSerializer.load(session, db_kb, kb)
+
+        # Load the plugins stored as JSON documents (defaults for databases written before the table existed)
+        kb.obfuscations = ObfuscationsSerializer.load(session, db_kb, kb)
+        kb.custom_strings = CustomStringsSerializer.load(session, db_kb, kb)
+        kb.types = TypesStoreSerializer.load(session, db_kb, kb)
+        kb.patches = PatchesSerializer.load(session, db_kb, kb)
+        kb.indirect_jumps = IndirectJumpsSerializer.load(session, db_kb, kb)
+        go_signatures = GoSignaturesSerializer.load(session, db_kb, kb)
+        if go_signatures is not None:
+            kb.go_signatures = go_signatures
+        go_globals = GoGlobalsSerializer.load(session, db_kb, kb)
+        if go_globals is not None:
+            kb.go_globals = go_globals
 
         # Load variables
         variables = VariableManagerSerializer.load(session, db_kb, kb)
