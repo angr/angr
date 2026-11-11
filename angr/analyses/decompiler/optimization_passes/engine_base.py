@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 
 from angr import ailment
-from angr.engines.light import SimEngineLightAIL
+from angr.engines.light import SimEngineLightAIL, ail_binop_handler, ail_unop_handler
 from angr.utils.ail import is_scalar_int_convert
 
 _l = logging.getLogger(name=__name__)
@@ -216,6 +216,7 @@ class SimplifierAILEngine(
             return new_expr
         return expr
 
+    @ail_binop_handler
     def _handle_binop_Mul(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
@@ -224,6 +225,7 @@ class SimplifierAILEngine(
             return ailment.expression.BinaryOp(expr.idx, "Mul", [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
+    @ail_binop_handler
     def _handle_binop_Mull(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
@@ -408,6 +410,7 @@ class SimplifierAILEngine(
     def _handle_expr_BasePointerOffset(self, expr):
         return expr
 
+    @ail_unop_handler
     def _handle_unop_Default(self, expr):
         operand = self._expr(expr.operand)
         if operand != expr.operand:
@@ -427,6 +430,7 @@ class SimplifierAILEngine(
     _handle_unop_Sqrt = _handle_unop_Default
     _handle_unop_RSqrtEst = _handle_unop_Default
 
+    @ail_binop_handler
     def _handle_binop_Default(self, expr):
         lhs = self._expr(expr.operands[0])
         rhs = self._expr(expr.operands[1])

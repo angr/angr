@@ -26,7 +26,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Store
 from angr.code_location import CodeLocation
-from angr.engines.light import SimEngineNostmtAIL
+from angr.engines.light import SimEngineNostmtAIL, ail_binop_handler, ail_unop_handler
 from angr.errors import SimMemoryMissingError
 from angr.storage.memory_mixins import (
     DefaultFillerMixin,
@@ -40,8 +40,10 @@ from angr.utils.ssa import get_vvar_uselocs
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
-def _make_binop(compute: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV]):
-    def inner(self, expr: BinaryOp) -> claripy.ast.BV | None:
+def _make_binop(
+    compute: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV],
+) -> Callable[..., claripy.ast.BV | None]:
+    def inner(self: InlinedStringTransformationAILEngine, expr: BinaryOp) -> claripy.ast.BV | None:
         a, b = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         if a is None or b is None:
             return None
@@ -50,7 +52,7 @@ def _make_binop(compute: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.
         except (ZeroDivisionError, claripy.ClaripyZeroDivisionError):
             return None
 
-    return inner
+    return ail_binop_handler(inner)
 
 
 class FasterMemory(
@@ -388,27 +390,32 @@ class InlinedStringTransformationAILEngine(
                 return self._expr(vvar)
         return None
 
+    @ail_unop_handler
     def _handle_unop_Neg(self, expr: UnaryOp):
         v = self._expr(expr.operand)
         if isinstance(v, claripy.ast.Bits):
             return -v
         return None
 
+    @ail_unop_handler
     def _handle_unop_Not(self, expr: UnaryOp):
         v = self._expr(expr.operand)
         if isinstance(v, claripy.ast.Bits):
             return ~v
         return None
 
+    @ail_unop_handler
     def _handle_unop_BitwiseNeg(self, expr: UnaryOp):
         v = self._expr(expr.operand)
         if isinstance(v, claripy.ast.Bits):
             return ~v
         return None
 
+    @ail_unop_handler
     def _handle_unop_Abs(self, expr: UnaryOp):
         self._expr(expr.operand)
 
+    @ail_unop_handler
     def _handle_unop_Default(self, expr: UnaryOp):
         return None
 
@@ -416,6 +423,7 @@ class InlinedStringTransformationAILEngine(
     _handle_unop_Ctz = _handle_unop_Default
     _handle_unop_Dereference = _handle_unop_Default
 
+    @ail_unop_handler
     def _handle_unop_Reference(self, expr: UnaryOp):
         if isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack:
             return claripy.BVV((expr.operand.stack_offset + self.STACK_BASE) & self.MASK, expr.bits)
@@ -438,42 +446,49 @@ class InlinedStringTransformationAILEngine(
             return v
         return None
 
+    @ail_binop_handler
     def _handle_binop_CmpEQ(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value == op1.concrete_value else claripy.BVV(0, 1)
         return None
 
+    @ail_binop_handler
     def _handle_binop_CmpNE(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value != op1.concrete_value else claripy.BVV(0, 1)
         return None
 
+    @ail_binop_handler
     def _handle_binop_CmpLT(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value < op1.concrete_value else claripy.BVV(0, 1)
         return None
 
+    @ail_binop_handler
     def _handle_binop_CmpLE(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value <= op1.concrete_value else claripy.BVV(0, 1)
         return None
 
+    @ail_binop_handler
     def _handle_binop_CmpGT(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value > op1.concrete_value else claripy.BVV(0, 1)
         return None
 
+    @ail_binop_handler
     def _handle_binop_CmpGE(self, expr):
         op0, op1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         if isinstance(op0, claripy.ast.Bits) and isinstance(op1, claripy.ast.Bits) and op0.concrete and op1.concrete:
             return claripy.BVV(1, 1) if op0.concrete_value >= op1.concrete_value else claripy.BVV(0, 1)
         return None
 
+    @ail_binop_handler
     def _handle_binop_CmpORD(self, expr):
         return None
 
@@ -525,6 +540,7 @@ class InlinedStringTransformationAILEngine(
     def _handle_expr_VEXCCallExpression(self, expr):
         return None
 
+    @ail_binop_handler
     def _handle_binop_Default(self, expr):
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
@@ -546,6 +562,7 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_Sub = _make_binop(lambda a, b: a - b)
     _handle_binop_Xor = _make_binop(lambda a, b: a ^ b)
 
+    @ail_binop_handler
     def _handle_binop_Mull(self, expr):
         a, b = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         if a is None or b is None:

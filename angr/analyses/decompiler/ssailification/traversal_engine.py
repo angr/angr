@@ -26,7 +26,7 @@ from angr.ailment.expression import (
 from angr.ailment.statement import CAS, ConditionalJump, SideEffectStatement, Store
 from angr.calling_conventions import call_clobbered_regs, default_cc_for_project
 from angr.code_location import AILCodeLocation
-from angr.engines.light import SimEngineLightAIL
+from angr.engines.light import SimEngineLightAIL, ail_binop_handler, ail_unop_handler
 from angr.enums import Flavors
 from angr.go.sim_type import GoSimTypeFunction
 from angr.knowledge_plugins.functions.function import Function
@@ -857,6 +857,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def _handle_expr_BasePointerOffset(self, expr) -> Value:
         return set()
 
+    @ail_binop_handler
+    @ail_unop_handler
     def _unreachable(self, *args, **kwargs):
         assert False, "unreachable"
 

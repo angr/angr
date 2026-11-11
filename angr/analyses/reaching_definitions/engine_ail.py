@@ -14,7 +14,7 @@ from archinfo.types import RegisterOffset
 from angr import ailment, claripy
 from angr.calling_conventions import SimRegArg, SimTypeBottom, default_cc_for_project
 from angr.code_location import CodeLocation, ExternalCodeLocation
-from angr.engines.light import SpOffset
+from angr.engines.light import SpOffset, ail_binop_handler, ail_unop_handler
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.errors import SimEngineError, SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, Tmp
@@ -588,9 +588,11 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return MultiValues(reinterpreted)
 
+    @ail_unop_handler
     def _handle_unop_Default(self, expr):
         return self._top(expr.bits)
 
+    @ail_unop_handler
     def _handle_unop_Abs(self, expr):
         self._expr(expr.operand)
         return self._top(expr.bits)
@@ -644,6 +646,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             )
         )
 
+    @ail_unop_handler
     def _handle_unop_Not(self, expr) -> MultiValues:
         operand = self._expr(expr.operand)
         bits = expr.bits
@@ -654,6 +657,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             return MultiValues(~operand_v)  # pylint:disable=invalid-unary-operand-type
         return MultiValues(self.state.top(bits))
 
+    @ail_unop_handler
     def _handle_unop_Neg(self, expr) -> MultiValues:
         operand: MultiValues = self._expr(expr.operand)
         bits = expr.bits
@@ -666,6 +670,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             return MultiValues(-operand_v)  # pylint:disable=invalid-unary-operand-type
         return MultiValues(self.state.top(bits))
 
+    @ail_unop_handler
     def _handle_unop_BitwiseNeg(self, expr) -> MultiValues:
         operand = self._expr(expr.operand)
         bits = expr.bits
@@ -676,6 +681,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             return MultiValues(~operand_v)
         return MultiValues(self.state.top(bits))
 
+    @ail_binop_handler
     def _handle_binop_Add(self, expr) -> MultiValues:
         expr0, expr1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         bits = expr.bits
@@ -712,6 +718,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_Sub(self, expr) -> MultiValues:
         expr0, expr1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         bits = expr.bits
@@ -747,6 +754,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_Default(self, expr) -> MultiValues:
         arg0, arg1 = expr.operands
 
@@ -789,6 +797,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
     _handle_binop_PermV = _handle_binop_Default
     _handle_binop_Set = _handle_binop_Default
 
+    @ail_binop_handler
     def _handle_binop_Mul(self, expr):
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
@@ -806,6 +815,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_Mull(self, expr):
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
@@ -825,6 +835,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_Shr(self, expr) -> MultiValues:
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
@@ -859,6 +870,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_Sar(self, expr) -> MultiValues:
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
@@ -893,6 +905,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_Shl(self, expr):
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
@@ -926,6 +939,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
     _handle_binop_Rol = _handle_binop_Default
     _handle_binop_Ror = _handle_binop_Default
 
+    @ail_binop_handler
     def _handle_binop_And(self, expr):
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
@@ -958,6 +972,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_Or(self, expr):
         expr0: MultiValues = self._expr(expr.operands[0])
         expr1: MultiValues = self._expr(expr.operands[1])
@@ -988,6 +1003,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_LogicalAnd(self, expr) -> MultiValues:
         expr0: MultiValues = self._expr(expr.operands[0])
         expr1: MultiValues = self._expr(expr.operands[1])
@@ -1003,6 +1019,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return MultiValues(claripy.If(expr0_v == 0, expr0_v, expr1_v))
 
+    @ail_binop_handler
     def _handle_binop_LogicalOr(self, expr) -> MultiValues:
         expr0: MultiValues = self._expr(expr.operands[0])
         expr1: MultiValues = self._expr(expr.operands[1])
@@ -1029,6 +1046,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return MultiValues(claripy.If(expr0_v != 0, expr1_v, expr0_v))
 
+    @ail_binop_handler
     def _handle_binop_Xor(self, expr):
         expr0: MultiValues = self._expr(expr.operands[0])
         expr1: MultiValues = self._expr(expr.operands[1])
@@ -1059,24 +1077,28 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_Carry(self, expr) -> MultiValues:
         _ = self._expr(expr.operands[0])
         _ = self._expr(expr.operands[1])
         bits = expr.bits
         return MultiValues(self.state.top(bits))
 
+    @ail_binop_handler
     def _handle_binop_SCarry(self, expr) -> MultiValues:
         _ = self._expr(expr.operands[0])
         _ = self._expr(expr.operands[1])
         bits = expr.bits
         return MultiValues(self.state.top(bits))
 
+    @ail_binop_handler
     def _handle_binop_SBorrow(self, expr) -> MultiValues:
         _ = self._expr(expr.operands[0])
         _ = self._expr(expr.operands[1])
         bits = expr.bits
         return MultiValues(self.state.top(bits))
 
+    @ail_binop_handler
     def _handle_binop_Concat(self, expr) -> MultiValues:
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
@@ -1105,6 +1127,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         return r
 
+    @ail_binop_handler
     def _handle_binop_Cmp(self, expr) -> MultiValues:
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])
@@ -1130,12 +1153,14 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
     _handle_binop_CmpGTs = _handle_binop_Cmp
     _handle_binop_CmpORD = _handle_binop_Cmp
 
+    @ail_binop_handler
     def _handle_binop_ExpCmpNE(self, expr) -> MultiValues:
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
 
         return MultiValues(self.state.top(expr.bits))
 
+    @ail_unop_handler
     def _handle_unop_Clz(self, expr) -> MultiValues:
         self._expr(expr.operand)
         return MultiValues(self.state.top(expr.bits))

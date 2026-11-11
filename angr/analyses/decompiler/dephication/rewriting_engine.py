@@ -36,7 +36,7 @@ from angr.ailment.statement import (
     Store,
     WeakAssignment,
 )
-from angr.engines.light import SimEngineNostmtAIL
+from angr.engines.light import SimEngineNostmtAIL, ail_binop_handler, ail_unop_handler
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase
@@ -558,6 +558,8 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
     def _handle_expr_VEXCCallExpression(self, expr):
         return None
 
+    @ail_binop_handler
+    @ail_unop_handler
     def _unreachable(self, *args, **kwargs):
         assert False
 

@@ -5,6 +5,7 @@ import logging
 import math
 
 from angr.ailment import Expr
+from angr.engines.light import ail_binop_handler
 
 from .engine_base import SimplifierAILEngine, SimplifierAILState
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -58,6 +59,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
 
         return expr
 
+    @ail_binop_handler
     def _handle_binop_Shr(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
@@ -251,6 +253,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, "Shr", [operand_0, operand_1], expr.signed)
         return expr
 
+    @ail_binop_handler
     def _handle_binop_Mul(self, expr):
         operand_0, operand_1 = expr.operands
 
@@ -295,6 +298,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
                 return Expr.BinaryOp(expr.idx, "Div", [X, new_const], expr.signed, **expr.tags)
         return expr
 
+    @ail_binop_handler
     def _handle_binop_Div(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
@@ -313,6 +317,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
             return Expr.BinaryOp(expr.idx, "Div", [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
+    @ail_binop_handler
     def _handle_binop_Add(self, expr):
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])

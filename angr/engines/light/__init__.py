@@ -8,6 +8,8 @@ from .engine import (
     SimEngineNoexprAIL,
     SimEngineNostmtAIL,
     SimEngineNostmtVEX,
+    ail_binop_handler,
+    ail_unop_handler,
 )
 
 __all__ = (
@@ -20,4 +22,6 @@ __all__ = (
     "SimEngineNostmtAIL",
     "SimEngineNostmtVEX",
     "SpOffset",
+    "ail_binop_handler",
+    "ail_unop_handler",
 )
