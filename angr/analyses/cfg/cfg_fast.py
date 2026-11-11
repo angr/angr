@@ -3197,6 +3197,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return
 
         # Fixpoint: a thunk that inherits key-function markers can itself be the target of another thunk.
+        targets: dict[int, int | None] = {}
         changed = True
         rounds = 0
         while changed and rounds < 8:
@@ -3205,7 +3206,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             for func_addr in single_block_addrs:
                 if func_addr in key_func_addrs:
                     continue
-                target = self._trivial_jump_target(func_addr)
+                if func_addr in targets:
+                    target = targets[func_addr]
+                else:
+                    # the natural block holds at least the instructions of the CFG node at its address, so a node
+                    # with two or more instructions rules out a single-instruction block
+                    node = self.model.get_any_node(func_addr)
+                    if node is not None and len(node.instruction_addrs) >= 2:
+                        target = None
+                    else:
+                        target = self._trivial_jump_target(func_addr)
+                    targets[func_addr] = target
                 if target is None or target not in key_func_addrs:
                     continue
                 src_info = functions.get_by_addr(target, meta_only=True).info
