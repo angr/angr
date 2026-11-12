@@ -352,11 +352,16 @@ class CFGSegmentStore:
             return txn.get(self._key(window))
 
     def put(self, window: int, data: bytes) -> None:
+        self.put_many([(window, data)])
+
+    def put_many(self, items: list[tuple[int, bytes]]) -> None:
+        """Write several segments in one transaction: all of them, or none if it fails."""
         db = self._open()
         while True:
             try:
                 with self.rtdb.begin_txn(db, write=True) as txn:
-                    txn.put(self._key(window), data)
+                    for window, data in items:
+                        txn.put(self._key(window), data)
                 return
             except lmdb.MapFullError:
                 if not self.rtdb.increase_lmdb_map_size():

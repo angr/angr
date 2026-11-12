@@ -31,6 +31,7 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, TryLockError};
+use std::time::Instant;
 
 const FORMAT_VERSION: u8 = 3;
 /// Version 2 blobs (graph structure only, node fields kept elsewhere) are upgraded on load.
@@ -354,6 +355,13 @@ type NodeView = (u64, u64, i64, Option<String>);
 pub trait SegmentBackend: Send + Sync {
     fn get(&mut self, window: u64) -> SResult<Option<Vec<u8>>>;
     fn put(&mut self, window: u64, data: &[u8]) -> SResult<()>;
+    /// Several puts as one unit: all of them or, on error, none.
+    fn put_many(&mut self, items: &[(u64, Vec<u8>)]) -> SResult<()> {
+        for (window, data) in items {
+            self.put(*window, data)?;
+        }
+        Ok(())
+    }
     fn delete(&mut self, window: u64) -> SResult<()>;
     fn delete_all(&mut self) -> SResult<()>;
 }
@@ -394,7 +402,8 @@ impl SegmentBackend for MemoryBackend {
     }
 }
 
-/// A Python object with `get(window) -> bytes | None`, `put(window, bytes)`, `delete(window)`, `delete_all()`.
+/// A Python object with `get(window) -> bytes | None`, `put(window, bytes)`, `put_many([(window, bytes), ...])`,
+/// `delete(window)`, `delete_all()`.
 struct PyBackend {
     obj: Py<PyAny>,
 }
@@ -424,6 +433,21 @@ impl SegmentBackend for PyBackend {
             self.obj
                 .bind(py)
                 .call_method1(intern!(py, "put"), (window, PyBytes::new(py, data)))
+                .map_err(py_backend_err)?;
+            Ok(())
+        })
+    }
+
+    fn put_many(&mut self, items: &[(u64, Vec<u8>)]) -> SResult<()> {
+        Python::attach(|py| {
+            let list = PyList::empty(py);
+            for (window, data) in items {
+                list.append((*window, PyBytes::new(py, data)))
+                    .map_err(py_backend_err)?;
+            }
+            self.obj
+                .bind(py)
+                .call_method1(intern!(py, "put_many"), (list,))
                 .map_err(py_backend_err)?;
             Ok(())
         })
@@ -1063,7 +1087,17 @@ pub struct Stats {
     pub loads: u64,
     pub evictions: u64,
     pub writebacks: u64,
+    /// Backend `put`/`put_many` calls.
+    pub put_batches: u64,
+    /// Nanoseconds in segment encode, decode, backend get and backend put.
+    pub encode_ns: u64,
+    pub decode_ns: u64,
+    pub get_ns: u64,
+    pub put_ns: u64,
 }
+
+/// Encoded blobs per backend `put_many` call, at most.
+const PUT_BATCH_BYTES: usize = 64 << 20;
 
 #[derive(Serialize, Deserialize)]
 struct Header {
@@ -1252,12 +1286,15 @@ impl Store {
                 let backend = self.backend.as_mut().ok_or_else(|| {
                     StoreError::Backend("segment evicted without a backend".into())
                 })?;
-                backend
-                    .get(window)?
-                    .ok_or_else(|| StoreError::Backend(format!("segment {window:#x} missing")))?
+                let t0 = Instant::now();
+                let data = backend.get(window)?;
+                self.stats.get_ns += t0.elapsed().as_nanos() as u64;
+                data.ok_or_else(|| StoreError::Backend(format!("segment {window:#x} missing")))?
             }
         };
+        let t0 = Instant::now();
         let mut seg = Segment::decode(&data)?;
+        self.stats.decode_ns += t0.elapsed().as_nanos() as u64;
         seg.last_used = self.tick;
         seg.dirty = from_cold;
         self.resident_bytes += seg.bytes;
@@ -1296,44 +1333,93 @@ impl Store {
         Ok(())
     }
 
+    /// Evict least recently used segments (ties: lowest slot) other than `pins` until the resident set is under
+    /// budget. Dirty victims are written back in batches, one backend call each; a slot is marked evicted only once
+    /// its blob is written.
     fn evict_beyond_budget(&mut self, pins: &[u32]) -> SResult<()> {
-        if self.backend.is_none() {
+        if self.backend.is_none() || self.resident_bytes <= self.budget {
             return Ok(());
         }
-        while self.resident_bytes > self.budget {
-            let mut victim: Option<(u32, u64)> = None;
-            for (i, s) in self.slots.iter().enumerate() {
-                if let Slot::Resident(seg) = s
-                    && !pins.contains(&(i as u32))
-                    && victim.is_none_or(|(_, t)| seg.last_used < t)
-                {
-                    victim = Some((i as u32, seg.last_used));
+        let mut cands: Vec<(u64, u32)> = self
+            .slots
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| match s {
+                Slot::Resident(seg) if !pins.contains(&(i as u32)) => {
+                    Some((seg.last_used, i as u32))
+                }
+                _ => None,
+            })
+            .collect();
+        cands.sort_unstable();
+        let mut remaining = self.resident_bytes;
+        let mut victims = Vec::new();
+        for (_, slot) in cands {
+            if remaining <= self.budget {
+                break;
+            }
+            if let Slot::Resident(seg) = &self.slots[slot as usize] {
+                remaining -= seg.bytes;
+            }
+            victims.push(slot);
+        }
+        self.evict_many(&victims)
+    }
+
+    /// Write the dirty segments of `slots` back in batches and mark every one of them evicted.
+    fn evict_many(&mut self, slots: &[u32]) -> SResult<()> {
+        let mut start = 0;
+        while start < slots.len() {
+            let end = start + self.write_back_batch(&slots[start..])?;
+            for &slot in &slots[start..end] {
+                if let Slot::Resident(seg) = &self.slots[slot as usize] {
+                    self.resident_bytes -= seg.bytes;
+                    self.stats.evictions += 1;
+                    self.slots[slot as usize] = Slot::Evicted;
                 }
             }
-            match victim {
-                Some((v, _)) => self.evict(v)?,
-                None => break,
-            }
+            start = end;
         }
         Ok(())
     }
 
-    fn evict(&mut self, slot: u32) -> SResult<()> {
-        let Slot::Resident(seg) = &self.slots[slot as usize] else {
-            return Ok(());
-        };
-        let window = self.slot_windows[slot as usize];
-        if seg.dirty {
-            let data = seg.encode()?;
-            self.backend
-                .as_mut()
-                .expect("evict without backend")
-                .put(window, &data)?;
-            self.stats.writebacks += 1;
+    /// Write back the dirty ones of a prefix of `slots` (up to PUT_BATCH_BYTES of blobs) in one backend call; the
+    /// length of that prefix (at least one).
+    fn write_back_batch(&mut self, slots: &[u32]) -> SResult<usize> {
+        let mut n = 0;
+        let mut blobs: Vec<(u64, Vec<u8>)> = Vec::new();
+        let mut blob_bytes = 0;
+        while n < slots.len() && blob_bytes < PUT_BATCH_BYTES {
+            let slot = slots[n] as usize;
+            if let Slot::Resident(seg) = &self.slots[slot]
+                && seg.dirty
+            {
+                let t0 = Instant::now();
+                let data = seg.encode()?;
+                self.stats.encode_ns += t0.elapsed().as_nanos() as u64;
+                blob_bytes += data.len();
+                blobs.push((self.slot_windows[slot], data));
+            }
+            n += 1;
         }
-        self.resident_bytes -= seg.bytes;
-        self.stats.evictions += 1;
-        self.slots[slot as usize] = Slot::Evicted;
+        self.put_blobs(&blobs)?;
+        Ok(n)
+    }
+
+    fn put_blobs(&mut self, blobs: &[(u64, Vec<u8>)]) -> SResult<()> {
+        if blobs.is_empty() {
+            return Ok(());
+        }
+        let backend = self.backend.as_mut().expect("put without backend");
+        let t0 = Instant::now();
+        if let [(window, data)] = blobs {
+            backend.put(*window, data)?;
+        } else {
+            backend.put_many(blobs)?;
+        }
+        self.stats.put_ns += t0.elapsed().as_nanos() as u64;
+        self.stats.put_batches += 1;
+        self.stats.writebacks += blobs.len() as u64;
         Ok(())
     }
 
@@ -1373,18 +1459,19 @@ impl Store {
         if self.backend.is_none() {
             return Ok(());
         }
-        for i in 0..self.slots.len() {
-            if let Slot::Resident(seg) = &self.slots[i]
-                && seg.dirty
-            {
-                let data = seg.encode()?;
-                let window = self.slot_windows[i];
-                self.backend.as_mut().unwrap().put(window, &data)?;
-                self.stats.writebacks += 1;
-                if let Slot::Resident(seg) = &mut self.slots[i] {
+        let dirty: Vec<u32> = (0..self.slots.len())
+            .filter(|&i| matches!(&self.slots[i], Slot::Resident(seg) if seg.dirty))
+            .map(|i| i as u32)
+            .collect();
+        let mut start = 0;
+        while start < dirty.len() {
+            let end = start + self.write_back_batch(&dirty[start..])?;
+            for &slot in &dirty[start..end] {
+                if let Slot::Resident(seg) = &mut self.slots[slot as usize] {
                     seg.dirty = false;
                 }
             }
+            start = end;
         }
         Ok(())
     }
@@ -1411,10 +1498,8 @@ impl Store {
         if self.backend.is_none() {
             return Err(StoreError::Backend("no backend attached".into()));
         }
-        for i in 0..self.slots.len() {
-            self.evict(i as u32)?;
-        }
-        Ok(())
+        let all: Vec<u32> = (0..self.slots.len() as u32).collect();
+        self.evict_many(&all)
     }
 
     fn all_resident(&self) -> bool {
@@ -2633,6 +2718,11 @@ impl CfgGraph {
         d.set_item("loads", s.loads)?;
         d.set_item("evictions", s.evictions)?;
         d.set_item("writebacks", s.writebacks)?;
+        d.set_item("put_batches", s.put_batches)?;
+        d.set_item("encode_ns", s.encode_ns)?;
+        d.set_item("decode_ns", s.decode_ns)?;
+        d.set_item("get_ns", s.get_ns)?;
+        d.set_item("put_ns", s.put_ns)?;
         d.set_item("segments", g.store.segment_count())?;
         d.set_item("resident_segments", g.store.resident_segments())?;
         d.set_item("resident_bytes", g.store.resident_bytes())?;
