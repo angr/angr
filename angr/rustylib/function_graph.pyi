@@ -165,6 +165,9 @@ class FunctionGraph:
     def call_site(self, addr: int) -> tuple[int | None, int | None] | None: ...
     def call_sites(self) -> list[tuple[int, int | None, int | None]]: ...
     def call_site_addrs(self) -> list[int]: ...
+    def has_same_end_blocks(self) -> bool:
+        """Whether normalize() would split a block: two blocks of the graph end at the same address."""
+
     def normalize(self, is_arm: bool, branch_ins_addr: Callable[[int, int], int | None]) -> None:
         """Split overlapping blocks that share an end address (Function.normalize)."""
 

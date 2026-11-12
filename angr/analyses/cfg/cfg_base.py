@@ -176,6 +176,8 @@ class CFGBase(Analysis):
         self._updated_nonreturning_functions: set[int | SootMethodDescriptor] | None = None
 
         self._normalize = normalize
+        # functions that the Rust make_functions path created already normalized
+        self._prenormalized_func_addrs: set[int] = set()
 
         # Flag, whether to track memory writes in stack pointer tracking
         self._sp_tracking_track_memory = sp_tracking_track_memory
@@ -389,9 +391,11 @@ class CFGBase(Analysis):
                 self.normalize()
 
             # Call normalize() on each function
-            for f in self.kb.functions.values():
-                if not self.project.is_hooked(f.addr):
-                    f.normalize()
+            prenormalized = self._prenormalized_func_addrs
+            for f_addr in self.kb.functions:
+                if f_addr in prenormalized or self.project.is_hooked(f_addr):
+                    continue
+                self.kb.functions[f_addr].normalize()
 
         # drop all propagation results that start with "cfg_intermediate"
         self.kb.propagations.discard_by_prefix("cfg_intermediate")
@@ -2064,8 +2068,20 @@ class CFGBase(Analysis):
         for addr, info in infos:
             fm.index_key_func_info(addr, info)
             info_of[addr] = info
-        fm.bulk_add_functions(
-            [
+        # _post_analysis normalizes each function; one without blocks sharing an end address only gets the flag
+        prenormalize = self._normalize and self.normalized
+        project = self.project
+        records = []
+        for addr, graph, syscall, simproc, plt, ret in funcs:
+            normalized = (
+                prenormalize
+                and graph.startpoint is not None
+                and not graph.has_same_end_blocks()
+                and not project.is_hooked(addr)
+            )
+            if normalized:
+                self._prenormalized_func_addrs.add(addr)
+            records.append(
                 FunctionRecord(
                     addr,
                     graph=graph,
@@ -2074,10 +2090,10 @@ class CFGBase(Analysis):
                     is_plt=plt,
                     returning=ret,
                     info=info_of.get(addr),
+                    normalized=normalized,
                 )
-                for addr, graph, syscall, simproc, plt, ret in funcs
-            ]
-        )
+            )
+        fm.bulk_add_functions(records)
 
         self._remove_stub_and_empty_functions(builder.empty_functions())
         builder.update_node_functions()

@@ -10,7 +10,7 @@ use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyType};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 
 const FORMAT_VERSION: u8 = 2;
@@ -1122,6 +1122,21 @@ impl FunctionGraph {
     }
 
     // --- normalization -------------------------------------------------------------------------
+
+    /// Whether `normalize` would split a block: two blocks of the graph end at the same address.
+    pub fn has_same_end_blocks(&self) -> bool {
+        let mut ends = FxHashSet::default();
+        for idx in self.graph_nodes() {
+            let n = &self.nodes[idx as usize];
+            if n.kind == NodeKind::Block
+                && n.size != 0
+                && !ends.insert(n.addr.wrapping_add(n.size as u64))
+            {
+                return true;
+            }
+        }
+        false
+    }
 
     /// Port of `Function.normalize`: split overlapping blocks that share an end address.
     /// `branch_ins_addr(addr, size)` lifts a block and returns the address of its branch instruction.

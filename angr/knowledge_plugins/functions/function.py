@@ -222,6 +222,7 @@ class FunctionRecord(NamedTuple):
     alignment: bool = False
     binary_name: str | None = None
     info: dict[str, Any] | None = None
+    normalized: bool = False
 
 
 class Function(FunctionCore, Serializable):
@@ -431,6 +432,8 @@ class Function(FunctionCore, Serializable):
             func._init_prototype_and_calling_convention()
             if r.info:
                 func.info.data = dict(r.info)
+            if r.normalized:
+                func.normalized = True
         return funcs
 
     def _init_slots(
