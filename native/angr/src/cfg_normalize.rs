@@ -45,6 +45,24 @@ impl Obj {
         self.fields.ins_base + s[..s.len() - 1].iter().map(|&x| x as u64).sum::<u64>()
     }
 
+    /// `CFGBase._last_decoded_ins_addr`: the last instruction address, skipping the IMark VEX emits at the end of a
+    /// NoDecode block for the undecodable instruction.
+    fn ins_last_decoded(&self) -> Option<u64> {
+        let n = self.ins_len();
+        if n == 0 {
+            return None;
+        }
+        let last = self.ins_last();
+        if last < self.end() {
+            return Some(last);
+        }
+        if n == 1 {
+            return None;
+        }
+        let s = &self.fields.ins_sizes;
+        Some(last.wrapping_sub(s[n - 2] as u64))
+    }
+
     /// `addr in instruction_addrs`
     fn ins_contains(&self, addr: u64) -> bool {
         let base = self.fields.ins_base;
@@ -236,8 +254,9 @@ impl<'py> Normalizer<'py> {
                 let mut others: Vec<usize> = all[1..].to_vec();
                 if self.objs[smallest].ins_len() > 0 {
                     others.retain(|&n| {
-                        self.objs[n].ins_len() > 0
-                            && self.objs[smallest].ins_contains(self.objs[n].ins_last())
+                        self.objs[n]
+                            .ins_last_decoded()
+                            .is_some_and(|a| self.objs[smallest].ins_contains(a))
                     });
                 }
                 if others.is_empty() {

@@ -1393,7 +1393,8 @@ class CFGBase(Analysis):
                     other_nodes = [
                         n
                         for n in other_nodes
-                        if n.instruction_addrs and n.instruction_addrs[-1] in smallest_node.instruction_addrs
+                        if (last := self._last_decoded_ins_addr(n)) is not None
+                        and last in smallest_node.instruction_addrs
                     ]
                 if not other_nodes:
                     del end_addr_to_nodes[key_to_find]
@@ -1453,6 +1454,19 @@ class CFGBase(Analysis):
                                 smallest_nodes.pop(nodekey_b, None)
 
         self.normalized = True
+
+    @staticmethod
+    def _last_decoded_ins_addr(node: CFGNode) -> int | None:
+        """
+        The last instruction address of `node`, skipping the IMark that VEX emits at the end of a NoDecode block for the
+        instruction it failed to decode.
+        """
+        addrs = node.instruction_addrs
+        if not addrs:
+            return None
+        if addrs[-1] >= node.addr + node.size:
+            return addrs[-2] if len(addrs) > 1 else None
+        return addrs[-1]
 
     def _normalize_core(
         self,
