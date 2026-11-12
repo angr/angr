@@ -189,11 +189,13 @@ class SSEScalarLowering(PeepholeOptimizationExprBase):
         if isinstance(base, UnaryOp) and base.operand.bits > n_bits:
             operand = _unwrap_conv_or_extract(base.operand, n_bits, self.manager)
             if operand is not base.operand:
+                # a bitwise complement is an integer operation; narrowing it does not make it a float one
+                is_fp = base.floating_point if base.op in {"BitwiseNeg", "Not"} else True
                 return UnaryOp(
                     expr.idx,
                     base.op,
                     operand,
-                    floating_point=True,
+                    floating_point=is_fp,
                     bits=n_bits,
                     **expr.tags,
                 )

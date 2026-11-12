@@ -286,6 +286,19 @@ class TestSSEScalarLowering(unittest.TestCase):
         assert result.bits == 64
         assert result.floating_point is True
 
+    def test_extract_bitwise_neg_stays_integer(self):
+        """Extract(BitwiseNeg(x64), 32@0) -> BitwiseNeg(Extract(x64, 32@0)), not a floating-point operation."""
+        x = VirtualVariable(1, 7, 64, VirtualVariableCategory.REGISTER, oident=16)
+        neg = UnaryOp(2, "BitwiseNeg", x, bits=64)
+        result = self._opt(Extract(3, 32, neg, Const(4, 0, 64), "Iend_LE"))
+        assert isinstance(result, UnaryOp)
+        assert result.op == "BitwiseNeg"
+        assert result.bits == 32
+        assert not result.floating_point
+        assert isinstance(result.operand, Extract)
+        assert result.operand.base.likes(x)
+        assert result.operand.bits == 32
+
     def test_extract_lane_wise_convert(self):
         """Extract(ConvV(I32StoF32x4, Conv(32->128, x)), 32@0) -> Convert(I32->F32, x)."""
         x = Const(1, 42, 32)
