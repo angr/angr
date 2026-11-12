@@ -209,7 +209,8 @@ class FlagsWordBitThroughVVar(PeepholeOptimizationExprBase):
     definitions of the variables in ``v``: flags words spelled out flag by flag, masked copies of them
     (``w & 0x8d5``), merges of two words (``w1 & M | w2 & ~M``) and complements. Only the boolean is copied to the
     test, so this works where inlining the whole (deep) word is refused, e.g. a devirtualized VM's loop condition
-    ``(~flags & 1) != 0`` with ``flags = ~(cf | pf << 2 | ...)``.
+    ``(~flags & 1) != 0`` with ``flags = ~(cf | pf << 2 | ...)``. A test of several flags at once,
+    ``(v & 0x41) == 0``, becomes the (negated) disjunction of the booleans.
     """
 
     __slots__ = ()
@@ -226,8 +227,53 @@ class FlagsWordBitThroughVVar(PeepholeOptimizationExprBase):
             bp_as_gpr = self.kb.functions.get_by_addr(self.func_addr).info.get("bp_as_gpr", False)
         return tuple(off for off in (arch.sp_offset, None if bp_as_gpr else arch.bp_offset) if off is not None)
 
+    def _mask_test(self, expr: BinaryOp, block_defs, use) -> Expression | None:
+        # (v & M) ==/!= 0 with several bits in M: the disjunction of the flags, when every bit of M is one
+        op0, op1 = expr.operands
+        if isinstance(op0, Const):
+            op0, op1 = op1, op0
+        if _int_const(op1) != 0 or not isinstance(op0, BinaryOp) or op0.op != "And" or op0.floating_point:
+            return None
+        word, mask_expr = op0.operands
+        if isinstance(word, Const):
+            word, mask_expr = mask_expr, word
+        mask = _int_const(mask_expr)
+        if mask is None or word.bits != op0.bits:
+            return None
+        mask &= (1 << op0.bits) - 1
+        if mask == 0 or _log2(mask) is not None:
+            return None
+
+        reader = _BitReader(self.manager, block_defs, expr.tags, self._frame_regs(), use)
+        any_flag: Expression | None = None
+        flags = 0
+        for k in range(op0.bits):
+            if not (mask >> k) & 1:
+                continue
+            b = reader.bit(word, k)
+            if b is None:
+                return None
+            finder = _FlagConsumerFinder()
+            finder.walk_expression(b)
+            if finder.found:
+                return None
+            flags += not isinstance(b, Const)
+            any_flag = b if any_flag is None else reader._join("LogicalOr", any_flag, b)
+        if any_flag is None or reader.hops == 0 or flags < 2:
+            # a single flag behind the mask is the single-bit case
+            return None
+        r = any_flag if expr.op == "CmpNE" else reader._not(any_flag)
+        if expr.bits != 1:
+            r = Convert(self.manager.next_atom(), 1, expr.bits, False, r, **expr.tags)
+        return r
+
     def optimize(self, expr: BinaryOp, *, block_defs=None, block=None, stmt_idx=None, **kwargs):
-        if expr.op != "And" or expr.floating_point or block_defs is None or block_defs.all_defs is None:
+        if expr.floating_point or block_defs is None or block_defs.all_defs is None:
+            return None
+        if expr.op in {"CmpEQ", "CmpNE"}:
+            use = None if block is None or stmt_idx is None else (block, stmt_idx)
+            return self._mask_test(expr, block_defs, use)
+        if expr.op != "And":
             return None
         op0, op1 = expr.operands
         if isinstance(op0, Const):
