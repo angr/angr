@@ -170,6 +170,34 @@ class TestFlagsWordBitThroughVVar(unittest.TestCase):
         bd, _ = self._chain(w1, w2, total(v0, v1, 0xC4))
         assert self.opt.optimize(self._bin("And", v2, self._c(128)), block_defs=bd) is None
 
+    def test_two_flags_tested_at_once(self):
+        a, b = self._v(1, 16), self._v(2, 24)
+        word = self._word(a, b)
+        bd, flags = self._defs(word)
+        nflags = UnaryOp(self.m.next_atom(), "BitwiseNeg", flags, bits=64)
+        nword = UnaryOp(self.m.next_atom(), "BitwiseNeg", word, bits=64)
+        for op in ("CmpEQ", "CmpNE"):
+            # (~flags & 0x41) ==/!= 0: neither/either of CF and ZF
+            expr = self._bin(op, self._bin("And", nflags, self._c(0x41)), self._c(0), 1)
+            out = self.opt.optimize(expr, block_defs=bd)
+            assert out is not None and out.bits == 1
+            assert equivalent(self._bin(op, self._bin("And", nword, self._c(0x41)), self._c(0), 1), out)
+            assert out.depth < word.depth
+        # the parity bit cannot be read as a boolean: the test stays
+        expr = self._bin("CmpEQ", self._bin("And", nflags, self._c(0x45)), self._c(0), 1)
+        assert self.opt.optimize(expr, block_defs=bd) is None
+        # an undefined variable, and a word with no variable hop
+        expr = self._bin("CmpEQ", self._bin("And", a, self._c(0x41)), self._c(0), 1)
+        assert self.opt.optimize(expr, block_defs=bd) is None
+        expr = self._bin("CmpEQ", self._bin("And", nword, self._c(0x41)), self._c(0), 1)
+        assert self.opt.optimize(expr, block_defs=bd) is None
+        # compared with a nonzero constant
+        expr = self._bin("CmpEQ", self._bin("And", nflags, self._c(0x41)), self._c(0x41), 1)
+        assert self.opt.optimize(expr, block_defs=bd) is None
+        # one flag behind the mask (the other bit is a known zero): left to the single-bit case
+        expr = self._bin("CmpEQ", self._bin("And", nflags, self._c(0x48)), self._c(0), 1)
+        assert self.opt.optimize(expr, block_defs=bd) is None
+
     def test_refusals(self):
         a, b = self._v(1, 16), self._v(2, 24)
         word = self._word(a, b)
