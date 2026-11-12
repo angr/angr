@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from angr import sim_options as o
 from angr.calling_conventions import (
@@ -18,7 +18,7 @@ from angr.errors import (
     SimError,
     SimOperationError,
 )
-from angr.simos import SimLinux, SimOS
+from angr.simos import SimLinux, SimOS, SimWindows
 from angr.state_plugins.inspect import BP, BP_AFTER
 
 from .constant_value_manager import ConstantValueManager
@@ -55,19 +55,35 @@ class SyscallResolver(IndirectJumpResolver):
 
     def rust_fast_path(
         self,
-    ) -> tuple[tuple[int, int], dict[str, str] | None, int, Callable[[int, str | None], int]] | None:
+    ) -> (
+        tuple[Literal["linux"], tuple[tuple[int, int], dict[str, str] | None, int, Callable[[int, str | None], int]]]
+        | tuple[Literal["windows"], tuple[int, int]]
+        | None
+    ):
         """
-        What the Rust SyscallResolver needs to resolve a syscall whose number is a block-local constant without
-        symbolic execution: the number register (offset, size), the ABI by jumpkind (None when syscall_abi() is None
-        for every jumpkind), the VEX optimization level of the fastpath engine, and the stub address of a (number,
-        ABI). None when this project needs symbolic execution for every syscall.
+        What the Rust SyscallResolver needs to resolve syscalls without symbolic execution, tagged by OS model.
+
+        - ``("linux", (num_reg, abis, opt_level, stub_addr))``: a syscall whose number is a block-local constant; the
+          number register (offset, size), the ABI by jumpkind (None when syscall_abi() is None for every jumpkind),
+          the VEX optimization level of the fastpath engine, and the stub address of a (number, ABI).
+        - ``("windows", (opt_level, fastfail_addr))``: SimWindows.syscall(), which only knows ``int 29h``.
+
+        None when this project needs symbolic execution for every syscall.
         """
         project = self.project
         simos = project.simos
         engine = project.factory.default_engine
-        if type(simos) is not SimLinux or not isinstance(engine, VEXLifter) or engine.selfmodifying_code:
+        if not isinstance(engine, VEXLifter) or engine.selfmodifying_code:
             return None
+        # VEXLifter.lift_vex() under a fastpath state
+        opt_level = 1 if o.OPTIMIZE_IR in o.modes["fastpath"] else engine._default_opt_level
         arch = project.arch
+        if type(simos) is SimWindows:
+            if arch.name not in {"X86", "AMD64"}:
+                return None
+            return "windows", (opt_level, simos.fastfail.addr)
+        if type(simos) is not SimLinux:
+            return None
         ccs = SYSCALL_CC.get(arch.name)
         if ccs is None:
             return None
@@ -78,9 +94,7 @@ class SyscallResolver(IndirectJumpResolver):
             return None
         # SimLinux.syscall_abi()
         abis = {"Ijk_Sys_syscall": "amd64", "Ijk_Sys_int128": "i386"} if arch.name == "AMD64" else None
-        # VEXLifter.lift_vex() under a fastpath state
-        opt_level = 1 if o.OPTIMIZE_IR in o.modes["fastpath"] else engine._default_opt_level
-        return arch.registers[reg], abis, opt_level, self._syscall_stub_addr
+        return "linux", (arch.registers[reg], abis, opt_level, self._syscall_stub_addr)
 
     def _syscall_stub_addr(self, number: int, abi: str | None) -> int:
         stub = self.project.simos.syscall_from_number(number, allow_unsupported=True, abi=abi)

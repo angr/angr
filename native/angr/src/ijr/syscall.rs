@@ -11,8 +11,9 @@ use crate::ailment::vexop_names::IROP_NAMES;
 use crate::vexir::{Expr, ExprId, Stmt, VexIrsb};
 use crate::vexlift::{VEX_IRSB_MAX_SIZE, jumpkind_from_name, jumpkind_name};
 
-/// What `SyscallResolver.rust_fast_path` returns: how `SimUserland.syscall` reads the number and maps it to a stub.
-pub struct FastPath {
+/// The SimLinux half of `SyscallResolver.rust_fast_path`: how `SimUserland.syscall` reads the number and maps it to
+/// a stub.
+pub struct LinuxFastPath {
     /// The register `cc.syscall_num(state)` reads: (offset, size).
     pub num_reg: (i32, u32),
     /// `syscall_abi(state)` by VEX jumpkind; None when it is None for every jumpkind.
@@ -24,32 +25,66 @@ pub struct FastPath {
     stubs: HashMap<(u64, Option<String>), u64>,
 }
 
+/// What `SyscallResolver.rust_fast_path` returns.
+pub enum FastPath {
+    Linux(LinuxFastPath),
+    /// `SimWindows.syscall` on X86/AMD64: the `__fastfail` stub when the exit instruction is `int 29h`, else None.
+    Windows {
+        opt_level: i32,
+        fastfail: u64,
+    },
+}
+
 /// `((offset, size) of the syscall number register, jumpkind -> ABI, opt_level, stub_addr)`
-type FastPathArgs = ((i32, u32), Option<HashMap<String, String>>, i32, Py<PyAny>);
+type LinuxArgs = ((i32, u32), Option<HashMap<String, String>>, i32, Py<PyAny>);
 
 impl FastPath {
     pub fn from_py(t: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let (num_reg, abis, opt_level, stub_addr): FastPathArgs = t.extract()?;
-        let abis = match abis {
-            None => None,
-            Some(m) => {
-                let mut out = HashMap::new();
-                for (jk, abi) in m {
-                    let code = jumpkind_from_name(&jk).ok_or_else(|| {
-                        pyo3::exceptions::PyValueError::new_err(format!("unknown jumpkind {jk}"))
-                    })?;
-                    out.insert(code, abi);
-                }
-                Some(out)
+        let (tag, args): (String, Bound<'_, PyAny>) = t.extract()?;
+        match tag.as_str() {
+            "linux" => {
+                let (num_reg, abis, opt_level, stub_addr): LinuxArgs = args.extract()?;
+                let abis = match abis {
+                    None => None,
+                    Some(m) => {
+                        let mut out = HashMap::new();
+                        for (jk, abi) in m {
+                            let code = jumpkind_from_name(&jk).ok_or_else(|| {
+                                pyo3::exceptions::PyValueError::new_err(format!(
+                                    "unknown jumpkind {jk}"
+                                ))
+                            })?;
+                            out.insert(code, abi);
+                        }
+                        Some(out)
+                    }
+                };
+                Ok(FastPath::Linux(LinuxFastPath {
+                    num_reg,
+                    abis,
+                    opt_level,
+                    stub_addr,
+                    stubs: HashMap::new(),
+                }))
             }
-        };
-        Ok(FastPath {
-            num_reg,
-            abis,
-            opt_level,
-            stub_addr,
-            stubs: HashMap::new(),
-        })
+            "windows" => {
+                let (opt_level, fastfail): (i32, u64) = args.extract()?;
+                Ok(FastPath::Windows {
+                    opt_level,
+                    fastfail,
+                })
+            }
+            _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "unknown syscall fast path {tag}"
+            ))),
+        }
+    }
+
+    fn opt_level(&self) -> i32 {
+        match self {
+            FastPath::Linux(l) => l.opt_level,
+            FastPath::Windows { opt_level, .. } => *opt_level,
+        }
     }
 }
 
@@ -214,10 +249,10 @@ fn eval(ir: &VexIrsb, tmps: &[Option<u64>], e: ExprId) -> Result<Option<u64>, ()
     }
 }
 
-/// The value of `reg` after the block when every statement is one the fastpath engine runs without raising (so no
-/// statement is skipped) and the block has no conditional exit. None when only symbolic execution can tell.
-fn block_local_reg(ir: &VexIrsb, reg: (i32, u32)) -> Option<u64> {
-    let (off, size) = (reg.0 as i64, reg.1 as i64);
+/// Walks the block the way the fastpath engine runs it. None when a statement may raise (the engine would then skip
+/// statements) or the block has a conditional exit; otherwise the value of `reg` after the block (None when `reg`
+/// is None or its value is not a block-local constant).
+fn run_block(ir: &VexIrsb, reg: Option<(i32, u32)>) -> Option<Option<u64>> {
     let mut tmps: Vec<Option<u64>> = vec![None; ir.tyenv.len()];
     let mut val = None;
     for s in &ir.stmts {
@@ -231,11 +266,14 @@ fn block_local_reg(ir: &VexIrsb, reg: (i32, u32)) -> Option<u64> {
             }
             Stmt::Put { offset, data } => {
                 let v = eval(ir, &tmps, *data).ok()?;
-                let (o, n) = (*offset as i64, (ir.result_bits(*data) / 8) as i64);
-                if o == off && n == size {
-                    val = v;
-                } else if o < off + size && off < o + n {
-                    val = None;
+                if let Some((off, size)) = reg {
+                    let (off, size) = (off as i64, size as i64);
+                    let (o, n) = (*offset as i64, (ir.result_bits(*data) / 8) as i64);
+                    if o == off && n == size {
+                        val = v;
+                    } else if o < off + size && off < o + n {
+                        val = None;
+                    }
                 }
             }
             Stmt::Store { addr, data, .. } => {
@@ -245,8 +283,11 @@ fn block_local_reg(ir: &VexIrsb, reg: (i32, u32)) -> Option<u64> {
             _ => return None,
         }
     }
-    val
+    Some(val)
 }
+
+/// `int 29h` (`__fastfail`)
+const INT29: [u8; 2] = [0xcd, 0x29];
 
 impl Resolver for SyscallResolver {
     fn kind(&self) -> &'static str {
@@ -287,12 +328,12 @@ impl Resolver for SyscallResolver {
         if !store.bind(py).borrow().contains(j.func_addr) {
             return Ok(Decision::Python("no_function"));
         }
-        let abi = match &fast.abis {
-            None => None,
-            Some(m) => match m.get(&j.jumpkind) {
+        let abi = match fast {
+            FastPath::Linux(LinuxFastPath { abis: Some(m), .. }) => match m.get(&j.jumpkind) {
                 Some(a) => Some(a.clone()),
                 None => return Ok(Decision::Python("abi")),
             },
+            _ => None,
         };
         let addr = j.block.addr;
         if cx.is_hooked(py, addr)? {
@@ -302,7 +343,7 @@ impl Resolver for SyscallResolver {
         let spec = IrSpec {
             addr,
             max_size: VEX_IRSB_MAX_SIZE as i64,
-            opt_level: fast.opt_level,
+            opt_level: fast.opt_level(),
             cross_insn_opt: true,
             extra_stops: false,
         };
@@ -312,7 +353,35 @@ impl Resolver for SyscallResolver {
         if ir.jumpkind != j.jumpkind {
             return Ok(Decision::Python("jumpkind"));
         }
-        let Some(num) = block_local_reg(&ir, fast.num_reg) else {
+        let fast = match fast {
+            FastPath::Linux(l) => l,
+            FastPath::Windows { fastfail, .. } => {
+                // SimWindows.syscall: `state.block(state.history.jump_source).bytes == b"\xcd\x29"`. jump_source is
+                // the address of an executed IMark, and a block of exactly `cd 29` starts with that instruction.
+                let imarks: Vec<(u64, u32)> = ir
+                    .stmts
+                    .iter()
+                    .filter_map(|s| match s {
+                        Stmt::IMark { addr, len, delta } => Some((addr + *delta as u64, *len)),
+                        _ => None,
+                    })
+                    .collect();
+                let is_int29 = |&(a, len): &(u64, u32)| {
+                    len == 2 && cx.snap.load_bytes(a, 2).as_deref() == Some(&INT29[..])
+                };
+                if !imarks.iter().any(is_int29) {
+                    return Ok(Decision::Done(Outcome::Unresolved));
+                }
+                // with every statement run, jump_source is the last IMark of the default exit
+                return Ok(match (run_block(&ir, None), imarks.last()) {
+                    (Some(_), Some(last)) if last.0 != 0 && is_int29(last) => {
+                        Decision::Done(Outcome::Resolved(vec![*fastfail]))
+                    }
+                    _ => Decision::Python("symbolic"),
+                });
+            }
+        };
+        let Some(Some(num)) = run_block(&ir, Some(fast.num_reg)) else {
             return Ok(Decision::Python("symbolic"));
         };
         let key = (num, abi);

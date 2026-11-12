@@ -58,6 +58,30 @@ class TestSyscallResolver(unittest.TestCase):
             assert edges, binary
             assert edges == syscall_edges(cfg_py), binary
 
+    def test_rust_fast_path_windows_fastfail(self):
+        # SimWindows only resolves `int 29h` (__fastfail); Rust decides it from the block's last instruction
+        for binary in ("x86_64/windows/fastfail.exe", "i386/windows/known_patterns_stl_msvc_17_x86.exe"):
+            path = os.path.join(test_location, *binary.split("/"))
+            proj = angr.Project(path, auto_load_libs=False)
+            assert proj.simos.syscall_from_addr(proj.simos.fastfail.addr) is proj.simos.fastfail
+            cfg = proj.analyses.CFGFast(normalize=True)
+            assert cfg._ijr_stats.get("SyscallResolver:resolved", 0) > 0, binary
+            assert not any(k.startswith("SyscallResolver:decline") for k in cfg._ijr_stats), binary
+            with mock.patch.object(SyscallResolver, "rust_fast_path", return_value=None):
+                cfg_py = angr.Project(path, auto_load_libs=False).analyses.CFGFast(normalize=True)
+            assert cfg_py._ijr_stats.get("SyscallResolver:rust", 0) == 0
+
+            def syscall_edges(c):
+                return sorted(
+                    (src.addr, dst.addr, data["jumpkind"])
+                    for src, dst, data in c.graph.edges(data=True)
+                    if data["jumpkind"].startswith("Ijk_Sys")
+                )
+
+            edges = syscall_edges(cfg)
+            assert edges and all(dst == proj.simos.fastfail.addr for _, dst, _ in edges), binary
+            assert edges == syscall_edges(cfg_py), binary
+
     def test_rust_fast_path_shadow(self):
         path = os.path.join(test_location, "x86_64", "calc")
         with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):
