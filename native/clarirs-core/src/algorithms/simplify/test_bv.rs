@@ -1367,3 +1367,35 @@ fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<()> {
     assert_eq!(unrelated.simplify()?, unrelated);
     Ok(())
 }
+
+#[test]
+fn test_add_of_negative_constant_is_a_sub() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 32)?;
+    let c = |v: u64| ctx.bvv(BitVec::from((v, 32))).unwrap();
+
+    // x + c with the sign bit of c set is x - (-c), and constants fold into that form
+    assert_eq!(ctx.add(&x, c(0xffff_ffff))?.simplify()?, ctx.sub(&x, c(1))?);
+    assert_eq!(
+        ctx.add(&ctx.sub(&x, c(0x1e8))?, c(0x120))?.simplify()?,
+        ctx.sub(&x, c(0xc8))?
+    );
+    assert_eq!(
+        ctx.add(&ctx.add(&x, c(0x100))?, c(0xffff_ff00))?
+            .simplify()?,
+        x
+    );
+
+    // the smallest signed value is its own negation and stays an Add
+    let min = ctx.add(&x, c(0x8000_0000))?;
+    assert_eq!(min.simplify()?, min);
+
+    // a sum of symbols keeps its constant on the outside
+    let y = ctx.bvs("y", 32)?;
+    assert_eq!(
+        ctx.add_many(vec![x.clone(), y.clone(), c(0xffff_fffe)])?
+            .simplify()?,
+        ctx.sub(&ctx.add(&x, &y)?, c(2))?
+    );
+    Ok(())
+}

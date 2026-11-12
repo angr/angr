@@ -512,47 +512,56 @@ pub(crate) fn simplify_bv<'c>(
                     .zip(simplified.iter())
                     .any(|(a, b)| a.hash() != b.hash());
 
+            if let [a, b] = sym_args.as_slice() {
+                match (a.op(), b.op()) {
+                    // v + (bvv - other) => (v + bvv) - other
+                    (AstOp::BVV(v), AstOp::Sub(bvv, other))
+                    | (AstOp::Sub(bvv, other), AstOp::BVV(v))
+                        if matches!(bvv.op(), AstOp::BVV(_)) =>
+                    {
+                        if let AstOp::BVV(bvv_value) = bvv.op() {
+                            let combined_value = (v.clone() + bvv_value.clone())?;
+                            let combined_bvv = ctx.bvv(combined_value)?;
+                            return state.rerun(ctx.sub(combined_bvv, other.clone())?);
+                        }
+                        unreachable!()
+                    }
+                    (AstOp::BVV(v), AstOp::Sub(other, bvv))
+                    | (AstOp::Sub(other, bvv), AstOp::BVV(v))
+                        if matches!(bvv.op(), AstOp::BVV(_)) =>
+                    {
+                        if let AstOp::BVV(bvv_value) = bvv.op() {
+                            let combined_value = (v.clone() - bvv_value.clone())?;
+                            let combined_bvv = ctx.bvv(combined_value)?;
+                            return state.rerun(ctx.add(other.clone(), combined_bvv)?);
+                        }
+                        unreachable!()
+                    }
+                    _ => {}
+                }
+            }
+
             match sym_args.len() {
                 0 => Ok(ctx.bvv(BitVec::zeros(size))?),
                 1 => Ok(sym_args.into_iter().next().unwrap()),
-                2 => {
-                    let (a, b) = (&sym_args[0], &sym_args[1]);
-                    match (a.op(), b.op()) {
-                        // v + (bvv - other) => (v + bvv) - other
-                        (AstOp::BVV(v), AstOp::Sub(bvv, other))
-                        | (AstOp::Sub(bvv, other), AstOp::BVV(v))
-                            if matches!(bvv.op(), AstOp::BVV(_)) =>
-                        {
-                            if let AstOp::BVV(bvv_value) = bvv.op() {
-                                let combined_value = (v.clone() + bvv_value.clone())?;
-                                let combined_bvv = ctx.bvv(combined_value)?;
-                                state.rerun(ctx.sub(combined_bvv, other.clone())?)
+                _ => {
+                    // x + c with the sign bit of c set is x - (-c), so that one value has one
+                    // form. The smallest signed value is its own negation and stays an Add.
+                    if let AstOp::BVV(c) = sym_args[sym_args.len() - 1].op()
+                        && c.len() > 1
+                        && c.sign()
+                    {
+                        let negated = (-c.clone())?;
+                        if !negated.sign() {
+                            sym_args.pop();
+                            let sum = if sym_args.len() == 1 {
+                                sym_args.pop().unwrap()
                             } else {
-                                unreachable!()
-                            }
-                        }
-                        (AstOp::BVV(v), AstOp::Sub(other, bvv))
-                        | (AstOp::Sub(other, bvv), AstOp::BVV(v))
-                            if matches!(bvv.op(), AstOp::BVV(_)) =>
-                        {
-                            if let AstOp::BVV(bvv_value) = bvv.op() {
-                                let combined_value = (v.clone() - bvv_value.clone())?;
-                                let combined_bvv = ctx.bvv(combined_value)?;
-                                state.rerun(ctx.add(other.clone(), combined_bvv)?)
-                            } else {
-                                unreachable!()
-                            }
-                        }
-                        _ => {
-                            if changed {
-                                state.rerun(ctx.add_many(sym_args)?)
-                            } else {
-                                Ok(ctx.add_many(sym_args)?)
-                            }
+                                ctx.add_many(sym_args)?
+                            };
+                            return state.rerun(ctx.sub(sum, ctx.bvv(negated)?)?);
                         }
                     }
-                }
-                _ => {
                     if changed {
                         state.rerun(ctx.add_many(sym_args)?)
                     } else {
