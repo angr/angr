@@ -39,3 +39,9 @@ class BlockScanner:
 
     def stats(self) -> dict[str, int]:
         """Counters of Rust-processed jobs and of escapes and callbacks by reason."""
+
+def bp_as_gpr(bytes: bytes, addr: int, insn_addrs: list[int], amd64: bool) -> bool | None:
+    """
+    ``CFGFast._bp_as_gpr_by_capstone`` for the X86/AMD64 block ``bytes`` at ``addr`` whose VEX instruction starts are
+    ``insn_addrs``: the verdict, or None when only capstone can tell.
+    """

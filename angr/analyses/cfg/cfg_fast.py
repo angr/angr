@@ -740,6 +740,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_ijr_shadow = False
     # append shadow-mode mismatches to this JSONL file
     _rust_ijr_shadow_log: str | None = None
+    # the Rust block scan asks capstone about bp_as_gpr for every block it decides, and counts disagreements
+    _rust_bp_as_gpr_shadow = False
     # the architectures the Rust JumpTableResolver handles; other jumps decline to the Python resolver
     _rust_jt_arches: frozenset[str] = frozenset({"AMD64", "X86", "ARMEL", "ARMHF", "ARMCortexM", "AARCH64", "MIPS32"})
     # on every architecture, answer jumps whose target is not table-shaped (a register, a field load, a word load

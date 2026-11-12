@@ -40,6 +40,7 @@ use crate::vexlift::{
     IJK_BORING, IJK_NODECODE, LiftOptions, LiftSummary, NextExpr, VexLifter, data_ref_type_str,
     jumpkind_from_name,
 };
+use crate::x86_frame;
 
 const DEFAULT_STATEMENT: i64 = -2;
 const VEX_IRSB_MAX_SIZE: i64 = 400;
@@ -104,6 +105,8 @@ struct Config {
     /// MIPS32: ($gp offset, $t9 offset) for the $gp prologue scan.
     mips32_gp: Option<(i32, i32)>,
     big_endian: bool,
+    /// `CFGFast._rust_bp_as_gpr_shadow`: ask capstone about every block and count where the Rust verdict differs.
+    bp_as_gpr_shadow: bool,
 }
 
 /// A data reference to be recorded by `CFGFast._apply_rust_data_refs`.
@@ -1170,31 +1173,65 @@ impl BlockScanner {
                     return Ok(());
                 }
                 // capstone finds `mov ebp/rbp, esp/rsp` or `lea ebp/rbp, [esp/rsp ...]` only where these opcode/ModRM
-                // pairs occur; without one, the answer is True without disassembling
-                let candidate = {
+                // pairs occur; without one, the answer is True without disassembling. Otherwise the Rust decoder
+                // decides, and capstone where the decoder is unsure.
+                // decided: None when only capstone can tell
+                let (candidate, decided) = {
                     let snap = &self.snapshot.bind(py).get().inner;
                     match snap.load_bytes(addr, size as usize) {
-                        Some(bytes) => bytes.windows(2).any(|w| {
-                            matches!(
-                                (w[0], w[1]),
-                                (0x89, 0xE5)
-                                    | (0x8B, 0xEC)
-                                    | (0x8D, 0x2C)
-                                    | (0x8D, 0x6C)
-                                    | (0x8D, 0xAC)
-                            )
-                        }),
-                        None => true,
+                        Some(bytes) => {
+                            let candidate = bytes.windows(2).any(|w| {
+                                matches!(
+                                    (w[0], w[1]),
+                                    (0x89, 0xE5)
+                                        | (0x8B, 0xEC)
+                                        | (0x8D, 0x2C)
+                                        | (0x8D, 0x6C)
+                                        | (0x8D, 0xAC)
+                                )
+                            });
+                            let decided = if candidate {
+                                x86_frame::bp_as_gpr(
+                                    &bytes,
+                                    addr,
+                                    &summary.instruction_addresses,
+                                    self.conf.arch == ArchKind::Amd64,
+                                )
+                            } else {
+                                Some(true)
+                            };
+                            (candidate, decided)
+                        }
+                        None => (true, None),
                     }
                 };
-                let bp_as_gpr = if candidate {
-                    self.count("callback:bp_as_gpr");
-                    self.flush(ctx)?;
-                    ctx.cfg
-                        .call_method1(intern!(py, "_bp_as_gpr_by_capstone"), (addr, size))?
-                        .is_truthy()?
-                } else {
-                    true
+                let bp_as_gpr = match decided {
+                    Some(v) if !self.conf.bp_as_gpr_shadow => {
+                        if candidate {
+                            self.count("bp_as_gpr:rust");
+                        }
+                        v
+                    }
+                    _ => {
+                        self.count("callback:bp_as_gpr");
+                        self.flush(ctx)?;
+                        let py_v = ctx
+                            .cfg
+                            .call_method1(intern!(py, "_bp_as_gpr_by_capstone"), (addr, size))?
+                            .is_truthy()?;
+                        if self.conf.bp_as_gpr_shadow {
+                            let what = if candidate { "decoder" } else { "prefilter" };
+                            match decided {
+                                Some(v) if v == py_v => {
+                                    self.count(&format!("bp_as_gpr:shadow_same:{what}"))
+                                }
+                                Some(_) => self
+                                    .count(&format!("bp_as_gpr:shadow_mismatch:{what}@{addr:#x}")),
+                                None => self.count("bp_as_gpr:shadow_unsure"),
+                            }
+                        }
+                        py_v
+                    }
                 };
                 let v = PyBool::new(py, bp_as_gpr).to_owned();
                 self.store.bind(py).borrow_mut().info_set(
@@ -2327,6 +2364,7 @@ impl BlockScanner {
                 None
             },
             big_endian: a.big_endian,
+            bp_as_gpr_shadow: cfg.getattr("_rust_bp_as_gpr_shadow")?.is_truthy()?,
         };
         let _ = conf.arch_bytes;
         Ok(BlockScanner {
@@ -2544,6 +2582,7 @@ impl BlockScanner {
 
 pub fn cfg_block(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BlockScanner>()?;
+    m.add_function(wrap_pyfunction!(x86_frame::py_bp_as_gpr, m)?)?;
     let _ = jk_intern;
     let _ = JK_CALL;
     Ok(())

@@ -20,6 +20,7 @@ pub mod recovery_functions;
 pub mod segmentlist;
 pub mod vexir;
 pub mod vexlift;
+pub mod x86_frame;
 
 use pyo3::prelude::*;
 
