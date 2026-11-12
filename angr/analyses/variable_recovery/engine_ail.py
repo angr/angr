@@ -1025,13 +1025,14 @@ class SimEngineVRAIL(
             and operand.parameter_category == ailment.Expr.VirtualVariableCategory.STACK
         )
         if isinstance(operand, ailment.Expr.VirtualVariable) and (operand.was_stack or is_stack_param):
+            vvar_id = self._mapped_vvarid(operand.varid)
             if expr.tags.get("extra_def", False):
-                self._assign_to_vvar(expr.operand, self._top(expr.operand.bits), dst=expr.operand)
+                self._assign_to_vvar(operand, self._top(operand.bits), dst=operand, vvar_id=vvar_id)
             refbase_typevar = None
             off = operand.parameter_stack_offset if is_stack_param else operand.stack_offset
 
             # does this variable exist?
-            value: claripy.ast.BV | None = self.vvar_region.get(expr.operand.varid, None)
+            value: claripy.ast.BV | None = self.vvar_region.get(operand.varid if vvar_id is None else vvar_id, None)
             if value is not None:
                 for _, var in self.state.extract_variables(value):
                     if var in self.state.typevars:
