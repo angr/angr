@@ -30,6 +30,13 @@ test_location = os.path.join(bin_location, "tests")
 # pylint: disable=no-self-use
 class TestStructMemberAccess(unittest.TestCase):
     def test_struct_member_write(self):
+        self._check_struct_member_write(None)
+
+    def test_struct_member_write_in_pointer(self):
+        # the callee is known to read the struct: the members are merged into one stack variable during SSA
+        self._check_struct_member_write(PointerDisposition.IN)
+
+    def _check_struct_member_write(self, disposition: PointerDisposition | None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "struct_member_access")
         proj = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
 
@@ -45,7 +52,8 @@ class TestStructMemberAccess(unittest.TestCase):
             proj.arch.name, platform=proj.simos.name if proj.simos is not None else None
         )(proj.arch)
         foo_func.prototype = angr.types.parse_type("void (struct Outer *a)").with_arch(proj.arch)
-        foo_func.prototype.args[0].disposition = PointerDisposition.IN
+        if disposition is not None:
+            foo_func.prototype.args[0].disposition = disposition
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg)
         assert dec.codegen is not None and dec.codegen.text is not None

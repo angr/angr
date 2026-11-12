@@ -75,9 +75,11 @@ class VariableMap:
         "_reference_variable_offsets",
         "_reference_variables",
         "_returntys",
+        "_struct_members",
         "_variable_offsets",
         "_variables",
         "_variants",
+        "_vvar_id_to_struct_member",
         "_vvar_id_to_variable",
         "_vvar_id_to_variable_offset",
     )
@@ -102,6 +104,10 @@ class VariableMap:
         # TODO: Identify these cases, fix them, and get rid of this fallback.
         self._vvar_id_to_variable: dict[int, SimVariable] = {}
         self._vvar_id_to_variable_offset: dict[int, int] = {}
+        # ``struct_member``: the struct- or array-typed stack variable that covers a stack access, and the byte offset
+        # of the access into it. Kept apart from ``variable`` so the atom's own variable stays intact.
+        self._struct_members: dict[int, tuple[SimVariable, int]] = {}
+        self._vvar_id_to_struct_member: dict[int, tuple[SimVariable, int]] = {}
 
     #
     # Key helper
@@ -132,6 +138,15 @@ class VariableMap:
         if varid is not None and varid in self._vvar_id_to_variable_offset:
             return self._vvar_id_to_variable_offset[varid]
         return 0
+
+    def struct_member(self, obj: AILObject | int) -> tuple[SimVariable, int] | None:
+        m = self._struct_members.get(self._key(obj))
+        if m is not None:
+            return m
+        varid = getattr(obj, "varid", None)
+        if varid is not None:
+            return self._vvar_id_to_struct_member.get(varid)
+        return None
 
     def custom_string(self, obj: AILObject | int) -> bool:
         return self._custom_strings.get(self._key(obj), False)
@@ -189,6 +204,12 @@ class VariableMap:
 
     def set_variable_offset(self, obj: AILObject | int, offset: int) -> None:
         self._variable_offsets[self._key(obj)] = offset
+
+    def set_struct_member(self, obj: AILObject | int, variable: SimVariable, offset: int) -> None:
+        self._struct_members[self._key(obj)] = variable, offset
+        varid = getattr(obj, "varid", None)
+        if varid is not None:
+            self._vvar_id_to_struct_member[varid] = variable, offset
 
     def set_custom_string(self, obj: AILObject | int, value: bool = True) -> None:
         self._custom_strings[self._key(obj)] = value
@@ -260,6 +281,7 @@ class VariableMap:
         for d in (
             self._variables,
             self._variable_offsets,
+            self._struct_members,
             self._custom_strings,
             self._reference_values,
             self._reference_variables,
@@ -331,6 +353,7 @@ class VariableMap:
         return {
             "variables": {idx: (v.ident if v is not None else None) for idx, v in self._variables.items()},
             "variable_offsets": dict(self._variable_offsets),
+            "struct_members": {idx: [v.ident, offset] for idx, (v, offset) in self._struct_members.items()},
             "custom_strings": dict(self._custom_strings),
             "reference_values": {idx: self._reference_values_to_json(d) for idx, d in self._reference_values.items()},
             "reference_variables": {
@@ -368,6 +391,10 @@ class VariableMap:
                 _l.warning("Variable with ident %s could not be resolved during VariableMap deserialization", ident)
         for idx, offset in data.get("variable_offsets", {}).items():
             vm._variable_offsets[int(idx)] = offset
+        for idx, (ident, offset) in data.get("struct_members", {}).items():
+            v = _resolve(ident)
+            if v is not None:
+                vm._struct_members[int(idx)] = v, offset
         for idx, value in data.get("custom_strings", {}).items():
             vm._custom_strings[int(idx)] = value
         for idx, items in data.get("reference_values", {}).items():
