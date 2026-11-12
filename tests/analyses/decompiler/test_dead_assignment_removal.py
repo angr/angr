@@ -13,7 +13,7 @@ import archinfo
 
 import angr
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Call, Const, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Call, Const, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.ail_simplifier import AILSimplifier
@@ -31,7 +31,7 @@ def _vvar(varid: int) -> VirtualVariable:
     return VirtualVariable(varid, varid, 32, VirtualVariableCategory.REGISTER, oident=16)
 
 
-def _find_dead_vvars(statements):
+def _find_dead_vvars(statements, retpoints=()):
     """
     Run AILSimplifier._find_dead_vvars over a single block made of ``statements``.
     """
@@ -44,9 +44,23 @@ def _find_dead_vvars(statements):
     simplifier._propagator_dead_vvar_ids = set()
     simplifier._remove_dead_memdefs = False
     simplifier._stackarg_offset_manager = None
+    simplifier._avoid_vvar_ids = set()
 
-    to_remove, to_keep, dead_vvar_ids = simplifier._find_dead_vvars(model, blocks, set())
+    to_remove, to_keep, dead_vvar_ids = simplifier._find_dead_vvars(model, blocks, set(retpoints))
     return to_remove[BLOCK_KEY], to_keep[BLOCK_KEY], dead_vvar_ids
+
+
+def _extra_def_block(src_of):
+    """
+    v1 = v0; v2 = src_of(v1, &stack_v3), which also defines stack_v3; return stack_v3. v2 is never read.
+    """
+    stack_v3 = VirtualVariable(30, 3, 32, VirtualVariableCategory.STACK, oident=-16)
+    ref = UnaryOp(31, "Reference", stack_v3, bits=32, extra_def=True)
+    return [
+        Assignment(0, _vvar(1), _vvar(0), ins_addr=BLOCK_ADDR),
+        Assignment(1, _vvar(2), src_of(_vvar(1), ref), ins_addr=BLOCK_ADDR + 1, extra_defs=[3]),
+        Return(2, [stack_v3], ins_addr=BLOCK_ADDR + 2),
+    ]
 
 
 class TestDeadAssignmentRemoval(unittest.TestCase):
@@ -93,6 +107,48 @@ class TestDeadAssignmentRemoval(unittest.TestCase):
         assert to_remove == {1}
         assert to_keep == {0}
         assert dead_vvar_ids == {2}
+
+
+    def test_dead_destination_with_a_live_extra_def(self):
+        # the statement stays for the stack variable that it also defines. it used to keep its whole source while the
+        # definition of v1 was removed, leaving a read of an undefined variable.
+        statements = _extra_def_block(lambda v1, ref: BinaryOp(10, "Xor", [v1, ref], False, bits=32))
+        blocks = {BLOCK_KEY: Block(BLOCK_ADDR, 1, statements=statements, idx=0)}
+        model = SRDAModel(None, None, archinfo.ArchAMD64())
+        populate_model(model, blocks, None)
+
+        simplifier = AILSimplifier.__new__(AILSimplifier)
+        simplifier._removed_vvar_ids = set()
+        simplifier._propagator_dead_vvar_ids = set()
+        simplifier._remove_dead_memdefs = False
+        simplifier._stackarg_offset_manager = None
+        simplifier._avoid_vvar_ids = set()
+        to_remove, to_keep, dead_vvar_ids = simplifier._find_dead_vvars(model, blocks, {BLOCK_KEY})
+
+        assert to_keep[BLOCK_KEY] == {1}
+        assert dead_vvar_ids == {0, 1, 2}
+        assert to_remove[BLOCK_KEY] == {0, 1}
+        # the surviving statement no longer reads v1
+        carrier = simplifier._dead_dst_carriers[(*BLOCK_KEY, 1)]
+        assert carrier.op == "Reference" and carrier.operand.varid == 3 and carrier.tags["extra_def"]
+
+    def test_dead_destination_with_a_live_extra_def_and_a_call(self):
+        # the source cannot be cut down, so everything that it reads stays defined
+        statements = _extra_def_block(
+            lambda v1, ref: Call(100, Const(101, 0x400500, 64), args=[v1, ref], bits=32, ins_addr=BLOCK_ADDR + 1)
+        )
+        to_remove, to_keep, dead_vvar_ids = _find_dead_vvars(statements, {BLOCK_KEY})
+        assert to_remove == {1}
+        assert to_keep == {0, 1}
+        assert dead_vvar_ids == {2}
+
+    def test_dead_destination_with_an_extra_def_that_is_not_a_candidate(self):
+        # the stack variable is never considered for removal, so nothing keeps the statement
+        statements = _extra_def_block(lambda v1, ref: ref)
+        to_remove, to_keep, dead_vvar_ids = _find_dead_vvars(statements)
+        assert to_remove == {0, 1}
+        assert to_keep == set()
+        assert dead_vvar_ids == {0, 1, 2}
 
 
 class TestPackerFillerDecompilation(unittest.TestCase):

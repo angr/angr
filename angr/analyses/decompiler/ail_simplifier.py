@@ -508,6 +508,26 @@ def _vvars_read(stmt: Statement) -> set[int]:
     return {vvar.varid for vvar in stack_vvar_reads_in_stmt(stmt)}
 
 
+class _ExtraDefRefFinder(AILBlockViewer):
+    """
+    Collect the References that define a stack variable (extra_def) and note dirty expressions.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.refs: list[UnaryOp] = []
+        self.has_dirty = False
+
+    def _handle_UnaryOp(self, expr_idx: int, expr, stmt_idx: int, stmt, block):
+        if expr.op == "Reference" and expr.tags.get("extra_def", False):
+            self.refs.append(expr)
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_DirtyExpression(self, expr_idx: int, expr, stmt_idx: int, stmt, block):
+        self.has_dirty = True
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
@@ -579,6 +599,8 @@ class AILSimplifier(Analysis):
         self._arg_vvars = arg_vvars
         self._avoid_vvar_ids = avoid_vvar_ids if avoid_vvar_ids is not None else set()
         self._propagator_dead_vvar_ids: set[int] = set()
+        # dead-destination assignments to cut down to the Reference that defines a stack variable
+        self._dead_dst_carriers: dict[tuple[int, int | None, int], Expression] = {}
         # per-block cache of dirty/ccall-defined vvar IDs, keyed by block key, validated by block identity
         self._dirty_vvar_scan_cache: dict[tuple[int, int], tuple[Block, set[int]]] = {}
         # only set to True when any simplification pass has modified the graph or updated any blocks.
@@ -2934,6 +2956,13 @@ class AILSimplifier(Analysis):
 
             live_use_counts[vvar_id] = len(uses)
 
+        # all vvars defined at each site; a site may define more than one (extra_defs, multiple return values)
+        vvars_by_defloc: dict[AILCodeLocation, list[int]] = defaultdict(list)
+        for vvar_id, codeloc in rd.all_vvar_definitions.items():
+            if not codeloc.is_extern:
+                vvars_by_defloc[codeloc].append(vvar_id)
+        self._dead_dst_carriers = {}
+
         # retire every vvar without live uses. retiring a vvar kills its definition site, which in turn discounts the
         # uses that this site makes of other vvars, potentially retiring them as well.
         worklist = deque(vvar_id for vvar_id, count in live_use_counts.items() if count == 0)
@@ -2943,19 +2972,28 @@ class AILSimplifier(Analysis):
                 continue
             dead_vvar_ids.add(vvar_id)
             codeloc = rd.all_vvar_definitions[vvar_id]
-            if not codeloc.is_extern:
-                stmts_to_remove_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
-                stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].discard(codeloc.stmt_idx)
-            if codeloc in dead_vvar_codelocs:
-                # another vvar defined at this site died first; its uses were already discounted
-                continue
-            dead_vvar_codelocs.add(codeloc)
             if codeloc.is_extern:
                 continue
+            block_key = codeloc.block_addr, codeloc.block_idx
+            stmts_to_remove_per_block[block_key].add(codeloc.stmt_idx)
+            stmt = blocks[block_key].statements[codeloc.stmt_idx]
+            if any(other in live_use_counts and other not in dead_vvar_ids for other in vvars_by_defloc[codeloc]):
+                # the site survives for another live candidate that it defines, so its uses still count...
+                stmts_to_keep_per_block[block_key].add(codeloc.stmt_idx)
+                carrier = self._extra_def_carrier(stmt, vvar_id, vvars_by_defloc[codeloc])
+                if carrier is None:
+                    continue
+                # ... unless all it must keep is the extra definition
+                self._dead_dst_carriers[(*block_key, codeloc.stmt_idx)] = carrier
+            else:
+                stmts_to_keep_per_block[block_key].discard(codeloc.stmt_idx)
+            if codeloc in dead_vvar_codelocs:
+                # the uses of this site were already discounted
+                continue
+            dead_vvar_codelocs.add(codeloc)
             users = rd.vvar_uses_by_loc.get(codeloc)
             if not users:
                 continue
-            stmt = blocks[(codeloc.block_addr, codeloc.block_idx)].statements[codeloc.stmt_idx]
             if (self._statement_has_call_exprs(stmt) and not _is_flags_read_assignment(stmt)) or isinstance(
                 stmt, (DirtyStatement, SideEffectStatement)
             ):
@@ -2977,6 +3015,32 @@ class AILSimplifier(Analysis):
                 stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
 
         return stmts_to_remove_per_block, stmts_to_keep_per_block, dead_vvar_ids
+
+    def _extra_def_carrier(self, stmt: Statement, dead_varid: int, defined_varids: list[int]) -> Expression | None:
+        """
+        For an assignment whose destination is dead but which also defines one stack variable through an
+        extra_def-tagged Reference, return that Reference; it is all that the statement must keep.
+        """
+        if not (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.varid == dead_varid
+            and stmt.dst.varid not in self._avoid_vvar_ids
+            and not stmt.dst.was_combo_reg
+            and len(defined_varids) == 2
+        ):
+            return None
+        src = stmt.src
+        if src.tags.get("extra_def", False) or src.bits != stmt.dst.bits or self._statement_has_call_exprs(stmt):
+            return None
+        finder = _ExtraDefRefFinder()
+        finder.walk_expression(src)
+        if finder.has_dirty or len(finder.refs) != 1:
+            return None
+        ref = finder.refs[0]
+        if ref.bits != src.bits or [ref.operand.varid] != [v for v in defined_varids if v != dead_varid]:
+            return None
+        return ref
 
     def _unresolved_variadic_call_reads(self, blocks: dict[Address, Block]) -> set[int]:
         succs = {
@@ -3105,6 +3169,13 @@ class AILSimplifier(Analysis):
                 continue
 
             for idx, stmt in enumerate(block.statements):
+                if idx in stmts_to_remove and idx in stmts_to_keep:
+                    carrier = self._dead_dst_carriers.get((block.addr, block.idx, idx))
+                    if carrier is not None:
+                        # the destination is dead; keep only the definition of the stack variable
+                        assert isinstance(stmt, Assignment)
+                        stmt = Assignment(stmt.idx, stmt.dst, carrier, **stmt.tags)
+                        simplified = True
                 if (
                     idx in stmts_to_remove
                     and idx in stmts_to_keep
