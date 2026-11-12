@@ -3278,10 +3278,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # Normalize the control flow graph first before rediscovering all functions
             self.normalize()
 
+        nodes_before = self.graph.number_of_nodes()
         if self.project.arch.name in ("X86", "AMD64", "MIPS32"):
             self._remove_redundant_overlapping_blocks()
         elif is_arm_arch(self.project.arch):
             self._remove_redundant_overlapping_blocks(function_alignment=4, is_arm=True)
+        if self._normalize and self.graph.number_of_nodes() != nodes_before:
+            # the removed blocks may have kept other overlapping blocks from being split
+            self.normalize()
 
         self._updated_nonreturning_functions = set()
 
