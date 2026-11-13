@@ -4204,6 +4204,74 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return cexpr
         return CReinterpret(ty, fp_cls(), cexpr, codegen=self)
 
+    def _fp_operand_view(self, cexpr: CExpression, operand: Expr.Expression, scalar: bool = True) -> CExpression:
+        """
+        An FP operation reads its operand as a floating-point value. When the operand's C expression has an integer
+        type of the operand's width, view its bits as the FP type of that width instead of letting C convert the
+        integer value: a dereference reads through an FP pointer, an integer truncation of an FP value of that width
+        is replaced by the FP value, and anything else goes through CReinterpret. An integer truncation of an FP value
+        of another width keeps its cast, as no view of the converted value can restore the bits. A vector operand only
+        gets the variable view of _fp_view_of_int_lvalue, as the FP type of its width is not a vector type. Constants
+        are left to _fp_constant.
+        """
+        bits = operand.bits
+        if not scalar:
+            return self._fp_view_of_int_lvalue(cexpr, bits)
+        if isinstance(cexpr, CConstant) or cexpr.type is None:
+            return cexpr
+        ty = unpack_typeref(cexpr.type)
+        if not isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum)) or ty.size != bits:
+            return cexpr
+        fp_cls = _FP_TYPES_BY_BITS.get(bits)
+        if fp_cls is None:
+            return cexpr
+        truncation = is_lsb_extract(operand) or (
+            isinstance(operand, Expr.Convert)
+            and operand.from_type == operand.to_type == Expr.ConvertType.TYPE_INT
+            and operand.from_bits >= operand.to_bits
+        )
+        if (
+            truncation
+            and isinstance(cexpr, CTypeCast)
+            and (inner := self._as_declared(cexpr.expr)).type is not None
+            and isinstance(inner_ty := unpack_typeref(inner.type), SimTypeFloat)
+        ):
+            # an integer truncation of an FP value, e.g. the low 32 bits of xmm0 after a call returning float. The C
+            # cast converts the value and no view of its result can restore the bits, so only an FP value of the
+            # operand's width can replace the cast.
+            return inner if inner_ty.size == bits else cexpr
+        if isinstance(cexpr, CUnaryOp) and cexpr.op == "Dereference":
+            ptr = cexpr.operand
+            if isinstance(ptr, CTypeCast) and isinstance(unpack_typeref(ptr.dst_type), SimTypePointer):
+                ptr = ptr.expr
+            if ptr.type is not None:
+                fp_ptr = SimTypePointer(fp_cls()).with_arch(self.project.arch)
+                return CUnaryOp(
+                    "Dereference", CTypeCast(ptr.type, fp_ptr, ptr, codegen=self), tags=cexpr.tags, codegen=self
+                )
+        return CReinterpret(ty, fp_cls(), cexpr, codegen=self)
+
+    def _as_declared(self, cexpr: CExpression) -> CExpression:
+        """
+        cexpr with the type the output declares for it. Only function arguments are retyped: the header declares an
+        argument with the prototype's type, which variable typing does not always agree with, e.g. a float argument
+        whose register variable is typed unsigned long long.
+        """
+        if isinstance(cexpr, CVariable) and self._func_args and self._func.prototype is not None:
+            var = cexpr.unified_variable or cexpr.variable
+            unified = self.kb.dec_variables[self._func.addr].unified_variable
+            for arg, arg_ty in zip(self._func_args, self._func.prototype.args):
+                if (unified(arg) or arg) == var and arg_ty != cexpr.type:
+                    return CVariable(
+                        cexpr.variable,
+                        unified_variable=cexpr.unified_variable,
+                        variable_type=arg_ty,
+                        vvar_id=cexpr.vvar_id,
+                        tags=cexpr.tags,
+                        codegen=self,
+                    )
+        return cexpr
+
     def _assign_converted(self, cdst: CExpression, csrc: CExpression, cast_other: bool = True, **kwargs) -> CAssignment:
         """
         dst = src where the C types differ. An FP value and an integer of the same width are the same bits in a
@@ -5730,11 +5798,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         if expr.floating_point:
             scalar = expr.vector_count is None
-            lhs = self._fp_view_of_int_lvalue(self._fp_constant(lhs, expr.operands[0], scalar), expr.operands[0].bits)
+            lhs = self._fp_operand_view(self._fp_constant(lhs, expr.operands[0], scalar), expr.operands[0], scalar)
             if expr.op != "Scale":  # ldexp's exponent operand is an integer
-                rhs = self._fp_view_of_int_lvalue(
-                    self._fp_constant(rhs, expr.operands[1], scalar), expr.operands[1].bits
-                )
+                rhs = self._fp_operand_view(self._fp_constant(rhs, expr.operands[1], scalar), expr.operands[1], scalar)
         else:
             # an integer operation on an FP-typed operand works on its bit pattern
             lhs = self._fp_operand_bits(lhs, expr.operands[0].bits)
@@ -5798,7 +5864,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         child = self._handle(expr.operand)
         if expr.from_type == Expr.ConvertType.TYPE_FP:
-            child = self._fp_view_of_int_lvalue(child, expr.operand.bits)
+            child = self._fp_operand_view(child, expr.operand)
         if expr.from_bits == 1 and expr.to_bits > 1 and isinstance(child, CBinaryOp) and child.op == "CmpNE":
             # a bool used as an integer value: `x != 0` must not be shortened to `x`
             child._cstyle_null_cmp = False
