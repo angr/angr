@@ -58,6 +58,10 @@ class SyscallResolver(IndirectJumpResolver):
             addr=block.addr,
             add_options={o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS},
         )
+        # The syscall number is read from the successor state, after the block's last statement, so the per-statement
+        # replacements in reg_read_callback never apply to it. Start the block from the known entry values instead.
+        for offset, value in cv_manager.entry_registers().items():
+            state.registers.store(offset, value)
         state.inspect.add_breakpoint("reg_read", constant_value_reg_read_bp)
 
         successors = self._simulate_block_with_resilience(state)
