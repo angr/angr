@@ -50,6 +50,42 @@ class TestSprintf(unittest.TestCase):
         sprintf.execute(state, arguments=[out, fmt_addr, claripy.BVV(value, 64)])
         return state.solver.eval(state.memory.load(out, 32), cast_to=bytes).split(b"\x00")[0]
 
+    def _snprintf(self, fmt, size, *values):
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        fmt_addr, out = 0x200000, 0x300000
+        state.memory.store(fmt_addr, fmt + b"\x00")
+        state.memory.store(out, b"\xff" * 16)
+        snprintf = angr.SIM_PROCEDURES["libc"]["snprintf"]()
+        result = snprintf.execute(
+            state,
+            arguments=[out, size, fmt_addr, *(claripy.BVV(value, 64) for value in values)],
+        )
+        return (
+            state.solver.eval(state.memory.load(out, 16), cast_to=bytes),
+            state.solver.eval(result.ret_expr),
+        )
+
+    def test_snprintf_truncates_and_returns_full_length(self):
+        out, ret = self._snprintf(b"abcdef", 4)
+        assert ret == 6
+        assert out[:5] == b"abc\x00\xff"
+
+    def test_snprintf_size_zero_writes_nothing(self):
+        out, ret = self._snprintf(b"abc", 0)
+        assert ret == 3
+        assert out[0] == 0xFF
+
+    def test_snprintf_size_one_only_terminates(self):
+        out, ret = self._snprintf(b"abc", 1)
+        assert ret == 3
+        assert out[:2] == b"\x00\xff"
+
+    def test_snprintf_preserves_format_substitution(self):
+        out, ret = self._snprintf(b"%d", 4, 42)
+        assert ret == 2
+        assert out[:4] == b"42\x00\xff"
+
     def test_sprintf_hex_octal(self):
         # f"{c_val:x}"[2:] used to drop the first two digits (0xff -> "")
         assert self._sprintf(b"%x", 0xFF) == b"ff"
