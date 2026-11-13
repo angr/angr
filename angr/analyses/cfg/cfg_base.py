@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 import archinfo
+import capstone
 import networkx
 import pyvex
 from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
@@ -1927,6 +1928,8 @@ class CFGBase(Analysis):
                     and block.size > 0
                     and len(block.instruction_addrs) == 2
                     and block.vex.jumpkind == "Ijk_Boring"
+                    # push ordinal; jmp _resolve
+                    and self._pushes_a_relocation_ordinal(block)
                 )
             except SimError:
                 # catch any exceptions that may raise during VEX block lifting
@@ -2860,6 +2863,28 @@ class CFGBase(Analysis):
                 for stmt in vex.statements
             )
         return False
+
+    @staticmethod
+    def _pushes_a_relocation_ordinal(block) -> bool:
+        """
+        Check if the block is the `push <ordinal>; jmp _resolve` body of a lazy-binding PLT stub.
+
+        The two-instruction test in _remove_dummy_plt_stubs is written for that shape, but on its own it
+        only counts instructions, so any two-instruction tail call matches it. A thunk that transforms an
+        argument before jumping to an imported function has the same shape and is a real function with
+        real callers.
+
+        Only the push is checked here. That the block then leaves is the caller's
+        `block.vex.jumpkind == "Ijk_Boring"` condition.
+
+        :param block:   The block instance.
+        :return: True if the block is two instructions and the first pushes an immediate.
+        """
+        insns = block.capstone.insns
+        if len(insns) != 2 or insns[0].mnemonic != "push":
+            return False
+        operands = insns[0].operands
+        return len(operands) == 1 and operands[0].type == capstone.x86.X86_OP_IMM
 
     @staticmethod
     def _is_noop_block(arch: archinfo.Arch, block) -> bool:
