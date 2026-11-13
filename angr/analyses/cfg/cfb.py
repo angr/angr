@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from bisect import bisect_left
 from collections.abc import Callable
 from typing import Any
 
@@ -308,42 +309,93 @@ class CFBlanket(Analysis):
         Add an object `obj` to the blanket at the specified address `addr`, keeping the blanket non-overlapping:
         existing objects that overlap [addr, addr + obj.size) are removed or trimmed, and the trimmed-off remainders
         are re-inserted. Objects without an integer size are stored as zero-span entries and never cause trimming.
+
+        on_object_added is called once the blanket holds `obj`: first for each re-inserted remainder, then for `obj`.
         """
         size = self._obj_size(obj)
-        if size is not None and size > 0:
-            self._carve(addr, addr + size)
+        pieces = self._carve(addr, addr + size) if size is not None and size > 0 else None
         self._blanket[addr] = obj
-        if self._on_object_added_callback:
-            self._on_object_added_callback(addr, obj)
+        cb = self._on_object_added_callback
+        if cb:
+            if pieces:
+                for piece_addr, piece in pieces:
+                    cb(piece_addr, piece)
+            cb(addr, obj)
 
-    def _carve(self, start: int, end: int) -> None:
+    def _carve(self, start: int, end: int) -> list[tuple[int, Any]] | None:
         """
-        Remove or trim existing objects so that no object in the blanket overlaps [start, end).
-        """
-        overlapping: list[int] = []
-        # the closest entry that starts before `start` may extend into the carved range
-        floor_key = next(self._blanket.irange(maximum=start - 1, reverse=True), None)
-        if floor_key is not None:
-            floor_size = self._obj_size(self._blanket[floor_key])
-            if floor_key + max(floor_size or 1, 1) > start:
-                overlapping.append(floor_key)
-        overlapping.extend(self._blanket.irange(minimum=start, maximum=end - 1))
+        Remove or trim existing objects so that no object in the blanket overlaps [start, end), except that an object
+        at `start` may be left in place for the caller to overwrite.
 
-        for key in overlapping:
-            obj = self._blanket.pop(key)
+        :return: The re-inserted remainders, in insertion order, or None if nothing overlaps.
+        """
+        blanket = self._blanket
+        inner = self._overlapping_keys(start, end)
+        if not inner:
+            return None
+
+        pieces: list[tuple[int, Any]] = []
+        for key in inner:
+            obj = blanket[key]
             obj_end = key + max(self._obj_size(obj) or 1, 1)
-            if key < start:
-                left = self._trim(obj, key, start)
-                if left is not None:
-                    self._blanket[key] = left
-                    if self._on_object_added_callback:
-                        self._on_object_added_callback(key, left)
+            left = self._trim(obj, key, start) if key < start else None
+            if left is not None:
+                # overwriting keeps the key in place
+                blanket[key] = left
+                pieces.append((key, left))
+            elif key != start:
+                del blanket[key]
             if obj_end > end:
                 right = self._trim(obj, end, obj_end)
                 if right is not None:
-                    self._blanket[end] = right
-                    if self._on_object_added_callback:
-                        self._on_object_added_callback(end, right)
+                    blanket[end] = right
+                    pieces.append((end, right))
+        return pieces
+
+    def _overlapping_keys(self, start: int, end: int) -> list[int]:
+        """
+        The keys of the objects that overlap [start, end), ascending: the closest key before `start` if its object
+        extends into the range, then every key in [start, end).
+
+        This walks SortedList's sublists (_maxes/_lists, unchanged throughout sortedcontainers 2.x) directly: irange()
+        builds an islice chain per call, and the positional API (bisect_left, keys()[i]) maintains a positional index
+        on every later insertion; both are measurably slower for one lookup per added object.
+        """
+        sl = self._blanket._list
+        maxes: list[int] = sl._maxes
+        if not maxes:
+            return []
+        lists: list[list[int]] = sl._lists
+        keys: list[int] = []
+        pos = bisect_left(maxes, start)
+        if pos == len(maxes):
+            # every key is below start
+            floor_key = maxes[-1]
+        else:
+            sub = lists[pos]
+            idx = bisect_left(sub, start)
+            if idx:
+                floor_key = sub[idx - 1]
+            elif pos:
+                floor_key = lists[pos - 1][-1]
+            else:
+                floor_key = None
+            n_lists = len(lists)
+            while True:
+                if idx == len(sub):
+                    pos += 1
+                    if pos == n_lists:
+                        break
+                    sub = lists[pos]
+                    idx = 0
+                key = sub[idx]
+                if key >= end:
+                    break
+                keys.append(key)
+                idx += 1
+        if floor_key is not None and floor_key + max(self._obj_size(self._blanket[floor_key]) or 1, 1) > start:
+            keys.insert(0, floor_key)
+        return keys
 
     def _trim(self, obj, new_start: int, new_end: int):
         """
