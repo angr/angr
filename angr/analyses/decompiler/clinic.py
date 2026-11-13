@@ -126,6 +126,7 @@ from angr.utils.vex import block_branch_ins_addr
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .cross_function_type_inference import CrossFunctionTypeInference
 from .decompilation_options import DEFAULT_MAX_AIL_STATEMENTS
 from .edits.cache import restore_user_edits, snapshot_user_edits
 from .ireg_resolver import IRegisterResolver
@@ -3674,6 +3675,8 @@ class Clinic(Analysis, Serializable):
         tmp_kb.functions = self.kb.functions
         tmp_kb.register_plugin("variables", self.kb.dec_variables)
         stack_region_vars = self._seed_stack_regions(vvar2vvar, ail_graph, arg_vvars)
+        cfti = CrossFunctionTypeInference(self.project, self.kb, self.function, self.flavor)
+        cfti.populate_global_variables(tmp_kb.variables.get_global_manager(self.flavor))
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type: ignore
@@ -3748,6 +3751,17 @@ class Clinic(Analysis, Serializable):
                         for tv in vr.var_to_typevars[variable]:
                             groundtruth[tv] = arg_type
 
+        # a union struct that callers pushed into this function is not this function's own earlier guess: pin it on
+        # every argument the prototype did not pin, provided it still covers the layout this function's own accesses
+        # established, so that the fields other functions saw reach every value derived from the argument
+        for arg_i, (_, variable) in arg_vvars.items():
+            if any(tv in groundtruth for tv in vr.var_to_typevars[variable]):
+                continue
+            pushed = cfti.pushed_union_for_argument(arg_i)
+            if pushed is not None:
+                for tv in vr.var_to_typevars[variable]:
+                    groundtruth[tv] = pushed
+
         # types an optimization pass proved for virtual variables (vvar id -> SimType); ids may have been unified
         vvar_ground_truth: dict[int, SimType] = self.optimization_scratch.pop("vvar_ground_truth", None) or {}
         for varid, vartype in vvar_ground_truth.items():
@@ -3819,6 +3833,15 @@ class Clinic(Analysis, Serializable):
                     flavor=self.flavor,
                 )
                 self.typehoon = tp
+                # remember the layouts this function's own accesses give its arguments before any union or pin can
+                # rewrite them; they are the only evidence later unions may build on
+                cfti.record_own_argument_layouts(arg_vvars, var_manager, vr)
+                # progressively unify partial struct layouts recovered for the same value across multiple callees, pin
+                # the combined type onto the caller-side value, and back-propagate it to the involved callees.
+                cfti.unify_callee_argument_structs(vr, var_manager, arg_vvars, cfti.value_sources(ail_graph))
+                cfti.register_referenced_union_structs(
+                    var_manager, vr, tp.simtypes_solution.values() if tp.simtypes_solution else ()
+                )
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast:
                     raise

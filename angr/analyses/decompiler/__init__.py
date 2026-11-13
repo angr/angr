@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from . import optimization_passes, structuring
 from .ail_simplifier import AILSimplifier
+from .binary_decompiler import BinaryDecompiler, DecompilationStatus, FunctionDecompilationRecord, SecondPassOrder
 from .block_simplifier import BlockSimplifier
 from .callsite_maker import CallSiteMaker
 from .clinic import Clinic, ClinicMode
@@ -25,13 +26,16 @@ __all__ = (
     "DECOMPILATION_PRESETS",
     "AILSimplifier",
     "BaseStructuredCodeGenerator",
+    "BinaryDecompiler",
     "BlockSimplifier",
     "CStructuredCodeGenerator",
     "CallSiteMaker",
     "Clinic",
     "ClinicMode",
     "DecompilationCache",
+    "DecompilationStatus",
     "Decompiler",
+    "FunctionDecompilationRecord",
     "GraphDephication",
     "ImportSourceCode",
     "KnownPattern",
@@ -40,6 +44,7 @@ __all__ = (
     "RegionIdentifier",
     "RegionOverlay",
     "RegionSimplifier",
+    "SecondPassOrder",
     "SeqNodeDephication",
     "Ssailification",
     "StructuredCodeGenerator",
