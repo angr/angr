@@ -153,6 +153,8 @@ class SimplifyMaskedInsert(PeepholeOptimizationExprBase):
             return None
         v_bits = ins.value.bits
         if i_shift == 0 and expr.to_bits <= v_bits:
+            if ins.base.tags.get("extra_def", False):
+                return None
             if expr.to_bits == v_bits:
                 return ins.value
             if _visibly_fp(ins.value):
