@@ -10,7 +10,6 @@ from angr.ailment.expression import Call, Convert, Expression, Load, Register
 from angr.ailment.statement import Assignment, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.claripy.vsa import mv_eval
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
@@ -195,19 +194,14 @@ class ConstPropOptReverter(OptimizationPass):
                     # target must be a Load of a memory location
                     target_atom = MemoryLocation(unwrapped_sym_arg.addr.value, unwrapped_sym_arg.size, "Iend_LE")
                     const_state = self.rd.get_reaching_definitions_by_node(blks[calls[const_arg]].addr, OP_BEFORE)
-                    state_load_vals = const_state.get_values(target_atom)
+                    # the symbolic variable MUST resolve to only a single value, whichever definitions it comes from
+                    state_val = const_state.get_one_value(target_atom, strip_annotations=True)
                 else:
                     continue
 
-                if not state_load_vals:
+                if state_val is None:
                     continue
 
-                state_vals = mv_eval(state_load_vals)
-                # the symbolic variable MUST resolve to only a single value
-                if state_vals is None:
-                    continue
-
-                state_val = state_vals[0]
                 if hasattr(state_val, "concrete") and state_val.concrete:
                     const_value = claripy.Solver().eval(state_val, 1)[0]
                 else:
