@@ -103,6 +103,35 @@ class TestPcodeEngine(TestCase):
         assert simgr.active[0].regs.t6.concrete
         assert simgr.active[0].regs.t6.concrete_value == 1
 
+    def test_block_stops_in_front_of_an_instruction_spanning_the_byte_cap(self):
+        """
+        Test that a block ends before an instruction that runs past the lifter's byte cap.
+        """
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "fauxware"),
+            auto_load_libs=False,
+            engine=angr.engines.UberEnginePcode,
+        )
+
+        # The ten-byte window ends inside the call at 0x4008bc. Sleigh zero-fills the byte it cannot read;
+        # without the bound check it reports an eleven-byte block and a call to the wrong target.
+        block = p.factory.block(0x4008B6, size=10)
+        assert block.vex.jumpkind == "Ijk_Boring"
+        assert block.size == 6
+        assert list(block.instruction_addrs) == [0x4008B6, 0x4008B7, 0x4008B8]
+        assert [insn.mnemonic for insn in block.disassembly.insns] == ["NOP", "NOP", "SUB"]
+
+        truncated = p.factory.block(0x4008BC, size=1)
+        assert truncated.vex.jumpkind == "Ijk_NoDecode"
+        assert truncated.size == 0
+
+        call_block = p.factory.block(0x4008BC, size=5)
+        assert call_block.vex.jumpkind == "Ijk_Call"
+        assert call_block.size == 5
+        next_expr = call_block.vex.next
+        assert isinstance(next_expr, pyvex.expr.Const)
+        assert next_expr.con.value == 0x4005D0
+
     def test_callless_function_graph_consistency(self):
         binary_path = os.path.join(test_location, "x86_64", "fauxware")
         proj = angr.Project(
