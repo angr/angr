@@ -68,6 +68,13 @@ def register_kernel_types():
     typedef uint64_t u64;
     typedef int32_t __s32;
     typedef int64_t loff_t;
+    typedef unsigned long old_sigset_t;
+    typedef unsigned long aio_context_t;
+    typedef int key_serial_t;
+    typedef struct __user_cap_header_struct *cap_user_header_t;
+    typedef struct __user_cap_data_struct *cap_user_data_t;
+    typedef struct siginfo siginfo_t;
+    typedef void (*__sighandler_t)(int);
     """)
     )
 
