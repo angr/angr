@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from collections import OrderedDict
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -21,15 +22,45 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
+from angr.ailment.statement import Jump
 from angr.analyses.decompiler import condition_processor as cp_mod
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
-from angr.analyses.decompiler.structurer_nodes import ConditionNode, SequenceNode
+from angr.analyses.decompiler.structurer_nodes import (
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionalBreakNode,
+    ConditionNode,
+    ContinueNode,
+    EmptyBlockNotice,
+    IncompleteSwitchCaseNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+    SwitchCaseNode,
+)
 from angr.analyses.decompiler.utils import peephole_optimize_expr
 from tests.common import bin_location
 
 
 def _vvar(idx, bits, oident):
     return VirtualVariable(idx, idx, bits, VirtualVariableCategory.REGISTER, oident=oident)
+
+
+def _block(addr, empty=False):
+    return ailment.Block(addr, 1, statements=[] if empty else [Jump(0, Const(0, addr, 64), ins_addr=addr)])
+
+
+def _guarded_chain(levels, leaf, empty_true=True):
+    """`levels` nested ConditionNodes, each inside its own SequenceNode.
+
+    The shape a long chain of guarded statements structures into.
+    """
+    node = leaf
+    for level in range(levels):
+        addr = 0x400000 + level
+        node = SequenceNode(addr, nodes=[ConditionNode(addr, None, True, _block(addr, empty=empty_true), node)])
+    return node
 
 
 class TestConditionProcessor(TestCase):
@@ -210,6 +241,113 @@ class TestConditionProcessor(TestCase):
         assert dec.codegen is not None and "authenticate" in dec.codegen.text
         assert core.call_count > 0
         assert full.call_count < core.call_count
+
+
+class TestLastStatements(TestCase):
+    """get_last_statement(s) walk a structured tree, and the tree can be deeper than the stack.
+
+    Under CPython's default recursion limit of 1000, a recursive walk of a ``_guarded_chain`` tree
+    stops short of 500 levels of nesting, so these walk a much deeper one, and pin the branch
+    semantics that are easy to lose when a recursive walk is rewritten.
+    """
+
+    LEVELS = 2000
+
+    def test_a_tree_deeper_than_the_recursion_limit_still_walks(self):
+        leaf = _block(0x1000)
+        tree = _guarded_chain(self.LEVELS, leaf)
+
+        assert ConditionProcessor.get_last_statements(tree) == [leaf.statements[-1]]
+        assert ConditionProcessor.get_last_statement(tree) is leaf.statements[-1]
+
+    def test_every_branch_of_a_deep_tree_contributes_its_last_statement(self):
+        leaf = _block(0x1000)
+        tree = _guarded_chain(self.LEVELS, leaf, empty_true=False)
+
+        last = ConditionProcessor.get_last_statements(tree)
+        assert len(last) == self.LEVELS + 1
+        assert last[-1] is leaf.statements[-1]
+
+    def test_an_empty_true_branch_is_skipped_and_an_empty_false_branch_is_not(self):
+        good, empty = _block(0x10), _block(0x20, empty=True)
+
+        assert ConditionProcessor.get_last_statements(ConditionNode(0, None, True, empty, good)) == [
+            good.statements[-1]
+        ]
+        with self.assertRaises(EmptyBlockNotice):
+            ConditionProcessor.get_last_statements(ConditionNode(0, None, True, good, empty))
+
+        # the singular walker takes the true branch when it has one and falls back otherwise
+        assert ConditionProcessor.get_last_statement(ConditionNode(0, None, True, empty, good)) is good.statements[-1]
+        assert ConditionProcessor.get_last_statement(ConditionNode(0, None, True, good, empty)) is good.statements[-1]
+
+    def test_a_missing_branch_contributes_a_none(self):
+        good = _block(0x10)
+
+        assert ConditionProcessor.get_last_statements(ConditionNode(0, None, True, good, None)) == [
+            good.statements[-1],
+            None,
+        ]
+        assert ConditionProcessor.get_last_statements(ConditionNode(0, None, True, None, good)) == [
+            None,
+            good.statements[-1],
+        ]
+
+    def test_a_sequence_falls_back_to_an_earlier_node_and_gives_up_when_all_are_empty(self):
+        first, empty = _block(0x10), _block(0x20, empty=True)
+
+        assert ConditionProcessor.get_last_statements(SequenceNode(0, nodes=[first, empty])) == [first.statements[-1]]
+        assert ConditionProcessor.get_last_statements(MultiNode([first, empty], addr=0)) == [first.statements[-1]]
+        with self.assertRaises(EmptyBlockNotice):
+            ConditionProcessor.get_last_statements(SequenceNode(0, nodes=[empty, empty]))
+        with self.assertRaises(EmptyBlockNotice):
+            ConditionProcessor.get_last_statements(SequenceNode(0, nodes=[]))
+
+    def test_a_cascade_skips_an_empty_else_but_not_an_empty_condition(self):
+        good, empty = _block(0x10), _block(0x20, empty=True)
+
+        assert ConditionProcessor.get_last_statements(
+            CascadingConditionNode(0, [(True, good)], else_node=SequenceNode(1, nodes=[empty]))
+        ) == [good.statements[-1]]
+        assert ConditionProcessor.get_last_statements(CascadingConditionNode(0, [(True, good)])) == [
+            None,
+            good.statements[-1],
+        ]
+        with self.assertRaises(EmptyBlockNotice):
+            ConditionProcessor.get_last_statements(
+                CascadingConditionNode(0, [(True, empty)], else_node=SequenceNode(1, nodes=[good]))
+            )
+
+    def test_the_remaining_node_kinds_are_still_handled(self):
+        good, empty = _block(0x10), _block(0x20, empty=True)
+        brk, cont = BreakNode(0x30, None), ContinueNode(0x40, None)
+        conditional_break = ConditionalBreakNode(0x50, True, 0x60)
+
+        assert ConditionProcessor.get_last_statements(CodeNode(good, None)) == [good.statements[-1]]
+        assert ConditionProcessor.get_last_statements(LoopNode("while", None, SequenceNode(0, nodes=[good]))) == [
+            good.statements[-1]
+        ]
+        assert ConditionProcessor.get_last_statements(brk) == [brk]
+        assert ConditionProcessor.get_last_statements(cont) == [cont]
+        assert ConditionProcessor.get_last_statements(conditional_break) == [conditional_break]
+        assert ConditionProcessor.get_last_statements(
+            SwitchCaseNode(Const(0, 0, 32), OrderedDict({0: SequenceNode(1, nodes=[good])}), None, addr=0)
+        ) == [
+            good.statements[-1],
+            None,
+        ]
+        with self.assertRaises(EmptyBlockNotice):
+            ConditionProcessor.get_last_statements(
+                SwitchCaseNode(
+                    Const(0, 0, 32),
+                    OrderedDict({0: SequenceNode(1, nodes=[empty])}),
+                    SequenceNode(2, nodes=[good]),
+                    addr=0,
+                )
+            )
+        incomplete = IncompleteSwitchCaseNode(0, SequenceNode(1, nodes=[good]), [SequenceNode(2, nodes=[good])])
+        assert ConditionProcessor.get_last_statements(incomplete) == [good.statements[-1]]
+        assert ConditionProcessor.get_last_statement(incomplete) is None
 
 
 if __name__ == "__main__":
