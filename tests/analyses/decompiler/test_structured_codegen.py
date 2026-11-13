@@ -164,6 +164,16 @@ class TestConvertRendering(unittest.TestCase):
         widened = CTypeCast(None, SimTypeInt(), sign_cast, codegen=codegen)
         assert MakeTypecastsImplicit().handle(widened).c_repr() == "b & 63"
 
+    def test_widening_a_byte_sum_keeps_the_wider_arithmetic(self):
+        # Conv(8->32, Sub8(b, 3)) is how angr's IR can spell a 32-bit subtract on a widened byte; (unsigned char)(b - 3)
+        # would wrap at 8 bits, so the sum prints as C's int arithmetic
+        codegen = self.codegen
+        byte = CVariable(SimRegisterVariable(0, 1, name="b"), variable_type=SimTypeChar(), codegen=codegen)
+        difference = CBinaryOp("Sub", byte, CConstant(3, SimTypeChar(), codegen=codegen), codegen=codegen)
+        sign_cast = CTypeCast(SimTypeChar(), SimTypeChar(signed=False), difference, codegen=codegen)
+        widened = CTypeCast(None, SimTypeInt(signed=False), sign_cast, codegen=codegen)
+        assert MakeTypecastsImplicit().handle(widened).c_repr() == "b - 3"
+
 
 class TestTiedDeclaration(unittest.TestCase):
     @classmethod

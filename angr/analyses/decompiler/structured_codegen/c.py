@@ -273,10 +273,15 @@ def widens_byte_sign_cast(cast: CTypeCast) -> bool:
     """
     Whether an integer cast widens a byte whose signedness a same-width cast changes, e.g. (int)(char)x for an unsigned
     char x. The inner cast decides whether the widening sign- or zero-extends the byte, so it is not implicit, unless
-    the byte is known to be below 0x80 and both extensions agree.
+    the byte is known to be below 0x80 and both extensions agree, or the byte is the result of an add or a subtract.
     """
     inner = cast.expr
     if not isinstance(inner, CTypeCast) or not is_sign_fixing_cast(inner) or top_bit_clear(inner.expr):
+        return False
+    if isinstance(inner.expr, CBinaryOp) and inner.expr.op in {"Add", "Sub"}:
+        # RemoveRedundantConversions turns Sub(Conv(8->32, x), 3) into Conv(8->32, Sub8(x, 3)) even where the binary
+        # subtracted in 32 bits; kept, the byte cast would wrap there, while C adds narrow operands in int as the
+        # binary did
         return False
     d = int_width_and_signedness(cast.dst_type)
     s = int_width_and_signedness(inner.dst_type)
