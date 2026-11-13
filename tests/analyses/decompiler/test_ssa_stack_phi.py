@@ -4,9 +4,14 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
 
 import angr
+from angr.ailment.expression import Phi, VirtualVariable
+from angr.ailment.statement import Assignment
+from angr.analyses import Decompiler
+from tests.common import bin_location
 
 
 class TestSSAStackPhiSizeConflict(unittest.TestCase):
@@ -39,6 +44,40 @@ class TestSSAStackPhiSizeConflict(unittest.TestCase):
         # fail_fast=True: this raised KeyError before the phi-placement fix.
         dec = proj.analyses.Decompiler(func, cfg=cfg, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
+
+
+class TestSSAStackPhiExternSource(unittest.TestCase):
+    """
+    When a function uses a stack slot's address, for example to pass it to a callee, on a path that has not written the
+    slot, the SSA traversal records that use as a one-byte read, so the slot's extern placeholder is a single byte. A
+    wider phi for the slot that the function entry reaches must still get a source holding all of its bytes.
+    """
+
+    def test_stack_phi_sources_cover_the_phi(self):
+        proj = angr.Project(os.path.join(bin_location, "tests", "x86_64", "test_arrays"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[0x40059D], cfg=cfg.model)
+        assert dec.clinic is not None and dec.clinic.graph is not None
+
+        stack_phis = 0
+        for block in dec.clinic.graph:
+            for stmt in block.statements:
+                if not (
+                    isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi)
+                ):
+                    continue
+                if not stmt.dst.was_stack:
+                    continue
+                stack_phis += 1
+                dst = stmt.dst
+                for _, src in stmt.src.src_and_vvars:
+                    if src is None or not src.was_stack:
+                        continue
+                    assert src.stack_offset <= dst.stack_offset and dst.stack_offset + dst.size <= (
+                        src.stack_offset + src.size
+                    ), f"{dst} has the narrower source {src}"
+        # the function must still have stack phis, or the assertion above checks nothing
+        assert stack_phis > 0
 
 
 if __name__ == "__main__":
