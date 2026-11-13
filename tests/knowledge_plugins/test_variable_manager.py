@@ -11,6 +11,8 @@ import unittest
 from collections import OrderedDict
 from unittest import mock
 
+import networkx
+
 import angr
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 from angr.angrdb import AngrDB
@@ -148,6 +150,30 @@ class TestVariableManager(unittest.TestCase):
         # a phi variable counts as one more variable at its offset
         vmi.make_phi_node(0x400000, SimStackVariable(-16, 8, ident="is_2"), SimStackVariable(-16, 8, ident="is_3"))
         assert vmi.same_offset_stack_vvarids() == {1, 2, 3}
+
+    def test_unify_variables_with_a_global_phi_subvariable(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        varman = p.kb.variables.get_function_manager(0x400000)
+
+        first = SimRegisterVariable(16, 8, ident=varman.next_variable_ident("register"))
+        second = SimRegisterVariable(16, 8, ident=varman.next_variable_ident("register"))
+        for variable in (first, second):
+            varman.add_variable("register", variable.reg, variable)
+
+        global_manager = p.kb.variables["global"]
+        global_ = SimMemoryVariable(0xBA3B648F, 4, ident=global_manager.next_variable_ident("global"))
+        global_manager.set_variable("global", global_.addr, global_)
+
+        phi = varman.make_phi_node(0x400100, first, second)
+        assert isinstance(phi, SimRegisterVariable)
+        assert varman.make_phi_node(0x400100, first, global_) is phi
+        assert global_ in varman.get_phi_subvariables(phi)
+        assert global_ not in varman.get_variables()
+
+        varman.unify_variables(interference=networkx.Graph())
+
+        assert varman.unified_variable(global_) is None
+        assert varman.unified_variable(first) is not None
 
     def test_combo_register_variable_serialization_roundtrip(self):
         # a SimComboRegisterVariable (a value spanning several registers) survives serialize()/parse() as a regular,
