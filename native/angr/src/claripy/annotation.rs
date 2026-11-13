@@ -67,9 +67,9 @@ impl PyAnnotation {
     /// its subclasses) into the core [`Annotation`] consumed by the solver.
     pub fn to_annotation(slf: &Bound<'_, PyAnnotation>) -> Result<Arc<Annotation>, ClaripyError> {
         let any = slf.as_any();
-        let annotation = if any.cast::<SimplificationAvoidanceAnnotation>().is_ok() {
+        let annotation = if any.is_exact_instance_of::<SimplificationAvoidanceAnnotation>() {
             Annotation::new(AnnotationType::SimplificationAvoidance, false, false)
-        } else if let Ok(si) = any.cast::<StridedIntervalAnnotation>() {
+        } else if let Ok(si) = any.cast_exact::<StridedIntervalAnnotation>() {
             let si = si.get();
             Annotation::new(
                 AnnotationType::StridedInterval {
@@ -80,9 +80,9 @@ impl PyAnnotation {
                 false,
                 false,
             )
-        } else if any.cast::<EmptyStridedIntervalAnnotation>().is_ok() {
+        } else if any.is_exact_instance_of::<EmptyStridedIntervalAnnotation>() {
             Annotation::new(AnnotationType::EmptyStridedInterval, false, false)
-        } else if let Ok(region) = any.cast::<RegionAnnotation>() {
+        } else if let Ok(region) = any.cast_exact::<RegionAnnotation>() {
             let region = region.get();
             Annotation::new(
                 AnnotationType::Region {
@@ -92,7 +92,7 @@ impl PyAnnotation {
                 false,
                 false,
             )
-        } else if any.cast::<UninitializedAnnotation>().is_ok() {
+        } else if any.is_exact_instance_of::<UninitializedAnnotation>() {
             Annotation::new(AnnotationType::Uninitialized, false, true)
         } else {
             // User-defined annotation: hold on to the Python object itself.
