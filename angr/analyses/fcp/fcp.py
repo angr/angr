@@ -12,9 +12,9 @@ from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
 from angr.block import Block
 from angr.calling_conventions import SimStackArg
-from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode
 from angr.engines.light import RegisterOffset, SimEngineLight, SimEngineNostmtVEX, SpOffset
 from angr.knowledge_plugins.functions import Function
+from angr.rustylib.function_graph import NodeKind  # pylint:disable=import-error,no-name-in-module
 from angr.utils.bits import s2u
 
 
@@ -296,9 +296,14 @@ class FastConstantPropagation(Analysis):
         blocks: set[Block] | None = None,
         vex_cross_insn_opt: bool = False,
         load_callback: Callable | None = None,
+        block_addrs: set[int] | None = None,
     ):
+        """
+        :param blocks:      Only process these blocks (and what flows into them); only their addresses are used.
+        :param block_addrs: The same as ``blocks``, given as addresses.
+        """
         self.function = func
-        self._blocks = blocks
+        self._block_addrs = block_addrs if blocks is None else {b.addr for b in blocks}
         self._vex_cross_insn_opt = vex_cross_insn_opt
         self._load_callback = load_callback
 
@@ -308,10 +313,9 @@ class FastConstantPropagation(Analysis):
 
     def _analyze(self):
         # traverse the function graph, collect registers and stack variables that are written to
-        func_graph = self.function.graph
-        func_graph_with_callees = self.function.transition_graph
-        startpoint = self.function.startpoint
-        bp_as_gpr = self.function.info.get("bp_as_gpr", False)
+        func = self.function
+        graph = func._graph
+        bp_as_gpr = func._info_data().get("bp_as_gpr", False)
         replacements = defaultdict(dict)
         engine = SimEngineFCPVEX(self.project, bp_as_gpr, replacements, load_callback=self._load_callback)
         init_state = FCPState()
@@ -325,48 +329,76 @@ class FastConstantPropagation(Analysis):
                 0,
             )
 
-        sorted_nodes = reversed(list(networkx.dfs_postorder_nodes(func_graph, startpoint)))
-        block_addrs = None
-        if self._blocks:
-            block_addrs = {b.addr for b in self._blocks}
+        # nodes are FunctionGraph IDs (one per distinct CodeNode); the order follows func.graph without building the
+        # networkx view
+        start = graph.startpoint
+        if start is None:
+            sorted_nodes = [func._find_node(n) for n in networkx.dfs_postorder_nodes(func.graph, None)]
+        else:
+            if not graph.in_local_view(start):
+                raise networkx.NetworkXError(f"The node {func.startpoint} is not in the digraph.")
+            sorted_nodes = graph.local_dfs_postorder(start)
+        sorted_nodes.reverse()
 
-        states: dict[CodeNode, FCPState] = {}
+        preds_of: dict[int, list[int]] = {}
+        block_addrs = self._block_addrs or None
+        if block_addrs is not None:
+            # only the processed nodes and the nodes whose states flow into them (through predecessors that come
+            # earlier in the order) matter
+            pos = {node: i for i, node in enumerate(sorted_nodes)}
+            needed = {node for node in sorted_nodes if graph.node_addr(node) in block_addrs}
+            worklist = list(needed)
+            while worklist:
+                node = worklist.pop()
+                node_pos = pos[node]
+                preds_of[node] = preds = graph.local_predecessors(node)
+                for pred in preds:
+                    if pred not in needed and pos.get(pred, node_pos) < node_pos:
+                        needed.add(pred)
+                        worklist.append(pred)
+            sorted_nodes = [node for node in sorted_nodes if node in needed]
+
+        # stored states are never mutated, so they are shared between nodes; a block is processed on a fresh copy
+        states: dict[int, FCPState] = {}
+        functions = self.kb.functions
         for node in sorted_nodes:
-            preds = func_graph.predecessors(node)
+            preds = preds_of.get(node)
+            if preds is None:
+                preds = graph.local_predecessors(node)
             input_states = [states[pred] for pred in preds if pred in states]
-            state = init_state.copy() if not input_states else self._merge_states(input_states)
+            state = init_state if not input_states else self._merge_states(input_states)
 
-            if self._blocks and node.addr not in block_addrs:
+            kind, addr, size, _ = graph.node(node)
+            if block_addrs is not None and addr not in block_addrs:
                 # skip this block
                 states[node] = state
                 continue
 
             # process the block
-            if isinstance(node, BlockNode) and node.size == 0:
+            if kind == NodeKind.BLOCK and size == 0:
                 continue
-            if isinstance(node, (FuncNode, HookNode)):
-                # a callee, not a block of this function
-                if self.kb.functions.contains_addr(node.addr):
-                    callee = self.kb.functions.get_by_addr(node.addr, meta_only=True)
+            if kind != NodeKind.BLOCK:
+                # a callee (FuncNode, HookNode or SyscallNode), not a block of this function
+                if functions.contains_addr(addr):
+                    callee = functions.get_by_addr(addr, meta_only=True)
                     if callee.calling_convention is not None and callee.prototype is not None:
                         # consume args and overwrite the return register
                         self._handle_function(state, callee)
                 continue
 
-            block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self._vex_cross_insn_opt)
+            state = state.copy()
+            block = self.project.factory.block(addr, size=size, cross_insn_opt=self._vex_cross_insn_opt)
             engine.process(state, block=block)
 
             # if the node ends with a function call, call _handle_function
-            if node in func_graph_with_callees:
-                succs = list(func_graph_with_callees.successors(node))
-                if any(isinstance(succ, (FuncNode, HookNode)) for succ in succs):
-                    callee = next(succ for succ in succs if isinstance(succ, (FuncNode, HookNode)))
-                    # attempt to convert it into a function
-                    if self.kb.functions.contains_addr(callee.addr):
-                        callee = self.kb.functions.get_by_addr(callee.addr, meta_only=True)
-                    else:
-                        callee = None
-                    state = self._handle_function(state, callee)
+            callee_idx = graph.first_callee_successor(node)
+            if callee_idx is not None:
+                # attempt to convert it into a function
+                callee_addr = graph.node_addr(callee_idx)
+                callee = (
+                    functions.get_by_addr(callee_addr, meta_only=True) if functions.contains_addr(callee_addr) else None
+                )
+                state = self._handle_function(state, callee)
 
             states[node] = state
 
@@ -374,36 +406,42 @@ class FastConstantPropagation(Analysis):
 
     @staticmethod
     def _merge_states(states: list[FCPState]) -> FCPState:
+        """
+        The meet of the input states (registers and stack slots that agree, maximum sp and bp). Returns an input
+        state when the meet equals it, since stored states are immutable.
+        """
+        first = states[0]
+        others = [s for s in states[1:] if s is not first]
+        regs = first.regs
+        stack = first.stack
+        # FCPState() starts at sp = bp = 0
+        sp_value = max(0, first.sp_value)
+        bp_value = max(0, first.bp_value)
+        if not others and sp_value == first.sp_value and bp_value == first.bp_value:
+            return first
+        for s in others:
+            if s.regs is not regs:
+                s_regs = s.regs
+                regs = {k: v for k, v in regs.items() if (w := s_regs.get(k)) is v or w == v}
+            if s.stack is not stack:
+                s_stack = s.stack
+                stack = {k: v for k, v in stack.items() if (w := s_stack.get(k)) is v or w == v}
+            sp_value = max(sp_value, s.sp_value)
+            bp_value = max(bp_value, s.bp_value)
+        # the meet is a subset of every input, so equal sizes mean equal contents
+        for s in states:
+            if (
+                len(s.regs) == len(regs)
+                and len(s.stack) == len(stack)
+                and s.sp_value == sp_value
+                and s.bp_value == bp_value
+            ):
+                return s
         state = FCPState()
-        to_drop = set()
-        common_keys = set.intersection(*[set(s.regs) for s in states])
-        for s in states:
-            for offset, value in s.regs.items():
-                if offset in common_keys:
-                    if offset in state.regs:
-                        if state.regs[offset] != value:
-                            to_drop.add(offset)
-                    else:
-                        state.regs[offset] = value
-        for offset in to_drop:
-            del state.regs[offset]
-
-        to_drop = set()
-        common_keys = set.intersection(*[set(s.stack) for s in states])
-        for s in states:
-            for offset, value in s.stack.items():
-                if offset in common_keys:
-                    if offset in state.stack:
-                        if state.stack[offset] != value:
-                            to_drop.add(offset)
-                    else:
-                        state.stack[offset] = value
-        for offset in to_drop:
-            del state.stack[offset]
-
-        for s in states:
-            state.sp_value = max(state.sp_value, s.sp_value)
-            state.bp_value = max(state.bp_value, s.bp_value)
+        state.regs = regs
+        state.stack = stack
+        state.sp_value = sp_value
+        state.bp_value = bp_value
         return state
 
     def _handle_function(self, state: FCPState, func: Function | None) -> FCPState:

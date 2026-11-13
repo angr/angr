@@ -1,36 +1,39 @@
 # pylint:disable=raise-missing-from,protected-access
 from __future__ import annotations
 
-import bisect
 import collections.abc
 import logging
 import os
 import re
 import threading
 import weakref
-from collections import OrderedDict, UserDict, defaultdict
-from collections.abc import Generator
-from typing import TYPE_CHECKING, TypeVar, cast, overload
+from collections import OrderedDict, UserDict
+from collections.abc import Generator, Iterator
+from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
 
 import cle
 import lmdb
 import networkx
 from archinfo.arch_soot import SootMethodDescriptor
 from cachetools import LRUCache
-from sortedcontainers import SortedDict, SortedItemsView, SortedKeysView, SortedList, SortedValuesView
 
-from angr.codenode import FuncNode
+from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import function_pb2
+from angr.rustylib.function_graph import NodeKind
 from angr.utils.smart_cache import SmartLRUCache
 
-from .function import Function
+from .function import Function, FunctionRecord
+from .function_index import AnyFunctionIndex, FunctionAddrsView, make_function_index, make_function_index_for_keys
 from .soot_function import SootFunction
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from angr import KnowledgeBase
     from angr.knowledge_plugins.rtdb import RuntimeDb
+    from angr.rustylib.recovery_functions import RecoveryFunctions  # pylint:disable=no-name-in-module
 
 K = TypeVar("K", int, SootMethodDescriptor)
 
@@ -40,22 +43,33 @@ ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
 l = logging.getLogger(name=__name__)
 _missing = object()
 
+# Functions kept in memory before a FunctionManager spills them to LMDB (the default for binaries of 256 KB and more).
+# At about 4 KB per resident function this bounds them to ~200 MB. Evicting and reloading functions costs CFGFast
+# 5-13% on binaries with 13k-20k functions without lowering its peak RSS: the scan-time store holds every function.
+DEFAULT_FUNCTION_CACHE_LIMIT = 50_000
+
 # a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
 USE_SPILLING_FUNCTION_DICT = os.environ.get("USE_SPILLING_FUNCTION_DICT", "True").lower() not in ("0", "false", "no")
 
 
 class FunctionDictBase[K: (int, SootMethodDescriptor)]:
     """
-    Base class for FunctionDict and SpillingFunctionDict.
+    Base class for FunctionDict and SpillingFunctionDict. The keys (cached and spilled) are kept in an address index
+    (``_index``), which is shared with the owning FunctionManager.
     """
 
-    def __init__(self, backref: FunctionManager[K] | None, key_types: type = int):
+    _index: AnyFunctionIndex
+
+    def __init__(
+        self, backref: FunctionManager[K] | None, key_types: type = int, index: AnyFunctionIndex | None = None
+    ):
         self._backref = (
             cast(FunctionManager[K], backref if isinstance(backref, weakref.ProxyType) else weakref.proxy(backref))
             if backref is not None
             else None
         )
         self._key_types = key_types
+        self._index = index if index is not None else make_function_index(key_types)
 
     def _getitem_create_new_function(self, addr: K) -> Function:
         # Create a new function
@@ -68,24 +82,28 @@ class FunctionDictBase[K: (int, SootMethodDescriptor)]:
             self._backref._function_added(t)
         return t
 
+    def __iter__(self) -> Iterator[K]:
+        # a cursor over the index: keys added after the current one are visited, removed ones are skipped
+        nxt = self._index.next_addr
+        addr = nxt(None)
+        while addr is not None:
+            yield addr
+            addr = nxt(addr)
+
     def floor_addr(self, addr: K):
-        try:
-            return next(self.irange(maximum=addr, reverse=True))
-        except StopIteration as err:
-            raise KeyError(addr) from err
+        r = self._index.floor(addr)
+        if r is None:
+            raise KeyError(addr)
+        return r
 
     def ceiling_addr(self, addr):
-        try:
-            return next(self.irange(minimum=addr, reverse=False))
-        except StopIteration as err:
-            raise KeyError(addr) from err
+        r = self._index.ceiling(addr)
+        if r is None:
+            raise KeyError(addr)
+        return r
 
-    def __setstate__(self, state):
-        for k, v in state.items():
-            self[k] = v
-
-    def __getstate__(self):
-        return dict(self.items())
+    def irange(self, minimum=None, maximum=None, inclusive=(True, True), reverse=False) -> Iterator[K]:
+        return iter(self._index.irange(minimum, maximum, inclusive, reverse))
 
     def __setitem__(self, addr: K, value: Function):
         raise NotImplementedError
@@ -109,29 +127,74 @@ class FunctionDictBase[K: (int, SootMethodDescriptor)]:
     def get(self, addr: K, default=_missing, /, meta_only: bool = False):
         raise NotImplementedError
 
-    def irange(self, minimum=None, maximum=None, inclusive=(True, True), reverse=False):
-        raise NotImplementedError
 
-
-class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
+class FunctionDict(FunctionDictBase[K], collections.abc.MutableMapping[K, Function]):
     """
     FunctionDict is a dict where the keys are function starting addresses and map to the associated :class:`Function`.
+    Keys iterate in ascending order.
     """
 
-    def __init__(self, backref: FunctionManager[K] | None, *args, key_types: type = int, **kwargs):
-        SortedDict.__init__(self, *args, **kwargs)
-        FunctionDictBase.__init__(self, backref, key_types=key_types)
+    def __init__(
+        self,
+        backref: FunctionManager[K] | None,
+        *args,
+        key_types: type = int,
+        index: AnyFunctionIndex | None = None,
+        **kwargs,
+    ):
+        items: dict = {}
+        for arg in args:
+            # pickles of the former SortedDict-based FunctionDict call FunctionDict(None, {addr: func})
+            if isinstance(arg, collections.abc.Mapping):
+                items.update(arg)
+        items.update(kwargs)
+        if index is None and items:
+            index = make_function_index_for_keys(items)
+        FunctionDictBase.__init__(self, backref, key_types=key_types, index=index)
+        self.data: dict[K, Function] = {}
+        for k, v in items.items():
+            self[k] = v
 
     def copy(self) -> FunctionDict[K]:
-        return FunctionDict(self._backref, self, key_types=self._key_types)
+        return FunctionDict(self._backref, self.data, key_types=self._key_types)
 
     def __getitem__(self, addr: K) -> Function:
         try:
-            return super().__getitem__(addr)
+            return self.data[addr]
         except KeyError as ex:
             if not isinstance(addr, self._key_types):
                 raise TypeError(f"FunctionDict only supports {self._key_types} as key type") from ex
             return self._getitem_create_new_function(addr)
+
+    def __setitem__(self, addr: K, value: Function) -> None:
+        if addr not in self.data:
+            self._index.add(addr)
+        self.data[addr] = value
+
+    def __delitem__(self, addr: K) -> None:
+        del self.data[addr]
+        self._index.discard(addr)
+
+    def __contains__(self, addr) -> bool:
+        return addr in self.data
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def clear(self) -> None:
+        self.data.clear()
+        self._index.clear_addrs()
+
+    def keys(self) -> list[K]:  # type: ignore[override]
+        return self._index.addrs()
+
+    def values(self) -> list[Function]:  # type: ignore[override]
+        data = self.data
+        return [data[a] for a in self._index.addrs()]
+
+    def items(self) -> list[tuple[K, Function]]:  # type: ignore[override]
+        data = self.data
+        return [(a, data[a]) for a in self._index.addrs()]
 
     @overload
     def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
@@ -142,7 +205,7 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
 
     def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # type: ignore #pylint:disable=unused-argument
         try:
-            return super().__getitem__(addr)
+            return self.data[addr]
         except KeyError:
             pass
 
@@ -150,24 +213,20 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
             raise KeyError(addr)
         return default
 
-    def floor_addr(self, addr: K):
-        try:
-            return next(self.irange(maximum=addr, reverse=True))
-        except StopIteration as err:
-            raise KeyError(addr) from err
-
-    def ceiling_addr(self, addr):
-        try:
-            return next(self.irange(minimum=addr, reverse=False))
-        except StopIteration as err:
-            raise KeyError(addr) from err
+    def __getstate__(self):
+        return {"key_types": self._key_types, "items": dict(self.data)}
 
     def __setstate__(self, state):
-        for v, k in state.items():
+        items = state["items"]
+        self._backref = None
+        self._key_types = state.get("key_types", int)
+        self._index = make_function_index_for_keys(items) if items else make_function_index(self._key_types)
+        self.data = {}
+        for k, v in items.items():
             self[k] = v
 
-    def __getstate__(self):
-        return dict(self.items())
+    def __repr__(self) -> str:
+        return f"<FunctionDict: {len(self.data)} functions>"
 
 
 class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
@@ -207,17 +266,16 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         key_types: type = int,
         cache_limit: int = 1000,
         db_batch_size: int = 100,
+        index: AnyFunctionIndex | None = None,
         **kwargs,
     ):
         UserDict.__init__(self, **kwargs)
-        FunctionDictBase.__init__(self, backref, key_types=key_types)
+        FunctionDictBase.__init__(self, backref, key_types=key_types, index=index)
 
         self._cache_limit: int = cache_limit
         self.rtdb: RuntimeDb = rtdb
         self._lru_order: OrderedDict[K, None] = OrderedDict()
         self._spilled_keys: set[K] = set()
-        self._list = SortedList()  # a sorted list of all keys (cached + spilled)
-        self.irange = self._list.irange
 
         self._meta_func_cache: LRUCache[K, Function] = SmartLRUCache(
             maxsize=cache_limit, evict=self._meta_func_cache_evicted
@@ -257,7 +315,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
     def __setitem__(self, key: K, value: Function) -> None:
         if key not in self:
-            self._list.add(key)
+            self._index.add(key)
         # insert before clearing the spilled flag so that concurrent readers always find the function somewhere
         super().__setitem__(key, value)
         self._spilled_keys.discard(key)
@@ -273,8 +331,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         # Remove from LRU order
         if key in self._lru_order:
             del self._lru_order[key]
-        # Remove from sorted list
-        self._list.remove(key)
+        # Remove from the index
+        if not self._index.discard(key):
+            raise KeyError(key)
 
     def __setstate__(self, state: dict):
         self._cache_limit = state["cache_limit"]
@@ -285,8 +344,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self.rtdb = None  # type: ignore
         self._lru_order = OrderedDict()
         self._spilled_keys = set()
-        self._list = SortedList()
-        self.irange = self._list.irange
+        self._index = (
+            make_function_index_for_keys(state["items"]) if state["items"] else make_function_index(self._key_types)
+        )
 
         self._meta_func_cache = SmartLRUCache(maxsize=self._cache_limit, evict=self._meta_func_cache_evicted)
         self._funcsdb = None
@@ -322,7 +382,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         new_dict._eviction_enabled = False
         # iterate over in-memory functions and copy them
         for address, function in self.data.items():
-            new_dict._list.add(address)
+            new_dict._index.add(address)
             super(SpillingFunctionDict, new_dict).__setitem__(address, function.copy())
             new_dict._lru_order[address] = None
 
@@ -339,7 +399,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                     if value is not None:
                         dst_txn.put(key, value)
                         new_dict._spilled_keys.add(addr)
-                        new_dict._list.add(addr)
+                        new_dict._index.add(addr)
 
         new_dict._eviction_enabled = True
         return new_dict
@@ -351,19 +411,19 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         super().clear()
         self._lru_order.clear()
         self._spilled_keys.clear()
+        self._index.clear_addrs()
         self._cleanup_lmdb()
 
     def __contains__(self, item) -> bool:
         # Check both in-memory and spilled
         return super().__contains__(item) or item in self._spilled_keys
 
+    # UserDict.__iter__ would only see the cached functions
+    __iter__ = FunctionDictBase.__iter__
+
     def __len__(self) -> int:
         # Total count includes both in-memory and spilled functions
         return self.cached_count + len(self._spilled_keys)
-
-    def __iter__(self):
-        # Iterate over all function addresses (cached + spilled)
-        return self._list.__iter__()
 
     @overload
     def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
@@ -394,14 +454,16 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             raise KeyError(addr)
         return default
 
-    def keys(self):
-        return SortedKeysView(self)
+    def keys(self) -> list[K]:  # type: ignore[override]
+        return self._index.addrs()
 
-    def items(self):
-        return SortedItemsView(self)
+    def items(self) -> Generator[tuple[K, Function]]:  # type: ignore[override]
+        for addr in self:
+            yield addr, self[addr]
 
-    def values(self):
-        return SortedValuesView(self)
+    def values(self) -> Generator[Function]:  # type: ignore[override]
+        for addr in self:
+            yield self[addr]
 
     @staticmethod
     def _meta_func_cache_evicted(addr: K, func: Function) -> None:  # pylint: disable=unused-argument
@@ -416,7 +478,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
     @property
     def cached_keys(self) -> Generator[K]:
-        yield from self._list
+        yield from self._index.addrs()
 
     @property
     def cache_limit(self) -> int:
@@ -676,7 +738,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
             for addr, _ in items:
                 if addr not in self:
-                    self._list.add(addr)
+                    self._index.add(addr)
                 self._spilled_keys.add(addr)
                 if self.is_cached(addr):
                     # drop the stale in-memory copy; LMDB now holds the authoritative data
@@ -700,8 +762,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         """
 
         # determine which functions may be copied directly from LMDB
+        all_addrs = self._index.addrs()
         copy_addrs = []
-        for addr in self._list:
+        for addr in all_addrs:
             func = self.data.get(addr)
             if func is None or not func.dirty:
                 copy_addrs.append(addr)
@@ -715,7 +778,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                         copied[addr] = value
 
         result: list[tuple[K, bytes, bool]] = []
-        for addr in self._list:
+        for addr in all_addrs:
             blob = copied.get(addr)
             if blob is not None:
                 result.append((addr, blob, True))
@@ -774,41 +837,36 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         if cache_limit is None and USE_SPILLING_FUNCTION_DICT:
             cache_limit = self.get_default_cache_limit()
 
+        # the address index of the function map, which also holds the address-keyed caches below
+        self._init_caches()
         # Use SpillingFunctionDict when caching is enabled, otherwise plain FunctionDict
         if cache_limit is not None:
             self._function_map: FunctionDict[K] | SpillingFunctionDict[K] = SpillingFunctionDict(
-                self, kb.rtdb, key_types=self.function_address_types, cache_limit=cache_limit
+                self, kb.rtdb, key_types=self.function_address_types, cache_limit=cache_limit, index=self._index
             )
         else:
-            self._function_map = FunctionDict(self, key_types=self.function_address_types)
+            self._function_map = FunctionDict(self, key_types=self.function_address_types, index=self._index)
 
-        self.function_addrs_set: set = set()
         self.callgraph: networkx.MultiDiGraph[int] = networkx.MultiDiGraph()
 
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
 
-        # local PLT dictionary cache
-        self._rplt_cache_ranges: list[tuple[int, int]] | None = None
-        self._rplt_cache: set[int] | None = None
-        # local binary name cache: min_addr -> (max_addr, binary_name)
-        self._binname_cache: SortedDict[int, tuple[int, str | None]] | None = None
+    def _init_caches(self) -> None:
+        """
+        Start with a fresh index. It caches, per function address: the returning status, the number of blocks, the
+        name (and the reverse maps of current and previous names), the signature source and the key-function
+        types; per object: the binary name and the PLT stubs.
+        """
+        self._index: AnyFunctionIndex = make_function_index(self.function_address_types)
 
-        # non-returning functions cache
-        self._non_returning_func_addrs: set[K] = set()
-        self._unknown_returning_func_addrs: set[K] = set()
-        # function number of blocks cache
-        self._func_block_counts: dict[K, int] = {}
-        # function name to address cache
-        self._func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
-        # function address to current name cache
-        self._func_names: dict[K, str] = {}
-        # function signature-source cache (function address to Function.from_signature)
-        self._func_from_signature: dict[K, str | None] = {}
-        # historical function name cache
-        self._old_func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
-        # key function addresses cache
-        self._key_func_addrs: defaultdict[str, set[K]] = defaultdict(set)
+    @property
+    def function_addrs_set(self) -> FunctionAddrsView:
+        return FunctionAddrsView(self)
+
+    @property
+    def _func_block_counts(self) -> dict[K, int]:
+        return self._index.block_counts()
 
     def __setstate__(self, state):
         self.function_address_types = state["function_address_types"]
@@ -817,34 +875,20 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self.callgraph = state["callgraph"]
 
         # Reinitialize cache state
-        self._rplt_cache_ranges = None
-        self._rplt_cache = None
-        self._binname_cache = None
-        self._non_returning_func_addrs = set()
-        self._unknown_returning_func_addrs = set()
-        self._func_block_counts = {}
-        self._func_name_to_addrs = defaultdict(set)
-        self._func_names = {}
-        self._func_from_signature = {}
-        self._old_func_name_to_addrs = defaultdict(set)
-        self._key_func_addrs = defaultdict(set)
-        self.function_addrs_set = set()
+        index = self._function_map._index
+        index.clear_caches()
+        self._index = index
 
         self._function_map._backref = weakref.proxy(self)
         for func in self._function_map.values():
             func._function_manager = self
-            if func.returning is None:
-                self._unknown_returning_func_addrs.add(func.addr)
-            elif func.returning is False:
-                self._non_returning_func_addrs.add(func.addr)
-            self._func_block_counts[func.addr] = len(func.block_addrs_set)
-            self._func_name_to_addrs[func.name].add(func.addr)
-            self._func_names[func.addr] = func.name
-            self._func_from_signature[func.addr] = func.from_signature
+            addr = func.addr
+            index.function_added(addr, func.returning, func.local_block_count(), func.from_signature, func.name)
             for old_name in func.previous_names:
-                self._old_func_name_to_addrs[old_name].add(func.addr)
-            self.index_key_func_addrs(func)
-            self.function_addrs_set.add(func.addr)
+                index.add_old_name_addr(old_name, addr)
+            info = func._info_data()
+            if info:
+                index.index_info(addr, info)
 
     def set_kb(self, kb: KnowledgeBase):
         super().set_kb(kb)
@@ -873,46 +917,29 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         fm._function_map._backref = weakref.proxy(fm)
         fm.callgraph = networkx.MultiDiGraph(self.callgraph)
         fm._arg_registers = self._arg_registers.copy()
-        fm.function_addrs_set = self.function_addrs_set.copy()
 
-        # cache
-        fm._non_returning_func_addrs = self._non_returning_func_addrs.copy()
-        fm._unknown_returning_func_addrs = self._unknown_returning_func_addrs.copy()
-        fm._func_block_counts = self._func_block_counts.copy()
-        fm._func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._func_name_to_addrs.items()})
-        fm._func_names = self._func_names.copy()
-        fm._func_from_signature = self._func_from_signature.copy()
-        fm._old_func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._old_func_name_to_addrs.items()})
-        fm._key_func_addrs = defaultdict(set, {k: v.copy() for k, v in self._key_func_addrs.items()})
+        # caches; the copied index holds the same addresses as fm's function map
+        index = self._index.copy()
+        fm._index = index
+        fm._function_map._index = index
 
         return fm
 
     def clear(self):
-        if isinstance(self._function_map, SpillingFunctionDict):
-            cache_limit = self._function_map.cache_limit
-            self._function_map.clear()
+        old_map = self._function_map
+        self._init_caches()
+        if isinstance(old_map, SpillingFunctionDict):
+            cache_limit = old_map.cache_limit
+            old_map.clear()
             self._function_map = SpillingFunctionDict(
-                self, self._kb.rtdb, key_types=self.function_address_types, cache_limit=cache_limit
+                self, self._kb.rtdb, key_types=self.function_address_types, cache_limit=cache_limit, index=self._index
             )
         else:
-            self._function_map = FunctionDict(self, key_types=self.function_address_types)
+            self._function_map = FunctionDict(self, key_types=self.function_address_types, index=self._index)
 
         self.callgraph = networkx.MultiDiGraph()
-        self.function_addrs_set = set()
-        # cache
-        self._rplt_cache = None
-        self._rplt_cache_ranges = None
-        self._binname_cache = None
-        self._non_returning_func_addrs = set()
-        self._unknown_returning_func_addrs = set()
-        self._func_block_counts = {}
-        self._func_name_to_addrs = defaultdict(set)
-        self._func_names = {}
-        self._func_from_signature = {}
-        self._old_func_name_to_addrs = defaultdict(set)
-        self._key_func_addrs = defaultdict(set)
 
-    def get_default_cache_limit(self, max_limit: int = 5000) -> int | None:
+    def get_default_cache_limit(self, max_limit: int = DEFAULT_FUNCTION_CACHE_LIMIT) -> int | None:
         """
         Get the default function cache limit based on the size of the binary.
 
@@ -933,54 +960,29 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         with open(filepath, "w", encoding="utf-8") as f:
             f.writelines(f"{src:#x}\tDirectEdge\t{dst:#x}\n" for src, dst in self.callgraph.edges())
 
-    def _addr_in_plt_cached_ranges(self, addr: int) -> bool:
-        if self._rplt_cache_ranges is None:
-            return False
-        pos = bisect.bisect_left(self._rplt_cache_ranges, addr, key=lambda x: x[0])
-        return pos > 0 and self._rplt_cache_ranges[pos - 1][0] <= addr < self._rplt_cache_ranges[pos - 1][1]
-
     def is_plt_cached(self, addr: int) -> bool:
-        # check if the addr is in the cache range
-        if not self._addr_in_plt_cached_ranges(addr):
-            # find the object containing this addr
-            obj = self._kb._project.loader.find_object_containing(addr, membership_check=False)
-            if obj is None:
-                return False
-            if self._rplt_cache_ranges is None:
-                self._rplt_cache_ranges = []
-            obj_range = obj.min_addr, obj.max_addr
-            idx = bisect.bisect_left(self._rplt_cache_ranges, obj_range)
-            if not (idx < len(self._rplt_cache_ranges) and self._rplt_cache_ranges[idx] == obj_range):
-                self._rplt_cache_ranges.insert(idx, obj_range)
-            if isinstance(obj, (cle.MetaELF, cle.MachO)):
-                if self._rplt_cache is None:
-                    self._rplt_cache = set()
-                self._rplt_cache |= set(obj.reverse_plt)
-
-        return addr in self._rplt_cache if self._rplt_cache is not None else False
-
-    def _binname_cache_get_addr_base(self, addr: int) -> int | None:
-        if self._binname_cache is None:
-            return None
-        try:
-            base_addr = next(self._binname_cache.irange(maximum=addr, reverse=True))
-        except StopIteration:
-            return None
-        return base_addr if base_addr <= addr < self._binname_cache[base_addr][0] else None
+        cached = self._index.plt_cached(addr)
+        if cached is not None:
+            return cached
+        # find the object containing this addr and cache its PLT stubs
+        obj = self._kb._project.loader.find_object_containing(addr, membership_check=False)
+        if obj is None:
+            return False
+        stubs = list(obj.reverse_plt) if isinstance(obj, (cle.MetaELF, cle.MachO)) else None
+        self._index.cache_plt_range(obj.min_addr, obj.max_addr, stubs)
+        return self._index.is_plt_addr(addr)
 
     def get_binary_name_cached(self, addr: int) -> str | None:
-        base_addr = self._binname_cache_get_addr_base(addr)
-        if base_addr is None:
-            # not cached; cache it first
-            obj = self._kb._project.loader.find_object_containing(addr, membership_check=False)
-            if obj is None:
-                return None
-            if self._binname_cache is None:
-                self._binname_cache = SortedDict()
-            binary_basename = os.path.basename(obj.binary) if obj.binary else None
-            self._binname_cache[obj.min_addr] = obj.max_addr, binary_basename
-            base_addr = obj.min_addr
-        return self._binname_cache[base_addr][1] if self._binname_cache is not None else None
+        found, name = self._index.binary_name_cached(addr)
+        if found:
+            return name
+        # not cached; cache it first
+        obj = self._kb._project.loader.find_object_containing(addr, membership_check=False)
+        if obj is None:
+            return None
+        binary_basename = os.path.basename(obj.binary) if obj.binary else None
+        self._index.cache_binary_name(obj.min_addr, obj.max_addr, binary_basename)
+        return binary_basename
 
     def function_name_changed(self, addr: K, old_name: str | None, new_name: str) -> None:
         """
@@ -990,17 +992,26 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param old_name:    Old name of the function, or None if there is no old name.
         :param new_name:    New name of the function.
         """
-        if old_name is not None:
-            if old_name in self._func_name_to_addrs:
-                self._func_name_to_addrs[old_name].discard(addr)
-                if not self._func_name_to_addrs[old_name]:
-                    del self._func_name_to_addrs[old_name]
-            self._old_func_name_to_addrs[old_name].add(addr)
-        self._func_name_to_addrs[new_name].add(addr)
-        self._func_names[addr] = new_name
+        self._index.name_changed(addr, old_name, new_name)
+
+    def _node_from_spec(self, spec: tuple) -> CodeNode:
+        """
+        The CodeNode of a (kind, addr, size, thumb) node spec, which is what CFGFast's recovery helpers pass.
+        """
+        kind, addr, size, thumb = spec
+        project = self._kb._project
+        if kind == NodeKind.BLOCK:
+            return BlockNode(addr, size, thumb=thumb)
+        if kind == NodeKind.FUNC:
+            return FuncNode(addr)
+        if kind == NodeKind.HOOK:
+            return HookNode(addr, size, project.hooked_by(addr), thumb=thumb)
+        return SyscallNode(addr, size, project.simos.syscall_from_addr(addr), thumb=thumb)
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
-        if isinstance(node, self.address_types):
+        if type(node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            node = self._node_from_spec(node)
+        elif isinstance(node, self.address_types):
             node = self._kb._project.factory.snippet(node, size=size)
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
@@ -1033,9 +1044,13 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :return:                    None
         """
 
-        if isinstance(from_node, self.address_types):
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif isinstance(from_node, self.address_types):
             from_node = self._kb._project.factory.snippet(from_node)
-        if isinstance(retn_node, self.address_types):
+        if type(retn_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            retn_node = self._node_from_spec(retn_node)
+        elif isinstance(retn_node, self.address_types):
             retn_node = self._kb._project.factory.snippet(retn_node)
         if to_addr is not None:
             # load or create the callee before fetching the caller: loading it may evict the caller, and a caller
@@ -1071,9 +1086,13 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     def _add_fakeret_to(
         self, function_addr, from_node, to_node, confirmed=None, syscall=None, to_outside=False, to_function_addr=None
     ):
-        if isinstance(from_node, self.address_types):
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif isinstance(from_node, self.address_types):
             from_node = self._kb._project.factory.snippet(from_node)
-        if isinstance(to_node, self.address_types):
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif isinstance(to_node, self.address_types):
             to_node = self._kb._project.factory.snippet(to_node)
         src_func = self._function_map[function_addr]
 
@@ -1093,21 +1112,31 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                 self.callgraph.add_edge(function_addr, to_function_addr, **edge_data)
 
     def _remove_fakeret(self, function_addr, from_node, to_node):
-        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr].remove_fakeret(from_node, to_node)
 
     def _add_return_from(self, function_addr, from_node, to_node=None):  # pylint:disable=unused-argument
-        if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         self._function_map[function_addr].add_return_site(from_node)
 
     def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None, is_exception=False):
-        if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if isinstance(to_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif isinstance(to_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr].transit_to(
             from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx, is_exception=is_exception
@@ -1116,9 +1145,13 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     def _add_outside_transition_to(
         self, function_addr, from_node, to_node, to_function_addr=None, ins_addr=None, stmt_idx=None, is_exception=False
     ):
-        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             try:
                 to_node = self._kb._project.factory.snippet(to_node)
             except SimEngineError:
@@ -1147,7 +1180,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     def _add_return_from_call(self, function_addr, src_function_addr, to_node, to_outside=False):
         # Note that you will never return to a syscall
 
-        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         func = self._function_map[function_addr]
         src_funcnode = FuncNode(src_function_addr)
@@ -1195,18 +1230,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                 del self._function_map[k]
             if k in self.callgraph:
                 self.callgraph.remove_node(k)
-            self.function_addrs_set.discard(k)
-            self._non_returning_func_addrs.discard(k)
-            self._unknown_returning_func_addrs.discard(k)
-            self._func_block_counts.pop(k, None)
-            self._func_name_to_addrs.pop(k, None)
-            self._func_names.pop(k, None)
-            self._func_from_signature.pop(k, None)
-            for addrs in self._key_func_addrs.values():
-                addrs.discard(k)
-            if func_meta is not None:
-                for old_name in func_meta.previous_names:
-                    self._old_func_name_to_addrs.get(old_name, set()).discard(k)
+            self._index.function_removed(k, func_meta.previous_names if func_meta is not None else [])
         else:
             raise TypeError(
                 f"FunctionManager.__delitem__ only accepts the following address types: {self.function_address_types}"
@@ -1232,23 +1256,11 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         return self._function_map.get(addr, meta_only=meta_only)
 
     def get_by_name(self, name: str, check_previous_names: bool = False) -> Generator[Function]:
-        if not check_previous_names:
-            addrs = self._func_name_to_addrs.get(name, set())
-            if all(isinstance(a, int) for a in addrs):
-                addrs = sorted(addrs)
-            for addr in addrs:
-                yield self._function_map.get(addr)
-        else:
-            addrs = self._old_func_name_to_addrs.get(name, set()) | self._func_name_to_addrs.get(name, set())
-            if all(isinstance(a, int) for a in addrs):
-                addrs = sorted(addrs)
-            for addr in addrs:
-                yield self._function_map.get(addr)
+        for addr in self._index.addrs_by_name(name, check_previous_names):
+            yield self._function_map.get(addr)
 
     def get_addrs_by_name(self, name: str, check_previous_names: bool = False) -> set[int]:
-        if not check_previous_names:
-            return self._func_name_to_addrs.get(name, set()).copy()
-        return self._old_func_name_to_addrs.get(name, set()) | self._func_name_to_addrs.get(name, set())
+        return self._index.addrs_by_name_set(name, check_previous_names)
 
     def _function_added(self, func: Function):
         """
@@ -1258,26 +1270,66 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :return:       None
         """
 
-        # Add the function address to the set of function addresses
-        self.function_addrs_set.add(func.addr)
-
-        # update the non-returning cache
-        self.set_function_returning(func.addr, func.returning)
-
-        # update the function block count cache
-        self.set_func_block_count(func.addr, len(func.block_addrs_set))
-
-        # update the signature-source cache
-        self._func_from_signature[func.addr] = func.from_signature
+        addr = func.addr
+        returning = func.returning
+        # the returning, block count, signature-source and name caches
+        self._index.function_added(
+            addr,
+            returning if type(returning) is bool else None,  # pylint:disable=unidiomatic-typecheck
+            func.local_block_count(),
+            func.from_signature,
+            func.name,
+        )
 
         # update key function address cache
         self.index_key_func_addrs(func)
 
         # make sure all functions exist in the call graph
-        self.callgraph.add_node(func.addr)
+        self.callgraph.add_node(addr)
 
-        # trigger function_name_changed to update function name caches
-        self.function_name_changed(func.addr, None, func.name)
+    #
+    # Bulk construction
+    #
+
+    def bulk_add_functions(self, records: Iterable[FunctionRecord]) -> list[Function]:
+        """
+        Create and add many functions in one call. Each function is what ``self.function(addr, create=True)`` would
+        create, with the fields that the record gives (see FunctionRecord) and the record's graph. The addresses
+        must not be in the function manager yet.
+
+        :return: The new functions, in record order.
+        """
+        records = list(records)
+        for r in records:
+            if r.addr in self._function_map:
+                raise ValueError(f"Function {r.addr:#x} already exists")
+        funcs = Function._bulk_create(self, records)
+        self._add_new_functions(funcs)
+        return funcs
+
+    def bulk_import_store(self, store: RecoveryFunctions, addrs: Iterable[int] | None = None) -> list[Function]:
+        """
+        Create and add functions from the records of a RecoveryFunctions store (all of them, or the given addresses):
+        name, previous names, binary name, flags, returning status and info are copied, and the graphs are shared
+        with the store. Nothing is derived from the project, and prototypes and calling conventions are left unset.
+
+        :return: The new functions, in address order (or in the order of ``addrs``).
+        """
+        funcs, infos = Function._bulk_from_store(store, None if addrs is None else list(addrs))
+        for func, info in zip(funcs, infos):
+            if func.addr in self._function_map:
+                raise ValueError(f"Function {func.addr:#x} already exists")
+            func._init_py_slots(self)
+            if info:
+                func.info.data = info
+        self._add_new_functions(funcs)
+        return funcs
+
+    def _add_new_functions(self, funcs: list[Function]) -> None:
+        function_map = self._function_map
+        for func in funcs:
+            function_map[func.addr] = func
+            self._function_added(func)
 
     def contains_addr(self, addr):
         """
@@ -1297,10 +1349,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :return:         A Function instance, or None if there is no other function after `addr`.
         """
 
-        try:
-            return self._function_map.ceiling_addr(addr)
-        except KeyError:
-            return None
+        return self._index.ceiling(addr)
 
     def ceiling_func(self, addr) -> Function | None:
         """
@@ -1310,12 +1359,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :return:         A Function instance, or None if there is no other function after `addr`.
         """
 
-        try:
-            next_addr = self._function_map.ceiling_addr(addr)
-            return self._function_map.get(next_addr)
-
-        except KeyError:
-            return None
+        next_addr = self._index.ceiling(addr)
+        return None if next_addr is None else self._function_map.get(next_addr)
 
     def floor_addr(self, addr: K) -> K | None:
         """
@@ -1325,10 +1370,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :return:         An address, or None if there is no other function before `addr`.
         """
 
-        try:
-            return self._function_map.floor_addr(addr)
-        except KeyError:
-            return None
+        return self._index.floor(addr)
 
     def floor_func(self, addr):
         """
@@ -1339,12 +1381,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :rtype:          Function or None
         """
 
-        try:
-            prev_addr = self._function_map.floor_addr(addr)
-            return self._function_map.get(prev_addr)
-
-        except KeyError:
-            return None
+        prev_addr = self._index.floor(addr)
+        return None if prev_addr is None else self._function_map.get(prev_addr)
 
     def query(self, query: str, check_previous_names: bool = False) -> Function | None:
         """
@@ -1458,28 +1496,20 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     #
 
     def set_function_returning(self, addr: K, v: bool | None) -> None:
-        if v is False:
-            self._non_returning_func_addrs.add(addr)
-            self._unknown_returning_func_addrs.discard(addr)
-        elif v is True:
-            self._non_returning_func_addrs.discard(addr)
-            self._unknown_returning_func_addrs.discard(addr)
-        else:
-            # v is None
-            self._unknown_returning_func_addrs.add(addr)
-            self._non_returning_func_addrs.discard(addr)
+        # anything other than True and False means unknown
+        self._index.set_returning(addr, v if type(v) is bool else None)  # pylint:disable=unidiomatic-typecheck
 
     def nonreturning_func_addrs(self) -> Generator[int]:
         """
         Yield all non-returning function addresses.
         """
-        yield from self._non_returning_func_addrs
+        yield from self._index.nonreturning_addrs()
 
     def unknown_returning_func_addrs(self) -> Generator[int]:
         """
         Yield all function addresses with unknown returning status.
         """
-        yield from self._unknown_returning_func_addrs
+        yield from self._index.unknown_returning_addrs()
 
     def is_func_nonreturning(self, addr: K) -> bool:
         """
@@ -1488,7 +1518,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param addr:    Address of the function.
         :return:        True if non-returning, False if returning or unknown.
         """
-        return addr in self._non_returning_func_addrs
+        return self._index.is_nonreturning(addr)
 
     def is_func_returning_unknown(self, addr: K) -> bool:
         """
@@ -1497,7 +1527,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param addr:    Address of the function.
         :return:        True if returning status is unknown, False otherwise.
         """
-        return addr in self._unknown_returning_func_addrs
+        return self._index.is_returning_unknown(addr)
 
     #
     # Function block count cache
@@ -1510,7 +1540,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param addr:    Address of the function.
         :return:        Number of blocks, or None if unknown.
         """
-        return self._func_block_counts.get(addr)
+        return self._index.block_count(addr)
 
     def set_func_block_count(self, addr: K, count: int) -> None:
         """
@@ -1520,7 +1550,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param count:   Number of blocks.
         :return:        None
         """
-        self._func_block_counts[addr] = count
+        self._index.set_block_count(addr, count)
 
     def get_func_addr_with_block_count(self, block_count: int) -> set[K]:
         """
@@ -1529,7 +1559,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param block_count: The number of blocks to match.
         :return:            The set of matching function addresses.
         """
-        return {addr for addr, count in self._func_block_counts.items() if count == block_count}
+        return self._index.addrs_with_block_count(block_count)
 
     #
     # Function name / signature-source caches
@@ -1542,7 +1572,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param addr:    Address of the function.
         :return:        The function's name, or None if unknown.
         """
-        return self._func_names.get(addr)
+        return self._index.name(addr)
 
     def get_from_signature(self, addr: K) -> str | None:
         """
@@ -1552,7 +1582,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param addr:    Address of the function.
         :return:        The function's ``from_signature`` value (e.g. ``"flirt"``), or None.
         """
-        return self._func_from_signature.get(addr)
+        return self._index.from_signature(addr)
 
     def set_from_signature(self, addr: K, from_signature: str | None) -> None:
         """
@@ -1563,7 +1593,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param from_signature:  The new ``from_signature`` value.
         :return:                None
         """
-        self._func_from_signature[addr] = from_signature
+        self._index.set_from_signature(addr, from_signature)
 
     def get_all_funcaddrs_from_signature(self, from_signature: str = "flirt") -> set[K]:
         """
@@ -1573,14 +1603,14 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param from_signature:  The ``from_signature`` value to match (default ``"flirt"``).
         :return:                The set of matching function addresses.
         """
-        return {addr for addr, value in self._func_from_signature.items() if value == from_signature}
+        return self._index.addrs_from_signature(from_signature)
 
     #
     # Key functions
     #
 
     def get_key_func_addrs(self, func_type: str) -> set[K]:
-        return self._key_func_addrs.get(func_type, set())
+        return self._index.key_func_addrs(func_type)
 
     def get_key_func_type_and_addrs(self) -> dict[str, set[K]]:
         """
@@ -1588,18 +1618,25 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
 
         :return:    A mapping from key-function type to the set of function addresses of that type.
         """
-        return {func_type: set(addrs) for func_type, addrs in self._key_func_addrs.items()}
+        return self._index.key_funcs()
 
     def add_key_func_addr(self, func_type: str, addr: K) -> None:
-        self._key_func_addrs[func_type].add(addr)
+        self._index.add_key_func(func_type, addr)
 
     def index_key_func_addrs(self, func: Function) -> None:
         """
         Record every key-function flag that ``func.info`` carries in the key-function address cache.
         """
-        for key, value in func.info.data.items():
-            if key.startswith("is_") and value is True:
-                self.add_key_func_addr(key[3:], func.addr)
+        info = func._info_data()
+        if info:
+            self._index.index_info(func.addr, info)
+
+    def index_key_func_info(self, addr: K, info: dict[str, Any]) -> None:
+        """
+        Record every key-function flag that ``info`` carries for the function at ``addr``.
+        """
+        if info:
+            self._index.index_info(addr, info)
 
     #
     # LRU Cache Management (delegates to SpillingFunctionDict when available)
@@ -1627,7 +1664,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             # Need to convert FunctionDict to SpillingFunctionDict
             old_map = self._function_map
             new_map = SpillingFunctionDict(
-                self, self._kb.rtdb, key_types=self.function_address_types, cache_limit=value
+                self, self._kb.rtdb, key_types=self.function_address_types, cache_limit=value, index=self._index
             )
             # Disable eviction during bulk copy
             new_map._eviction_enabled = False

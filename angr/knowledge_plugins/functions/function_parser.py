@@ -118,7 +118,8 @@ class FunctionParser:
             flavored.flavor = flavor
             flavored.prototype = FunctionParser._serialize_prototype(proto, function.prototype_libname)
             flavored.prototype_source = function.prototype_sources[flavor].value
-        obj.info = function.info.to_json().encode("utf-8") if function.info else b""
+        info = function._info_data()
+        obj.info = json.dumps(info).encode("utf-8") if info else b""
         obj.ran_cca = function.ran_cca
         obj.previous_names.extend(function.previous_names)
 
@@ -227,7 +228,7 @@ class FunctionParser:
         obj.normalized = cmsg.normalized
         if cmsg.info:
             info = _decode_info(cmsg.info)
-            obj._info.data = info
+            obj.info.data = info
             if function_manager is not None:
                 for key, value in info.items():
                     if key.startswith("is_") and value is True:

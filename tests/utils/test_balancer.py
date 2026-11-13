@@ -529,6 +529,18 @@ class TestConstraintToSI(unittest.TestCase):
         assert len(reps) == 1
         assert reps[0][0] is e
 
+    def test_bound_on_a_truncation(self):
+        # `lea eax, [rdx + 0x3c]; cmp eax, 0x3c; ja`: the bound on rdx[31:0] is pushed onto rdx assuming zero high
+        # bits, where it covers every value from 0xffffffc4 up; the truncation keeps its own bound
+        rdx = claripy.BVS("rdx", 64)
+        index = claripy.ZeroExt(32, rdx[31:0] + 0x3C)
+        sat, reps = constraint_to_si(claripy.ULE(rdx[31:0] + 0x3C, 0x3C))
+        assert sat
+        assert [o.size() for o, _ in reps] == [32, 64]
+        for o, n in reps:
+            index = claripy.replace(index, o, n)
+        assert (claripy.vsa.min(index), claripy.vsa.max(index)) == (0, 0x3C)
+
     #     # TODO: Add some more insane test cases
 
 

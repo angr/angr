@@ -13,7 +13,7 @@ from .block import Block, SootBlock
 from .callable import Callable
 from .calling_conventions import PointerWrapper, SimCCUnknown, SimRegArg, SimStackArg, default_cc_for_project
 from .codenode import HookNode, SyscallNode
-from .engines import ProcedureEngine, UberEngine
+from .engines import ProcedureEngine, SuccessorsEngine, UberEngine
 from .errors import AngrError
 from .knowledge_plugins.functions import Function
 from .sim_manager import SimulationManager
@@ -80,6 +80,15 @@ class AngrObjectFactory:
         if not hasattr(self._tls, "default_engine"):
             self._tls.default_engine = self.default_engine_factory(self.project)
         return self._tls.default_engine
+
+    def release_default_engine_step(self) -> None:
+        """
+        Drop the last stepped state and successors that this thread's default engine keeps, if the engine exists.
+        """
+        if hasattr(self._tls, "default_engine"):
+            engine = self._tls.default_engine
+            if isinstance(engine, SuccessorsEngine):
+                engine.release_step()
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self.project.is_hooked(addr) and jumpkind != "Ijk_NoHook":

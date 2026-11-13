@@ -1,310 +1,233 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring
-"""Test cases for SpillingCFGGraph and SpillingCFGNodeDict functionality."""
+# pylint:disable=missing-class-docstring,protected-access
+"""Test cases for SpillingCFG: CFGNode views over the node records of the Rust store, and segment paging."""
 
 from __future__ import annotations
 
 __package__ = __package__ or "tests.knowledge_plugins.cfg"  # pylint:disable=redefined-builtin
 
+import gc
 import os
 import pickle
 import unittest
 
 import angr
-from angr.knowledge_plugins.cfg.cfg_node import CFGNode
+from angr.knowledge_plugins.cfg.cfg_model import CFGModel
+from angr.knowledge_plugins.cfg.cfg_node import CFGENode, CFGNode
+from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG, get_block_key
+from angr.rustylib.cfg_graph import BYTES_LOADER, BYTES_MANUAL, BYTES_NONE
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
+FAUXWARE = os.path.join(test_location, "x86_64", "fauxware")
 
 
-class TestSpillingCFGNodeDict(unittest.TestCase):
-    """Test cases for SpillingCFGNodeDict standalone functionality."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.bin_path = os.path.join(test_location, "x86_64", "fauxware")
-
-    def test_basic_operations(self):
-        """Test basic dict operations on SpillingCFGNodeDict."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        # Access the nodes dict through the graph
-        nodes = cfg.model.graph._nodes
-
-        # Test __len__
-        assert len(nodes) > 0, "Should have nodes"
-
-        # Test __contains__
-        for block_id in list(nodes.keys())[:3]:
-            assert block_id in nodes, f"Block ID {block_id} should be in nodes"
-
-        # Test __iter__
-        count = 0
-        for _ in nodes:
-            count += 1
-        assert count == len(nodes), "Iteration count should match length"
-
-    def test_lru_eviction(self):
-        """Test LRU eviction behavior with small cache limit."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        graph = cfg.model.graph
-        total_nodes = len(graph)
-
-        if total_nodes <= 5:
-            self.skipTest("Binary has too few nodes to test eviction")
-
-        # Set small cache limit to trigger eviction
-        graph.cache_limit = 5
-        graph.db_batch_size = 1
-
-        # Check that spilling occurred
-        assert graph.spilled_count > 0, "Should have spilled some nodes"
-        assert graph.cached_count <= 6, "Cache limit should be respected"
-        # All nodes should still be accessible
-        assert len(graph) == total_nodes, "Graph node count should be preserved"
+def _node_rec(n: CFGNode) -> tuple:
+    return (
+        n.addr,
+        n.size,
+        n.block_id,
+        n.name,
+        n.function_address,
+        n.no_ret,
+        n.thumb,
+        n.is_syscall,
+        n.simprocedure_name,
+        n.byte_string,
+        tuple(n.instruction_addrs),
+    )
 
 
-class TestSpillingCFGGraph(unittest.TestCase):
-    """Test cases for SpillingCFGGraph functionality."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.bin_path = os.path.join(test_location, "x86_64", "fauxware")
-
-    def test_default_no_spilling(self):
-        """Test that default behavior has no spilling (cache_limit=None)."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        graph = cfg.model.graph
-
-        assert graph.cache_limit is None, "Default should have no cache limit"
-        assert graph.spilled_count == 0, "Should have no spilled nodes"
-
-    def test_nodes_iteration(self):
-        """Test iterating over nodes returns CFGNode instances."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        for node in cfg.model.graph.nodes():
-            assert isinstance(node, CFGNode), f"Expected CFGNode, got {type(node)}"
-            break  # Just check the first one
-
-    def test_edges_iteration(self):
-        """Test iterating over edges returns CFGNode tuples."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        for src, dst in cfg.model.graph.edges():
-            assert isinstance(src, CFGNode), f"Expected CFGNode src, got {type(src)}"
-            assert isinstance(dst, CFGNode), f"Expected CFGNode dst, got {type(dst)}"
-            break
-
-    def test_edges_with_data(self):
-        """Test iterating over edges with data."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        for _, _, data in cfg.model.graph.edges(data=True):
-            assert isinstance(data, dict), f"Expected dict, got {type(data)}"
-            assert "jumpkind" in data, "Edge should have jumpkind"
-            break
-
-    def test_successors_predecessors(self):
-        """Test successors and predecessors methods."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        # Find a node with successors
-        for node in cfg.model.graph.nodes():
-            succs = list(cfg.model.graph.successors(node))
-            if succs:
-                for succ in succs:
-                    assert isinstance(succ, CFGNode), "Successor should be CFGNode"
-                # Check that node is in predecessor list of its successor
-                preds = list(cfg.model.graph.predecessors(succs[0]))
-                assert node in preds, "Node should be in predecessor list of its successor"
-                break
-
-    def test_contains(self):
-        """Test __contains__ for node membership."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        for node in cfg.model.graph.nodes():
-            assert node in cfg.model.graph, "Node should be in graph"
-            break
-
-    def test_has_edge(self):
-        """Test has_edge method."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        for src, dst in cfg.model.graph.edges():
-            assert cfg.model.graph.has_edge(src, dst), "Edge should exist"
-            break
-
-    def test_adjacency_access(self):
-        """Test graph[src][dst] access pattern."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        for src, dst, expected_data in cfg.model.graph.edges(data=True):
-            actual_data = cfg.model.graph[src][dst]
-            assert actual_data == expected_data, "Adjacency access should return edge data"
-            break
-
-    def test_in_edges_out_edges(self):
-        """Test in_edges and out_edges methods."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        for node in cfg.model.graph.nodes():
-            # Test out_edges
-            out_list = list(cfg.model.graph.out_edges([node], data=True))
-            for src, _, data in out_list:
-                assert src == node, "Source should be the queried node"
-                assert isinstance(data, dict), "Data should be dict"
-
-            # Test in_edges
-            in_list = list(cfg.model.graph.in_edges([node], data=True))
-            for _, dst, _ in in_list:
-                assert dst == node, "Destination should be the queried node"
-
-            if out_list or in_list:
-                break
+def _edge_recs(m: CFGModel) -> list[tuple]:
+    return sorted(
+        (s.addr, s.size, d.addr, d.size, data["jumpkind"], data.get("ins_addr"), data.get("stmt_idx"))
+        for s, d, data in m.graph.edges(data=True)
+    )
 
 
-class TestSpillingCFGGraphWithSpilling(unittest.TestCase):
-    """Test cases for SpillingCFGGraph with spilling enabled."""
+class TestCFGNodeViews(unittest.TestCase):
+    """CFGNode objects of an integer-keyed graph are views over the store's node records."""
+
+    def test_fields_live_in_the_store(self):
+        g = SpillingCFG()
+        node = CFGNode(0x1000, 8, None, function_address=0x1000, instruction_addrs=[0x1000, 0x1003], no_ret=None)
+        g.add_node(node)
+        idx = node._id
+        assert node._store is g._graph and idx is not None
+        assert node._function_address is None  # the object no longer holds the fields
+
+        node.function_address = 0x2000
+        node.no_ret = True
+        node.instruction_addrs = [0x1000, 0x1004]
+        func, base, _, _, _, no_ret, mode, manual, _, _ = g._graph.node_fields(idx)
+        assert (func, base, no_ret, mode, manual) == (0x2000, 0x1000, True, BYTES_NONE, None)
+        assert node.dirty
+
+        # repeated lookups return the same object; the record is the truth for a fresh view
+        assert next(g.nodes_by_addr(0x1000)) is node
+        g._keys.detach_all()
+        fresh = next(g.nodes_by_addr(0x1000))
+        assert fresh is not node and fresh == node and hash(fresh) == hash(node)
+        assert (fresh.function_address, fresh.no_ret, list(fresh.instruction_addrs)) == (0x2000, True, [0x1000, 0x1004])
+        # the detached object kept a snapshot
+        assert node._store is None and node.function_address == 0x2000
+
+        with self.assertRaises(TypeError):
+            g.add_node(CFGENode(0x2000, 4, None, callstack_key=(None, None), block_id=0x2000))
+
+    def test_remove_and_overwrite_detach_views(self):
+        g = SpillingCFG()
+        a = CFGNode(0x1000, 4, None, function_address=0x1000, byte_string=b"\x90" * 4)
+        b = CFGNode(0x1004, 4, None, function_address=0x1000)
+        g.add_edge(a, b, jumpkind="Ijk_Boring", ins_addr=0x1003, stmt_idx=-2)
+        old_id = a._id
+
+        g.remove_node(a)
+        assert a._store is None and a.function_address == 0x1000 and a.byte_string == b"\x90" * 4
+        # the freed id is reused by the next node of that segment; the old object is unaffected
+        c = CFGNode(0x1000, 4, None, function_address=0x3000)
+        g.add_node(c)
+        assert c._id == old_id and a.function_address == 0x1000 and c.function_address == 0x3000
+
+        # adding a detached node whose key exists overwrites the record and detaches the previous view
+        d = CFGNode(0x1000, 4, None, function_address=0x4000, simprocedure_name=None)
+        g.add_node(d)
+        assert c._store is None and c.function_address == 0x3000
+        assert d._id == old_id and next(g.nodes_by_addr(0x1000)) is d and d.function_address == 0x4000
+        assert list(g.successors(d)) == []
+
+    def test_from_networkx_and_clear_detach(self):
+        g = SpillingCFG()
+        a = CFGNode(0x1000, 4, None, function_address=0x1000)
+        g.add_node(a)
+        nxg = g.to_networkx()
+        g.from_networkx(nxg)
+        # a's record was dropped and rebuilt from a's own (snapshotted) fields
+        assert next(g.nodes_by_addr(0x1000)) is a and a.function_address == 0x1000
+
+    def test_byte_string_modes_and_names(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        model = proj.kb.cfgs.new_model("test")
+        main = proj.loader.find_symbol("main").rebased_addr
+        block = proj.factory.block(main)
+        same = CFGNode(main, block.size, model, byte_string=block.bytes, function_address=main, block_id=main)
+        other = CFGNode(main + 0x100, 2, model, byte_string=b"\xcc\xcc", function_address=main, block_id=main + 0x100)
+        none = CFGNode(main + 0x200, 2, model, function_address=main, block_id=main + 0x200)
+        for n in (same, other, none):
+            model.graph.add_node(n)
+        store = model.graph._graph
+        assert store.node_bytes(same._id)[0] == BYTES_LOADER  # not stored
+        assert store.node_bytes(other._id) == (BYTES_MANUAL, b"\xcc\xcc")
+        assert store.node_bytes(none._id) == (BYTES_NONE, None)
+        assert (same.byte_string, other.byte_string, none.byte_string) == (block.bytes, b"\xcc\xcc", None)
+
+        # names resolve lazily and are written back to the record
+        assert store.node_name(other._id) is None
+        assert same.name == "main" and other.name == "main+0x100"
+        assert store.node_name(other._id) == "main+0x100"
+        # a new function address resets the name
+        other.function_address = None
+        assert store.node_name(other._id) is None
+
+    def test_views_are_released(self):
+        g = SpillingCFG()
+        n = g._keys.RING_SIZE + 64
+        for i in range(n):
+            g.add_node(CFGNode(0x1000 + 4 * i, 4, None, block_id=0x1000 + 4 * i))
+        gc.collect()
+        assert len(g._keys._cache) <= g._keys.RING_SIZE
+        assert [node.addr for node in g.nodes()] == [0x1000 + 4 * i for i in range(n)]
+
+
+class TestSegmentPaging(unittest.TestCase):
+    """Node records are paged with the graph segments."""
 
     @classmethod
     def setUpClass(cls):
-        cls.bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        cls.ref = proj.analyses.CFGFast(normalize=True).model
 
-    def test_spilling_enabled(self):
-        """Test CFG construction with spilling enabled."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
+    def test_default_resident(self):
+        assert not self.ref.graph.paged and self.ref.graph.segment_budget is None
 
-        graph = cfg.model.graph
-        total = len(graph)
+    def test_paged_cfgfast_matches_resident(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False, cache_limits={"cfg_segment_bytes": 1})
+        model = proj.analyses.CFGFast(normalize=True).model
+        graph = model.graph
+        assert graph.paged and graph.segment_stats()["evictions"] > 0
+        assert sorted(_node_rec(n) for n in graph.nodes()) == sorted(_node_rec(n) for n in self.ref.graph.nodes())
+        assert _edge_recs(model) == _edge_recs(self.ref)
 
-        if total <= 5:
-            self.skipTest("Binary too small to test spilling")
+        # a mutation through a view survives the eviction of its segment
+        node = model.get_any_node(proj.entry)
+        node.function_address = 0x1234
+        graph._graph.evict_all()
+        assert graph.segment_stats()["resident_segments"] == 0
+        assert node.function_address == 0x1234
+        graph._keys.detach_all()
+        assert model.get_any_node(proj.entry).function_address == 0x1234
 
-        graph.db_batch_size = 1
-        graph.cache_limit = 5
+    def test_copy(self):
+        copied = self.ref.copy()
+        assert len(copied.graph) == len(self.ref.graph)
+        assert sorted(_node_rec(n) for n in copied.graph.nodes()) == sorted(
+            _node_rec(n) for n in self.ref.graph.nodes()
+        )
+        # the copy has its own records
+        node = next(iter(copied.graph.nodes()))
+        node.function_address = 0x1234
+        assert self.ref.graph.get_node_by_key(get_block_key(node)).function_address != 0x1234
 
-        assert graph.cache_limit == 5, "Cache limit should be set"
-        assert graph.spilled_count > 0, "Should have spilled nodes"
-        # Graph should still have all nodes accessible
-        assert len(graph) == total, "Graph node count preserved"
-
-    def test_access_spilled_node(self):
-        """Test accessing a spilled node loads it correctly."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        graph = cfg.model.graph
-
-        if len(graph) <= 3:
-            self.skipTest("Binary too small to test spilling")
-
-        # Enable spilling
-        graph.db_batch_size = 1
-        graph.cache_limit = 3
-
-        if graph.spilled_count == 0:
-            self.skipTest("No spilled nodes to test")
-
-        # Iterate and access all nodes - spilled ones should be loaded
-        for node in graph.nodes():
-            assert isinstance(node, CFGNode), "Should get CFGNode instances"
-            assert node.addr is not None, "Node should have valid address"
-
-    def test_graph_traversal_with_spilling(self):
-        """Test graph traversal works correctly with spilled nodes."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        # Enable spilling
-        cfg.model.graph.cache_limit = 3
-
-        # Use CFGModel methods that traverse the graph
-        model = cfg.model
-
-        # Try to get successors/predecessors
-        for node in model.graph.nodes():
-            succs = model.get_successors(node)
-            preds = model.get_predecessors(node)
-            # Just verify these don't crash
-            assert isinstance(succs, list)
-            assert isinstance(preds, list)
-            break
-
-    def test_copy_with_spilling(self):
-        """Test copying a CFGModel with spilled nodes."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        # Enable spilling
-        cfg.model.graph.cache_limit = 5
-
-        original = cfg.model
-        copied = original.copy()
-
-        # Verify counts match
-        assert len(copied.graph) == len(original.graph), "Node count should match"
-
-        # Verify nodes are accessible in copy
-        for node in copied.graph.nodes():
-            assert node is not None
-            break
+    def test_pickle_roundtrip_paged(self):
+        """Round-tripping a paged CFG through pickle must not lose nodes, node fields or edges (#6529)."""
+        proj = angr.Project(FAUXWARE, auto_load_libs=False, cache_limits={"cfg_segment_bytes": 1})
+        model = proj.analyses.CFGFast(normalize=True).model
+        # resolved names are written back to the records (and pickled with them)
+        expected = sorted(_node_rec(n) for n in model.graph.nodes())
+        model.graph._graph.evict_all()
+        restored = pickle.loads(pickle.dumps(model))
+        # without a project, loader bytes cannot be read back
+        assert sorted(_node_rec(n)[:9] for n in restored.graph.nodes()) == [r[:9] for r in expected]
+        assert _edge_recs(restored) == _edge_recs(model)
 
 
 class TestCFGModelIntegration(unittest.TestCase):
-    """Integration tests for CFGModel with SpillingCFGGraph."""
+    """Integration tests for CFGModel with SpillingCFG."""
 
     @classmethod
     def setUpClass(cls):
-        cls.bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        cls.model = proj.analyses.CFGFast().model
 
-    def test_nodes_property(self):
-        """Test that CFGModel._nodes property works correctly."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
+    def test_nodes_mapping(self):
+        model = self.model
+        nodes = model._nodes
+        assert len(nodes) == len(model.graph) > 0
+        keys = list(nodes)
+        assert len(keys) == len(nodes)
+        for key in keys[:3]:
+            assert key in nodes and get_block_key(nodes[key]) == key
+        assert nodes.get((0xDEAD, 1)) is None
 
-        model = cfg.model
-
-        # _nodes should delegate to graph._nodes
-        assert model._nodes is model.graph._nodes, "_nodes should be graph._nodes"
+    def test_graph_queries(self):
+        graph = self.model.graph
+        for src, dst, data in graph.edges(data=True):
+            assert isinstance(src, CFGNode) and isinstance(dst, CFGNode) and "jumpkind" in data
+            assert graph.has_edge(src, dst) and graph[src][dst] == data
+            assert src in list(graph.predecessors(dst)) and dst in list(graph.successors(src))
+            assert (dst, data["jumpkind"]) in graph.successors_and_jumpkinds(src)
+            break
 
     def test_get_node(self):
-        """Test CFGModel.get_node method."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        model = cfg.model
-
-        # Get block IDs from the block ID to block key mapping
-        # note that block IDs and block keys are different. Block IDs are generated by the CFG analysis, while block
-        # keys are internal to the CFGModel.
+        model = self.model
         for block_id in model._blockid_to_blockkey:
             node = model.get_node(block_id)
-            assert node is not None, "Should get node by block_id"
-            assert node.block_id == block_id, "Block ID should match"
+            assert node is not None and node.block_id == block_id
             break
 
     def test_lookup_outside_u64_range(self):
         """Addresses outside the u64 range (e.g., a negative loader entry) must miss, not raise."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-        model = cfg.model
-
+        model = self.model
         for addr in (-1, -2244608, 1 << 64):
             assert model.get_any_node(addr, force_fastpath=True) is None
             assert model.get_any_node(addr, anyaddr=True) is None
@@ -312,62 +235,11 @@ class TestCFGModelIntegration(unittest.TestCase):
             assert list(model.graph.nodes_by_addr(addr)) == []
 
     def test_get_any_node(self):
-        """Test CFGModel.get_any_node method."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        model = cfg.model
-
-        # Get a node address
+        model = self.model
         for node in model.graph.nodes():
             found = model.get_any_node(node.addr)
-            assert found is not None, "Should find node by address"
-            assert found.addr == node.addr, "Address should match"
+            assert found is not None and found.addr == node.addr
             break
-
-    def test_cfg_model_nodes_method(self):
-        """Test CFGModel.nodes() method."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
-
-        nodes_list = list(cfg.model.nodes())
-        assert len(nodes_list) > 0, "Should have nodes"
-        assert len(nodes_list) == len(cfg.model.graph), "Count should match"
-
-
-class TestSpillingCFGPickling(unittest.TestCase):
-    """Regression tests for pickling a CFG whose nodes/edges spill to LMDB (angr issue #6529)."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.bin_path = os.path.join(test_location, "x86_64", "fauxware")
-
-    def test_pickle_roundtrip_with_eviction(self):
-        """
-        Round-tripping a spilling CFG through pickle must not lose nodes or edges.
-        """
-        proj = angr.Project(self.bin_path)
-        cfg = proj.analyses.CFGFast(normalize=True)
-        model = cfg.model
-
-        total = len(model.graph)
-        if total <= 15:
-            self.skipTest("Binary too small to trigger eviction during unpickling")
-
-        # shrink the limits so that re-inserting the nodes on the unpickle side triggers LRU eviction
-        model.graph.cache_limit = 5
-        model.graph.db_batch_size = 10
-
-        nodes_before = {(n.addr, n.size) for n in model.graph.nodes()}
-        edges_before = {(s.addr, d.addr) for s, d in model.graph.edges()}
-
-        restored = pickle.loads(pickle.dumps(model))
-
-        nodes_after = {(n.addr, n.size) for n in restored.graph.nodes()}
-        edges_after = {(s.addr, d.addr) for s, d in restored.graph.edges()}
-
-        assert nodes_after == nodes_before, f"Lost nodes across pickling: {sorted(nodes_before - nodes_after)[:10]}"
-        assert edges_after == edges_before, f"Lost edges across pickling: {sorted(edges_before - edges_after)[:10]}"
 
 
 if __name__ == "__main__":

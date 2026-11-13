@@ -188,9 +188,9 @@ class KnowledgeBaseSnapshot:
         self._copies = {name: self._plugins[name].copy() for name in names if name in self._plugins}
         self._prototypes = {
             func: (
-                dict(func._prototypes),
-                dict(func._prototype_sources),
-                set(func._prototypes_resolved),
+                None if func._prototypes is None else dict(func._prototypes),
+                None if func._prototype_sources is None else dict(func._prototype_sources),
+                None if func._prototypes_resolved is None else set(func._prototypes_resolved),
                 func.calling_convention,
             )
             for func in self._resident_functions(kb)
@@ -217,7 +217,7 @@ class KnowledgeBaseSnapshot:
             plugins[name] = plugin.copy()
             plugins[name].set_kb(self._kb)
         for func, (prototypes, sources, resolved, cc) in self._prototypes.items():
-            func._prototypes = dict(prototypes)
-            func._prototype_sources = dict(sources)
-            func._prototypes_resolved = set(resolved)
+            func._prototypes = None if prototypes is None else dict(prototypes)
+            func._prototype_sources = None if sources is None else dict(sources)
+            func._prototypes_resolved = None if resolved is None else set(resolved)
             func.calling_convention = cc

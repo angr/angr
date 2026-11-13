@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 import archinfo
@@ -44,9 +44,13 @@ from angr.errors import (
 )
 from angr.knowledge_plugins.cfg import CFGENode, CFGModel, CFGNode, IndirectJump  # pylint:disable=unused-import
 from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
+from angr.knowledge_plugins.functions.function import FunctionRecord
 from angr.knowledge_plugins.functions.function_manager import FunctionManager
+from angr.knowledge_plugins.functions.soot_function import SootFunction
 from angr.procedures.procedure_dict import SIM_PROCEDURES
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.rustylib.cfg_funcs import FunctionsBuilder
+from angr.rustylib.function_graph import NodeKind, SiteKind  # pylint:disable=import-error,no-name-in-module
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.orderedset import OrderedSet
 from angr.utils.vex import block_branch_ins_addr, block_is_single_instruction
@@ -179,7 +183,8 @@ class CFGBase(Analysis):
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
         self.indirect_jumps: dict[int, IndirectJump] = {}
-        self._indirect_jumps_to_resolve = set()
+        # insertion-ordered; IndirectJump hashes by identity, so a set would order by memory layout
+        self._indirect_jumps_to_resolve: dict[IndirectJump, None] = {}
         # indirect jumps whose resolution was postponed because the data references that bound an unbounded jump
         # table were not collected yet. only used when _defer_unbounded_jumptables is enabled (CFGFast).
         self._deferred_indirect_jumps: set[IndirectJump] = set()
@@ -191,6 +196,10 @@ class CFGBase(Analysis):
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self.timeless_indirect_jump_resolvers = []
         self.indirect_jump_resolvers = []
+        # the Rust resolver chain (angr.rustylib.ijr) that dispatches both lists during a CFGFast run, and the Rust
+        # FCP that ConstantValueManager uses
+        self._ijr_chain = None
+        self._ijr_fcp = None
         if not indirect_jump_resolvers:
             indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
         if self._resolve_indirect_jumps and indirect_jump_resolvers:
@@ -1140,7 +1149,7 @@ class CFGBase(Analysis):
         if not all_funcs_completed and func.addr not in self._completed_functions:
             return None
 
-        if not func.block_addrs_set:
+        if (func.local_block_count() if self._graph_backed(func) else len(func.block_addrs_set)) == 0:
             # there is no block inside this function
             # it might happen if the function has been incorrectly identified as part of another function
             # the error will be corrected during post-processing. In fact at this moment we cannot say anything
@@ -1151,17 +1160,9 @@ class CFGBase(Analysis):
 
         # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
         # returns
-        for goout_site, type_ in [(site, "jumpout") for site in func.jumpout_sites] + [
-            (site, "retout") for site in func.retout_sites
-        ]:
-            # determine where it jumps/returns to
-            goout_site_successors = goout_site.successors()
+        for is_retout, goout_site_successors in self._goout_site_successors(func):
             # Filter out UnresolvableJumpTarget because those don't mean that we actually know where it jumps to
-            known_successors = [
-                n
-                for n in goout_site_successors
-                if not (isinstance(n, HookNode) and n.sim_procedure.__class__ == UnresolvableJumpTarget)
-            ]
+            known_successors = [succ for succ in goout_site_successors if not succ[1]]
 
             if not known_successors:
                 # not sure where it jumps to. bail out
@@ -1169,31 +1170,30 @@ class CFGBase(Analysis):
                 continue
 
             # for ret-out sites, determine what function it calls
-            if type_ == "retout":
+            if is_retout:
                 # see whether the function being called returns or not
-                func_successors = [succ for succ in goout_site_successors if isinstance(succ, FuncNode)]
+                func_successors = [addr for is_func, _, addr in goout_site_successors if is_func]
                 if func_successors and all(
-                    self.functions.is_func_nonreturning(succ.addr)
-                    or self.functions.is_func_returning_unknown(succ.addr)
-                    for succ in func_successors
+                    self.functions.is_func_nonreturning(addr) or self.functions.is_func_returning_unknown(addr)
+                    for addr in func_successors
                 ):
                     # the returning of all possible function calls are undetermined, or they do not return
                     # ignore this site
                     continue
 
-            if type_ == "retout":
-                goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, FuncNode)), None)
+            if is_retout:
+                goout_target = next((addr for is_func, _, addr in goout_site_successors if not is_func), None)
             else:
-                goout_target = next((succ for succ in goout_site_successors), None)
+                goout_target = goout_site_successors[0][2] if goout_site_successors else None
             if goout_target is None:
                 # there is no jumpout site, which is weird, but what can we do...
                 continue
-            if not self.kb.functions.contains_addr(goout_target.addr):
+            if not self.kb.functions.contains_addr(goout_target):
                 # wait it does not jump to a function?
                 bail_out = True
                 continue
 
-            target_func = self.kb.functions[goout_target.addr]
+            target_func = self.kb.functions[goout_target]
             if target_func.returning is True:
                 return True
             if target_func.returning is None:
@@ -1206,6 +1206,51 @@ class CFGBase(Analysis):
 
         # well this function does not return then
         return False
+
+    @staticmethod
+    def _graph_backed(func) -> bool:
+        return not isinstance(func, SootFunction)
+
+    def _goout_site_successors(self, func) -> Iterator[tuple[bool, list[tuple[bool, bool, int]]]]:
+        """
+        The jump-out sites, then the ret-out sites of a function, as (is ret-out, successors). Each successor is
+        (is a FuncNode, is an UnresolvableJumpTarget hook, address). Function graphs are read by node ID, so no
+        CodeNode objects are created.
+        """
+        if not self._graph_backed(func):
+            for is_retout, sites in ((False, func.jumpout_sites), (True, func.retout_sites)):
+                for site in sites:
+                    yield (
+                        is_retout,
+                        [
+                            (
+                                isinstance(n, FuncNode),
+                                isinstance(n, HookNode) and n.sim_procedure.__class__ == UnresolvableJumpTarget,
+                                n.addr,
+                            )
+                            for n in site.successors()
+                        ],
+                    )
+            return
+
+        graph = func._graph
+        project = self.project
+        site_lists = [(False, graph.sites(SiteKind.JUMPOUT)), (True, graph.sites(SiteKind.RETOUT))]
+        for is_retout, sites in site_lists:
+            for site in sites:
+                if not graph.contains_node(site):
+                    raise networkx.NetworkXError(f"The node {func._node_obj(site)} is not in the graph.")
+                succs = []
+                for idx in graph.successors(site):
+                    kind, addr, _, _ = graph.node(idx)
+                    if kind == NodeKind.HOOK:
+                        unresolvable = project.hooked_by(addr).__class__ == UnresolvableJumpTarget
+                    elif kind == NodeKind.SYSCALL:
+                        unresolvable = project.simos.syscall_from_addr(addr).__class__ == UnresolvableJumpTarget
+                    else:
+                        unresolvable = False
+                    succs.append((kind == NodeKind.FUNC, unresolvable, addr))
+                yield is_retout, succs
 
     def _analyze_function_features(self, all_funcs_completed=False):
         """
@@ -1292,6 +1337,9 @@ class CFGBase(Analysis):
         :return: None
         """
 
+        if self._normalize_with_rust():
+            return
+
         graph = self.graph
 
         smallest_nodes = {}  # indexed by end address of the node
@@ -1345,7 +1393,8 @@ class CFGBase(Analysis):
                     other_nodes = [
                         n
                         for n in other_nodes
-                        if n.instruction_addrs and n.instruction_addrs[-1] in smallest_node.instruction_addrs
+                        if (last := self._last_decoded_ins_addr(n)) is not None
+                        and last in smallest_node.instruction_addrs
                     ]
                 if not other_nodes:
                     del end_addr_to_nodes[key_to_find]
@@ -1405,6 +1454,19 @@ class CFGBase(Analysis):
                                 smallest_nodes.pop(nodekey_b, None)
 
         self.normalized = True
+
+    @staticmethod
+    def _last_decoded_ins_addr(node: CFGNode) -> int | None:
+        """
+        The last instruction address of `node`, skipping the IMark that VEX emits at the end of a NoDecode block for the
+        instruction it failed to decode.
+        """
+        addrs = node.instruction_addrs
+        if not addrs:
+            return None
+        if addrs[-1] >= node.addr + node.size:
+            return addrs[-2] if len(addrs) > 1 else None
+        return addrs[-1]
 
     def _normalize_core(
         self,
@@ -1548,28 +1610,41 @@ class CFGBase(Analysis):
                 # We gotta create a new one
                 l.error("normalize(): Please report it to Fish.")
 
-        # update the jump tables dict and the indirect jumps dict
-        if smallest_node.addr not in self.model.jump_tables:
-            for n in other_nodes:
-                if n.addr in self.model.jump_tables:
-                    self.model.jump_tables[n.addr].addr = smallest_node.addr
-                    self.model.jump_tables[smallest_node.addr] = self.model.jump_tables[n.addr]
+        self._normalize_jump_tables(smallest_node.addr, [n.addr for n in other_nodes])
+
+    def _normalize_jump_tables(self, smallest_addr, other_addrs: list) -> None:
+        """
+        Move the jump table and the indirect jump of a node that normalize() split to the remaining node.
+        """
+        jump_tables = self.model.jump_tables
+        indirect_jumps = self.indirect_jumps
+        if smallest_addr not in jump_tables:
+            for addr in other_addrs:
+                if addr in jump_tables:
+                    jump_tables[addr].addr = smallest_addr
+                    jump_tables[smallest_addr] = jump_tables[addr]
                     break
-        if smallest_node.addr not in self.indirect_jumps:
-            for n in other_nodes:
-                if n.addr in self.indirect_jumps:
-                    self.indirect_jumps[n.addr].addr = smallest_node.addr
-                    self.indirect_jumps[smallest_node.addr] = self.indirect_jumps[n.addr]
+        if smallest_addr not in indirect_jumps:
+            for addr in other_addrs:
+                if addr in indirect_jumps:
+                    indirect_jumps[addr].addr = smallest_addr
+                    indirect_jumps[smallest_addr] = indirect_jumps[addr]
                     break
         # deal with duplicated entries in self.jump_tables and self.indirect_jumps
-        if smallest_node.addr in self.model.jump_tables:
-            for n in other_nodes:
-                if n.addr in self.model.jump_tables:
-                    del self.model.jump_tables[n.addr]
-        if smallest_node.addr in self.indirect_jumps:
-            for n in other_nodes:
-                if n.addr in self.indirect_jumps:
-                    del self.indirect_jumps[n.addr]
+        if smallest_addr in jump_tables:
+            for addr in other_addrs:
+                if addr in jump_tables:
+                    del jump_tables[addr]
+        if smallest_addr in indirect_jumps:
+            for addr in other_addrs:
+                if addr in indirect_jumps:
+                    del indirect_jumps[addr]
+
+    def _normalize_with_rust(self) -> bool:
+        """
+        Run normalize() in Rust if this CFG supports it; returns False to run the Python code.
+        """
+        return False
 
     #
     # Job management
@@ -1668,30 +1743,46 @@ class CFGBase(Analysis):
         if not self.project.arch.capstone_support:
             return
 
+        candidates = []
         for func_addr in self.kb.functions:
             if self.kb.functions.get_func_block_count(func_addr) == 1:
                 func_meta = self.kb.functions.get_by_addr(func_addr, meta_only=True)
                 if func_meta.is_simprocedure or func_meta.is_syscall or func_meta.is_plt:
                     continue
-                function = self.kb.functions.get_by_addr(func_addr)
-                block = next((b for b in function.blocks), None)
-                if block is None:
-                    continue
-                if self._is_noop_block(self.project.arch, block) or all(
-                    self._is_noop_insn(insn) for insn in block.capstone.insns
-                ):
-                    # all nops. mark this function as a function alignment
-                    l.debug("Function chunk %#x is probably used as a function alignment (all nops).", func_addr)
+                candidates.append(func_addr)
+
+        verdicts = self._alignment_verdicts(candidates)
+        for i, func_addr in enumerate(candidates):
+            if verdicts is not None and verdicts[i] is not None:
+                if verdicts[i]:
                     self.kb.functions[func_addr].is_alignment = True
-                    continue
-                node = function.get_node(block.addr)
-                assert node is not None
-                successors = list(function.graph.successors(node))
-                if len(successors) == 1 and successors[0].addr == node.addr:
-                    # self loop. mark this function as a function alignment
-                    l.debug("Function chunk %#x is probably used as a function alignment (self-loop).", func_addr)
-                    self.kb.functions[func_addr].is_alignment = True
-                    continue
+                continue
+            function = self.kb.functions.get_by_addr(func_addr)
+            block = next((b for b in function.blocks), None)
+            if block is None:
+                continue
+            if self._is_noop_block(self.project.arch, block) or all(
+                self._is_noop_insn(insn) for insn in block.capstone.insns
+            ):
+                # all nops. mark this function as a function alignment
+                l.debug("Function chunk %#x is probably used as a function alignment (all nops).", func_addr)
+                self.kb.functions[func_addr].is_alignment = True
+                continue
+            node = function.get_node(block.addr)
+            assert node is not None
+            successors = list(function.graph.successors(node))
+            if len(successors) == 1 and successors[0].addr == node.addr:
+                # self loop. mark this function as a function alignment
+                l.debug("Function chunk %#x is probably used as a function alignment (self-loop).", func_addr)
+                self.kb.functions[func_addr].is_alignment = True
+                continue
+
+    def _alignment_verdicts(self, func_addrs: list[int]) -> list[bool | None] | None:  # pylint:disable=unused-argument
+        """
+        For each single-block function in func_addrs: True if mark_function_alignments() marks it as an alignment,
+        False if it does not, None if it must be checked in Python. None to check all of them in Python.
+        """
+        return None
 
     def make_functions(self):
         """
@@ -1743,7 +1834,9 @@ class CFGBase(Analysis):
         # Clear old functions dict by creating a new function manager
         self.kb.functions = FunctionManager(self.kb)
 
-        blockaddr_to_funcaddr = {}
+        # the Rust builder, when available, holds blockaddr_to_funcaddr, the traversed nodes and the new functions
+        builder = self._functions_builder(tmp_functions)
+        blockaddr_to_funcaddr = {} if builder is None else builder
         traversed_cfg_node_keys = set()
 
         function_nodes = set()
@@ -1783,13 +1876,20 @@ class CFGBase(Analysis):
 
         # Remove all nodes that are adjusted
         function_nodes.difference_update(adjusted_cfgnodes)
-        for node_key in self.graph.node_keys:
-            node_addr = block_key_to_addr(node_key)
-            if node_addr in tmp_functions or node_addr in removed_functions:
+        if builder is not None:
+            for node_key in builder.function_node_keys(removed_functions):
                 function_nodes.add(self.graph.get_node_by_key(node_key))
+        else:
+            for node_key in self.graph.node_keys:
+                node_addr = block_key_to_addr(node_key)
+                if node_addr in tmp_functions or node_addr in removed_functions:
+                    function_nodes.add(self.graph.get_node_by_key(node_key))
 
         # ensure all function nodes are mapped to their function addresses
         for func_addr in predetermined_function_addrs:
+            if builder is not None:
+                builder.add_predetermined(func_addr)
+                continue
             self.kb.functions.function(func_addr, create=True)
             func = self.kb.functions.get_by_addr(func_addr)
             # copy over existing metadata if any
@@ -1825,6 +1925,9 @@ class CFGBase(Analysis):
         min_stage_2_progress = 50.0
         max_stage_2_progress = 90.0
         nodes_count = len(function_nodes)
+        if builder is not None:
+            self._make_functions_in_rust(builder, tmp_functions, function_nodes)
+            return
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
             if self._low_priority:
                 self._release_gil(i, 800, 0.000001)
@@ -1886,6 +1989,104 @@ class CFGBase(Analysis):
                 traversed_cfg_node_keys,
             )
 
+        self._remove_stub_and_empty_functions()
+
+        # Update CFGNode.function_address
+        for node in self._nodes.values():
+            if node.addr in blockaddr_to_funcaddr:
+                node.function_address = blockaddr_to_funcaddr[node.addr]
+
+    def _functions_builder(self, tmp_functions: FunctionManager) -> FunctionsBuilder | None:  # pylint:disable=unused-argument
+        """
+        The Rust builder that make_functions() uses for blockaddr_to_funcaddr and the traversal, or None to run the
+        Python traversal.
+        """
+        return None
+
+    def _make_functions_in_rust(
+        self, builder: FunctionsBuilder, tmp_functions: FunctionManager, function_nodes: set[CFGNode]
+    ) -> None:
+        """
+        The traversals of make_functions() and everything after them, with a FunctionsBuilder.
+        """
+        progress_on = self._show_progressbar or self._progress_callback is not None
+        low_priority = self._low_priority
+
+        def _progress(lo: float, hi: float, count: int):
+            if not progress_on and not low_priority:
+                return None
+
+            def _on_start(i: int) -> None:
+                # what the Python traversal loop does before each start
+                if low_priority:
+                    self._release_gil(i, 800, 0.000001)
+                if progress_on:
+                    self._update_progress(lo + (hi - lo) * (i * 1.0 / count))
+
+            return _on_start
+
+        has_return = self.model._block_addrs_with_return
+        builder.traverse(
+            [get_block_key(fn) for fn in sorted(function_nodes, key=lambda n: n.addr)],
+            has_return,
+            _progress(50.0, 90.0, len(function_nodes)),
+        )
+
+        keys, ambiguous = builder.secondary_starts()
+        if ambiguous:
+            # nodes sharing an address are ordered by Python's set order; build the set as the Python path does
+            secondary_function_nodes = set()
+            for func_addr in tmp_functions:
+                node = self.model.get_any_node(func_addr, force_fastpath=True)
+                if node is None:
+                    continue
+                if node.addr not in builder:
+                    secondary_function_nodes.add(node)
+            missing_cfg_node_keys = set(self.graph.node_keys) - set(builder.traversed_keys())
+            secondary_function_nodes |= {
+                self.graph.get_node_by_key(node_key)
+                for node_key in missing_cfg_node_keys
+                if self.graph.get_node_by_key(node_key).function_address is not None
+            }
+            keys = [get_block_key(n) for n in sorted(secondary_function_nodes, key=lambda n: n.addr)]
+        builder.traverse(keys, has_return, _progress(90.0, 99.9, len(keys)))
+
+        if self._updated_nonreturning_functions is not None:
+            self._updated_nonreturning_functions.update(builder.updated_nonreturning())
+        self._tail_calls.update(builder.tail_calls())
+
+        # create the Function objects and the callgraph
+        funcs, infos = builder.functions()
+        fm = self.kb.functions
+        builder.fill_callgraph(fm.callgraph)
+        # a later copy replaces the info; key functions are indexed in the order the copies were made
+        info_of: dict[int, dict] = {}
+        for addr, info in infos:
+            fm.index_key_func_info(addr, info)
+            info_of[addr] = info
+        fm.bulk_add_functions(
+            [
+                FunctionRecord(
+                    addr,
+                    graph=graph,
+                    syscall=syscall,
+                    is_simprocedure=simproc,
+                    is_plt=plt,
+                    returning=ret,
+                    info=info_of.get(addr),
+                )
+                for addr, graph, syscall, simproc, plt, ret in funcs
+            ]
+        )
+
+        self._remove_stub_and_empty_functions(builder.empty_functions())
+        builder.update_node_functions()
+
+    def _remove_stub_and_empty_functions(self, empty_functions: list[int] | None = None) -> None:
+        """
+        Remove the dummy PLT stubs and the functions without a startpoint (``empty_functions`` when the caller knows
+        them).
+        """
         to_remove = set()
 
         # Remove all stubs after PLT entries
@@ -1893,18 +2094,16 @@ class CFGBase(Analysis):
             to_remove |= self._remove_dummy_plt_stubs(self.kb.functions)
 
         # remove empty functions
-        for func_meta in self.kb.functions.values(meta_only=True):
-            if func_meta.startpoint is None:
-                to_remove.add(func_meta.addr)
-                continue
+        if empty_functions is not None:
+            to_remove.update(empty_functions)
+        else:
+            for func_meta in self.kb.functions.values(meta_only=True):
+                if func_meta.startpoint is None:
+                    to_remove.add(func_meta.addr)
+                    continue
 
         for addr in to_remove:
             del self.kb.functions[addr]
-
-        # Update CFGNode.function_address
-        for node in self._nodes.values():
-            if node.addr in blockaddr_to_funcaddr:
-                node.function_address = blockaddr_to_funcaddr[node.addr]
 
     def _remove_dummy_plt_stubs(self, functions):
         def _is_function_a_plt_stub(arch_, func):
@@ -2375,6 +2574,8 @@ class CFGBase(Analysis):
         :return:    The address of the function that the block belongs to.
         """
 
+        if isinstance(blockaddr_to_funcaddr, FunctionsBuilder):
+            return blockaddr_to_funcaddr.addr_to_funcaddr(addr)  # type:ignore[return-value]
         if addr in blockaddr_to_funcaddr:
             f_addr = blockaddr_to_funcaddr[addr]
         else:
@@ -3028,26 +3229,50 @@ class CFGBase(Analysis):
         :rtype:                 tuple
         """
 
-        # pre-check: if re-lifting the block with full optimization (cross-instruction-optimization enabled) gives us
-        # a constant next expression, we don't need to resolve it
-        try:
-            relifted = self.project.factory.block(block.addr, size=block.size, opt_level=1, cross_insn_opt=True).vex
-        except SimError:
-            return False, []
-        if not relifted.jumpkind.startswith("Ijk_Sys") and isinstance(relifted.next, pyvex.IRExpr.Const):
-            # yes!
-            return True, [relifted.next.con.value]
+        chain = self._ijr_chain
+        if chain is not None:
+            stmts = block.statements
+            return chain.resolve_timeless(
+                self, addr, func_addr, block, jumpkind, block.addr, block.size, -1 if stmts is None else len(stmts)
+            )
 
-        if block.statements is None:
-            # make sure there are statements
-            block = self.project.factory.block(block.addr, size=block.size).vex
+        precheck = self._timeless_precheck(block)
+        if precheck is not None:
+            return precheck
 
+        block = self._ijr_stmt_block(block)
         for res in self.timeless_indirect_jump_resolvers:
             if res.filter(self, addr, func_addr, block, jumpkind):
                 r, resolved_targets = res.resolve(self, addr, func_addr, block, jumpkind)
                 if r:
                     return True, resolved_targets
         return False, []
+
+    def _timeless_precheck(self, block) -> tuple[bool, list[int]] | None:
+        """
+        The timeless pre-check: if re-lifting the block with full optimization (cross-instruction-optimization
+        enabled) gives us a constant next expression, we don't need to resolve it. Returns the resolution result, or
+        None when the timeless resolvers should run.
+        """
+        # only next and jumpkind are read, so the statements are not converted
+        try:
+            relifted = self.project.factory.block(
+                block.addr, size=block.size, opt_level=1, cross_insn_opt=True
+            ).vex_nostmt
+        except SimError:
+            return False, []
+        if not relifted.jumpkind.startswith("Ijk_Sys") and isinstance(relifted.next, pyvex.IRExpr.Const):
+            # yes!
+            return True, [relifted.next.con.value]
+        return None
+
+    def _ijr_stmt_block(self, block):
+        """
+        The block the timeless resolvers receive: make sure there are statements.
+        """
+        if block.statements is None:
+            block = self.project.factory.block(block.addr, size=block.size).vex
+        return block
 
     def _indirect_jump_resolved(self, jump, jump_addr, resolved_by, targets):
         """
@@ -3164,10 +3389,14 @@ class CFGBase(Analysis):
 
         l.debug("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
+        chain = self._ijr_chain
+        if chain is not None and type(self)._process_one_indirect_jump is _PROCESS_ONE_INDIRECT_JUMP:
+            return chain.resolve_pending(self, self._release_gil if self._low_priority else None)
+
         all_targets = set()
         idx: int
         jump: IndirectJump
-        for idx, jump in enumerate(self._indirect_jumps_to_resolve):
+        for idx, jump in enumerate(sorted(self._indirect_jumps_to_resolve, key=lambda j: j.addr)):
             if self.should_abort:
                 break
             if self._low_priority:
@@ -3191,27 +3420,31 @@ class CFGBase(Analysis):
         :return:                    A set of resolved indirect jump targets (ints).
         """
 
-        resolved = False
-        deferred = False
-        resolved_by = None
-        targets = None
+        chain = self._ijr_chain
+        if chain is not None:
+            resolved, resolved_by, targets, deferred = chain.resolve_deferred(self, jump, func_graph_complete)
+        else:
+            resolved = False
+            deferred = False
+            resolved_by = None
+            targets = None
 
-        block = self._lift(jump.addr)
+            block = self._lift(jump.addr)
 
-        for resolver in self.indirect_jump_resolvers:
-            resolver.base_state = self._base_state
+            for resolver in self.indirect_jump_resolvers:
+                resolver.base_state = self._base_state
 
-            if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
-                continue
+                if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
+                    continue
 
-            resolved, targets = resolver.resolve(
-                self, jump.addr, jump.func_addr, block, jump.jumpkind, func_graph_complete=func_graph_complete
-            )
-            if resolved:
-                resolved_by = resolver
-                break
-            if getattr(resolver, "deferred", False):
-                deferred = True
+                resolved, targets = resolver.resolve(
+                    self, jump.addr, jump.func_addr, block, jump.jumpkind, func_graph_complete=func_graph_complete
+                )
+                if resolved:
+                    resolved_by = resolver
+                    break
+                if getattr(resolver, "deferred", False):
+                    deferred = True
 
         if resolved:
             self._indirect_jump_resolved(jump, jump.addr, resolved_by, targets)
@@ -3222,3 +3455,7 @@ class CFGBase(Analysis):
             self._indirect_jump_unresolved(jump)
 
         return set() if targets is None else set(targets)
+
+
+# the Rust deferred loop replaces calls to this method; a replaced method (e.g., a patched one) keeps the Python loop
+_PROCESS_ONE_INDIRECT_JUMP = CFGBase._process_one_indirect_jump

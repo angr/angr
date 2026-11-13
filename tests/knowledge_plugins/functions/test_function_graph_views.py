@@ -15,7 +15,7 @@ import unittest
 import networkx
 
 import angr
-from angr.codenode import BlockNode, FuncNode
+from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.knowledge_plugins.functions.transition_graph import ReadOnlyAttrDict, ReadOnlyGraphError, TransitionGraph
 from tests.common import bin_location
 
@@ -214,6 +214,31 @@ class TestFunctionGraphViews(unittest.TestCase):
         assert type(g) is networkx.DiGraph
         g.add_node(b)
         assert b not in func.graph
+
+    def test_local_view_reads_follow_the_view_order(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        func = proj.kb.functions.function(0x40071D, create=True)
+        assert func is not None
+        a, b, c, d = (BlockNode(0x40071D + 0x10 * i, 0x10) for i in range(4))
+        func.transit_to(a, c)
+        func.transit_to(a, b)
+        # b reaches d before c does, but c has the lower id; the view lists predecessors by id
+        func.transit_to(b, d)
+        func.transit_to(c, d)
+        func.transit_to(d, a)
+        func.call_to(b, FuncNode(0x400800), d)
+        func.transit_to(d, BlockNode(0x400900, 4), outside=True)
+        for f in (func, self.main):
+            g, tg = f.graph, f.transition_graph
+            assert f.local_dfs_postorder(f.startpoint) == list(networkx.dfs_postorder_nodes(g, f.startpoint))
+            for node in g:
+                assert f.local_predecessors(node) == list(g.predecessors(node))
+                assert f.local_out_edges(node) == [(dst, dict(data)) for _, dst, data in g.out_edges(node, data=True)]
+                callees = [s for s in tg.successors(node) if isinstance(s, (FuncNode, HookNode))] if node in tg else []
+                assert f.first_callee_successor(node) == (callees[0] if callees else None)
+        assert func.local_predecessors(d) == [c, b]
+        with self.assertRaises(networkx.NetworkXError):
+            func.local_predecessors(FuncNode(0x400800))
 
 
 if __name__ == "__main__":

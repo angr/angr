@@ -1253,6 +1253,10 @@ class Clinic(Analysis, Serializable):
             stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION,
         )
 
+        # jumps whose targets only became constant during simplification (e.g., MIPS `jr $t9` through the GOT) may be
+        # tail jumps to other functions; turn them into calls before call sites are made
+        self._replace_resolved_tail_jumps_with_calls(self._ail_graph)
+
         # Make call-sites again so we may identify variadic function arguments
         self._update_progress(50.0, text="Making callsites")
         _, _stackarg_offset_manager, _removed_vvar_ids = self._make_callsites(
@@ -1293,6 +1297,20 @@ class Clinic(Analysis, Serializable):
                 fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
                 arg_vvars=self.arg_vvars,
             )
+
+        # tail jumps whose targets the function-level simplification resolved (e.g., through a GOT pointer set up in an
+        # earlier block)
+        tail_call_blocks = self._replace_resolved_tail_jumps_with_calls(self._ail_graph)
+        if tail_call_blocks:
+            _, _stackarg_offset_manager, _removed_vvar_ids = self._make_callsites(
+                self._ail_graph,
+                self.func_args,
+                stack_pointer_tracker=self._spt,
+                preserve_vvar_ids=self._preserve_vvar_ids,
+                only_blocks=tail_call_blocks,
+            )
+            self._stackarg_offset_manager.merge(_stackarg_offset_manager)
+            self._removed_vvar_ids |= _removed_vvar_ids
 
     def _stage_make_function_callsites(self) -> None:
         # Make call-sites
@@ -2318,6 +2336,165 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    def _replace_resolved_tail_jumps_with_calls(self, ail_graph: networkx.DiGraph) -> set[tuple[int, int | None]]:
+        """
+        Rewrite jumps to the start of another function into tail calls on the SSA graph: `ret = callee(); return ret`.
+        Call sites must be made for the returned call blocks afterwards, so the callee's prototype supplies the
+        arguments.
+        """
+        call_blocks: set[tuple[int, int | None]] = set()
+        node_addrs = {block.addr for block in ail_graph}
+        ret_reg_offset = self.project.arch.ret_offset
+        returns_value = self._function_returns_value(ail_graph)
+
+        def _tail_call_target(target) -> Function | None:
+            if not isinstance(target, ailment.Expr.Const) or not isinstance(target.value, int):
+                return None
+            addr = target.value
+            if addr == self.function.addr or addr in self.function.block_addrs_set or addr in node_addrs:
+                return None
+            if not self.kb.functions.contains_addr(addr):
+                return None
+            return self.kb.functions.get_by_addr(addr)
+
+        for block in list(ail_graph.nodes()):
+            if not block.statements:
+                continue
+            last_stmt = block.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.Jump):
+                slots = [("target", last_stmt.target)]
+            elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                slots = [("true_target", last_stmt.true_target), ("false_target", last_stmt.false_target)]
+            else:
+                continue
+
+            for slot_name, target in slots:
+                target_func = _tail_call_target(target)
+                if target_func is None:
+                    continue
+                assert isinstance(target, ailment.Expr.Const)
+                if isinstance(last_stmt, ailment.Stmt.Jump):
+                    self._set_tail_call_prototype(ail_graph, target_func, block.addr, last_stmt.tags["ins_addr"])
+                call_tags = dict(last_stmt.tags)
+                if self.project.arch.branch_delay_slot:
+                    # the jump's delay slot (e.g., the epilogue's `addiu $sp`) runs before the callee
+                    call_tags["sp_after_ins_addr"] = call_tags["ins_addr"] + self.project.arch.instruction_alignment
+                call_expr = ailment.Expr.Call(self._ail_manager.next_atom(), target.copy(), **call_tags)
+                ret_vvar = None
+                if target_func.returning and returns_value and ret_reg_offset is not None:
+                    ret_vvar = ailment.Expr.VirtualVariable(
+                        self._ail_manager.next_atom(),
+                        self.vvar_id_start,
+                        self.project.arch.bits,
+                        ailment.Expr.VirtualVariableCategory.REGISTER,
+                        oident=ret_reg_offset,
+                        **last_stmt.tags,
+                    )
+                    self.vvar_id_start += 1
+                    call_stmt = ailment.Stmt.Assignment(
+                        self._ail_manager.next_atom(), ret_vvar, call_expr, **last_stmt.tags
+                    )
+                else:
+                    call_stmt = ailment.Stmt.SideEffectStatement(
+                        self._ail_manager.next_atom(), call_expr, **last_stmt.tags
+                    )
+
+                if isinstance(last_stmt, ailment.Stmt.Jump):
+                    call_block = block
+                    block.statements[-1] = call_stmt
+                else:
+                    call_block = ailment.Block(self.new_block_addr(), 1, statements=[call_stmt])
+                    ail_graph.add_edge(block, call_block)
+                    setattr(
+                        last_stmt,
+                        slot_name,
+                        ailment.Expr.Const(target.idx, call_block.addr, target.bits, **target.tags),
+                    )
+
+                call_blocks.add((call_block.addr, call_block.idx))
+                if target_func.returning:
+                    ret_exprs = [ret_vvar.copy()] if ret_vvar is not None else []
+                    ret_stmt = ailment.Stmt.Return(self._ail_manager.next_atom(), ret_exprs, **last_stmt.tags)
+                    ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
+                    ail_graph.add_edge(call_block, ret_block, type="fake_return")
+
+        return call_blocks
+
+    def _set_tail_call_prototype(
+        self, ail_graph: networkx.DiGraph, target_func: Function, callsite_block_addr: int, callsite_ins_addr: int
+    ) -> None:
+        """
+        A tail jump resolved after calling-convention recovery has no call-site prototype. Recover one the way
+        _recover_calling_conventions does for calls to a callee without a prototype: from the callee itself for
+        SimProcedures and PLT stubs, else from another call of the callee in this function, else by analyzing the call
+        site.
+        """
+        callsite_protos = self.kb.callsite_prototypes
+        if target_func.calling_convention is not None and target_func.get_prototype(self.flavor) is not None:
+            return
+        if callsite_protos.has_prototype(callsite_block_addr, flavor=self.flavor):
+            return
+
+        if target_func.is_simprocedure or target_func.is_plt:
+            cc = self.project.analyses.CallingConvention(
+                target_func,
+                fail_fast=self._fail_fast,  # type: ignore
+                flavor=self.flavor,
+            )
+            if cc.cc is not None and cc.prototype is not None:
+                callsite_protos.set_prototype(
+                    callsite_block_addr, cc.cc, cc.prototype, manual=False, flavor=self.flavor
+                )
+            return
+
+        for block in ail_graph:
+            if not block.statements or not callsite_protos.has_prototype(block.addr, flavor=self.flavor):
+                continue
+            last_stmt = block.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement):
+                call = last_stmt.expr
+            elif isinstance(last_stmt, ailment.Stmt.Assignment):
+                call = last_stmt.src
+            else:
+                continue
+            if (
+                isinstance(call, ailment.Expr.Call)
+                and isinstance(call.target, ailment.Expr.Const)
+                and call.target.value == target_func.addr
+            ):
+                callsite_protos.set_prototype(
+                    callsite_block_addr,
+                    callsite_protos.get_cc(block.addr, flavor=self.flavor),
+                    callsite_protos.get_prototype(block.addr, flavor=self.flavor),
+                    manual=False,
+                    flavor=self.flavor,
+                )
+                return
+
+        cc = self.project.analyses.CallingConvention(
+            None,
+            analyze_callsites=True,
+            caller_func_addr=self.function.addr,
+            callsite_block_addr=callsite_block_addr,
+            callsite_insn_addr=callsite_ins_addr,
+            fail_fast=self._fail_fast,  # type: ignore
+            flavor=self.flavor,
+        )
+        if cc.cc is not None and cc.prototype is not None:
+            callsite_protos.set_prototype(callsite_block_addr, cc.cc, cc.prototype, manual=False, flavor=self.flavor)
+
+    def _function_returns_value(self, ail_graph: networkx.DiGraph) -> bool:
+        """
+        Whether the returns of this function carry a value: decided by its existing return statements, else by its
+        prototype.
+        """
+        for block in ail_graph:
+            for stmt in block.statements:
+                if isinstance(stmt, ailment.Stmt.Return):
+                    return bool(stmt.ret_exprs)
+        proto = self.function.get_prototype(self.flavor)
+        return proto is None or not isinstance(proto.returnty, SimTypeBottom)
+
     @timethis
     def _fix_special_call_calling_conventions(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         """
@@ -3041,9 +3218,10 @@ class Clinic(Analysis, Serializable):
         func_args: set[ailment.Expr.VirtualVariable] | None = None,
         stack_pointer_tracker=None,
         preserve_vvar_ids: set[int] | None = None,
+        only_blocks: set[tuple[int, int | None]] | None = None,
     ):
         """
-        Simplify all function call statements.
+        Simplify all function call statements, or only those ending the blocks in only_blocks.
         """
 
         # Computing reaching definitions
@@ -3054,6 +3232,8 @@ class Clinic(Analysis, Serializable):
 
         def _handler(block):
             nonlocal stackarg_offset_manager, removed_vvar_ids
+            if only_blocks is not None and (block.addr, block.idx) not in only_blocks:
+                return None
             csm = CallSiteMaker(
                 self.project,
                 block,

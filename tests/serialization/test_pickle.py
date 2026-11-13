@@ -164,7 +164,7 @@ class TestPickle(unittest.TestCase):
         #   entries during __setstate__ while no RuntimeDb was attached, discarding them.
         p = angr.Project(
             os.path.join(test_location, "x86_64", "fauxware"),
-            cache_limits={"functions": 5, "cfg_nodes": 5},
+            cache_limits={"functions": 5, "cfg_segment_bytes": 1},
         )
         cfg = p.analyses.CFGFast(normalize=True)
         model = cfg.model
@@ -175,7 +175,7 @@ class TestPickle(unittest.TestCase):
 
         # fauxware is too small for the default eviction batch sizes to ever trigger; shrink them so that the
         # tiny cache limits actually cause spilling (this mimics the state of a large binary)
-        graph._nodes._db_batch_size = 10
+        assert graph.paged
         func_map._cache_limit = 5
         func_map._db_batch_size = 5
 
@@ -185,9 +185,9 @@ class TestPickle(unittest.TestCase):
         main_block_count = len(list(p.kb.functions.function(name="main").blocks))
 
         # force everything out to LMDB so the pickle round-trip happens with active spill
-        graph._nodes.evict_all_cached()
+        graph._graph.evict_all()
         func_map.evict_all_cached()
-        assert graph._nodes.spilled_count > 0
+        assert graph.segment_stats()["resident_segments"] == 0
         assert func_map.spilled_count > 0
 
         p2 = pickle.loads(pickle.dumps(p, -1))
@@ -205,13 +205,13 @@ class TestPickle(unittest.TestCase):
         # the RuntimeDb is re-attached to every spilling container so spilling works again
         rtdb2 = p2.kb.rtdb
         assert graph2._rtdb is rtdb2
-        assert graph2._nodes.rtdb is rtdb2
+        assert graph2.paged
         assert func_map2.rtdb is rtdb2
 
         # the stores must be spillable again after unpickling without losing anything
-        graph2._nodes.evict_all_cached()
+        graph2._graph.evict_all()
         func_map2.evict_all_cached()
-        assert graph2._nodes.spilled_count > 0
+        assert graph2.segment_stats()["resident_segments"] == 0
         assert func_map2.spilled_count > 0
         assert sorted(n.addr for n in graph2.nodes()) == node_addrs
         assert {(u.addr, v.addr) for u, v in graph2.edges()} == edges
@@ -226,7 +226,7 @@ class TestPickle(unittest.TestCase):
         assert 0xDEAD0000 in p2.kb.functions
 
         # a second round-trip while spilled must also work
-        graph2._nodes.evict_all_cached()
+        graph2._graph.evict_all()
         func_map2.evict_all_cached()
         p3 = pickle.loads(pickle.dumps(p2, -1))
         graph3 = p3.kb.cfgs["CFGFast"].graph

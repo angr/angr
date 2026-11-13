@@ -1378,7 +1378,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             else:
                 # It's unresolved. Add it to the wait list (but apparently we don't have any better way to resolve it
                 # right now).
-                self._indirect_jumps_to_resolve.add(ij)
+                self._indirect_jumps_to_resolve[ij] = None
 
         if not successors:
             # Get all successors of this block

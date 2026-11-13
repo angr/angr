@@ -514,6 +514,13 @@ class SuccessorsEngine(SimEngine[HeavyState, SimSuccessors]):
 
         self.successors: SimSuccessors | None = None
 
+    def release_step(self) -> None:
+        """
+        Drop the references to the state and successors of the last step.
+        """
+        self.successors = None
+        self.__dict__.pop("state", None)
+
     def process(self, state: HeavyState, **kwargs) -> SimSuccessors:  # pylint:disable=unused-argument
         """
         Perform execution with a state.
