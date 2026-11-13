@@ -6084,6 +6084,40 @@ class TestDecompiler(unittest.TestCase):
         assert isinstance(arg2_type, SimTypeLongLong), f"Unexpected arg2 type: {arg2_type}"
         assert arg2_type.signed is False
 
+    def test_decompiling_msvcr120_csqrtf_converted_double_stays_double(self, decompiler_options=None):
+        # ldexp() returns a double in xmm0, `cvtsd2ss xmm0, xmm0` overwrites its low 4 bytes, and `addss xmm0, xmm6`
+        # then reads the whole register. The double's def survives in xmm0's bytes 4..7 only as the base of the
+        # conversion's Insert, so it must not be widened along with the read: it stays a double
+        bin_path = os.path.join(test_location, "x86_64", "windows", "msvcr120.dll")
+        proj, _ = load_project_with_scoped_cfg(bin_path, 0x18008ADE4)
+        f = proj.kb.functions[0x18008ADE4]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        text = d.codegen.text
+        m = re.search(r"\b(v\d+) = ldexp\(", text)
+        assert m is not None, "the result of ldexp() is not assigned to a variable as is"
+        assert re.search(rf"\bdouble {m.group(1)};", text), f"{m.group(1)} is not declared as a double"
+        assert "__longlong_as_double" not in text
+
+    def test_decompiling_float_reloaded_around_a_loop_stays_float(self, decompiler_options=None):
+        # sub_742eca squares its float argument with mulss, stores it back to the argument's stack slot and passes it
+        # to sub_742f3a in a loop, reloading it with movss after each call. VEX lifts that movss as the value, a 4-byte
+        # zero and an 8-byte zero written into xmm0, and the loop header merges them with the mulss result. Merging
+        # them into one 16-byte variable leaves an Insert chain the narrower cannot undo, so the float is printed as an
+        # integer
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "a71a3c3b922705cb5e2d8aa9c74f5c73c47fb27f10b1327eb2bb054d99a14397"
+        )
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x742ECA, call_tree_depth=1)
+        f = proj.kb.functions[0x742ECA]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        text = d.codegen.text
+        assert "__float_as_int(" not in text
+        assert "_INSERT(" not in text
+
     def test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump(self, decompiler_options=None):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "0a9bd4898d4c966cda1102952a74b3b829581c5b6bbeb4c4e6a09cefde8c0d26"
@@ -6103,6 +6137,63 @@ class TestDecompiler(unittest.TestCase):
         for i in range(10):
             assert f"case {i}:" in d.codegen.text
         assert "default:" in d.codegen.text
+
+    def test_decompiling_lowered_switch_keeps_a_selector_only_the_switch_reads(self, decompiler_options=None):
+        # `ldrb w0, [x3, #4]; and w0, w0, #0xf` and then `cmp w0, #6` and `cmp w0, #0xa`: a switch on
+        # ELF64_ST_TYPE(sym->st_info). LoweredSwitchSimplifier turns the comparisons into a switch head, which is then
+        # the selector's only reader. ReturnDuplicatorLow changes the graph and simplifies it afterwards, and the
+        # selector's definition must survive that
+        bin_path = os.path.join(test_location, "aarch64", "ld-linux-aarch64.so.1")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x408B40]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        text = d.codegen.text
+        m = re.search(r"switch \((.+)\)$", text, re.MULTILINE)
+        assert m is not None, "the comparisons against 6 and 10 are not a switch"
+        assert "case 6:" in text and "case 10:" in text
+        selector = m.group(1)
+        if re.fullmatch(r"v\d+", selector):
+            assert re.search(rf"^\s*{selector} = .* & 15;$", text, re.MULTILINE), f"{selector} is never assigned"
+        else:
+            assert selector.endswith(" & 15"), selector
+
+    def test_decompiling_merged_xmm_double_compared_as_a_double(self, decompiler_options=None):
+        # sub_72fbf6 keeps two doubles at [ebp-0x20] and [ebp-0x38]. On the paths into 0x72fdb7 it reloads one of them
+        # into xmm2 (movsd at 0x72fd7b, 0x72fda9 and 0x72fdb2), and `ucomisd xmm2, [1.0]` tests the merged value.
+        # xmm2 is a 16-byte variable typed as an integer, so its low 8 bytes are read as *(unsigned long long *)&v. An
+        # FP compare must read those bytes as a double rather than convert the integer to double.
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "a71a3c3b922705cb5e2d8aa9c74f5c73c47fb27f10b1327eb2bb054d99a14397"
+        )
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x72FBF6, call_tree_depth=1)
+        f = proj.kb.functions[0x72FBF6]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        text = d.codegen.text
+        cmp_op = r"(?:[=!<>]=|<|>)"
+        tests = re.findall(rf"(\*\([^()]*\)&)?\b(v\d+) {cmp_op} 1\.0\b", text)
+        assert tests, "nothing is compared with 1.0"
+        for view, v in tests:
+            is_double = view == "*(double *)&" or (not view and re.search(rf"\bdouble {v};", text))
+            assert is_double, f"{view}{v} is compared with 1.0 but is not a double"
+        # the 1.0 tests after the join at 0x72fdb7 read the value merged from both slots (angr's [bp-0x24] and
+        # [bp-0x3c]), not the one at [ebp-0x38] alone
+        slots = []
+        for off in ("0x24", "0x3c"):
+            slot = re.search(rf"\b(v\d+);  // \[bp-{off}\]", text)
+            assert slot is not None, f"no variable is declared at [bp-{off}]"
+            slots.append(slot.group(1))
+        assert any(
+            all(re.search(rf"^\s*{v} = .*\b{slot};$", text, re.MULTILINE) for slot in slots) for _, v in tests
+        ), f"no variable compared with 1.0 is assigned from both {slots[0]} and {slots[1]}"
+        # ucomisd/comisd xmm2, xmm4 at 0x72fc77 and 0x72fc9c compare the low doubles too
+        int_view = r"\*\(unsigned long long \*\)&v\d+"
+        m = re.search(rf"{int_view} {cmp_op} | {cmp_op} {int_view}|(isnan|isunordered)\({int_view}", text)
+        assert m is None, f"an FP compare reads an integer: {m.group(0)}"
 
     def test_decompiling_ite_function_arguments_missing_assignments(self, decompiler_options=None):
         # https://github.com/angr/angr/issues/5077

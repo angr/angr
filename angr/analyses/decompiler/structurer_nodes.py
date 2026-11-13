@@ -456,8 +456,13 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
     def _hash_core(self):
         return stable_hash((IncompleteSwitchCaseHeadStatement, self.idx, self.switch_variable, self._case_addrs_str))
 
-    def replace(self, old_expr, new_expr):  # pylint:disable=unused-argument
-        return self
+    def replace(self, old_expr, new_expr):
+        r, switch_variable = self.switch_variable.replace(old_expr, new_expr)
+        if not r:
+            return False, self
+        return True, IncompleteSwitchCaseHeadStatement(
+            self.idx, switch_variable, list(self.case_addrs), peephole_optimized=self.peephole_optimized, **self.tags
+        )
 
     @property
     def depth(self) -> int:
