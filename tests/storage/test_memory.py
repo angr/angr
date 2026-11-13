@@ -861,6 +861,16 @@ class TestMemory(unittest.TestCase):
         assert len(mv) == 400, "Loading data across non-physically adjacent pages failed for ultra pages."
         assert mv == (b"\x01" * 6) + (b"\x02" * 394)
 
+    def test_symbolic_load_past_object_end(self):
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic")
+        value = claripy.BVS("value", 32)
+        state.memory.store(0x20000, value, endness="Iend_BE")
+
+        result = state.memory.load(0x20003, 4, endness="Iend_BE")
+
+        assert result.size() == 32
+        assert state.solver.is_true(result.get_byte(0) == value.get_byte(3))
+
     def test_hex_dump(self):
         s = SimState(project=minimal_project("AMD64"))
         addr = s.heap.allocate(0x20)
