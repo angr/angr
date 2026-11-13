@@ -982,6 +982,27 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert type(thunk.calling_convention) is SimCCStdcall
             assert thunk.prototype is not None and len(thunk.prototype.args) == arg_count
 
+    def test_aarch64_tail_jump_passes_through_args_the_target_reads_later(self):
+        # qsort is `mov x4, #0; b qsort_r`. qsort_r reads x3, the comparison function, only after its first block.
+        binary_path = os.path.join(test_location, "aarch64", "libc.so.6")
+        proj, _ = load_project_with_scoped_cfg(binary_path, 0x435854, extra_func_addrs=[0x435560], window=0x400)
+
+        qsort = proj.kb.functions[0x435854]
+        assert qsort.calling_convention is not None and qsort.prototype is not None
+        locs = qsort.calling_convention.arg_locs(qsort.prototype)
+        assert _reg_names(locs) == ["x0", "x1", "x2", "x3"]
+
+    def test_aarch64_go_tail_jump_to_register_saving_helper(self):
+        # runtime.gcWriteBarrier1 to 8 are `mov x25, #N; b gcWriteBarrier`, and gcWriteBarrier saves x2-x15 around its
+        # call to wbBufFlush. Reading that code would give the thunks all sixteen argument registers, and with them
+        # their callers, such as this function, which calls gcWriteBarrier1, 4 and 5.
+        binary_path = os.path.join(test_location, "aarch64", "go", "go1.22.5", "basics")
+        proj, _ = load_project_with_scoped_cfg(binary_path, 0x16140, extra_func_addrs=[0x6E460], window=0x100)
+
+        enqueue = proj.kb.functions[0x16140]  # func (q *waitq) enqueue(sgp *sudog)
+        assert enqueue.calling_convention is not None and enqueue.prototype is not None
+        assert _reg_names(enqueue.calling_convention.arg_locs(enqueue.prototype)) == ["x0", "x1"]
+
     def test_amd64_mixed_int_fp_args_follow_library_prototype(self):
         # int and FP argument registers are separate sequences on SysV amd64; local functions named after libm
         # functions take their parameter order from the library prototype
