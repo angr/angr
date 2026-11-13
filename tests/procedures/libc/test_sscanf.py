@@ -67,6 +67,89 @@ class TestSscanf(unittest.TestCase):
         assert val == 0xDEADBEEF
         assert len(state.solver.constraints) == 0 or state.satisfiable()
 
+    def test_sscanf_scanset_spec(self):
+        # Issue #2392: %[...] scanset conversions were not matched by _match_spec,
+        # so sscanf("%23[^\\n\\r]", gstr) silently dropped the directive and
+        # never wrote to the destination. Binary-free, mirrors the issue's C repro.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        src, fmt, out = 0x100000, 0x200000, 0x300000
+        state.memory.store(src, b"AAAAAAAAAA - 9090\nignored\x00")
+        state.memory.store(fmt, b"%23[^\n\r]\x00")
+
+        sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
+        inst = sscanf.execute(state, arguments=[src, fmt, out])
+
+        assert state.solver.eval(inst.ret_expr) == 1
+        assert state.solver.eval(state.memory.load(out, 17), cast_to=bytes) == b"AAAAAAAAAA - 9090"
+        assert state.solver.eval(state.memory.load(out + 17, 1)) == 0
+
+    def test_sscanf_scanset_width(self):
+        # The field width caps a scanset match: %5[abc] over "abcabd" writes
+        # exactly the first 5 bytes even though more set members follow.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        src, fmt, out = 0x100000, 0x200000, 0x300000
+        state.memory.store(src, b"abcabd\x00")
+        state.memory.store(fmt, b"%5[abc]\x00")
+
+        sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
+        inst = sscanf.execute(state, arguments=[src, fmt, out])
+
+        assert state.solver.eval(inst.ret_expr) == 1
+        assert state.solver.eval(state.memory.load(out, 5), cast_to=bytes) == b"abcab"
+        assert state.solver.eval(state.memory.load(out + 5, 1)) == 0
+
+    def test_sscanf_scanset_match_failure(self):
+        # A scanset that matches nothing makes the directive fail: sscanf
+        # returns the assignments completed so far (0) and the destination
+        # buffer stays untouched. C99 7.19.6.2.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        src, fmt, out = 0x100000, 0x200000, 0x300000
+        state.memory.store(src, b"abc\x00")
+        state.memory.store(fmt, b"%[0-9]\x00")
+        state.memory.store(out, b"CANARY")
+
+        sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
+        inst = sscanf.execute(state, arguments=[src, fmt, out])
+
+        assert state.solver.eval(inst.ret_expr) == 0
+        assert state.solver.eval(state.memory.load(out, 6), cast_to=bytes) == b"CANARY"
+
+    def test_sscanf_scanset_literal_rbracket(self):
+        # A ']' immediately after '[' or '[^' is a literal set member, not the
+        # terminator: %[]x] over "]x]abc" matches "]x]". C99 7.19.6.2p12.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        src, fmt, out = 0x100000, 0x200000, 0x300000
+        state.memory.store(src, b"]x]abc\x00")
+        state.memory.store(fmt, b"%[]x]\x00")
+
+        sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
+        inst = sscanf.execute(state, arguments=[src, fmt, out])
+
+        assert state.solver.eval(inst.ret_expr) == 1
+        assert state.solver.eval(state.memory.load(out, 3), cast_to=bytes) == b"]x]"
+        assert state.solver.eval(state.memory.load(out + 3, 1)) == 0
+
+    def test_scanf_scanset_simpackets(self):
+        # The SimPackets (stdin packet stream) interpret() path: %[0-9]
+        # constrains the read bytes to the set and writes them out, like %s
+        # but with set membership instead of the SCANF_DELIMITERS exclusions.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        stdin = angr.SimPackets(name="stdin", content=[b"42"], writable=False)
+        state = p.factory.blank_state(stdin=stdin)
+        fmt, out = 0x200000, 0x300000
+        state.memory.store(fmt, b"%[0-9]\x00")
+
+        scanf = angr.SIM_PROCEDURES["libc"]["scanf"]()
+        inst = scanf.execute(state, arguments=[fmt, out])
+
+        assert state.solver.eval(inst.ret_expr) == 1
+        assert state.solver.eval(state.memory.load(out, 2), cast_to=bytes) == b"42"
+        assert state.solver.eval(state.memory.load(out + 2, 1)) == 0
+
     def test_scanf_p_spec_simpackets(self):
         # Regression for the OTHER interpret() dispatch site: the SimPackets
         # (stdin packet stream) path constrains input digits in base x/o/else

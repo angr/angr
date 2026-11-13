@@ -46,6 +46,16 @@ class FormatString:
             return c
         return sss.concat(c)
 
+    @staticmethod
+    def _scanset_membership(byte, spec):
+        """
+        Build the constraint expressing that `byte` matches a scanset specifier
+        (or its complement, when the set is negated).
+        """
+        if spec.negated:
+            return claripy.And(*[byte != claripy.BVV(c, 8) for c in spec.charset])
+        return claripy.Or(*[byte == claripy.BVV(c, 8) for c in spec.charset])
+
     def _get_str_at(self, str_addr, max_length=None):
         if max_length is None:
             strlen = self.parser._sim_strlen(str_addr)  # pylint:disable=protected-access
@@ -197,6 +207,17 @@ class FormatString:
                     self.state.memory.store(ptr, sdata, size=slen)
                     self.state.memory.store(ptr + slen, claripy.BVV(0, 8))
                     num_args += 1
+                elif component.spec_type == b"[":
+                    if component.length_spec is None:
+                        sdata, slen = simfd.read_data(self.state.libc.buf_symbolic_bytes)
+                    else:
+                        sdata, slen = simfd.read_data(component.length_spec)
+                    for byte in sdata.chop(8):
+                        self.state.add_constraints(self._scanset_membership(byte, component))
+                    ptr = va_arg("char*")
+                    self.state.memory.store(ptr, sdata, size=slen)
+                    self.state.memory.store(ptr + slen, claripy.BVV(0, 8))
+                    num_args += 1
                 elif component.spec_type == b"c":
                     sdata, _ = simfd.read_data(1, short_reads=False)
                     self.state.memory.store(va_arg("char*"), sdata)
@@ -332,6 +353,37 @@ class FormatString:
 
                     position += length
 
+                elif fmt_spec.spec_type == b"[":
+                    # scanf scanset: match a non-empty run of bytes from the set (or its
+                    # complement when negated), capped by the field width. NUL always ends
+                    # the match. A byte whose membership cannot be proven ends the match
+                    # without being consumed - documented approximation: we do not fork
+                    # on symbolic membership.
+                    max_len = (
+                        fmt_spec.length_spec
+                        if fmt_spec.length_spec is not None
+                        else self.parser.state.libc.buf_symbolic_bytes
+                    )
+                    matched = []
+                    for i in range(max_len):
+                        byte = region.load(position + i, 1)
+                        if self.parser.state.solver.is_false(byte != claripy.BVV(0, 8)):
+                            break
+                        member = self._scanset_membership(byte, fmt_spec)
+                        if not self.parser.state.solver.is_true(member):
+                            break
+                        self.parser.state.add_constraints(member)
+                        matched.append(byte)
+
+                    if not matched:
+                        # matching failure: the directive fails and scanning stops
+                        break
+
+                    src_str = claripy.Concat(*matched) if len(matched) > 1 else matched[0]
+                    self.parser.state.memory.store(dest, src_str)
+                    self.parser.state.memory.store(dest + len(matched), claripy.BVV(0, 8))
+                    position += len(matched)
+
                 else:
                     # XXX: atoi only supports strings of one byte
                     if fmt_spec.spec_type in [b"d", b"i", b"u", b"o", b"x", b"p"]:
@@ -421,6 +473,24 @@ class FormatSpecifier:
 
     def __len__(self):
         return len(self.string)
+
+
+class ScansetFormatSpecifier(FormatSpecifier):
+    """
+    A scanf scanset conversion specifier: %[set] or %[^set], optionally with a
+    field width. `charset` holds the byte values of the set; `negated` inverts it.
+    """
+
+    __slots__ = ("charset", "negated")
+
+    def __init__(self, sss, length_spec, charset, negated):
+        super().__init__(sss, length_spec, " ", sim_type.SimTypePointer(sim_type.SimTypeChar()))
+        self.charset = frozenset(charset)
+        self.negated = negated
+
+    @property
+    def spec_type(self):
+        return b"["
 
 
 class FormatParser(SimProcedure):
@@ -733,6 +803,36 @@ class ScanfFormatParser(FormatParser):
         b"p": sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),  # 'uintptr_t',
         b"n": sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),
     }
+
+    def _match_spec(self, nugget: bytes) -> FormatSpecifier | None:
+        spec = super()._match_spec(nugget)
+        if spec is not None:
+            return spec
+
+        # scanf scanset conversion: %<width>[set] or %<width>[^set]. A ']' immediately
+        # following '[' or '[^' is a literal set member, not the terminator (C99 7.19.6.2p12).
+        i = 0
+        while i < len(nugget) and 0x30 <= nugget[i] <= 0x39:
+            i += 1
+        length_spec = int(nugget[:i]) if i else None
+        if i >= len(nugget) or nugget[i] != 0x5B:  # '['
+            return None
+        i += 1
+        negated = False
+        if i < len(nugget) and nugget[i] == 0x5E:  # '^'
+            negated = True
+            i += 1
+        charset = []
+        if i < len(nugget) and nugget[i] == 0x5D:  # literal ']'
+            charset.append(0x5D)
+            i += 1
+        while i < len(nugget) and nugget[i] != 0x5D:
+            charset.append(nugget[i])
+            i += 1
+        if i >= len(nugget) or not charset:
+            return None
+        i += 1  # consume the closing ']'
+        return ScansetFormatSpecifier(nugget[:i], length_spec, charset, negated)
 
     # Length modifiers and how they apply to float conversions. For scanf-style functions, "%f" reads a float while
     # "%lf" reads a double; "%Lf" reads a long double, which we approximate as double.
