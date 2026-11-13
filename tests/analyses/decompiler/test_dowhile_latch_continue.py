@@ -13,6 +13,7 @@ from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, Register
 from angr.ailment.statement import ConditionalJump, Jump
+from angr.analyses import Decompiler
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.structurer_nodes import ContinueNode, LoopNode, SequenceNode
 from angr.analyses.decompiler.structuring.phoenix import PhoenixStructurer
@@ -139,6 +140,25 @@ class TestDoWhileLatchContinue(unittest.TestCase):
 
         loops = {(loop.addr, loop.continue_addr) for loop in _loop_nodes(dec.seq_node) if loop.sort == "do-while"}
         assert (0x40165C, 0x4016BB) in loops
+
+    def test_continues_reach_latch(self):
+        """
+        print_with_separator() in coreutils' ls.c (0x409c00 here) ends every iteration of its do-while by printing the
+        file name and moving on to the next file. The first file's path and the path that has just printed a separator
+        reach that latch from the middle of the loop body, so they may only become continues if the latch is part of
+        the loop condition.
+        """
+        bin_path = os.path.join(test_location, "x86_64", "decbench_coreutils_dir_O2_noinline_stripped")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x409C00, include_plt=True, expand_call_tree=False, run_ccc=False
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions[0x409C00], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = str(dec.codegen.text)
+        loop_condition = next(line for line in text.splitlines() if line.strip().startswith("} while ("))
+        assert "continue;" not in text or "sub_409a80(" in loop_condition
 
 
 if __name__ == "__main__":
