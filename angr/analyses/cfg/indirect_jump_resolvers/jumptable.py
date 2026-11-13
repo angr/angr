@@ -202,6 +202,10 @@ class JumpTargetBaseAddr:
         return self.base_addr is not None
 
 
+# the VEX operations that zero-extend a value as narrow as a jump table entry
+ZERO_EXTENSION_OPS = frozenset({"Iop_8Uto16", "Iop_8Uto32", "Iop_8Uto64", "Iop_16Uto32", "Iop_16Uto64", "Iop_32Uto64"})
+
+
 #
 # Jump table pre-check
 #
@@ -1140,6 +1144,8 @@ class JumpTableResolver(IndirectJumpResolver):
                 if len(pred_succs) != 2:
                     l.debug("Expect two successors to the single predecessor, found %d.", len(pred_succs))
                     return False, None
+            elif self._range_checked_on_every_path(curr_node, preds):
+                l.debug("Every path into the jump table at %#x is range-checked with the same default target.", addr)
             elif len(pred_endaddrs) == 2 and len(preds) == 2 and all(p in func.graph for p in preds):
                 pred_succs = set(
                     [succ for succ in func.graph.successors(preds[0]) if succ.addr != preds[0].addr]
@@ -1383,6 +1389,34 @@ class JumpTableResolver(IndirectJumpResolver):
         l.info("Could not resolve indirect jump %#x in function %#x.", addr, func_addr)
         return False, None
 
+    @staticmethod
+    def _range_checked_on_every_path(node, preds) -> bool:
+        """
+        Check if every predecessor of a jump block either ends with a conditional branch to it, or leads only to it and
+        is entered only through conditional branches, and all of those branches go to the same block otherwise. This is
+        how a range check on the jump table index looks once the compiler copies it onto each path into the jump block,
+        e.g., into both the entry and the latch of a loop around a switch.
+
+        :param node:    The block node of the indirect jump in the function graph.
+        :param preds:   Predecessors of node in the function graph.
+        :return:        True if preds have that shape, False otherwise.
+        """
+
+        default_addrs = set()
+        for pred in preds:
+            if len(pred.successors()) == 1:
+                branches, branch_target = pred.predecessors(), pred.addr
+            else:
+                branches, branch_target = [pred], node.addr
+            if not branches:
+                return False
+            for branch in branches:
+                succ_addrs = {succ.addr for succ in branch.successors()}
+                if len(succ_addrs) != 2 or branch_target not in succ_addrs:
+                    return False
+                default_addrs |= succ_addrs - {branch_target}
+        return len(default_addrs) == 1
+
     def _find_load_statement(
         self, b, stmt_loc: tuple[int, int]
     ) -> tuple[
@@ -1474,36 +1508,18 @@ class JumpTableResolver(IndirectJumpResolver):
                                 AddressTransformationTypes.Truncation, [64, 32, AddressSingleton]
                             )
                         continue
-                    if stmt.data.op == "Iop_32Uto64":
+                    if stmt.data.op in ZERO_EXTENSION_OPS:
                         # data transferring with conversion
                         # t21 = 32Uto64(t22)
                         stmts_to_remove.append(stmt_loc)
                         if isinstance(stmt, pyvex.IRStmt.WrTmp):
                             transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
-                                AddressTransformationTypes.UnsignedExtension, [32, 64, AddressSingleton]
-                            )
-                        continue
-                    if stmt.data.op == "Iop_16Uto32":
-                        # data transferring with conversion
-                        stmts_to_remove.append(stmt_loc)
-                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                            transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
-                                AddressTransformationTypes.UnsignedExtension, [16, 32, AddressSingleton]
-                            )
-                        continue
-                    if stmt.data.op == "Iop_8Uto32":
-                        # data transferring with conversion
-                        stmts_to_remove.append(stmt_loc)
-                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                            transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
-                                AddressTransformationTypes.UnsignedExtension, [8, 32, AddressSingleton]
-                            )
-                        continue
-                    if stmt.data.op == "Iop_8Uto64":
-                        stmts_to_remove.append(stmt_loc)
-                        if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                            transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
-                                AddressTransformationTypes.UnsignedExtension, [8, 64, AddressSingleton]
+                                AddressTransformationTypes.UnsignedExtension,
+                                [
+                                    stmt.data.args[0].result_size(block.tyenv),
+                                    block.tyenv.sizeof(stmt.tmp),
+                                    AddressSingleton,
+                                ],
                             )
                         continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Binop):
@@ -1642,7 +1658,8 @@ class JumpTableResolver(IndirectJumpResolver):
                             # found it
                             stmts_to_remove.append(stmt_loc)
                             transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
-                                AddressTransformationTypes.ShiftLeft, [AddressSingleton, stmt.data.args[1].con.value]
+                                AddressTransformationTypes.ShiftLeft,
+                                [AddressSingleton, stmt.data.args[1].con.value, block.tyenv.sizeof(stmt.tmp)],
                             )
                             continue
                         # AArch64
@@ -1680,7 +1697,8 @@ class JumpTableResolver(IndirectJumpResolver):
                         # found it
                         stmts_to_remove.append(stmt_loc)
                         transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
-                            AddressTransformationTypes.ShiftRight, [AddressSingleton, stmt.data.args[1].con.value]
+                            AddressTransformationTypes.ShiftRight,
+                            [AddressSingleton, stmt.data.args[1].con.value, block.tyenv.sizeof(stmt.tmp)],
                         )
                         continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
@@ -1979,11 +1997,15 @@ class JumpTableResolver(IndirectJumpResolver):
         def handle_or1(a):
             return a | 1
 
-        def handle_lshift(num_bits, a):
-            return a << num_bits
+        def handle_lshift(num_bits, size, a):
+            return (a << num_bits) & ((1 << size) - 1)
 
-        def handle_rshift(num_bits, a):
-            return a >> num_bits
+        def handle_rshift(num_bits, size, a):
+            # ShiftRight is only recorded for Iop_Sar, so the shift is arithmetic
+            a &= (1 << size) - 1
+            if a >> (size - 1):
+                a -= 1 << size
+            return (a >> num_bits) & ((1 << size) - 1)
 
         def handle_add(con, a):
             return (a + con) & mask
@@ -2013,9 +2035,9 @@ class JumpTableResolver(IndirectJumpResolver):
             elif tran_op is AddressTransformationTypes.Or1:
                 lam = handle_or1
             elif tran_op is AddressTransformationTypes.ShiftLeft:
-                lam = functools.partial(handle_lshift, next(iter(arg for arg in args if arg is not AddressSingleton)))
+                lam = functools.partial(handle_lshift, args[1], args[2])
             elif tran_op is AddressTransformationTypes.ShiftRight:
-                lam = functools.partial(handle_rshift, next(iter(arg for arg in args if arg is not AddressSingleton)))
+                lam = functools.partial(handle_rshift, args[1], args[2])
             elif tran_op is AddressTransformationTypes.Add:
                 add_arg = next(iter(arg for arg in args if arg is not AddressSingleton))
                 if not isinstance(add_arg, int):
@@ -2210,13 +2232,15 @@ class JumpTableResolver(IndirectJumpResolver):
             )
 
             reconstruct = self._build_target_reconstructor(cfg, transformations, stmts_adding_base_addr, {})
-            scan_cases = (
-                self._scan_jumptable_bound(
-                    cfg, table_base, stride, load_size, reconstruct, min(total_cases, self._max_targets)
-                )
-                if reconstruct is not None
-                else None
-            )
+            scan_cases = None
+            # nearly every byte or 16-bit entry transforms into a legal target, so the scan rarely finds the end of
+            # such a table. a byte table sized by the scan alone still has at most 256 targets, but a halfword table
+            # can have thousands, so it needs a referenced address to end it.
+            if reconstruct is not None and (load_size != 2 or nextref_cases is not None):
+                scan_cap = min(total_cases, self._max_targets)
+                if nextref_cases is not None:
+                    scan_cap = min(scan_cap, nextref_cases)
+                scan_cases = self._scan_jumptable_bound(cfg, table_base, stride, load_size, reconstruct, scan_cap)
 
             bounds = [b for b in (nextref_cases, scan_cases) if b is not None]
             if not bounds:
