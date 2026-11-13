@@ -1110,6 +1110,20 @@ class Function(FunctionCore, Serializable):
             specs.append((block_addr, graph.node_size(idx), node._bytestr if isinstance(node, BlockNode) else None))
         return specs
 
+    def local_block_source(self) -> tuple[FunctionGraph, dict[int, bytes] | None]:
+        """
+        (graph, {node id: user-supplied bytes} or None): what local_block_specs() reads, for consumers in Rust.
+        """
+        node_objs = self._node_objs
+        overrides = None
+        if node_objs:
+            overrides = {
+                idx: node._bytestr
+                for idx, node in node_objs.items()
+                if isinstance(node, BlockNode) and node._bytestr is not None
+            }
+        return self._graph, overrides or None
+
     @property
     def code_nodes(self) -> dict[int, CodeNode]:
         return {addr: self._node_obj(idx) for addr, idx in self._graph.local_items()}

@@ -21,7 +21,7 @@ from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import function_pb2
-from angr.rustylib.function_graph import NodeKind
+from angr.rustylib.function_graph import FunctionGraph, NodeKind
 from angr.utils.smart_cache import SmartLRUCache
 
 from .function import Function, FunctionRecord
@@ -48,6 +48,11 @@ QUERY_PATTERN = re.compile(r"^(::(.+?))?::(.+)$")
 ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
 
 l = logging.getLogger(name=__name__)
+
+# where a function's local blocks come from; see FunctionManager.iter_local_block_sources
+type LocalBlockSource = (
+    tuple[FunctionGraph, dict[int, bytes] | None] | tuple[bytes, int] | tuple[list[tuple[int, int, bytes | None]], None]
+)
 _missing = object()
 
 # Functions kept in memory before a FunctionManager spills them to LMDB (the default for binaries of 256 KB and more).
@@ -222,6 +227,9 @@ class FunctionDict(FunctionDictBase[K], collections.abc.MutableMapping[K, Functi
 
     def local_block_specs(self, addr: K) -> list[tuple[int, int, bytes | None]]:
         return self.data[addr].local_block_specs()
+
+    def local_block_source(self, addr: K) -> LocalBlockSource:
+        return self.data[addr].local_block_source()
 
     def __getstate__(self):
         return {"key_types": self._key_types, "items": dict(self.data)}
@@ -478,6 +486,24 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 value = txn.get(str(addr).encode("utf-8"))
             if value is not None:
                 return FunctionParser.local_block_specs_from_serialized(
+                    value, self._backref, self._backref._kb._project if self._backref is not None else None
+                )
+        raise KeyError(addr)
+
+    def local_block_source(self, addr: K) -> LocalBlockSource:
+        """
+        get(addr).local_block_source(), except that a spilled function gives its serialized graph (see
+        FunctionParser.local_block_source_from_serialized), and neither the cache nor the LRU order is touched.
+        """
+        if self.is_cached(addr):
+            func = self.data.get(addr)
+            if func is not None:
+                return func.local_block_source()
+        if addr in self._spilled_keys and self._funcsdb is not None:
+            with self._db_load_lock, self.rtdb.begin_txn(self._funcsdb) as txn:
+                value = txn.get(str(addr).encode("utf-8"))
+            if value is not None:
+                return FunctionParser.local_block_source_from_serialized(
                     value, self._backref, self._backref._kb._project if self._backref is not None else None
                 )
         raise KeyError(addr)
@@ -1302,6 +1328,16 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         fmap = self._function_map
         for addr in fmap:
             yield addr, fmap.local_block_specs(addr)
+
+    def iter_local_block_sources(self) -> Generator[LocalBlockSource]:
+        """
+        The local_block_source() of every function, in values() order, like iter_local_block_specs() but for readers
+        in Rust: (FunctionGraph, user bytes by node id or None), (serialized graph, function address), or
+        (local block specs, None).
+        """
+        fmap = self._function_map
+        for addr in fmap:
+            yield fmap.local_block_source(addr)
 
     def get_by_addr(self, addr, meta_only: bool = False) -> Function:
         return self._function_map.get(addr, meta_only=meta_only)

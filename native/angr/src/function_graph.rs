@@ -540,7 +540,7 @@ impl FunctionGraph {
         Ok(g)
     }
 
-    fn decode(data: &[u8]) -> PyResult<Self> {
+    pub(crate) fn decode(data: &[u8]) -> PyResult<Self> {
         match data.split_first() {
             Some((&FORMAT_VERSION, rest)) => {
                 let payload: Payload = postcard::from_bytes(rest)
@@ -563,7 +563,7 @@ impl FunctionGraph {
     }
 
     #[getter]
-    fn func_addr(&self) -> u64 {
+    pub fn func_addr(&self) -> u64 {
         self.func_addr
     }
 

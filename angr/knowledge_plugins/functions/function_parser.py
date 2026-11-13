@@ -171,6 +171,20 @@ class FunctionParser:
         return func.local_block_specs()
 
     @staticmethod
+    def local_block_source_from_serialized(
+        data: bytes, function_manager, project
+    ) -> tuple[bytes, int] | tuple[list[tuple[int, int, bytes | None]], None]:
+        """
+        (graph blob, function address) of a serialized function, or (local_block_specs(), None) for a legacy angrDb
+        v1 record. The blob's blocks have no user-supplied bytes (see local_block_specs_from_serialized).
+        """
+        fields = function_pb2.FunctionGraphFields()
+        fields.ParseFromString(data)
+        if fields.graph_blob:
+            return fields.graph_blob, fields.ea
+        return FunctionParser.local_block_specs_from_serialized(data, function_manager, project), None
+
+    @staticmethod
     def _serialize_prototype(proto: SimTypeFunction | None, libname: str | None) -> bytes:
         if proto is None:
             return b""

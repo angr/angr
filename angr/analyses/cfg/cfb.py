@@ -21,6 +21,8 @@ from angr.rustylib.cfb import (
     CLASS_OTHER,
     CLASS_UNKNOWN,
     F_THUMB,
+    KIND_BLOCK,
+    KIND_BLOCK_BYTES,
     KIND_BLOCK_TRIM,
     KIND_MD,
     KIND_TRIM,
@@ -433,6 +435,11 @@ class CFBlanket(Analysis):
             object_, segment, section, loader = self._unknown_regions[payload]
             # positional: about half the cost of keywords, and native Unknowns are the most common events
             return Unknown(key, size, None, object_, segment, section, loader)
+        if kind == KIND_BLOCK:
+            # as _add_function_blocks' eager path: key is the block address (odd for Thumb)
+            return self.project.factory.block(key, size=size)
+        if kind == KIND_BLOCK_BYTES:
+            return self.project.factory.block(key, size=size, byte_string=src)
         if kind == KIND_BLOCK_TRIM:
             return self.project.factory.block(key, size=size, thumb=bool(flags & F_THUMB))
         if kind == KIND_MD:
@@ -632,10 +639,31 @@ class CFBlanket(Analysis):
         for block in func.blocks:
             self.add_obj(block.addr, block)
 
+    # functions per CfbStore.add_function_blocks call, bounding the serialized graphs held at once
+    FUNCTION_BLOCKS_CHUNK = 4096
+
     def _add_function_blocks(self) -> None:
         """
-        add_function() for every function of the knowledge base, without loading spilled functions.
+        add_function() for every function of the knowledge base, without loading spilled functions. Blocks are
+        native records materialized on access; with patches, Blocks load their bytes when created, so they are
+        created now.
         """
+        if self.project.kb.patches.has_patches():
+            self._add_function_blocks_eager()
+            return
+        want = self._want_events
+        chunk = []
+        for source in self.kb.functions.iter_local_block_sources():
+            chunk.append(source)
+            if len(chunk) >= self.FUNCTION_BLOCKS_CHUNK:
+                self._store.add_function_blocks(chunk, want)
+                chunk = []
+        if chunk:
+            self._store.add_function_blocks(chunk, want)
+        if want:
+            self._deliver_events()
+
+    def _add_function_blocks_eager(self) -> None:
         factory_block = self.project.factory.block
         blocks = []
         for _, specs in self.kb.functions.iter_local_block_specs():

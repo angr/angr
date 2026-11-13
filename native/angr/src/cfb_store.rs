@@ -13,12 +13,13 @@ use std::collections::BTreeMap;
 use std::ops::Bound as RangeBound;
 use std::sync::{Mutex, MutexGuard};
 
-use pyo3::exceptions::{PyKeyError, PyOverflowError, PyRuntimeError};
+use pyo3::exceptions::{PyKeyError, PyOverflowError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::sync::MutexExt;
-use pyo3::types::{PyInt, PyList, PyString, PyTuple, PyType, PyWeakrefReference};
+use pyo3::types::{PyBytes, PyDict, PyInt, PyList, PyString, PyTuple, PyType, PyWeakrefReference};
 use rustc_hash::FxHashMap;
 
+use crate::function_graph::FunctionGraph;
 use crate::memory_data::MemoryDataStore;
 
 pub const KIND_PYOBJ: u8 = 0;
@@ -26,6 +27,10 @@ pub const KIND_UNKNOWN: u8 = 1;
 pub const KIND_BLOCK_TRIM: u8 = 2;
 pub const KIND_MD: u8 = 3;
 pub const KIND_TRIM: u8 = 4;
+/// A block of a function: `factory.block(key, size=size)`.
+pub const KIND_BLOCK: u8 = 5;
+/// A block with user-supplied bytes (in the slot): `factory.block(key, size=size, byte_string=bytes)`.
+pub const KIND_BLOCK_BYTES: u8 = 6;
 
 pub const CLASS_OTHER: u8 = 0;
 pub const CLASS_BLOCK: u8 = 1;
@@ -86,7 +91,7 @@ impl Rec {
     }
 
     fn uses_slot(&self) -> bool {
-        self.kind == KIND_PYOBJ || self.kind == KIND_TRIM
+        matches!(self.kind, KIND_PYOBJ | KIND_TRIM | KIND_BLOCK_BYTES)
     }
 }
 
@@ -239,7 +244,7 @@ impl Inner {
                 r.payload = rec.payload;
                 (r, None)
             }
-            (KIND_BLOCK_TRIM, _) | (KIND_PYOBJ, CLASS_BLOCK) => {
+            (KIND_BLOCK_TRIM | KIND_BLOCK | KIND_BLOCK_BYTES, _) | (KIND_PYOBJ, CLASS_BLOCK) => {
                 let mut r = Rec::new(KIND_BLOCK_TRIM, CLASS_BLOCK, size);
                 // the materialized Block is Thumb if asked to be or (on ARM) if its address is odd
                 let thumb = match rec.kind {
@@ -629,6 +634,64 @@ impl CfbStore {
         self.add_new(py, objs, want_events)
     }
 
+    /// `add_obj(addr, factory.block(addr, size=size, byte_string=bytes))` for every local block of each source, in
+    /// order, without creating Blocks. A source is (FunctionGraph, {node id: user bytes} or None), (serialized graph,
+    /// function address), or (list of (addr, size, bytes or None), None).
+    fn add_function_blocks(
+        &self,
+        py: Python<'_>,
+        sources: Vec<(Bound<'_, PyAny>, Bound<'_, PyAny>)>,
+        want_events: bool,
+    ) -> PyResult<()> {
+        let mut blocks: Vec<(u64, u32, Option<Py<PyAny>>)> = Vec::new();
+        for (src, extra) in sources {
+            if let Ok(graph) = src.cast::<FunctionGraph>() {
+                let graph = graph.borrow();
+                let overrides = extra.cast::<PyDict>().ok();
+                for (addr, idx) in graph.local_items() {
+                    let bytes = match &overrides {
+                        Some(d) => d.get_item(idx)?.map(Bound::unbind),
+                        None => None,
+                    };
+                    blocks.push((addr, graph.node_size(idx)?, bytes));
+                }
+            } else if let Ok(data) = src.cast::<PyBytes>() {
+                let graph = FunctionGraph::decode(data.as_bytes())?;
+                let ea: u64 = extra.extract()?;
+                if graph.func_addr() != ea {
+                    return Err(PyValueError::new_err(format!(
+                        "Function graph of {:#x} stored under {ea:#x}",
+                        graph.func_addr()
+                    )));
+                }
+                for (addr, idx) in graph.local_items() {
+                    blocks.push((addr, graph.node_size(idx)?, None));
+                }
+            } else {
+                for spec in src.cast::<PyList>()?.iter() {
+                    let (addr, size, bytes): (u64, u32, Option<Bound<'_, PyAny>>) =
+                        spec.extract()?;
+                    blocks.push((addr, size, bytes.map(Bound::unbind)));
+                }
+            }
+        }
+        let mut grave = Vec::new();
+        {
+            let mut s = self.lock(py)?;
+            for (addr, size, bytes) in blocks {
+                let kind = if bytes.is_some() {
+                    KIND_BLOCK_BYTES
+                } else {
+                    KIND_BLOCK
+                };
+                let rec = Rec::new(kind, CLASS_BLOCK, Some(size as i64));
+                s.add(py, addr, rec, bytes.map(Src::Obj), want_events, &mut grave);
+            }
+        }
+        drop(grave);
+        Ok(())
+    }
+
     /// Store each (addr, obj) without carving or events (states pickled from the SortedDict implementation).
     fn put_objs(&self, py: Python<'_>, items: Vec<(i128, Bound<'_, PyAny>)>) -> PyResult<()> {
         let mut objs = Vec::with_capacity(items.len());
@@ -997,7 +1060,7 @@ impl CfbStore {
         for (k, kind, flags, size, payload, sort, src) in records {
             let src = match (kind, src) {
                 (KIND_TRIM, Some(o)) if o.is_instance_of::<PyInt>() => Some(Src::Md(o.extract()?)),
-                (KIND_PYOBJ | KIND_TRIM, Some(o)) => Some(Src::Obj(o.unbind())),
+                (KIND_PYOBJ | KIND_TRIM | KIND_BLOCK_BYTES, Some(o)) => Some(Src::Obj(o.unbind())),
                 (KIND_PYOBJ, None) => Some(Src::Obj(py.None())),
                 _ => None,
             };
@@ -1079,6 +1142,8 @@ pub fn cfb(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("KIND_BLOCK_TRIM", KIND_BLOCK_TRIM)?;
     m.add("KIND_MD", KIND_MD)?;
     m.add("KIND_TRIM", KIND_TRIM)?;
+    m.add("KIND_BLOCK", KIND_BLOCK)?;
+    m.add("KIND_BLOCK_BYTES", KIND_BLOCK_BYTES)?;
     m.add("CLASS_OTHER", CLASS_OTHER)?;
     m.add("CLASS_BLOCK", CLASS_BLOCK)?;
     m.add("CLASS_MD", CLASS_MD)?;
