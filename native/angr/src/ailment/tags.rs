@@ -32,15 +32,23 @@ use pyo3::types::{PyDict, PyMapping, PyTuple};
 use pyo3::{Borrowed, Py, PyAny};
 use serde::{Deserialize, Serialize};
 
+use crate::ailment::Addr;
+
 /// Value stored in the `extras` bucket for cold / unknown tag keys.
 ///
 /// The primitive variants serde-round-trip cleanly; the `Opaque` variant
 /// holds a Python object (e.g. a SimVariable that hasn't been refactored to
 /// an ident yet) and is silently skipped during Serde serialization.
+///
+/// Python integers use `Int` throughout the signed range and `UInt` only above
+/// `i64::MAX`. Together they cover `-2^63 ..= 2^64 - 1` without widening the
+/// enum, and each integer has one canonical representation.
 #[derive(Debug, Clone)]
 pub enum TagExtra {
     Bool(bool),
     Int(i64),
+    /// Values above `i64::MAX`.
+    UInt(u64),
     Float(f64),
     Str(String),
     IntList(Vec<i64>),
@@ -49,12 +57,23 @@ pub enum TagExtra {
     Opaque(Py<PyAny>),
 }
 
+impl TagExtra {
+    /// Store an unsigned value in its canonical signed or unsigned variant.
+    fn from_u64(v: u64) -> Self {
+        match i64::try_from(v) {
+            Ok(i) => TagExtra::Int(i),
+            Err(_) => TagExtra::UInt(v),
+        }
+    }
+}
+
 impl PartialEq for TagExtra {
     fn eq(&self, other: &Self) -> bool {
         use TagExtra::*;
         match (self, other) {
             (Bool(a), Bool(b)) => a == b,
             (Int(a), Int(b)) => a == b,
+            (UInt(a), UInt(b)) => a == b,
             (Float(a), Float(b)) => a == b,
             (Str(a), Str(b)) => a == b,
             (IntList(a), IntList(b)) => a == b,
@@ -71,6 +90,9 @@ impl Eq for TagExtra {}
 
 // Serde: encode primitives as a tagged enum; treat Opaque as if it were None
 // so we don't write Python objects into the byte stream.
+//
+// The variant indices below are the wire format. Do not renumber them, and add
+// new variants at the end: a stored decompilation cache is read back by index.
 impl Serialize for TagExtra {
     fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStructVariant;
@@ -85,6 +107,7 @@ impl Serialize for TagExtra {
                 let v = ser.serialize_struct_variant("TagExtra", 6, "Opaque", 0)?;
                 v.end()
             }
+            TagExtra::UInt(v) => ser.serialize_newtype_variant("TagExtra", 7, "UInt", v),
         }
     }
 }
@@ -95,6 +118,7 @@ impl<'de> Deserialize<'de> for TagExtra {
         // ``Serialize`` impl above, which emits plain variant indices.
         // Internally/adjacently tagged enums require a self-describing
         // format and are rejected by postcard at deserialization time.
+        // Declaration order preserves the wire indices; `UInt` must stay last.
         #[derive(Deserialize)]
         enum Helper {
             Bool(bool),
@@ -104,6 +128,7 @@ impl<'de> Deserialize<'de> for TagExtra {
             IntList(Vec<i64>),
             StrList(Vec<String>),
             Opaque {},
+            UInt(u64),
         }
         let h: Helper = Deserialize::deserialize(de)?;
         Ok(match h {
@@ -114,6 +139,9 @@ impl<'de> Deserialize<'de> for TagExtra {
             Helper::IntList(v) => TagExtra::IntList(v),
             Helper::StrList(v) => TagExtra::StrList(v),
             Helper::Opaque {} => TagExtra::Opaque(Python::attach(|py| py.None())),
+            // Canonicalize, so a payload that spelled a small value `UInt`
+            // still compares equal to the `Int` this build would produce.
+            Helper::UInt(v) => TagExtra::from_u64(v),
         })
     }
 }
@@ -149,6 +177,9 @@ pub enum TagKey {
 enum TagValueKind {
     Bool,
     Int,
+    /// An [`Addr`]. Distinguished from `Int` only to decide which integer
+    /// extraction to try first; both accept the same range.
+    Addr,
     Str,
     IntList,
 }
@@ -202,7 +233,8 @@ impl TagKey {
     /// accept any primitive).
     fn value_kind(&self) -> Option<TagValueKind> {
         Some(match self {
-            TagKey::DerefSrcAddr | TagKey::OrigInsAddr | TagKey::WriteSize => TagValueKind::Int,
+            TagKey::DerefSrcAddr | TagKey::OrigInsAddr => TagValueKind::Addr,
+            TagKey::WriteSize => TagValueKind::Int,
             TagKey::AlwaysPropagate
             | TagKey::ExtraDef
             | TagKey::IsPrototypeGuessed
@@ -215,13 +247,38 @@ impl TagKey {
     }
 }
 
+/// Extract a Python `int`, preferring `i64` so signed-range values use the
+/// canonical `Int` variant.
+fn int_from_py(value: &Bound<'_, PyAny>) -> PyResult<TagExtra> {
+    match value.extract::<i64>() {
+        Ok(i) => Ok(TagExtra::Int(i)),
+        Err(signed_err) => match value.extract::<u64>() {
+            Ok(u) => Ok(TagExtra::UInt(u)),
+            // Out of range on both sides; the signed error describes it.
+            Err(_) => Err(signed_err),
+        },
+    }
+}
+
+/// Extract an address-like integer, trying `u64` first for high addresses but
+/// retaining the negative values accepted by the previous signed fields.
+fn addr_from_py(value: &Bound<'_, PyAny>) -> PyResult<TagExtra> {
+    match value.extract::<u64>() {
+        Ok(u) => Ok(TagExtra::from_u64(u)),
+        Err(unsigned_err) => match value.extract::<i64>() {
+            Ok(i) => Ok(TagExtra::Int(i)),
+            Err(_) => Err(unsigned_err),
+        },
+    }
+}
+
 /// Convert an arbitrary Python primitive into a [`TagExtra`]. Non-primitive
 /// values fall back to `Opaque` (held but not serialized).
 fn extra_from_py(value: &Bound<'_, PyAny>) -> TagExtra {
     if let Ok(b) = value.extract::<bool>() {
         TagExtra::Bool(b)
-    } else if let Ok(i) = value.extract::<i64>() {
-        TagExtra::Int(i)
+    } else if let Ok(i) = int_from_py(value) {
+        i
     } else if let Ok(f) = value.extract::<f64>() {
         TagExtra::Float(f)
     } else if let Ok(s) = value.extract::<String>() {
@@ -244,6 +301,7 @@ impl<'py> IntoPyObject<'py> for &TagExtra {
         match self {
             TagExtra::Bool(b) => b.into_bound_py_any(py),
             TagExtra::Int(i) => i.into_bound_py_any(py),
+            TagExtra::UInt(u) => u.into_bound_py_any(py),
             TagExtra::Float(f) => f.into_bound_py_any(py),
             TagExtra::Str(s) => s.into_bound_py_any(py),
             TagExtra::IntList(l) => l.into_bound_py_any(py),
@@ -257,8 +315,10 @@ impl<'py> IntoPyObject<'py> for &TagExtra {
 /// `extras`. See the module docs.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Tags {
-    pub ins_addr: Option<i64>,
-    pub vex_block_addr: Option<i64>,
+    #[serde(with = "crate::ailment::addr_repr::option")]
+    pub ins_addr: Option<Addr>,
+    #[serde(with = "crate::ailment::addr_repr::option")]
+    pub vex_block_addr: Option<Addr>,
     pub vex_stmt_idx: Option<i32>,
     pub block_idx: Option<i32>,
     /// Cold known keys and arbitrary custom keys, keyed by [`TagKey`]. Hot
@@ -409,7 +469,8 @@ impl Tags {
                 // accept any primitive (falling back to `Opaque`).
                 let extra = match other.value_kind() {
                     Some(TagValueKind::Bool) => TagExtra::Bool(value.extract()?),
-                    Some(TagValueKind::Int) => TagExtra::Int(value.extract()?),
+                    Some(TagValueKind::Int) => int_from_py(value)?,
+                    Some(TagValueKind::Addr) => addr_from_py(value)?,
                     Some(TagValueKind::Str) => TagExtra::Str(value.extract()?),
                     Some(TagValueKind::IntList) => TagExtra::IntList(value.extract()?),
                     None => extra_from_py(value),
@@ -809,6 +870,52 @@ mod tests {
     }
 
     #[test]
+    fn address_keys_are_declared_addresses() {
+        for k in [TagKey::DerefSrcAddr, TagKey::OrigInsAddr] {
+            assert!(matches!(k.value_kind(), Some(TagValueKind::Addr)));
+        }
+        assert!(matches!(
+            TagKey::WriteSize.value_kind(),
+            Some(TagValueKind::Int)
+        ));
+    }
+
+    #[test]
+    fn int_tag_is_two_words_wide() {
+        assert_eq!(std::mem::size_of::<TagExtra>(), 32);
+        assert_eq!(std::mem::align_of::<TagExtra>(), 8);
+    }
+
+    #[test]
+    fn unsigned_int_tag_is_canonical() {
+        assert_eq!(TagExtra::from_u64(0), TagExtra::Int(0));
+        assert_eq!(TagExtra::from_u64(i64::MAX as u64), TagExtra::Int(i64::MAX));
+        assert_eq!(
+            TagExtra::from_u64(1 << 63),
+            TagExtra::UInt(0x8000_0000_0000_0000)
+        );
+        assert_eq!(TagExtra::from_u64(u64::MAX), TagExtra::UInt(u64::MAX));
+    }
+
+    #[test]
+    fn int_tag_keeps_its_released_encoding() {
+        // angr v9.3.0 through v9.3.4 encoded every supported integer as variant 1.
+        for v in [0i64, 1, -1, i64::MIN, i64::MAX] {
+            let bytes = postcard::to_allocvec(&TagExtra::Int(v)).unwrap();
+            assert_eq!(bytes[0], 1, "variant index moved for {v}");
+            let back: TagExtra = postcard::from_bytes(&bytes).unwrap();
+            assert_eq!(back, TagExtra::Int(v));
+        }
+        // Those releases could not encode values above `i64::MAX`.
+        for v in [1u64 << 63, u64::MAX] {
+            let bytes = postcard::to_allocvec(&TagExtra::UInt(v)).unwrap();
+            assert_eq!(bytes[0], 7);
+            let back: TagExtra = postcard::from_bytes(&bytes).unwrap();
+            assert_eq!(back, TagExtra::UInt(v));
+        }
+    }
+
+    #[test]
     fn serde_round_trip_hot_cold_custom() {
         let mut t = Tags {
             ins_addr: Some(0x4000),
@@ -820,6 +927,11 @@ mod tests {
         t.insert_extra(TagKey::RegName, TagExtra::Str("rax".into()));
         t.insert_extra(TagKey::Uninitialized, TagExtra::Bool(true));
         t.insert_extra(TagKey::Custom("mine".into()), TagExtra::Int(99));
+        t.insert_extra(TagKey::Custom("negative".into()), TagExtra::Int(-8));
+        t.insert_extra(
+            TagKey::DerefSrcAddr,
+            TagExtra::from_u64(0xffff_ffff_8100_0330),
+        );
 
         let bytes = postcard::to_allocvec(&t).unwrap();
         let back: Tags = postcard::from_bytes(&bytes).unwrap();
