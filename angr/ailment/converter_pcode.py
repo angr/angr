@@ -147,25 +147,97 @@ class PCodeIRSBConverter(Converter):
         """
         self._statement_idx = 0
 
-        for op in self._irsb._ops:
+        ops = self._irsb._ops
+        insn_start = 0
+        for op_idx, op in enumerate(ops):
             self._current_op = op
             if op.opcode == pypcode.OpCode.IMARK:
                 self._manager.ins_addr = op.inputs[0].offset
                 self._next_ins_addr = op.inputs[-1].offset + op.inputs[-1].size
+                insn_start = op_idx + 1
             else:
                 assert self._irsb.behaviors is not None
                 self._current_behavior = self._irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
                 self._convert_current_op()
             self._statement_idx += 1
 
-            if (
-                "sparc:" in self._irsb.arch.name
-                and self._irsb.arch.bits == 32
-                and self._current_op.opcode == OpCode.CALL
-            ):
+            if op.opcode in {OpCode.CALL, OpCode.CALLIND}:
+                # a block ends at its call, as the lifter's exit says and CallSiteMaker requires. SLEIGH can continue
+                # the instruction after the call; of those ops, only whether they return is kept
+                call_stmt = self._statements[-1] if self._statements else None
+                if isinstance(call_stmt, SideEffectStatement) and self._returns_after_call(
+                    ops[insn_start:op_idx], ops[op_idx + 1 :]
+                ):
+                    call_stmt.tags["returns_after_call"] = True
                 break
 
         return Block(self._irsb.addr, self._irsb.size, statements=self._statements)
+
+    @staticmethod
+    def _returns_after_call(before: list[PcodeOp], after: list[PcodeOp]) -> bool:
+        """
+        Whether the ops that follow a call in its instruction return from the function. This is how SPARC's `call`
+        makes a tail call: `call target; if (didrestore == 0) goto inst_next; return [o7]`, where a `restore` in the
+        delay slot has set didrestore to 1.
+
+        :param before:  The instruction's ops before the call. Constants they copy into varnodes decide the branches.
+        :param after:   The instruction's ops after the call.
+        :return:        True if the ops after the call reach a RETURN. False if they fall through to the next
+                        instruction or their path depends on anything but those constants.
+        """
+        known: dict[tuple[str, int], tuple[int, int]] = {}
+
+        def write(varnode: Varnode, value: int | None) -> None:
+            space, start, end = varnode.space.name, varnode.offset, varnode.offset + varnode.size
+            for key, (size, _) in list(known.items()):
+                if key[0] == space and key[1] < end and start < key[1] + size:
+                    del known[key]
+            if value is not None:
+                known[(space, start)] = varnode.size, value
+
+        def read(varnode: Varnode) -> int | None:
+            if varnode.space.name == "const":
+                return varnode.offset
+            size, value = known.get((varnode.space.name, varnode.offset), (None, None))
+            return value if size == varnode.size else None
+
+        # an op that a relative branch can jump over runs conditionally, so what it writes is not known afterwards
+        skipped_until = 0
+        for idx, op in enumerate(before):
+            if op.opcode in {OpCode.BRANCH, OpCode.CBRANCH} and op.inputs[0].space.name == "const":
+                offset = op.inputs[0].offset
+                if offset >> (op.inputs[0].size * 8 - 1):
+                    return False
+                skipped_until = max(skipped_until, idx + offset)
+            if op.output is not None:
+                conditional = idx < skipped_until
+                write(op.output, read(op.inputs[0]) if op.opcode == OpCode.COPY and not conditional else None)
+
+        for op in after:
+            if op.opcode == OpCode.RETURN:
+                return True
+            if op.opcode == OpCode.CBRANCH:
+                if read(op.inputs[1]) != 0:
+                    # the branch is or may be taken
+                    return False
+                continue
+            if op.opcode in {OpCode.BRANCH, OpCode.BRANCHIND, OpCode.CALL, OpCode.CALLIND}:
+                return False
+            if op.output is None:
+                continue
+            value = None
+            if op.opcode == OpCode.COPY:
+                value = read(op.inputs[0])
+            elif op.opcode in {OpCode.INT_EQUAL, OpCode.INT_NOTEQUAL}:
+                lhs, rhs = read(op.inputs[0]), read(op.inputs[1])
+                if lhs is not None and rhs is not None:
+                    value = int((lhs == rhs) == (op.opcode == OpCode.INT_EQUAL))
+            elif op.opcode == OpCode.BOOL_NEGATE:
+                operand = read(op.inputs[0])
+                if operand is not None:
+                    value = int(not operand)
+            write(op.output, value)
+        return False
 
     def _convert_current_op(self) -> None:
         """
