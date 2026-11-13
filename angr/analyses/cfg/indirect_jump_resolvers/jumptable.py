@@ -1284,6 +1284,7 @@ class JumpTableResolver(IndirectJumpResolver):
                         transformations,
                         potential_call_table,
                         unbounded_jumptable,
+                        block_local_slice=b.max_level == 1,
                     )
                     if ret is None:
                         # Try the next state
@@ -2081,9 +2082,12 @@ class JumpTableResolver(IndirectJumpResolver):
         transformations: dict[tuple[int, int], AddressTransformation],
         potential_call_table: bool = False,
         unbounded_jumptable: bool = False,
+        block_local_slice: bool = False,
     ):
         """
         Try loading all jump targets from a jump table or a vtable.
+
+        :param block_local_slice:   True if the slice does not go beyond the block of the indirect jump.
         """
 
         # shorthand
@@ -2180,7 +2184,13 @@ class JumpTableResolver(IndirectJumpResolver):
         # while the read statement reads a word size at a time.
         # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
         # the current function) and vtables (where each entry is a function).
-        if stride < load_size:
+        if block_local_slice and jumptable_addr.cardinality == 1:
+            # the block itself pins the index to a single value, e.g., `setb` on a comparison that always holds. across
+            # blocks, a single value may only be the index on one path, so it is not trusted there.
+            stride = load_size
+            total_cases = 1
+            sort = "jumptable"
+        elif stride < load_size:
             stride = load_size
             total_cases = jumptable_addr.cardinality // load_size
             sort = "vtable"  # it's probably a vtable!

@@ -3365,6 +3365,26 @@ class TestJumpTableResolver(unittest.TestCase):
         assert jt1.jumptables[0].entries_guessed is True
         assert jt1.jumptables[0].entries == [0x40F286, 0x40F28F]
 
+    def test_x86_setcc_indexed_jumptables(self):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "50e5f670700243535f8ff558831dbbc314b215092f523355aa7a1c26205ece37"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            function_starts=[0x40ED70],
+            regions=[(0x40ED70, 0x415000)],
+            symbols=False,
+            function_prologues=False,
+            start_at_entry=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+        )
+        # xor ecx, ecx; cmp esi, eax; setb cl; jmp [ecx*4+0x441a70]. eax >= 0x10 and esi == 0, so the index is always 1
+        assert set(cfg.indirect_jumps[0x414247].resolved_targets) == {0x4144C1}
+        # inc esi; xor eax, eax; cmp esi, [esp+0xc]; setb al; jmp [eax*4+0x441a70]
+        assert set(cfg.indirect_jumps[0x4144B0].resolved_targets) == {0x414265, 0x4144C1}
+
 
 class TestJumpTableResolverCallTables(unittest.TestCase):
     """

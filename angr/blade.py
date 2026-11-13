@@ -118,6 +118,10 @@ class Blade:
     def slice(self):
         return self._slice
 
+    @property
+    def max_level(self) -> int:
+        return self._max_level
+
     #
     # Public methods
     #
