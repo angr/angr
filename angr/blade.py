@@ -313,6 +313,7 @@ class Blade:
                 "prev": prev,
             },
             include_imarks=self._include_imarks,
+            tyenv=self._get_irsb(self._dst_run).tyenv,
         )
         regs = slicer.final_regs
         if self._ignore_sp and self.project.arch.sp_offset in regs:
@@ -397,6 +398,7 @@ class Blade:
             inslice_callback=self._inslice_callback,
             inslice_callback_infodict=infodict,
             include_imarks=self._include_imarks,
+            tyenv=self._get_irsb(run).tyenv,
         )
 
         if not infodict["has_statement"]:

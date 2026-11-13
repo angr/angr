@@ -40,9 +40,15 @@ class SimSlicer:
         inslice_callback=None,
         inslice_callback_infodict=None,
         include_imarks: bool = True,
+        tyenv: pyvex.IRTypeEnv | None = None,
     ):
+        """
+        :param tyenv:   Type environment of the IRSB that the statements belong to. Without it, a write to a part of a
+                        register (e.g., `cl`) is treated as overwriting the entire base register (e.g., `ecx`).
+        """
         self._arch = arch
         self._statements = statements
+        self._tyenv = tyenv
         self._target_tmps = target_tmps if target_tmps is not None else set()
         self._target_regs = target_regs if target_regs is not None else set()
         self._target_stack_offsets = target_stack_offsets if target_stack_offsets is not None else set()
@@ -251,13 +257,21 @@ class SimSlicer:
 
     def _backward_handler_stmt_Put(self, stmt: pyvex.IRStmt.Put, state):
         reg = stmt.offset
+        partial_write = False
         # convert it to its base register
         base_reg = self._arch.get_base_register(reg)
         if base_reg is not None:
-            reg = base_reg[0]
+            base_offset, base_size = base_reg
+            if reg != base_offset:
+                partial_write = True
+            elif self._tyenv is not None:
+                partial_write = stmt.data.result_size(self._tyenv) // self._arch.byte_width < base_size
+            reg = base_offset
 
         if reg in state.regs:
-            state.regs.remove(reg)
+            # the remaining bytes of a partially written register still come from earlier definitions
+            if not partial_write:
+                state.regs.remove(reg)
 
             self._backward_handler_expr(stmt.data, state)
 

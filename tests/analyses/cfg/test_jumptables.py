@@ -3349,14 +3349,21 @@ class TestJumpTableResolver(unittest.TestCase):
         )
         proj = angr.Project(bin_path)
         cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
-        # the first jump table; we happen to resolve it because its shape is the same as a regular, cmp-based one
+        # xor eax, eax; test esi, esi; sete al; jmp [eax*4+0x441bb0]: the index is either 0 or 1
         jt0 = cfg.model.jump_tables[0x415530]
         assert len(jt0.jumptables) == 1
         assert jt0.jumptables[0].addr == 0x441BB0
         assert jt0.jumptables[0].entry_size == 4
-        assert jt0.jumptables[0].size == 4 * 5
-        assert jt0.jumptables[0].entries_guessed is True
-        assert jt0.jumptables[0].entries == [0x4154DA, 0x4154F0, 0x4154F0, 0x4154F0, 0x4154F0]
+        assert jt0.jumptables[0].size == 4 * 2
+        assert jt0.jumptables[0].entries_guessed is False
+        assert jt0.jumptables[0].entries == [0x4154DA, 0x4154F0]
+        # the index (edi) is defined before a call, which the slice does not cross, so the table size is guessed
+        jt1 = cfg.model.jump_tables[0x40F278]
+        assert len(jt1.jumptables) == 1
+        assert jt1.jumptables[0].addr == 0x441648
+        assert jt1.jumptables[0].size == 4 * 2
+        assert jt1.jumptables[0].entries_guessed is True
+        assert jt1.jumptables[0].entries == [0x40F286, 0x40F28F]
 
 
 class TestJumpTableResolverCallTables(unittest.TestCase):
