@@ -1133,13 +1133,16 @@ class JumpTableResolver(IndirectJumpResolver):
             l.debug("Deferring unbounded jump table at %#x until data references are complete.", addr)
             self.deferred = True
             return False, None
+        # without the expected predecessor shape, the block of the indirect jump must bound the index by itself (e.g.,
+        # `setb al; jmp [eax*4+table]`). we check it with a block-local slice and accept two-way tables only.
+        needs_block_local_bound = False
         if func_graph_complete and not is_arm and not potential_call_table and pred_endaddrs and not niche_index:
             # on ARM you can do a single-block jump table...
             if len(pred_endaddrs) == 1:
                 pred_succs = [succ for succ in preds[0].successors() if succ.addr != preds[0].addr]
                 if len(pred_succs) != 2:
                     l.debug("Expect two successors to the single predecessor, found %d.", len(pred_succs))
-                    return False, None
+                    needs_block_local_bound = True
             elif len(pred_endaddrs) == 2 and len(preds) == 2 and all(p in func.graph for p in preds):
                 pred_succs = set(
                     [succ for succ in func.graph.successors(preds[0]) if succ.addr != preds[0].addr]
@@ -1155,10 +1158,12 @@ class JumpTableResolver(IndirectJumpResolver):
                             break
                 if not is_diamond:
                     l.debug("Expect a diamond shape.")
-                    return False, None
+                    needs_block_local_bound = True
             else:
                 l.debug("The predecessor-successor shape does not look like a jump table or a vtable jump/call.")
-                return False, None
+                needs_block_local_bound = True
+        if needs_block_local_bound and b.max_level != 1:
+            return False, None
 
         try:
             jump_target = self._try_resolve_single_constant_loads(load_stmt, cfg, addr)
@@ -1199,7 +1204,7 @@ class JumpTableResolver(IndirectJumpResolver):
             if unbounded_jumptable:
                 # no bounds check exists to find; keep going and size the table from data
                 l.debug("Indirect jump at %#x has no bounds check; trying data-driven table sizing.", addr)
-            elif not potential_call_table and not is_arm:
+            elif not potential_call_table and not is_arm and not needs_block_local_bound:
                 l.debug("Indirect jump at %#x does not look like a jump table. Skip.", addr)
                 return False, None
             if (
@@ -1321,6 +1326,10 @@ class JumpTableResolver(IndirectJumpResolver):
                     raise TypeError("Unsupported type of jump table.")
 
                 assert ret is not None
+
+                if needs_block_local_bound and len(set(all_targets)) > 2:
+                    l.debug("Jump table at %#x is not bounded to two targets by its own block. Skip.", addr)
+                    continue
 
                 # finally, we filter jump targets according to the alignment of the architecture
                 if is_arm_arch(self.project.arch):
