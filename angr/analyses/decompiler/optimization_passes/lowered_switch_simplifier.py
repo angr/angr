@@ -15,7 +15,11 @@ from angr.analyses.decompiler.structurer_nodes import (
     MultiNode,
     SequenceNode,
 )
-from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
+from angr.analyses.decompiler.utils import (
+    first_nonlabel_nonphi_statement,
+    fix_copied_node_labels,
+    remove_last_statement,
+)
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.utils.graph import GraphUtils
 from angr.utils.ssa import get_vvar_uselocs
@@ -360,6 +364,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             self._block_copies[case.original_node][-1].idx = (
                                 len(self._block_copies[case.original_node]) + 1000
                             )
+                            fix_copied_node_labels(self._block_copies[case.original_node][-1])
                         case_node_copy = self._block_copies[case.original_node][-1]
 
                         case_addrs.append(
@@ -454,6 +459,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 for head in heads:
                     node_copy = succ_node.deep_copy(self.manager)
                     node_copy.idx = next_id
+                    fix_copied_node_labels(node_copy)
                     next_id += 1
 
                     # update the block ID in case_addrs

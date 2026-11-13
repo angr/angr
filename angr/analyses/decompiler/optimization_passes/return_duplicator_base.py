@@ -12,7 +12,13 @@ from angr.ailment.statement import Assignment, Jump, Label, Return
 from angr.analyses.decompiler.region_identifier import RegionIdentifier
 from angr.analyses.decompiler.region_overlay import RegionOverlay
 from angr.analyses.decompiler.structurer_nodes import ConditionNode, MultiNode
-from angr.analyses.decompiler.utils import calls_in_graph, remove_labels, to_ail_supergraph, update_jump_target_idx
+from angr.analyses.decompiler.utils import (
+    calls_in_graph,
+    fix_copied_node_labels,
+    remove_labels,
+    to_ail_supergraph,
+    update_jump_target_idx,
+)
 from angr.utils.ail import is_phi_assignment
 
 _l = logging.getLogger(name=__name__)
@@ -239,7 +245,7 @@ class ReturnDuplicatorBase:
                     node_copy = self._copy_node_and_update_phi_variables(node_copy, pred)
                 node_copy = self._use_fresh_virtual_variables(node_copy, vvar_mapping)
                 node_copy.idx = self.next_node_idx(node.addr, graph)
-                self._fix_copied_node_labels(node_copy)
+                fix_copied_node_labels(node_copy)
                 copies[node] = node_copy
 
             # modify Jump.target_idx and ConditionalJump.{true,false}_target_idx accordingly
@@ -596,22 +602,6 @@ class ReturnDuplicatorBase:
         all_region_block_sets = {}
         _unpack_every_region(top_region, all_region_block_sets)
         return all_region_block_sets
-
-    @staticmethod
-    def _fix_copied_node_labels(block: Block):
-        for i in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
-            stmt = block.statements[i]
-            if isinstance(stmt, Label):
-                # fix the default name by suffixing it with the new block ID
-                new_name = stmt.name or f"Label_{stmt.tags['ins_addr']:x}"
-                if "block_idx" in stmt.tags:
-                    suffix = f"__{stmt.tags['block_idx']}"
-                    new_name = new_name.removesuffix(suffix)
-                else:
-                    new_name = stmt.name
-                new_name += f"__{block.idx}"
-
-                block.statements[i] = Label(stmt.idx, new_name, **(stmt.tags | {"block_idx": block.idx}))
 
     @staticmethod
     def unwrap_conv(expr):
