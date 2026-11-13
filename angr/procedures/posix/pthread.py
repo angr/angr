@@ -39,6 +39,8 @@ class pthread_create(angr.SimProcedure):
         # Execute each block
         state = blank_state
         for b in blocks:
+            # the engine dispatches hooks on the state's instruction pointer, not on the block it is handed
+            state.regs.ip = b.addr
             try:
                 irsb = self.project.factory.default_engine.process(state, b, force_addr=b.addr)
             except (AngrError, SimError) as ex:
