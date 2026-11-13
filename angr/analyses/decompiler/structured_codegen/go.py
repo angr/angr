@@ -1283,6 +1283,8 @@ _GO_CMP_SWAP = {
     "CmpGEs": "CmpLEs",
 }
 
+_GO_ORDERED_CMPS = frozenset(_GO_CMP_SWAP) - {"CmpEQ", "CmpNE"}
+
 
 def _go_block_chunks(body, indent_str: str, indent: int, codegen):
     """Render ``{`` body ``}`` with Go's brace placement; an empty body renders as ``{ }``."""
@@ -5766,8 +5768,14 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializa
         if expr.op == "Round" and (round_op := _go_round_unop(expr.operands[0])) is not None:
             return self._math_call(round_op, expr.operands[1], expr.tags)
 
-        lhs = self._handle(expr.operands[0])
-        rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
+        # Go orders only integers, floats and strings, and no integer or float is wider than 64 bits, so a wider
+        # ordered comparison compares strings. The prototype the cmpstring fold sets is no help here: an if condition
+        # reaches this point as a new node without it
+        operand_type = None
+        if expr.op in _GO_ORDERED_CMPS and not expr.floating_point and expr.operands[0].bits > 64:
+            operand_type = GoSimTypeString().with_arch(self.project.arch)
+        lhs = self._handle(expr.operands[0], type_=operand_type)
+        rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"}, type_=operand_type)
         if isinstance(rhs, GoConstant) and expr.op in {"Shl", "Shr", "Sar", "Rol", "Ror"}:
             # a shift count is a number, never a rune
             rhs.fmt_char = False

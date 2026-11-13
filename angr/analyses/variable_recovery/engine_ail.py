@@ -1574,6 +1574,11 @@ class SimEngineVRAIL(
             tc = typevars.Equivalence(r0.typevar, r1.typevar)
             self.state.add_type_constraint(tc)
 
+        # a comparison that replaced a call (Go's string comparison) carries a prototype that types its operands
+        prototype = self._variable_map.prototype(expr) if self._variable_map is not None else None
+        if prototype is not None:
+            self._call_add_arg_based_type_constraints(prototype, None, [r0, r1], [arg0, arg1])
+
         if expr.floating_point:
             ft = self._fp_type(arg0.bits)
             if ft is not None:

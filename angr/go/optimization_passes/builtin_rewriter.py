@@ -1376,7 +1376,13 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         args = list(call.args or [])
         if len(args) != 2 or any(a.bits != self._string_bits for a in args):
             return None
-        return self.compare(op, args[0], args[1], expr.bits, expr.tags)
+        cmp = BinaryOp(self.manager.next_atom(), op, args, False, bits=1, **expr.tags)
+        # the comparison carries cmpstring's string parameters, so type inference sees strings, not 128-bit integers
+        with contextlib.suppress(Exception):
+            string = self.kb.go_signatures.type("string")
+            proto = GoSimTypeFunction([string, string], self.kb.go_signatures.type("bool"))
+            variable_map_of(self.manager).set_prototype(cmp, proto.with_arch(self.project.arch))
+        return self.to_bits(cmp, expr.bits)
 
     def _contains(self, call: Call, op: str, expr: BinaryOp) -> Expression | None:
         """``strings.Index(s, sub) >= 0`` is ``strings.Contains(s, sub)`` (``< 0``: its negation)."""
