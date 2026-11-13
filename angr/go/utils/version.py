@@ -51,15 +51,9 @@ def _exact_go_version(project: Project) -> str | None:
         except KeyError:
             pass
 
-    for section in obj.sections:
-        if section.name == ".go.buildinfo" and section.memsize:
-            try:
-                data = memory.load(section.vaddr, min(section.memsize, 0x1000))
-            except KeyError:
-                continue
-            m = _GO_VERSION_RE.search(data)
-            if m:
-                return m.group(0).decode()
+    version = _buildinfo_version(project)
+    if version is not None:
+        return version
 
     for section in obj.sections:
         if section.name in (".rodata", ".rdata", "__rodata") and section.memsize:
@@ -70,6 +64,49 @@ def _exact_go_version(project: Project) -> str | None:
             m = _GO_VERSION_RE.search(data)
             if m:
                 return m.group(0).decode()
+    return None
+
+
+def _buildinfo_version(project: Project) -> str | None:
+    """
+    The Go release recorded in the build-info blob (go1.13 and later), found the way Go's debug/buildinfo finds it:
+    the first 16-byte aligned blob in the ``.go.buildinfo`` (ELF) or ``__go_buildinfo`` (Mach-O) section, or else in
+    the first writable section, which is where PE keeps it.
+    """
+    obj = project.loader.main_object
+    memory = project.loader.memory
+    sections = [s for s in obj.sections if s.name in (".go.buildinfo", "__go_buildinfo")]
+    if not sections:
+        sections = [s for s in obj.sections if s.is_writable][:1]
+    for section in sections:
+        try:
+            # the file-backed part only: on PE the section's memory size also covers the zero-filled .bss
+            data = memory.load(section.vaddr, min(section.memsize, section.filesize))
+        except KeyError:
+            continue
+        start = data.find(_BUILDINFO_MAGIC)
+        while start >= 0 and (section.vaddr + start) % 16:
+            start = data.find(_BUILDINFO_MAGIC, start + 1)
+        if start < 0 or len(data) - start < 32:
+            continue
+        ptr_size, flags = data[start + 14], data[start + 15]
+        if flags & 2:
+            # since go1.18 the version string follows the 32-byte header, after its length as a varint (one byte for
+            # any release name)
+            length = data[start + 32] if len(data) > start + 32 else 0
+            raw = data[start + 33 : start + 33 + length]
+        else:
+            # before: the header points at the version's string header (data pointer, length)
+            endness = "big" if flags & 1 else "little"
+            try:
+                header = memory.load(int.from_bytes(data[start + 16 : start + 16 + ptr_size], endness), 2 * ptr_size)
+                length = int.from_bytes(header[ptr_size:], endness)
+                raw = memory.load(int.from_bytes(header[:ptr_size], endness), length) if 0 < length < 64 else b""
+            except KeyError:
+                continue
+        m = _GO_VERSION_RE.search(raw)
+        if m:
+            return m.group(0).decode()
     return None
 
 

@@ -29,6 +29,7 @@ from angr.calling_conventions import (
     go_cc_class,
 )
 from angr.enums import Flavors
+from angr.go.utils.version import _buildinfo_version
 from angr.sim_type import (
     SimStruct,
     SimTypeBottom,
@@ -401,6 +402,9 @@ class TestGoCallingConventionByVersion(unittest.TestCase):
             (("x86_64", "go", "go1.15.15", "basics"), (1, 15), SimCCGoAMD64ABI0),
             (("x86_64", "go", "go1.16.15", "basics"), (1, 16), SimCCGoAMD64ABI0),
             (("x86_64", "go", "go1.22.5", "basics"), (1, 22), SimCCGoAMD64),
+            # stripped go1.27.0 builds whose read-only data names go1.9 first; only the build-info blob is right
+            (("x86_64", "go", "corpus", "u-root-v0.16.0-darwin-amd64"), (1, 27), SimCCGoAMD64),
+            (("x86_64", "go", "corpus", "u-root-v0.16.0-windows-amd64.exe"), (1, 27), SimCCGoAMD64),
             (("aarch64", "langdetect_go_go1.17.13"), (1, 17), SimCCGoAArch64ABI0),
             (("aarch64", "windows", "langdetect_go_go1.17.13.exe"), (1, 17), SimCCGoAArch64ABI0),
             (("aarch64", "langdetect_go_go1.18.10"), (1, 18), SimCCGoAArch64),
@@ -414,6 +418,16 @@ class TestGoCallingConventionByVersion(unittest.TestCase):
                 assert proj.go_version_range == (version, version)
                 assert default_cc_for_project(proj) is cc
                 assert type(proj.factory.cc()) is cc
+
+    def test_release_from_buildinfo_blob(self):
+        # go1.13-go1.17 blobs point at the version string; go1.10 has no blob
+        for path, version in (
+            (("x86_64", "go", "go1.16.15", "basics_stripped"), "go1.16.15"),
+            (("x86_64", "go", "go1.10.8", "basics_stripped"), None),
+        ):
+            with self.subTest(binary=os.path.join(*path)):
+                proj = angr.Project(os.path.join(test_location, *path), auto_load_libs=False)
+                assert _buildinfo_version(proj) == version
 
     def test_printfloat_takes_one_float_from_the_stack_on_arm64_go117(self):
         path = os.path.join(test_location, "aarch64", "langdetect_go_go1.17.13")
