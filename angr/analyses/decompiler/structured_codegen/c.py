@@ -4909,8 +4909,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         stmt_var = self._variable_map.variable(stmt)
         if stmt_var is not None and cdata.type is not None:
-            cvar = self._variable(stmt_var, stmt.size)
-            offset = self._variable_map.variable_offset(stmt) or 0
+            member = self._variable_map.struct_member(stmt)
+            if member is not None:
+                cvar = self._variable(member[0], stmt.size)
+                offset = member[1]
+            else:
+                cvar = self._variable(stmt_var, stmt.size)
+                offset = self._variable_map.variable_offset(stmt) or 0
             assert type(offset) is int  # I refuse to deal with the alternative
             if offset == 0:
                 cdata = self._bit_pattern_constant_for_dst(cdata, cvar.type)
@@ -4960,7 +4965,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             )
         ):
             offset = stmt.src.offset.value
-            var = self._variable_map.variable(stmt.dst)
+            member = self._variable_map.struct_member(stmt.dst)
+            if member is not None:
+                var = member[0]
+                offset += member[1]
+            else:
+                var = self._variable_map.variable(stmt.dst)
             cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
             csrc = self._handle(stmt.src.value)
             src_type = csrc.type
@@ -5459,8 +5469,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
-            cvar = self._variable(expr_var, expr_size)
-            offset = self._variable_map.variable_offset(expr) or 0
+            member = self._variable_map.struct_member(expr)
+            if member is not None:
+                cvar = self._variable(member[0], expr_size)
+                offset = member[1]
+            else:
+                cvar = self._variable(expr_var, expr_size)
+                offset = self._variable_map.variable_offset(expr) or 0
 
             assert type(offset) is int  # I refuse to deal with the alternative
             result = self._access_constant_offset(
@@ -6050,6 +6065,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         **kwargs,
     ):
         expr_var = self._variable_map.variable(expr)
+        member = self._variable_map.struct_member(expr) if expr_var is not None else None
+        if member is not None:
+            # the vvar is a member of a struct- or array-typed stack variable
+            cbasevar = self._variable(member[0], None, vvar_id=expr.varid)
+            if ref and member[1] == 0:
+                return cbasevar
+            data_type = type_ if type_ is not None else SimTypeNum(expr.bits, signed=False).with_arch(self.project.arch)
+            return self._access_constant_offset(
+                self._get_variable_reference(cbasevar),
+                member[1],
+                data_type,
+                lvalue,
+                lambda old, proposed: proposed if qualifies_for_simple_cast(old, proposed) else old,
+            )
         if expr_var is not None:
             cvar = self._variable(expr_var, None, vvar_id=expr.varid)
 

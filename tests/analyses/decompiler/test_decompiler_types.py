@@ -181,8 +181,11 @@ class TestDecompilerTypes(unittest.TestCase):
         assert proto.args[0].with_arch(arch).size == 64
         assert re.search(r"\bS v\d+;", dec.codegen.text) is not None
         assert re.search(r"callee\(&v\d+\)", dec.codegen.text) is not None
-        # the store writes the struct's first member
+        # the stores write the struct's members
         assert re.search(r"\bv\d+\.a = a0;", dec.codegen.text) is not None, dec.codegen.text
+        for member, value in (("b", 0), ("c", 1), ("d", 2)):
+            assert re.search(rf"\bv\d+\.{member} = {value};", dec.codegen.text) is not None, dec.codegen.text
+        assert len(re.findall(r"^\s+\S+ v\d+;  // \[bp", dec.codegen.text, re.MULTILINE)) == 1, dec.codegen.text
 
         dec = proj.analyses.Decompiler(top, cfg=cfg.model, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
@@ -216,6 +219,9 @@ class TestDecompilerTypes(unittest.TestCase):
             if name == "reread":
                 # the read after the call reads the struct's first member
                 assert re.search(r"return v\d+\.a;", dec.codegen.text) is not None
+            else:
+                # the write in the loop writes the struct's first member
+                assert re.search(r"\bv\d+\.a = \w+;", dec.codegen.text) is not None, dec.codegen.text
 
     def test_mutually_recursive_known_structs_are_defined_once(self):
         # a known struct is rendered as defined: one typedef per name, with the recursive references intact

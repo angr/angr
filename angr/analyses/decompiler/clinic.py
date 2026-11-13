@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions,protected-access
 from __future__ import annotations
 
+import bisect
 import contextlib
 import copy
 import enum
@@ -120,7 +121,7 @@ from angr.utils.ail_serialization import (
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.graph import GraphUtils
 from angr.utils.ssa import is_phi_assignment
-from angr.utils.types import dereference_simtype_by_lib
+from angr.utils.types import dereference_simtype_by_lib, unpack_typeref
 from angr.utils.vex import block_branch_ins_addr
 
 from .ail_simplifier import AILSimplifier
@@ -494,6 +495,9 @@ class Clinic(Analysis, Serializable):
         self.func_ret_var = SimVariable(0, "__retvar", "__retvar")
         # True once _recover_and_link_variables has populated kb.dec_variables for this function this run
         self._variables_recovered = False
+        # struct- and array-typed stack variables: stack offset -> (variable, size in bytes)
+        self._stack_complex_types: dict[int, tuple[SimStackVariable, int]] = {}
+        self._stack_complex_type_offsets: list[int] = []
         # VariableMap is a side container that holds variable/variable_offset/custom_string/reference_values and the
         # sibling reference_variable/reference_variable_offset for AIL atoms, keyed by their .idx. It supersedes
         # storing this information directly on AIL Statement/Expression objects.
@@ -3857,6 +3861,7 @@ class Clinic(Analysis, Serializable):
                 )
 
         # Link variables and struct member information to every statement and expression
+        self._collect_stack_complex_types(var_manager)
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
 
@@ -3884,6 +3889,51 @@ class Clinic(Analysis, Serializable):
             self._cache.max_tv_id = vr.tv_manager.max_tv_id
 
         return tmp_kb
+
+    def _collect_stack_complex_types(self, variable_manager: VariableManagerInternal) -> None:
+        """
+        Collect the struct- and array-typed stack variables by stack offset. Each one is taken to own its bytes for the
+        entire function (no stack slot reuse).
+        """
+        found: dict[int, tuple[SimStackVariable, int]] = {}
+        for var in variable_manager.get_variables(sort="stack"):
+            if not isinstance(var, SimStackVariable) or not isinstance(var.offset, int):
+                continue
+            ty = unpack_typeref(variable_manager.get_variable_type(var))
+            if not isinstance(ty, (SimStruct, SimTypeArray)) or not ty.size:
+                continue
+            size = ty.size // self.project.arch.byte_width
+            existing = found.get(var.offset)
+            if existing is None or (size, existing[0].ident or "") > (existing[1], var.ident or ""):
+                found[var.offset] = var, size
+        self._stack_complex_types = found
+        self._stack_complex_type_offsets = sorted(found)
+
+    def _map_stackvar_to_struct_member(
+        self,
+        variable_manager: VariableManagerInternal,
+        expr_or_stmt: ailment.Expr.Expression | ailment.Stmt.Statement,
+        variable: SimVariable,
+        stack_offset: int,
+        size: int,
+    ) -> bool:
+        """
+        Map a stack access that falls inside a struct- or array-typed stack variable to a member access of that
+        variable.
+        """
+        idx = bisect.bisect_right(self._stack_complex_type_offsets, stack_offset)
+        if idx == 0:
+            return False
+        base_offset = self._stack_complex_type_offsets[idx - 1]
+        the_var, the_size = self._stack_complex_types[base_offset]
+        if stack_offset + size > base_offset + the_size:
+            return False
+        unified = variable_manager.unified_variable(variable)
+        if unified is not None and unified is variable_manager.unified_variable(the_var):
+            # an access to the variable itself
+            return False
+        self.variable_map.set_struct_member(expr_or_stmt, the_var, stack_offset - base_offset)
+        return True
 
     def _set_expr_variable(self, expr, variable, offset) -> None:
         self.variable_map.set_variable(expr, variable, offset)
@@ -3915,6 +3965,10 @@ class Clinic(Analysis, Serializable):
                 if len(mem_vars) == 1:
                     var, offset = next(iter(mem_vars))
                     self._set_store_variable(stmt, var, offset)
+                    if isinstance(var, SimStackVariable):
+                        self._map_stackvar_to_struct_member(
+                            variable_manager, stmt, var, var.offset + (offset or 0), stmt.size
+                        )
                 else:
                     # check if the dest address is a variable
                     stmt: ailment.Stmt.Store
@@ -4021,6 +4075,8 @@ class Clinic(Analysis, Serializable):
             if len(vars_) >= 1:
                 var, offset = _pick_var_and_offset(vars_)
                 self._set_expr_variable(expr, var, offset)
+                if expr.was_stack:
+                    self._map_stackvar_to_struct_member(variable_manager, expr, var, expr.stack_offset, expr.size)
 
             if expr.was_combo_reg:
                 for reg_vvar in expr.reg_vvars:
@@ -4064,6 +4120,10 @@ class Clinic(Analysis, Serializable):
                     )
                 var, offset = _pick_var_and_offset(variables)
                 self._set_expr_variable(expr, var, offset)
+                if isinstance(var, SimStackVariable):
+                    self._map_stackvar_to_struct_member(
+                        variable_manager, expr, var, var.offset + (offset or 0), expr.size
+                    )
 
         elif isinstance(expr, ailment.Expr.BinaryOp):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)

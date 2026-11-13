@@ -60,12 +60,14 @@ class TestVariableMap(unittest.TestCase):
         var = SimRegisterVariable(8, 8, ident="reg_1")
         vm.set_variable(1, var, 4)
         vm.set_custom_string(1)
+        vm.set_struct_member(1, var, 8)
 
         vm.transfer(1, 2)
 
         assert vm.variable(2) is var
         assert vm.variable_offset(2) == 4
         assert vm.custom_string(2) is True
+        assert vm.struct_member(2) == (var, 8)
 
     def test_json_round_trip(self):
         vm = VariableMap()
@@ -75,6 +77,7 @@ class TestVariableMap(unittest.TestCase):
         vm.set_variable(2, v2, 8)
         vm.set_custom_string(3)
         vm.set_reference_variable(4, v2, 2)
+        vm.set_struct_member(6, v2, 16)
         char_ptr = SimTypePointer(SimTypeChar())
         vm.set_reference_values(5, {char_ptr: "hello"})
 
@@ -92,6 +95,8 @@ class TestVariableMap(unittest.TestCase):
         assert restored.custom_string(3) is True
         assert restored.reference_variable(4) is v2
         assert restored.reference_variable_offset(4) == 2
+        assert restored.struct_member(6) == (v2, 16)
+        assert restored.struct_member(1) is None
 
         ref_vals = restored.reference_values(5)
         assert ref_vals is not None
