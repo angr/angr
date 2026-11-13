@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
 
 use clarirs_core::algorithms::{
-    canonicalize::compare_names, collect_vars::collect_vars, replace::Replacements,
+    canonicalize::{compare_names, order_commutative_operands},
+    collect_vars::collect_vars,
+    replace::Replacements,
     structurally_match,
 };
 use clarirs_vsa::cardinality::Cardinality;
@@ -292,6 +294,7 @@ impl Base {
         }
 
         let result = self.inner.replace_many(&replacements)?;
+        let result = order_commutative_operands(&result)?;
 
         let counter_ret: Bound<'py, PyAny> = match counter {
             Some(c) if counter_is_iter => c,
