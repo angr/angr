@@ -67,19 +67,27 @@ class SimTypeCollection:
 
         self.types[name] = t
 
-    def get(self, name: str, bottom_on_missing: bool = False, memo: set[str] | None = None) -> SimType:
+    def get(
+        self, name: str, bottom_on_missing: bool = False, memo: set[str] | None = None, ident_repr: str | None = None
+    ) -> SimType:
         """
         Get a SimType object from the collection as identified by the name.
 
         :param name:    Name of the type to get.
         :param bottom_on_missing:    Return a SimTypeBottom object if the required type does not exist.
         :param memo:    A set of names that have been queried in this call chain (to prevent infinite recursion).
+        :param ident_repr:  If it is meant to be a struct, union, or class, this should be the strict "struct" "union" or "class"
         :return:        The SimType object.
         """
-        if bottom_on_missing and name not in self:
-            return SimTypeBottom(label=name)
         if name not in self:
-            raise AngrMissingTypeError(name)
+            orig_name = name
+            if ident_repr is not None:
+                prefix = f"{ident_repr} "
+                name = name.removeprefix(prefix) if name.startswith(prefix) else prefix + name
+            if name not in self:
+                if bottom_on_missing:
+                    return SimTypeBottom(label=orig_name)
+                raise AngrMissingTypeError(orig_name)
         if name not in self.types and name in self.types_json:
             if memo is None:
                 memo = {name}

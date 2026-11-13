@@ -20,9 +20,7 @@ use pyo3::prelude::*;
 pub struct Manager {
     /// Next atom index to hand out (the original used `itertools.count()`).
     pub atom_ctr: i64,
-    /// Attached by Clinic so that optimization passes, peephole optimizations,
-    /// and region simplifiers can use VariableMap.
-    pub variable_map: Option<Py<PyAny>>,
+    pub _variable_map: Option<Py<PyAny>>,
     pub ins_addr: Option<i64>,
     pub vex_stmt_idx: Option<i64>,
     pub tyenv: Option<Py<PyAny>>,
@@ -35,11 +33,25 @@ impl Manager {
     fn new() -> Self {
         Self {
             atom_ctr: 0,
-            variable_map: None,
+            _variable_map: None,
             ins_addr: None,
             vex_stmt_idx: None,
             tyenv: None,
             block_addr: None,
+        }
+    }
+
+    #[getter]
+    fn variable_map(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self._variable_map {
+            Some(m) => Ok(m.clone()),
+            None => {
+                let vmap_module = PyModule::import(py, "angr.analyses.decompiler.variable_map")?;
+                let vmap_cls = vmap_module.getattr("VariableMap")?;
+                let vmap: Py<PyAny> = vmap_cls.call0()?.into();
+                self._variable_map = Some(vmap.clone());
+                Ok(vmap)
+            }
         }
     }
 
