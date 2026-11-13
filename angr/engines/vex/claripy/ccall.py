@@ -54,6 +54,17 @@ def op_concretize(op):
         if all(c.op == "BVV" for _, c in cases):
             raise CCallMultivaluedException(cases, op)
     if op.op == "__or__":
+        # AArch64 CCMP/CCMN builds cond_n_op as (cond << 4) | cc_op. When cc_op is an ITE over constants (e.g., the
+        # previous instruction was itself conditional), we see If(c, k1, k2) | k, which is just as multivalued as
+        # If(c, k1 | k, k2 | k). excavate_ite() above only hoists the outermost ITE out of the Or, so a nested ITE
+        # still gets here, and returning k alone below would drop cc_op entirely (i.e., treat it as COPY).
+        for ite, const in ((op.args[0], op.args[1]), (op.args[1], op.args[0])):
+            if const.op == "BVV":
+                ite_e = claripy.excavate_ite(ite)
+                if ite_e.op == "If":
+                    cases = list(claripy.reverse_ite_cases(ite_e))
+                    if all(c.op == "BVV" for _, c in cases):
+                        raise CCallMultivaluedException([(cond, c | const) for cond, c in cases], op)
         # I've seen cases like this in AARCH64:
         #    CCMP            W9, W8, #4, NE
         #

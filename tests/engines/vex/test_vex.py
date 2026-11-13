@@ -207,6 +207,45 @@ class TestVex(unittest.TestCase):
         successors = state.step()
         assert len(successors.flat_successors) == 1  # we are good as long as it does not raise any exceptions
 
+    def test_aarch64_ccall_ite_cc_op_or_constant(self):
+        # CCMP/CCMN hands arm64g_calculate_condition (cond << 4) | cc_op. After a conditional flag-setting
+        # instruction cc_op is an ITE over constants, and op_concretize must keep every value it can take. If it
+        # only returns the constant, cc_op silently becomes COPY and the SUB flags are read as raw NZCV bits.
+        x = claripy.BVS("x", 32)
+        y = claripy.BVS("y", 32)
+        op_copy = s_ccall.ARM64G_CC_OP_COPY
+        op_add32 = s_ccall.ARM64G_CC_OP_ADD32
+        op_sub32 = s_ccall.ARM64G_CC_OP_SUB32
+        cond_ne = s_ccall.ARM64CondNE << 4
+
+        def bvv(v):
+            return claripy.BVV(v, 64)
+
+        for cc_op, expected in [
+            (claripy.If(x != 0x1000, bvv(op_sub32), bvv(op_copy)), {op_copy, op_sub32}),
+            # excavate_ite only hoists the outer ITE out of the Or, leaving `If(y == 2, ...) | cond_ne` in a branch
+            (
+                claripy.If(x == 1, bvv(op_add32), claripy.If(y == 2, bvv(op_sub32), bvv(op_copy))),
+                {op_copy, op_add32, op_sub32},
+            ),
+        ]:
+            for op in (cc_op | bvv(cond_ne), bvv(cond_ne) | cc_op):
+                with self.assertRaises(s_ccall.CCallMultivaluedException) as cm:
+                    s_ccall.op_concretize(op)
+                cases, to_replace = cm.exception.args
+                assert to_replace is op
+                assert {v.concrete_value for _, v in cases} == {cond_ne | v for v in expected}
+                # each case must agree with the original cond_n_op under its own condition
+                solver = claripy.Solver()
+                for cond, v in cases:
+                    assert not solver.satisfiable(extra_constraints=(cond, op != v))
+
+        # an ITE that is not constant in every case is left to the symbolic-op fallback (GitHub issue #5460)
+        z = claripy.BVS("z", 64)
+        cc_op = claripy.If(x == 1, bvv(op_add32), claripy.If(y == 2, z, bvv(op_copy)))
+        for op in (cc_op | bvv(cond_ne), bvv(cond_ne) | cc_op):
+            assert s_ccall.op_concretize(op) == cond_ne
+
     def test_aarch64_32bit_ccalls(self):
         # GitHub issue #1238
         s = SimState(project=minimal_project("AArch64"))
