@@ -217,7 +217,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
         # remove registers that are
         # (a) stored but not restored
         # (b) restored but not stored
-        # (c) from different offsets
+        # (c) never restored from a stack offset they were stored at
         # (d) the same as the return value register
 
         cc = self._func.calling_convention
@@ -257,13 +257,20 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                 del result[reg]
                 continue
 
-            stack_offsets = {stack_offset for stack_offset, _ in info["stored"]} | {
-                stack_offset for stack_offset, _ in info["restored"]
-            }
+            # (c) A register can be stored at more than one offset: a syscall wrapper that pushes a register again
+            # around the trap stores it twice, and only the prologue save is restored at a return site. And a stack load
+            # in a block that returns or jumps out is not always a restore; an argument load can look like one. So match
+            # stores to restores by offset, and ignore any offset that appears on only one side.
+            stored_offsets = {stack_offset for stack_offset, _ in info["stored"]}
+            restored_offsets = {stack_offset for stack_offset, _ in info["restored"]}
+            matched = stored_offsets & restored_offsets
 
-            if len(stack_offsets) != 1:
+            if not matched:
                 # (c)
                 del result[reg]
                 continue
+
+            info["stored"] = [item for item in info["stored"] if item[0] in matched]
+            info["restored"] = [item for item in info["restored"] if item[0] in matched]
 
         return result
