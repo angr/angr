@@ -147,6 +147,7 @@ from .variable_map import VariableMap
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
+    from angr.sim_type import SimType
 
     from .decompilation_cache import DecompilationCache
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
@@ -3360,7 +3361,7 @@ class Clinic(Analysis, Serializable):
         existing_proto = self.function.get_prototype(self.flavor)
 
         variables = self.kb.dec_variables[self.function.addr]
-        func_args = []
+        func_args: list[SimType] = []
         for idx, arg in enumerate(arg_list):
             func_arg = None
             arg_ty = variables.get_variable_type(arg)
@@ -3374,12 +3375,16 @@ class Clinic(Analysis, Serializable):
                         func_arg = SimTypeChar()
                     elif arg.size == 2:
                         func_arg = SimTypeShort()
-                    elif arg.size == 4:
+                    elif 2 < arg.size <= 4:
                         func_arg = SimTypeInt()
-                    elif arg.size == 8:
+                    elif 4 < arg.size <= 8:
                         func_arg = SimTypeLongLong()
                     else:
-                        l.warning("Unsupported argument size %d.", arg.size)
+                        l.warning("Unsupported argument size %d; fall back to SimTypeInt().", arg.size)
+                        func_arg = SimTypeInt()
+                else:
+                    l.warning("Unsupported argument type %s; fall back to SimTypeInt().", type(arg).__name__)
+                    func_arg = SimTypeInt()
             else:
                 func_arg = arg_ty
 
