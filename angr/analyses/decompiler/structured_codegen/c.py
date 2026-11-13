@@ -263,6 +263,36 @@ def qualifies_for_implicit_cast(ty1, ty2):
     return False
 
 
+def assignment_needs_cast(cast: CTypeCast, dst_ty: SimType) -> bool:
+    """
+    Whether C needs the cast when its operand is assigned, passed or returned as a value of type dst_ty (C11 6.5.16.1).
+    Without a cast, C converts only between two integers, from a null pointer constant to a pointer, or between two
+    pointers when either points to void or both point to the same type. Pointers to integers that differ only in
+    signedness count as pointing to the same type, because GCC and Clang accept that conversion with only a
+    -Wpointer-sign warning. A pointer to an array is printed as the array itself, which converts as a pointer to its
+    element, so it is compared through the element type. A cast to a pointer to an array is printed as a cast to the
+    array, which C rejects, so it is never kept.
+    """
+    src_ty, cast_ty = cast.src_type, cast.dst_type
+    if isinstance(cast_ty, SimTypePointer) and isinstance(unpack_typeref(cast_ty.pts_to), SimTypeArray):
+        return False
+    if isinstance(dst_ty, SimTypePointer) and isinstance(cast.expr, CConstant) and cast.expr.value == 0:
+        return False
+    if not isinstance(src_ty, SimTypePointer) or not isinstance(dst_ty, SimTypePointer):
+        return isinstance(src_ty, SimTypePointer) or isinstance(dst_ty, SimTypePointer)
+    src_pointee, dst_pointee = (unpack_typeref(ty.pts_to) for ty in (src_ty, dst_ty))
+    src_pointee, dst_pointee = (
+        unpack_typeref(ty.elem_type) if isinstance(ty, SimTypeArray) else ty for ty in (src_pointee, dst_pointee)
+    )
+    if isinstance(src_pointee, (SimTypeChar, SimTypeInt)) and type(src_pointee) is type(dst_pointee):
+        return False
+    return not (
+        isinstance(src_pointee, SimTypeBottom)
+        or isinstance(dst_pointee, SimTypeBottom)
+        or type_equals(src_pointee, dst_pointee)
+    )
+
+
 def c_return_type(returnty: SimType) -> SimType:
     """
     Convert a return type to a C-compatible type.
@@ -896,6 +926,28 @@ class CFunction(CConstruct, FunctionNode):  # pylint:disable=abstract-method
 
         return unified_to_var_and_types
 
+    def local_variable_types(self, variable: SimVariable) -> list[SimType]:
+        """The types of a local variable in the order its declaration lists them; it is declared with the first."""
+        # sort by the following:
+        #   * if it's a a non-basic type
+        #   * the number of occurrences
+        #   * the repr of the type itself
+        # TODO: The type selection should actually happen during variable unification
+        count = Counter(var_type for _, var_type in self.unified_local_vars[variable])
+        return sorted(count, key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x)))
+
+    def declared_type(self, cvar: CVariable) -> SimType | None:
+        """The declared type of the parameter or local variable that cvar accesses, or None for any other variable."""
+        for arg_type, arg in zip(self.functy.args or (), self.arg_list):
+            if isinstance(arg, CVariable) and (arg.unified_variable or arg.variable) in (
+                cvar.variable,
+                cvar.unified_variable,
+            ):
+                return arg_type
+        unified = self.variable_manager.unified_variable(cvar.variable)
+        variable = unified if unified is not None else cvar.variable
+        return self.local_variable_types(variable)[0] if variable in self.unified_local_vars else None
+
     def variable_list_repr_chunks(self, indent=0):
         indent_str = self.indent_str(indent)
 
@@ -913,18 +965,7 @@ class CFunction(CConstruct, FunctionNode):  # pylint:disable=abstract-method
                 continue
 
             name = variable_display_name(variable)
-
-            # sort by the following:
-            #   * if it's a a non-basic type
-            #   * the number of occurrences
-            #   * the repr of the type itself
-            # TODO: The type selection should actually happen during variable unification
-            vartypes = [x[1] for x in cvar_and_vartypes]
-            count = Counter(vartypes)
-            vartypes = sorted(
-                count.copy(),
-                key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
-            )
+            vartypes = self.local_variable_types(variable)
 
             vla_dim = self.codegen._array_length_cexprs.get(variable)
 
@@ -6279,14 +6320,24 @@ class CStructuredCodeWalker:
 
 class MakeTypecastsImplicit(CStructuredCodeWalker):
     @classmethod
-    def collapse(cls, dst_ty: SimType, child: CExpression) -> CExpression:
+    def collapse(cls, dst_ty: SimType, child: CExpression, assigned_to: SimType | None = None) -> CExpression:
+        """
+        Return child without the casts that do not change its value once it is converted to dst_ty.
+
+        :param assigned_to: The type child is assigned, passed or returned as; for an assigned variable, the type it is
+                            declared with. A cast that C needs for that conversion (see assignment_needs_cast) is kept.
+        """
         result = child
         if isinstance(child, CTypeCast):
             intermediate_ty = child.dst_type
             start_ty = child.src_type
 
-            # step 1: collapse pointer-integer casts of the same size
-            if qualifies_for_simple_cast(intermediate_ty, dst_ty) and qualifies_for_simple_cast(start_ty, dst_ty):
+            # step 1: collapse casts between integers and pointers of the same size, unless an assignment needs the cast
+            if (
+                qualifies_for_simple_cast(intermediate_ty, dst_ty)
+                and qualifies_for_simple_cast(start_ty, dst_ty)
+                and not (assigned_to is not None and assignment_needs_cast(child, assigned_to))
+            ):
                 result = child.expr
             # step 2: collapse integer conversions which are redundant
             if (
@@ -6306,22 +6357,28 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
 
         if result is not child:
             # TODO this is not the best since it prohibits things like the BinaryOp optimizer from working incrementally
-            return cls.collapse(dst_ty, result)
+            return cls.collapse(dst_ty, result, assigned_to=assigned_to)
         return result
 
     def handle_CAssignment(self, obj):
-        obj.rhs = self.collapse(obj.lhs.type, obj.rhs)
+        lhs_type = obj.lhs.type
+        assigned_to = lhs_type
+        if isinstance(obj.lhs, CVariable):
+            assert obj.codegen.cfunc is not None
+            assigned_to = obj.codegen.cfunc.declared_type(obj.lhs) or lhs_type
+        obj.rhs = self.collapse(lhs_type, obj.rhs, assigned_to=assigned_to)
         return super().handle_CAssignment(obj)
 
     def handle_CFunctionCall(self, obj: CFunctionCall):
         prototype_args = [] if obj.prototype is None else obj.prototype.args
         for i, (c_arg, arg_ty) in enumerate(zip(obj.args, prototype_args)):
-            obj.args[i] = self.collapse(arg_ty, c_arg)
+            obj.args[i] = self.collapse(arg_ty, c_arg, assigned_to=arg_ty)
         return super().handle_CFunctionCall(obj)
 
     def handle_CReturn(self, obj: CReturn):
         assert obj.codegen._func.prototype is not None
-        obj.retval = self.collapse(obj.codegen._func.prototype.returnty, obj.retval)
+        returnty = obj.codegen._func.prototype.returnty
+        obj.retval = self.collapse(returnty, obj.retval, assigned_to=returnty)
         return super().handle_CReturn(obj)
 
     @staticmethod
