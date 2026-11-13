@@ -7,6 +7,8 @@ import os.path
 import re
 import unittest
 
+import angr
+from angr.analyses import Decompiler
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -29,3 +31,19 @@ class TestVirtualizedEdgeNoDuplicateGoto(unittest.TestCase):
         assert re.search(r"(goto LABEL_\w+;)\s*\n\s*\1", text) is None
         assert text.count("goto LABEL_41a007;") == 1
         assert "break;" in text
+
+    def test_no_goto_after_an_arm_that_calls_a_function_that_does_not_return(self):
+        # sane_mode() (coreutils stty). Before the jump to 0x40032b, the arm taken when mode_type_flag() returns NULL
+        # calls __assert_fail(), which does not return. Counting that arm as falling through would append a second
+        # `goto LABEL_40032b;` right after the first.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "stty.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions["sane_mode"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        assert "__assert_fail" in text
+        assert re.search(r"(goto LABEL_\w+;)\s*\n\s*\1", text) is None
