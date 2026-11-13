@@ -44,6 +44,7 @@ from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests")
 GO_BINARY = os.path.join(test_location, "x86_64", "langdetect_go")
+GO_DARWIN_BINARY = os.path.join(test_location, "x86_64", "terramate.macho")
 
 ARCH = archinfo.ArchAMD64()
 
@@ -264,6 +265,42 @@ class TestGoCallingConventionRecovery(unittest.TestCase):
             if isinstance(loc, SimRegArg)
         }
         assert "r14" not in reg_names
+
+    def test_write_barrier_returns_nothing(self):
+        # runtime.gcWriteBarrier2 jumps to the assembly helper gcWriteBarrier, which hands back a buffer slot in r11 and
+        # reloads every register it spilled around its call to runtime.wbBufFlush. os.init.0 calls
+        # runtime.gcWriteBarrier2
+        proj, _ = load_project_with_scoped_cfg(GO_BINARY, 0x47A600, extra_func_addrs=[0x462380])
+        funcs = proj.kb.functions
+        for addr, name in (
+            (0x45FC20, "gcWriteBarrier"),
+            (0x462380, "runtime.gcWriteBarrier2"),
+            (0x47A600, "os.init.0"),
+        ):
+            assert funcs[addr].name == name
+            proto = funcs[addr].prototype
+            assert proto is not None
+            assert isinstance(proto.returnty, SimTypeBottom), proto
+
+    def test_libc_trampoline_returns_what_libc_returns(self):
+        # syscall.libc_close_trampoline is assembly that jumps to libc's close through the import stub at 0x10bc160, so
+        # rax holds close's result when it returns
+        proj, _ = load_project_with_scoped_cfg(GO_DARWIN_BINARY, 0x109A200, extra_func_addrs=[0x10BC160])
+        func = proj.kb.functions[0x109A200]
+        assert func.name == "syscall.libc_close_trampoline"
+        assert func.prototype is not None and func.prototype.returnty is not None
+        assert func.prototype.returnty.size == 64, func.prototype
+
+    def test_abi0_assembly_keeps_its_stack_result(self):
+        # internal/cpu.getGOAMD64level.abi0 is the assembly body of `func getGOAMD64level() int32`, which stores its
+        # result at 8(SP) and leaves rax alone
+        proj, _ = load_project_with_scoped_cfg(GO_BINARY, 0x4028E0)
+        func = proj.kb.functions[0x4028E0]
+        assert func.name == "internal/cpu.getGOAMD64level.abi0"
+        assert isinstance(func.calling_convention, SimCCGoAMD64ABI0)
+        proto = func.prototype
+        assert proto is not None and proto.returnty is not None
+        assert not isinstance(proto.returnty, SimTypeBottom), proto
 
     def test_abi0_function_uses_the_stack_convention(self):
         # internal/cpu.cpuid.abi0 reads its arguments from 8(rsp) and 12(rsp)
