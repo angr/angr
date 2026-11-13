@@ -54,6 +54,9 @@ class SRDAModel:
         # the inverse index of all_vvar_definitions; a bare int for the common case of a location defining a single
         # vvar, a set when a statement defines more than one (e.g., a call defining both ret_expr and fp_ret_expr)
         self.vvar_defs_by_loc: dict[AILCodeLocation, int | set[int]] = {}
+        # vvars that more than one statement defines (e.g., in two copies of one block); all_vvar_definitions records
+        # only one of their definitions
+        self.multidef_vvar_ids: set[int] = set()
 
     def add_vvar_use(self, vvar_id: int, expr: VirtualVariable | None, loc: AILCodeLocation) -> None:
         self.all_vvar_uses[vvar_id].append((expr, loc))
@@ -102,7 +105,7 @@ class SRDAModel:
             elif not existing:
                 del self.vvar_defs_by_loc[loc]
 
-    def update_after_block_edits(self, edited_blocks) -> None:
+    def update_after_block_edits(self, edited_blocks) -> bool:
         """
         Incrementally update the model after the statements of ``edited_blocks`` were edited *in place* (statement
         indices preserved, e.g. by replacing removed statements with ``NoOp`` placeholders). vvar definitions and
@@ -113,6 +116,11 @@ class SRDAModel:
         by dead-assignment removal: statements are only removed (turned into NoOp) or rewritten in place, never
         inserted or reordered, and removed vvars are dead (so they are never used elsewhere, including by phi nodes or
         implicit call-site uses). Tmp tracking is not updated (AILSimplifier does not track tmps).
+
+        :return: True after updating the model. False, with the model left unchanged, when an edited block holds the
+                 recorded definition of a vvar in ``multidef_vvar_ids`` or still defines one: the model records only
+                 one of that vvar's definitions, so the edited blocks alone do not show which definition, if any, a
+                 full rebuild would record. Rebuild the model instead.
         """
 
         edited_blocks = list(edited_blocks)
@@ -126,6 +134,8 @@ class SRDAModel:
         new_deflocs = get_vvar_deflocs(edited_blocks, phi_vvars=new_phi)
 
         old_def_vids = {vid for vid, loc in self.all_vvar_definitions.items() if in_edited(loc)}
+        if not self.multidef_vvar_ids.isdisjoint(old_def_vids) or not self.multidef_vvar_ids.isdisjoint(new_deflocs):
+            return False
         for vid in old_def_vids - set(new_deflocs):
             # this definition no longer exists; keep its uses for now (if the vvar is still used elsewhere it becomes
             # a used-but-undefined extern vvar, reconciled below)
@@ -199,6 +209,7 @@ class SRDAModel:
             self.phi_vvar_ids.discard(vid)
             self.phivarid_to_varids.pop(vid, None)
             self.phivarid_to_varids_with_unknown.pop(vid, None)
+        return True
 
     def canonical_form(self):
         """
@@ -380,7 +391,7 @@ def populate_model(
 
     phi_vvars: dict[int, set[int | None]] = {}
     # find all vvar definitions
-    vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
+    vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars, multidef_vvars=model.multidef_vvar_ids)
     # find all explicit vvar uses
     vvar_uselocs = get_vvar_uselocs(blocks.values())
 
