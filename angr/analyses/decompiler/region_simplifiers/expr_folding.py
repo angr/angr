@@ -5,6 +5,8 @@ from collections import defaultdict
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
+from networkx.utils import UnionFind
+
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Block, Expression
 from angr.ailment.expression import ITE, Atom, Call, Load, VirtualVariable
@@ -429,9 +431,21 @@ class InterferenceChecker(SequenceWalker):
     - store statements
     - load expressions
     - Condition and CascadingCondition nodes
+    - an assignment to a variable that the definition reads, where two virtual variables are the same variable when
+      ``vvar_to_vvar`` connects them
+
+    :param vvar_to_vvar:    The mapping dephication uses to merge each phi congruence class into one virtual variable.
+                            Its entries can chain, so a class is every variable they connect.
     """
 
-    def __init__(self, assignments: dict[int, Any], uses: dict[int, Any], node, variable_map):
+    def __init__(
+        self,
+        assignments: dict[int, Any],
+        uses: dict[int, Any],
+        node,
+        variable_map,
+        vvar_to_vvar: dict[int, int] | None = None,
+    ):
         handlers = {
             ailment.Block: self._handle_Block,
             ConditionNode: self._handle_Condition,
@@ -443,9 +457,23 @@ class InterferenceChecker(SequenceWalker):
         self._assignments = assignments
         self._uses = uses
         self._variable_map = variable_map
+        self._classes = UnionFind()
+        for varid, mapped_varid in (vvar_to_vvar or {}).items():
+            self._classes.union(varid, mapped_varid)
+        self._variables_read: dict[int, set[int]] = {
+            varid: self._dephicated_vvars_read(definition) for varid, (definition, _) in assignments.items()
+        }
         self._assignment_interferences: dict[int, list] = {}
         self.interfered_assignments: set[int] = set()
         self.walk(node)
+
+    def _dephicated_vvars_read(self, definition: Expression | Statement) -> set[int]:
+        collector = VVarUsesCollector()
+        if isinstance(definition, Statement):
+            collector.walk_statement(definition)
+        else:
+            collector.walk_expression(definition)
+        return {self._classes[varid] for varid in collector.vvars}
 
     def _after_spotting(self, obj, spotter: ExpressionSpotter) -> None:
         if spotter.has_calls or spotter.has_loads:
@@ -498,6 +526,12 @@ class InterferenceChecker(SequenceWalker):
                 # mark all existing assignments as interfered
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
+
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                written = self._classes[stmt.dst.varid]
+                for vid, interferences in self._assignment_interferences.items():
+                    if written in self._variables_read[vid]:
+                        interferences.append(stmt)
 
             # deal with defs
             if (
