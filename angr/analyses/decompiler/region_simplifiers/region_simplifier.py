@@ -220,7 +220,13 @@ class RegionSimplifier(Analysis):
                 del variable_uses[var]
 
         # ensure there is no interference between the call site and the use site
-        checker = InterferenceChecker(variable_assignments, variable_uses, region, variable_map_of(self.ail_manager))
+        checker = InterferenceChecker(
+            variable_assignments,
+            variable_uses,
+            region,
+            variable_map_of(self.ail_manager),
+            unified_variable=self._unified_variable_getter(),
+        )
         for varid in checker.interfered_assignments:
             if varid in variable_assignments:
                 del variable_assignments[varid]
@@ -228,6 +234,24 @@ class RegionSimplifier(Analysis):
         # fold these expressions if possible
         ExpressionFolder(variable_assignments, variable_uses, region, variable_map_of(self.ail_manager))
         return region
+
+    def _unified_variable_getter(self):
+        manager = self._variable_manager
+        if manager is None:
+            return None
+
+        variable_map = variable_map_of(self.ail_manager)
+
+        def _get(vvar: ailment.Expr.VirtualVariable):
+            # the variable that the code generator displays for this expression
+            var = variable_map.variable(vvar)
+            if var is None:
+                var = manager.variable_by_vvar_id(vvar.varid)
+            if var is None:
+                return None
+            return manager.unified_variable(var) or var
+
+        return _get
 
     def _simplify_switch_expressions(self, region):
         SwitchExpressionSimplifier(region, self.ail_manager)

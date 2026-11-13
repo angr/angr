@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
 from angr import ailment
@@ -270,7 +270,7 @@ class ExpressionCounter(SequenceWalker):
             ailment.Block: self._handle_Block,
         }
 
-        # each element in the set is a tuple of (source of the assignment statement, a tuple of unified variables that
+        # each element in the set is a tuple of (source of the assignment statement, a tuple of vvar IDs that
         # the current assignment depends on, StatementLocation of the assignment statement, a Boolean variable that
         # indicates if ExpressionUseFinder has succeeded or not)
         self.assignments: defaultdict[Any, set[tuple]] = defaultdict(set)
@@ -425,6 +425,23 @@ class ExpressionSpotter(VVarUsesCollector):
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
 
+class VVarReadsCollector(VVarUsesCollector):
+    """
+    Collect the vvar expressions that are read.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.reads: list[VirtualVariable] = []
+
+    def _handle_VirtualVariable(
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        if not self._walking_assignment_dst:
+            self.reads.append(expr)
+        return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class InterferenceChecker(SequenceWalker):
     """
     Detect for every pair of definition (assignment) - use if there is anything that may interfere with the definition.
@@ -436,9 +453,19 @@ class InterferenceChecker(SequenceWalker):
     - store statements
     - load expressions
     - Condition and CascadingCondition nodes
+    - an assignment to another vvar of a unified variable that the definition reads
+
+    :param unified_variable: Maps a vvar expression to the variable that it is displayed as.
     """
 
-    def __init__(self, assignments: dict[int, Any], uses: dict[int, Any], node, variable_map):
+    def __init__(
+        self,
+        assignments: dict[int, Any],
+        uses: dict[int, Any],
+        node,
+        variable_map,
+        unified_variable: Callable[[VirtualVariable], Any] | None = None,
+    ):
         handlers = {
             ailment.Block: self._handle_Block,
             ConditionNode: self._handle_Condition,
@@ -450,6 +477,9 @@ class InterferenceChecker(SequenceWalker):
         self._assignments = assignments
         self._uses = uses
         self._variable_map = variable_map
+        self._unified_variable = unified_variable
+        # candidate vvar ID -> unified variable -> IDs of the vvars of that variable that the definition reads
+        self._assignment_reads: dict[int, dict[Any, set[int]]] = {}
         self._assignment_interferences: dict[int, list] = {}
         self.interfered_assignments: set[int] = set()
         self.walk(node)
@@ -507,6 +537,13 @@ class InterferenceChecker(SequenceWalker):
                     self._assignment_interferences[vid].append(stmt)
 
             # deal with defs
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.VirtualVariable):
+                self._handle_def(stmt.dst, stmt)
+            elif isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(
+                stmt.ret_expr, ailment.Expr.VirtualVariable
+            ):
+                self._handle_def(stmt.ret_expr, stmt)
+
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
@@ -515,6 +552,7 @@ class InterferenceChecker(SequenceWalker):
             ):
                 # we found this def
                 self._assignment_interferences[stmt.dst.varid] = []
+                self._record_reads(stmt.dst.varid)
 
             if (
                 isinstance(stmt, ailment.Stmt.SideEffectStatement)
@@ -525,6 +563,37 @@ class InterferenceChecker(SequenceWalker):
             ):
                 # we found this def
                 self._assignment_interferences[stmt.ret_expr.varid] = []
+                self._record_reads(stmt.ret_expr.varid)
+
+    def _record_reads(self, varid: int) -> None:
+        if self._unified_variable is None:
+            return
+        definition = self._assignments[varid][0]
+        collector = VVarReadsCollector()
+        if isinstance(definition, Statement):
+            collector.walk_statement(definition)
+        else:
+            collector.walk_expression(definition)
+        reads: dict[Any, set[int]] = {}
+        for vvar in collector.reads:
+            if vvar.varid == varid:
+                continue
+            var = self._unified_variable(vvar)
+            if var is not None:
+                reads.setdefault(var, set()).add(vvar.varid)
+        self._assignment_reads[varid] = reads
+
+    def _handle_def(self, vvar: VirtualVariable, stmt) -> None:
+        # the folded definition would read the unified variable after this assignment to it
+        if self._unified_variable is None or not self._assignment_interferences:
+            return
+        var = self._unified_variable(vvar)
+        if var is None:
+            return
+        for vid, interferences in self._assignment_interferences.items():
+            read_vvars = self._assignment_reads.get(vid, {}).get(var)
+            if read_vvars is not None and vvar.varid not in read_vvars:
+                interferences.append(stmt)
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         spotter = ExpressionSpotter()
