@@ -453,6 +453,19 @@ class TestReceiverNamesI386Go127(GoDecompilationTarget):
         assert "func (a *internal/strconv.decimal) Assign(" in self.texts["internal/strconv.(*decimal).Assign"]
 
 
+class TestUnnamedParamsGo127(GoDecompilationTarget):
+    """Go signatures name unnamed and blank parameters ``~pN``, which is not a Go identifier."""
+
+    BINARY = go_binary("go1.27.1", "basics_stripped")
+    FUNCS = ("runtime.(*PanicNilError).Error", "internal/sync.throw")
+
+    def test_unnamed_params(self):
+        error, throw = self.texts["runtime.(*PanicNilError).Error"], self.texts["internal/sync.throw"]
+        assert "func (a0 *runtime.PanicNilError) Error() string {" in error, error
+        assert "func internal/sync.throw(a0 string) {" in throw and "runtime.throw(a0)" in throw, throw
+        assert "~p" not in error + throw
+
+
 class TestMapsArmGo127(GoDecompilationTarget):
     """
     A map read on 32-bit arm folds to m[k]: the fold labels the result words with arm's r0/r1 (it raised KeyError for
