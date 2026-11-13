@@ -755,12 +755,13 @@ impl PySolver {
                 solver.min_unsigned(&expr.get().inner)?
             };
 
-            if let AstOp::BVV(bv) = result.op() {
-                Ok(BigInt::from(bv.to_biguint()))
-            } else {
-                Err(ClaripyError::TypeError(
-                    "max: expression must be a bitvector".to_string(),
-                ))
+            // The bound is a BVV; a signed query reads it as two's complement.
+            match result.op() {
+                AstOp::BVV(bv) if signed => Ok(bv.to_bigint()),
+                AstOp::BVV(bv) => Ok(BigInt::from(bv.to_biguint())),
+                _ => Err(ClaripyError::TypeError(
+                    "min: expression must be a bitvector".to_string(),
+                )),
             }
         })
     }
@@ -781,12 +782,13 @@ impl PySolver {
                 solver.max_unsigned(&expr.get().inner)?
             };
 
-            if let AstOp::BVV(bv) = result.op() {
-                Ok(BigInt::from(bv.to_biguint()))
-            } else {
-                Err(ClaripyError::TypeError(
+            // The bound is a BVV; a signed query reads it as two's complement.
+            match result.op() {
+                AstOp::BVV(bv) if signed => Ok(bv.to_bigint()),
+                AstOp::BVV(bv) => Ok(BigInt::from(bv.to_biguint())),
+                _ => Err(ClaripyError::TypeError(
                     "max: expression must be a bitvector".to_string(),
-                ))
+                )),
             }
         })
     }
