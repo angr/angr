@@ -1702,8 +1702,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         """
         assert self._cfb is not None
         is_arm = is_arm_arch(self.project.arch)
-        for addr, size in blocks:
-            self._cfb.add_obj(addr & ~1 if is_arm else addr, self._cfb_block(addr, size))
+        self._cfb.add_objs((addr & ~1 if is_arm else addr, self._cfb_block(addr, size)) for addr, size in blocks)
 
     def _rust_decoding_assumption(
         self, src_realaddr: int | None, real_addr: int, size: int, is_thumb: bool, jumpkind: str

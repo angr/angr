@@ -116,7 +116,7 @@ def _desc(obj) -> tuple:
     if isinstance(obj, Block):
         return ("Block", obj.addr, obj.size, obj.thumb)
     if isinstance(obj, Unknown):
-        return ("Unknown", obj.addr, obj.size, obj.object, obj.section, obj._loader is not None)
+        return ("Unknown", obj.addr, obj.size, repr(obj.object), repr(obj.section), obj._loader is not None)
     if isinstance(obj, MemoryData):
         return ("MemoryData", obj.addr, obj.size, obj.sort, obj.reference_size)
     assert isinstance(obj, _Opaque)
@@ -243,6 +243,58 @@ class TestCFBlanketCarve(unittest.TestCase):
             new._mark_unknowns()
             assert ev_new == ev_ref, f"seed {seed}"
             assert [(a, _desc(o)) for a, o in new._blanket.items()] == [(a, _desc(o)) for a, o in ref._blanket.items()]
+
+    def test_batch_callback(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        base = proj.loader.main_object.sections_map[".text"].vaddr
+        single: list = []
+        batches: list = []
+        cfb = proj.analyses[CFBlanket].prep(kb=KnowledgeBase(proj))(
+            on_object_added=lambda a, o: single.append((a, o)), on_objects_added=batches.append
+        )
+        # the initial build is one batch
+        assert len(batches) == 1 and batches[0] == single
+        rng = random.Random(1)
+        objs = self._random_objs(proj, rng, base, 0x300, 100)
+        # add_obj: one batch per call
+        for addr, obj in objs[:50]:
+            n = len(single)
+            cfb.add_obj(addr, obj)
+            assert batches[-1] == single[n:]
+        # add_objs: one batch per call
+        n, n_batches = len(single), len(batches)
+        cfb.add_objs(objs[50:])
+        assert len(batches) == n_batches + 1 and batches[-1] == single[n:]
+        # remove_obj reports its filler
+        key = next(k for k, o in cfb._blanket.items() if isinstance(o, Block))
+        n = len(single)
+        cfb.remove_obj(key)
+        assert batches[-1] == single[n:] and isinstance(single[-1][1], Unknown)
+        assert [e for b in batches for e in b] == single
+
+    def test_batch_callback_during_cfg(self):
+        for binary in ("x86_64/fauxware", "armel/fauxware"):
+            events: dict[str, list] = {"single": [], "batched": []}
+            n_batches = 0
+            for mode in ("single", "batched"):
+                proj = angr.Project(os.path.join(test_location, binary), auto_load_libs=False)
+                out = events[mode]
+                if mode == "single":
+                    cfb = proj.analyses[CFBlanket].prep(kb=KnowledgeBase(proj))(
+                        exclude_region_types={"kernel", "tls"},
+                        on_object_added=lambda a, o, out=out: out.append((a, _desc(o))),
+                    )
+                else:
+                    batches: list = []
+                    cfb = proj.analyses[CFBlanket].prep(kb=KnowledgeBase(proj))(
+                        exclude_region_types={"kernel", "tls"}, on_objects_added=batches.append
+                    )
+                proj.analyses.CFGFast(normalize=True, cfb=cfb)
+                if mode == "batched":
+                    out.extend((a, _desc(o)) for b in batches for a, o in b)
+                    n_batches = len(batches)
+            assert events["batched"] == events["single"], binary
+            assert 0 < n_batches < len(events["single"])
 
 
 if __name__ == "__main__":

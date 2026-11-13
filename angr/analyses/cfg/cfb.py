@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 from bisect import bisect_left, bisect_right
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
 import cle
@@ -146,25 +147,34 @@ class CFBlanket(Analysis):
         exclude_region_types: set[str] | None = None,
         on_object_added: Callable[[int, Any], None] | None = None,
         on_object_removed: Callable[[int, Any], None] | None = None,
+        on_objects_added: Callable[[list[tuple[int, Any]]], None] | None = None,
     ):
         """
         :param on_object_added:   Callable with parameters (addr, obj) called after an object is added to the blanket.
         :param on_object_removed: Callable with parameters (addr, obj) called after an object is removed from the
                                   blanket.
+        :param on_objects_added:  Callable with a list of (addr, obj) called after objects are added to the blanket:
+                                  once per add_obj/remove_obj call that added objects, once per add_objs call, and
+                                  once for the initial build. The lists hold what on_object_added gets, in order.
         """
         self._blanket = SortedDict()
 
         self._on_object_added_callback = on_object_added
         self._on_object_removed_callback = on_object_removed
+        self._on_objects_added_callback = on_objects_added
+        # the (addr, obj) pairs not yet delivered to on_objects_added; None without that callback
+        self._pending_added: list[tuple[int, Any]] | None = None if on_objects_added is None else []
+        self._bulk_depth = 0
         self._regions = []
         self._exclude_region_types = exclude_region_types or set()
 
         self._init_regions()
 
         # initialize
-        self._add_function_blocks()
-        self._mark_memory_data()
-        self._mark_unknowns()
+        with self._bulk():
+            self._add_function_blocks()
+            self._mark_memory_data()
+            self._mark_unknowns()
 
     def _init_regions(self):
         for obj in self.project.loader.all_objects:
@@ -321,6 +331,41 @@ class CFBlanket(Analysis):
                 for piece_addr, piece in pieces:
                     cb(piece_addr, piece)
             cb(addr, obj)
+        pending = self._pending_added
+        if pending is not None:
+            if pieces:
+                pending.extend(pieces)
+            pending.append((addr, obj))
+            if self._bulk_depth == 0:
+                self._flush_added()
+
+    def add_objs(self, objs: Iterable[tuple[int, Any]]) -> None:
+        """
+        add_obj() each (addr, obj) in order; on_objects_added gets all of their events in one call.
+        """
+        with self._bulk():
+            for addr, obj in objs:
+                self.add_obj(addr, obj)
+
+    @contextlib.contextmanager
+    def _bulk(self) -> Iterator[None]:
+        """
+        Defer on_objects_added until the outermost bulk operation ends.
+        """
+        self._bulk_depth += 1
+        try:
+            yield
+        finally:
+            self._bulk_depth -= 1
+            if self._bulk_depth == 0:
+                self._flush_added()
+
+    def _flush_added(self) -> None:
+        pending = self._pending_added
+        if pending:
+            self._pending_added = []
+            assert self._on_objects_added_callback is not None
+            self._on_objects_added_callback(pending)
 
     def _carve(self, start: int, end: int) -> list[tuple[int, Any]] | None:
         """
@@ -469,6 +514,10 @@ class CFBlanket(Analysis):
             self._blanket[addr] = filler
             if self._on_object_added_callback:
                 self._on_object_added_callback(addr, filler)
+            if self._pending_added is not None:
+                self._pending_added.append((addr, filler))
+                if self._bulk_depth == 0:
+                    self._flush_added()
         return obj
 
     def add_function(self, func):
