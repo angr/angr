@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections.abc import Callable
 from typing import Any
 
@@ -253,10 +253,10 @@ class CFBlanket(Analysis):
         return self._regions
 
     def floor_addr(self, addr: int) -> int:
-        try:
-            return next(self._blanket.irange(maximum=addr, reverse=True))
-        except StopIteration as err:
-            raise KeyError(addr) from err
+        key = self._floor_key(addr)
+        if key is None:
+            raise KeyError(addr)
+        return key
 
     def floor_item(self, addr: int) -> tuple[int, Any]:
         key = self.floor_addr(addr)
@@ -275,10 +275,10 @@ class CFBlanket(Analysis):
             yield key, self._blanket[key]
 
     def ceiling_addr(self, addr: int) -> int:
-        try:
-            return next(self._blanket.irange(minimum=addr))
-        except StopIteration as err:
-            raise KeyError(addr) from err
+        key = self._ceiling_key(addr)
+        if key is None:
+            raise KeyError(addr)
+        return key
 
     def ceiling_item(self, addr: int) -> tuple[int, Any]:
         key = self.ceiling_addr(addr)
@@ -396,6 +396,33 @@ class CFBlanket(Analysis):
         if floor_key is not None and floor_key + max(self._obj_size(self._blanket[floor_key]) or 1, 1) > start:
             keys.insert(0, floor_key)
         return keys
+
+    def _floor_key(self, addr: int) -> int | None:
+        """
+        The greatest key <= addr. Bisects SortedList's sublists like _overlapping_keys.
+        """
+        sl = self._blanket._list
+        maxes: list[int] = sl._maxes
+        pos = bisect_right(maxes, addr)
+        if pos == len(maxes):
+            return maxes[-1] if maxes else None
+        sub: list[int] = sl._lists[pos]
+        idx = bisect_right(sub, addr)
+        if idx:
+            return sub[idx - 1]
+        return maxes[pos - 1] if pos else None
+
+    def _ceiling_key(self, addr: int) -> int | None:
+        """
+        The smallest key >= addr. Bisects SortedList's sublists like _overlapping_keys.
+        """
+        sl = self._blanket._list
+        maxes: list[int] = sl._maxes
+        pos = bisect_left(maxes, addr)
+        if pos == len(maxes):
+            return None
+        sub: list[int] = sl._lists[pos]
+        return sub[bisect_left(sub, addr)]
 
     def _trim(self, obj, new_start: int, new_end: int):
         """
@@ -594,21 +621,19 @@ class CFBlanket(Analysis):
                 min_addr, Unknown(min_addr, size, object_=obj, segment=segment, section=section, loader=loader)
             )
 
+        blanket = self._blanket
         addr = min_addr
         while addr < max_addr:
-            last_addr, last_item = self.floor_item(addr)
-            if last_addr < min_addr:
-                # impossible
-                raise Exception("Impossible")
+            # addr is always a key: min_addr has an object now, and every later addr was found by _ceiling_key (a gap
+            # Unknown may overwrite the object there with a remainder, but never removes the key)
+            last_item = blanket[addr]
 
             # Make sure everything has a non-zero size
             last_item_size = 1 if last_item.size == 0 or last_item.size is None else last_item.size
-            end_addr = last_addr + last_item_size
+            end_addr = addr + last_item_size
             if end_addr < max_addr:
-                try:
-                    next_addr = self.ceiling_addr(end_addr)
-                except KeyError:
-                    next_addr = max_addr
+                next_key = self._ceiling_key(end_addr)
+                next_addr = max_addr if next_key is None else next_key
                 if next_addr > end_addr:
                     # there is a gap
                     size = next_addr - end_addr

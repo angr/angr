@@ -10,6 +10,8 @@ import os
 import random
 import unittest
 
+import cle
+
 import angr
 from angr.analyses.cfg.cfb import CFBlanket, Unknown
 from angr.block import Block
@@ -22,8 +24,8 @@ test_location = os.path.join(bin_location, "tests")
 
 class _ReferenceCFBlanket(CFBlanket):
     """
-    The original add_obj/_carve: one floor query and one range query per add, pop-and-reinsert of every overlapping
-    key, callbacks fired while carving.
+    The original add_obj/_carve (one floor query and one range query per add, pop-and-reinsert of every overlapping
+    key, callbacks fired while carving) and _mark_unknowns_core (floor and ceiling queries per object).
     """
 
     def add_obj(self, addr, obj):
@@ -59,6 +61,56 @@ class _ReferenceCFBlanket(CFBlanket):
                     if self._on_object_added_callback:
                         self._on_object_added_callback(end, right)
 
+    def _mark_unknowns_core(self, min_addr, max_addr, obj=None, segment=None, section=None):
+        try:
+            addr = self.floor_addr(min_addr)
+            if addr < min_addr:
+                raise KeyError
+        except KeyError:
+            try:
+                next_addr = self.ceiling_addr(min_addr)
+                if next_addr >= max_addr:
+                    raise KeyError
+            except KeyError:
+                next_addr = max_addr
+
+            size = next_addr - min_addr
+            loader = None if obj is None or isinstance(obj, cle.ExternObject) else self.project.loader
+            self.add_obj(
+                min_addr, Unknown(min_addr, size, object_=obj, segment=segment, section=section, loader=loader)
+            )
+
+        addr = min_addr
+        while addr < max_addr:
+            last_addr, last_item = self.floor_item(addr)
+            last_item_size = 1 if last_item.size == 0 or last_item.size is None else last_item.size
+            end_addr = last_addr + last_item_size
+            if end_addr < max_addr:
+                try:
+                    next_addr = self.ceiling_addr(end_addr)
+                except KeyError:
+                    next_addr = max_addr
+                if next_addr > end_addr:
+                    size = next_addr - end_addr
+                    loader = None if obj is None or isinstance(obj, cle.ExternObject) else self.project.loader
+                    self.add_obj(
+                        end_addr, Unknown(end_addr, size, object_=obj, segment=segment, section=section, loader=loader)
+                    )
+                addr = next_addr
+            else:
+                addr = max_addr
+
+
+class _Opaque:
+    """
+    An object the blanket cannot trim: no integer size.
+    """
+
+    size = None
+
+    def __init__(self, name: str):
+        self.name = name
+
 
 def _desc(obj) -> tuple:
     if isinstance(obj, Block):
@@ -67,7 +119,8 @@ def _desc(obj) -> tuple:
         return ("Unknown", obj.addr, obj.size, obj.object, obj.section, obj._loader is not None)
     if isinstance(obj, MemoryData):
         return ("MemoryData", obj.addr, obj.size, obj.sort, obj.reference_size)
-    return (type(obj).__name__, obj)
+    assert isinstance(obj, _Opaque)
+    return ("Opaque", obj.name)
 
 
 class TestCFBlanketCarve(unittest.TestCase):
@@ -94,7 +147,7 @@ class TestCFBlanketCarve(unittest.TestCase):
                 objs.append((prev + 4, proj.factory.block(prev + 4, size=size)))
             else:
                 # objects without an integer size occupy one byte and are never trimmed
-                objs.append((addr, f"obj_{addr:x}"))
+                objs.append((addr, _Opaque(f"obj_{addr:x}")))
         return objs
 
     def test_random_sequences_match_reference(self):
@@ -118,6 +171,12 @@ class TestCFBlanketCarve(unittest.TestCase):
                     ref.remove_obj(key)
                     new.remove_obj(key)
             assert ev_new == ev_ref, f"seed {seed}: callbacks differ"
+            keys = list(new._blanket.keys())
+            for probe in [keys[0] - 1, keys[-1] + 1, *(base + rng.randrange(-0x10, 0x310) for _ in range(100))]:
+                floor = next(new._blanket.irange(maximum=probe, reverse=True), None)
+                ceiling = next(new._blanket.irange(minimum=probe), None)
+                assert new._floor_key(probe) == floor, f"seed {seed}: floor of {probe:#x}"
+                assert new._ceiling_key(probe) == ceiling, f"seed {seed}: ceiling of {probe:#x}"
             assert [(a, _desc(o)) for a, o in new._blanket.items()] == [
                 (a, _desc(o)) for a, o in ref._blanket.items()
             ], f"seed {seed}: items differ"
@@ -140,7 +199,7 @@ class TestCFBlanketCarve(unittest.TestCase):
             # covers several keys and ends inside the next one
             (base + 0x4, proj.factory.block(base + 0x4, size=0x14)),
             # an untrimmable floor object overlapping the start is dropped
-            (base + 0x40, "untrimmable"),
+            (base + 0x40, _Opaque("untrimmable")),
             (base + 0x40, proj.factory.block(base + 0x40, size=0)),
             (base + 0x3F, proj.factory.block(base + 0x3F, size=2)),
             # no overlap at all, past the last key of the region
@@ -150,6 +209,39 @@ class TestCFBlanketCarve(unittest.TestCase):
             ref.add_obj(addr, obj)
             new.add_obj(addr, obj)
             assert ev_new == ev_ref
+            assert [(a, _desc(o)) for a, o in new._blanket.items()] == [(a, _desc(o)) for a, o in ref._blanket.items()]
+
+    def test_mark_unknowns_matches_reference(self):
+        for binary in ("x86_64/fauxware", "armel/fauxware"):
+            proj = angr.Project(os.path.join(test_location, binary), auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(normalize=True)
+            ev_ref: list = []
+            ev_new: list = []
+            ref = proj.analyses[_ReferenceCFBlanket].prep(kb=cfg.kb)(
+                on_object_added=lambda a, o, ev=ev_ref: ev.append((a, _desc(o)))
+            )
+            new = proj.analyses[CFBlanket].prep(kb=cfg.kb)(
+                on_object_added=lambda a, o, ev=ev_new: ev.append((a, _desc(o)))
+            )
+            assert ev_new == ev_ref, binary
+            assert [(a, _desc(o)) for a, o in new._blanket.items()] == [(a, _desc(o)) for a, o in ref._blanket.items()]
+
+        # gaps around random objects, including zero-size and sizeless ones, and objects crossing region ends
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        text = proj.loader.main_object.sections_map[".text"]
+        for seed in range(10):
+            rng = random.Random(seed)
+            ev_ref, ev_new = [], []
+            ref = self._blanket(_ReferenceCFBlanket, proj, ev_ref)
+            new = self._blanket(CFBlanket, proj, ev_new)
+            for bl in (ref._blanket, new._blanket):
+                bl.clear()
+            for addr, obj in self._random_objs(proj, rng, text.vaddr - 0x20, text.memsize + 0x40, 60):
+                ref._blanket[addr] = obj
+                new._blanket[addr] = obj
+            ref._mark_unknowns()
+            new._mark_unknowns()
+            assert ev_new == ev_ref, f"seed {seed}"
             assert [(a, _desc(o)) for a, o in new._blanket.items()] == [(a, _desc(o)) for a, o in ref._blanket.items()]
 
 
