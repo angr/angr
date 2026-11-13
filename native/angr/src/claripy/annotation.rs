@@ -111,7 +111,7 @@ impl PyAnnotation {
             Annotation::new(
                 AnnotationType::PyAnnotation {
                     name,
-                    object: Ignored(Arc::new(slf.clone().into_any().unbind())),
+                    object: Ignored(slf.clone().into_any().unbind()),
                     obj_hash,
                 },
                 eliminatable,
