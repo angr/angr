@@ -150,6 +150,10 @@ _FP_TYPES_BY_BITS: dict[int, type[SimTypeFloat]] = {
     80: SimTypeLongDouble,
     128: SimTypeFloat128,
 }
+# integer operations whose result can wrap when C computes them in a narrower type
+_WRAPPING_OPS = frozenset({"Add", "Sub", "Mul", "Shl"})
+# operations whose low n result bits depend only on the low n bits of their operands
+_LOW_BITS_OPS = frozenset({"Add", "Sub", "Mul", "And", "Or", "Xor"})
 
 
 def _reinterpretation_cancels(var_type: SimType | None, wanted: SimType | None, bits: int) -> bool:
@@ -236,6 +240,75 @@ def int_operand_signedness(expr: CExpression) -> bool | None:
         return lhs and rhs
     ws = int_width_and_signedness(unpack_typeref(expr.type))
     return None if ws is None else ws[1]
+
+
+def signed_constant(expr: CExpression) -> int | None:
+    """The value of an integer constant read as signed at its type's width; None for any other expression."""
+    if not isinstance(expr, CConstant) or not isinstance(expr.value, int):
+        return None
+    ws = int_width_and_signedness(unpack_typeref(expr.type))
+    if ws is not None and expr.value >= 1 << (ws[0] - 1):
+        return expr.value - (1 << ws[0])
+    return expr.value
+
+
+def c_operand_type(expr: CExpression) -> SimType | None:
+    """
+    The type C computes an integer expression in: an integer narrower than int is promoted to int, an operation takes
+    the type of its operands as C converts them (a shift its left operand's, a negation its operand's, a comparison
+    int), and a constant whose value read as signed fits in 32 bits is taken as an int or unsigned int literal, whatever
+    its width in the AIL. A constant printed in hex or as a decimal above INT_MAX can be wider in C, so this can only
+    keep a cast that is not needed, in whatever format the constant is shown.
+    """
+    ty = expr.type
+    ws = int_width_and_signedness(unpack_typeref(ty))
+    if ws is None:
+        return ty
+    int_bits = expr.codegen.project.arch.sizeof.get("int", 32)
+    value = signed_constant(expr)
+    if value is not None:
+        if -(1 << (int_bits - 1)) <= value < 1 << (int_bits - 1):
+            return expr.codegen.default_simtype_from_bits(int_bits, signed=True)
+        if 0 <= value < 1 << int_bits:
+            return expr.codegen.default_simtype_from_bits(int_bits, signed=False)
+        return ty
+    if (isinstance(expr, CBinaryOp) and expr.op.startswith(("Cmp", "Logical"))) or (
+        isinstance(expr, CUnaryOp) and expr.op == "Not"
+    ):
+        return expr.codegen.default_simtype_from_bits(int_bits, signed=True)
+    if isinstance(expr, CUnaryOp) and expr.op in {"Neg", "BitwiseNeg"}:
+        return c_operand_type(expr.operand)
+    if isinstance(expr, CBinaryOp) and expr.op in {"Shl", "Shr", "Sar"}:
+        return c_operand_type(expr.lhs)
+    if isinstance(expr, CBinaryOp) and expr.op in _LOW_BITS_OPS | {"Div", "Mod"}:
+        lhs, rhs = c_operand_type(expr.lhs), c_operand_type(expr.rhs)
+        if lhs is not None and rhs is not None:
+            return CBinaryOp.compute_common_type(expr.op, lhs, rhs)
+    if ws[0] < int_bits:
+        return expr.codegen.default_simtype_from_bits(int_bits, signed=True)
+    return ty
+
+
+def int_value_bits(expr: CExpression) -> int | None:
+    """
+    An upper bound on the bits the magnitude of an integer expression needs: a constant's value read as signed, one bit
+    for a comparison or logical operator, for an & the narrowest constant side that is not negative, for any other
+    operation the width of the type C computes it in, and otherwise its type's width. None when the expression is not
+    an integer.
+    """
+    value = signed_constant(expr)
+    if value is not None:
+        return abs(value).bit_length()
+    if (isinstance(expr, CBinaryOp) and expr.op.startswith(("Cmp", "Logical"))) or (
+        isinstance(expr, CUnaryOp) and expr.op == "Not"
+    ):
+        return 1
+    if isinstance(expr, CBinaryOp) and expr.op == "And":
+        masks = [v for v in (signed_constant(expr.lhs), signed_constant(expr.rhs)) if v is not None and v >= 0]
+        if masks:
+            return min(v.bit_length() for v in masks)
+    ws = int_width_and_signedness(unpack_typeref(c_operand_type(expr) if isinstance(expr, CBinaryOp) else expr.type))
+    return None if ws is None else ws[0]
 
 
 def is_sign_fixing_cast(cast: CTypeCast) -> bool:
@@ -6278,6 +6351,17 @@ class CStructuredCodeWalker:
 
 
 class MakeTypecastsImplicit(CStructuredCodeWalker):
+    def __init__(self):
+        # the constructs from the function down to the one being handled
+        self._path: list[CConstruct] = []
+
+    def handle(self, obj):
+        self._path.append(obj)
+        try:
+            return super().handle(obj)
+        finally:
+            self._path.pop()
+
     @classmethod
     def collapse(cls, dst_ty: SimType, child: CExpression) -> CExpression:
         result = child
@@ -6343,14 +6427,119 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
             return self._collapse_cast(operand, under_fp_cast=False)
         return self.handle(operand)
 
+    def _bits_read(self) -> int | None:
+        """
+        How many low bits of the expression being handled its consumers read, or None for all of them. A narrowing cast,
+        an & with a constant mask, and the type the value is assigned, passed or returned as each set a limit, also when
+        the expression reaches them only through operations whose low result bits depend only on the low bits of their
+        operands.
+        """
+        bits = None
+        for child, parent in zip(reversed(self._path), reversed(self._path[:-1])):
+            stored_as = None
+            if isinstance(parent, CReturn) and parent.codegen._func.prototype is not None:
+                stored_as = parent.codegen._func.prototype.returnty
+            elif isinstance(parent, CAssignment) and child is not parent.lhs:
+                stored_as = parent.lhs.type
+            elif isinstance(parent, CFunctionCall) and parent.prototype is not None:
+                index = next((i for i, arg in enumerate(parent.args) if self._passes(arg, child)), None)
+                if index is not None and index < len(parent.prototype.args):
+                    stored_as = parent.prototype.args[index]
+            if stored_as is not None:
+                ws = int_width_and_signedness(unpack_typeref(stored_as))
+                if ws is not None:
+                    bits = ws[0] if bits is None else min(bits, ws[0])
+                break
+            if isinstance(parent, CTypeCast):
+                src = int_width_and_signedness(unpack_typeref(child.type)) if isinstance(child, CExpression) else None
+                dst = int_width_and_signedness(unpack_typeref(parent.dst_type))
+                if src is None or dst is None or dst[0] > src[0]:
+                    break
+                if dst[0] < src[0]:
+                    bits = dst[0] if bits is None else min(bits, dst[0])
+            elif isinstance(parent, CBinaryOp) and (
+                parent.op in _LOW_BITS_OPS or (parent.op == "Shl" and child is parent.lhs)
+            ):
+                other = parent.rhs if child is parent.lhs else parent.lhs
+                if (
+                    parent.op == "And"
+                    and isinstance(other, CConstant)
+                    and isinstance(other.value, int)
+                    and other.value > 0
+                ):
+                    mask_bits = other.value.bit_length()
+                    bits = mask_bits if bits is None else min(bits, mask_bits)
+            elif not (isinstance(parent, CUnaryOp) and parent.op in {"Neg", "BitwiseNeg"}):
+                break
+        return bits
+
+    @staticmethod
+    def _fits(obj: CBinaryOp, bits: int, signed: bool) -> bool:
+        # whether the operation's result provably fits in a C type of this width and signedness
+        lhs, rhs = int_value_bits(obj.lhs), int_value_bits(obj.rhs)
+        if lhs is None or rhs is None:
+            return False
+        shift = signed_constant(obj.rhs)
+        constants = [v for v in (signed_constant(obj.lhs), shift) if v is not None]
+        if not signed and (obj.op == "Sub" or any(v < 0 for v in constants)):
+            return False
+        if obj.op == "Mul":
+            needed = lhs + rhs
+        elif obj.op in {"Add", "Sub"}:
+            needed = max(lhs, rhs) + 1
+        elif obj.op == "Shl" and shift is not None:
+            needed = lhs + shift
+        else:
+            return False
+        return needed < bits
+
+    @staticmethod
+    def _passes(arg: CExpression, child: CConstruct) -> bool:
+        # whether an argument is the child, or casts it: a handler may hand on the argument's operand
+        while arg is not child and isinstance(arg, CTypeCast):
+            arg = arg.expr
+        return arg is child
+
+    def _wraps(self, obj: CBinaryOp) -> bool:
+        # whether C would compute the operation in a narrower type than the operation's, where its result can wrap, and
+        # a consumer reads the bits beyond that type
+        ws = int_width_and_signedness(unpack_typeref(obj.common_type))
+        c_ws = int_width_and_signedness(unpack_typeref(c_operand_type(obj)))
+        if ws is None or c_ws is None or c_ws[0] >= ws[0] or self._fits(obj, *c_ws):
+            return False
+        bits = self._bits_read()
+        return bits is None or bits > c_ws[0]
+
+    @staticmethod
+    def _is_dropped_sign_extension(operand: CExpression, handled: CExpression) -> bool:
+        # zero extensions stay dropped: the AIL also holds 64-bit operations on zero-extended operands that the machine
+        # computes in 32 bits, and for those C's 32-bit arithmetic is right
+        if not isinstance(operand, CTypeCast) or handled is not operand.expr:
+            return False
+        src = int_width_and_signedness(unpack_typeref(operand.expr.type))
+        dst = int_width_and_signedness(unpack_typeref(operand.dst_type))
+        return src is not None and dst is not None and src[0] < dst[0] and src[1]
+
     def handle_CBinaryOp(self, obj: CBinaryOp):
+        keep_lhs = keep_rhs = False
         if obj.signed is not None:
             obj.lhs = self._handle_compare_operand(obj, obj.lhs)
             obj.rhs = self._handle_compare_operand(obj, obj.rhs)
         else:
+            lhs, rhs = obj.lhs, obj.rhs
             obj = super().handle_CBinaryOp(obj)
+            if obj.op in _WRAPPING_OPS:
+                # handling an operand drops its integer widening; put a sign extension back where the result would
+                # otherwise overflow
+                keep_lhs = self._is_dropped_sign_extension(lhs, obj.lhs) and self._wraps(obj)
+                if keep_lhs:
+                    obj.lhs = lhs
+                # a shift has its left operand's type, so a cast on its amount changes nothing
+                keep_rhs = obj.op != "Shl" and self._is_dropped_sign_extension(rhs, obj.rhs) and self._wraps(obj)
+                if keep_rhs:
+                    obj.rhs = rhs
         while True:
-            new_lhs = self.collapse(obj.common_type, obj.lhs)
+            new_lhs = obj.lhs if keep_lhs else self.collapse(obj.common_type, obj.lhs)
             assert obj.rhs.type is not None and new_lhs.type is not None
             if (
                 new_lhs is not obj.lhs
@@ -6359,7 +6548,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
             ):
                 obj.lhs = new_lhs
             else:
-                new_rhs = self.collapse(obj.common_type, obj.rhs)
+                new_rhs = obj.rhs if keep_rhs else self.collapse(obj.common_type, obj.rhs)
                 assert new_rhs.type is not None and obj.lhs.type is not None
                 if (
                     new_rhs is not obj.rhs
