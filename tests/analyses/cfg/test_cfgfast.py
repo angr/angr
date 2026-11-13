@@ -11,6 +11,7 @@ import random
 import unittest
 
 import archinfo
+import networkx as nx
 
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
@@ -111,6 +112,144 @@ class TestCfgfast(unittest.TestCase):
         function_features = {}
 
         self.cfg_fast_functions_check("x86_64", "cfg_0_pe", functions, function_features)
+
+    def test_irrational_function_merge_target_recording(self):
+        path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        jump_targets = {0x40287F: 0x402887, 0x4028CD: 0x4028D5}
+        for jump_addr, target_addr in jump_targets.items():
+            jump = cfg.indirect_jumps[jump_addr]
+            assert cfg._is_singleton_indirect_jump_fallthrough(  # pylint:disable=protected-access
+                jump_addr, {target_addr}
+            )
+            assert target_addr not in jump.resolved_targets
+            assert jump_addr not in cfg.kb.resolved_indirect_jumps
+            assert jump_addr in cfg.kb.unresolved_indirect_jumps
+
+            src_node = cfg.model.get_any_node(jump_addr)
+            target_node = cfg.model.get_any_node(target_addr)
+            assert src_node is not None
+            assert target_node is not None
+            assert target_node not in cfg.model.get_successors(src_node)
+            assert target_node.function_address == src_node.function_address
+
+            unresolvable_addr = proj.loader.extern_object.get_pseudo_addr("UnresolvableJumpTarget")
+            unresolvable = cfg.model.get_any_node(unresolvable_addr)
+            assert unresolvable is not None
+            assert cfg.graph.has_edge(src_node, unresolvable)
+
+        # Exercise the multi-target state update independently of the fixture's two natural one-target inferences.
+        jump_addr = 0x40287F
+        target_addrs = set(jump_targets.values())
+        jump = cfg.indirect_jumps[jump_addr]
+        src_node = cfg.model.get_any_node(jump_addr)
+        unresolvable_addr = proj.loader.extern_object.get_pseudo_addr("UnresolvableJumpTarget")
+        unresolvable = cfg.model.get_any_node(unresolvable_addr)
+        assert src_node is not None
+        assert unresolvable is not None
+        jump.resolved_targets.clear()
+        cfg.kb.resolved_indirect_jumps.pop(jump_addr, None)
+        cfg.kb.unresolved_indirect_jumps.add(jump_addr)
+        for target_addr in target_addrs:
+            target_node = cfg.model.get_any_node(target_addr)
+            assert target_node is not None
+            if cfg.graph.has_edge(src_node, target_node):
+                cfg.graph.remove_edge(src_node, target_node)
+        cfg.graph.add_edge(src_node, unresolvable, jumpkind=jump.jumpkind)
+
+        assert cfg._record_irrational_function_targets(jump_addr, target_addrs)  # pylint:disable=protected-access
+        assert jump.resolved_targets == target_addrs
+        assert set(cfg.kb.resolved_indirect_jumps[jump_addr]) == target_addrs
+        assert jump_addr not in cfg.kb.unresolved_indirect_jumps
+        assert not cfg.graph.has_edge(src_node, unresolvable)
+        for target_addr in target_addrs:
+            target_node = cfg.model.get_any_node(target_addr)
+            assert target_node is not None
+            assert cfg.graph.has_edge(src_node, target_node)
+
+        # A missing target makes the update atomic: neither the valid target nor jump state is changed.
+        valid_target = next(iter(target_addrs))
+        valid_target_node = cfg.model.get_any_node(valid_target)
+        assert valid_target_node is not None
+        jump.resolved_targets.clear()
+        cfg.kb.resolved_indirect_jumps.pop(jump_addr)
+        cfg.kb.unresolved_indirect_jumps.add(jump_addr)
+        cfg.graph.remove_edge(src_node, valid_target_node)
+        cfg.graph.add_edge(src_node, unresolvable, jumpkind=jump.jumpkind)
+
+        assert not cfg._record_irrational_function_targets(  # pylint:disable=protected-access
+            jump_addr, {valid_target, 0xBAD0BAD0}
+        )
+        assert not jump.resolved_targets
+        assert jump_addr not in cfg.kb.resolved_indirect_jumps
+        assert jump_addr in cfg.kb.unresolved_indirect_jumps
+        assert not cfg.graph.has_edge(src_node, valid_target_node)
+        assert cfg.graph.has_edge(src_node, unresolvable)
+
+        # An empty inference must not convert an unresolved jump into a resolved jump with no successors.
+        assert not cfg._record_irrational_function_targets(jump_addr, set())  # pylint:disable=protected-access
+        assert not jump.resolved_targets
+        assert jump_addr not in cfg.kb.resolved_indirect_jumps
+        assert jump_addr in cfg.kb.unresolved_indirect_jumps
+        assert cfg.graph.has_edge(src_node, unresolvable)
+
+    def test_irrational_function_merge_natural_targets(self):
+        path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb",
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        inferred_targets = {
+            0x14001A477: {0x14001A48D, 0x14001A50C},
+            0x1400F86B0: {0x1400F8795, 0x1400F8842},
+            0x140058B47: {0x140058C48},
+        }
+        mixed_src = cfg.model.get_any_node(0x14001A477)
+        non_fallthrough_src = cfg.model.get_any_node(0x1400F86B0)
+        singleton_src = cfg.model.get_any_node(0x140058B47)
+        assert mixed_src is not None
+        assert non_fallthrough_src is not None
+        assert singleton_src is not None
+        assert mixed_src.addr + mixed_src.size in inferred_targets[0x14001A477]
+        assert inferred_targets[0x14001A477] != {mixed_src.addr + mixed_src.size}
+        assert non_fallthrough_src.addr + non_fallthrough_src.size not in inferred_targets[0x1400F86B0]
+        assert singleton_src.addr + singleton_src.size not in inferred_targets[0x140058B47]
+
+        for jump_addr, target_addrs in inferred_targets.items():
+            jump = cfg.indirect_jumps[jump_addr]
+            src_node = cfg.model.get_any_node(jump_addr)
+            assert src_node is not None
+            function = cfg.kb.functions[src_node.function_address]
+            assert function.startpoint is not None
+            assert jump.resolved_targets == target_addrs
+            assert set(cfg.kb.resolved_indirect_jumps[jump_addr]) == target_addrs
+            assert jump_addr not in cfg.kb.unresolved_indirect_jumps
+            for target_addr in target_addrs:
+                target_node = cfg.model.get_any_node(target_addr)
+                assert target_node is not None
+                assert cfg.graph.has_edge(src_node, target_node)
+                assert target_node.function_address == src_node.function_address
+                function_target_node = function.get_node(target_addr)
+                assert function_target_node is not None
+                assert nx.has_path(function.graph, function.startpoint, function_target_node)
+
+        for jump_addr, target_addr in {0x1400C0FD1: 0x1400C0FE9, 0x1400CCF46: 0x1400CCF5A}.items():
+            jump = cfg.indirect_jumps[jump_addr]
+            src_node = cfg.model.get_any_node(jump_addr)
+            target_node = cfg.model.get_any_node(target_addr)
+            assert src_node is not None
+            assert target_node is not None
+            assert src_node.addr + src_node.size == target_addr
+            assert target_addr not in jump.resolved_targets
+            assert jump_addr not in cfg.kb.resolved_indirect_jumps
+            assert jump_addr in cfg.kb.unresolved_indirect_jumps
+            assert not cfg.graph.has_edge(src_node, target_node)
 
     def test_arm_function_merge(self):
         # function 0x7bb88 is created due to a data hint in another block. this function should be merged with the
