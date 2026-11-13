@@ -239,6 +239,9 @@ class CFGBase(Analysis):
         self._functions_without_jobs: dict[int | SootMethodDescriptor, None] = {}
         # addresses of functions that have been completely recovered (i.e. all of its blocks are identified) so far
         self._completed_functions = set()
+        # addresses of instructions that Capstone decodes and the lifter could not translate. A block that reaches one
+        # stops before it, so the block's function may have code that was not recovered.
+        self._unlifted_instruction_addrs: set[int] = set()
 
         # TODO: A segment tree to speed up CFG node lookups
         self._node_lookup_index = None
@@ -247,6 +250,11 @@ class CFGBase(Analysis):
         self._function_addresses_from_symbols = self._load_func_addrs_from_symbols()
         self._function_addresses_from_eh_frame = self._load_func_addrs_from_eh_frame()
         self._function_addr_and_names_from_hints = self._load_func_addr_and_names_from_hints()
+        # the linker's Mach-O function-start table. ld64 also lists data atoms in it, so an entry is weaker evidence of
+        # code than a function symbol.
+        self._function_addresses_from_macho_starts = {
+            hint.addr for hint in self._binary.function_hints if hint.source == FunctionHintSource.MACHO_FUNCTION_STARTS
+        }
 
         # Cache if an object has executable sections or not
         self._object_to_executable_sections = {}
@@ -1093,6 +1101,13 @@ class CFGBase(Analysis):
                 addrs_and_names.add((function_hint.addr, function_hint.name))
         return addrs_and_names
 
+    def _is_declared_function(self, addr: int) -> bool:
+        """
+        Check whether the binary itself says that a function starts at addr, in its symbol table or in a Mach-O
+        function-start table.
+        """
+        return addr in self._function_addresses_from_symbols or addr in self._function_addresses_from_macho_starts
+
     #
     # Analyze function features
     #
@@ -1108,6 +1123,12 @@ class CFGBase(Analysis):
            be added to it), and it does not have a ret or any equivalent instruction.
 
         A function returns if any of its block contains a ret instruction or any equivalence.
+
+        A function that the binary declares (see _is_declared_function) and that has a block ending at a valid
+        instruction the lifter could not translate is never completely recovered. Its status stays undetermined until
+        all functions are treated as completed, and it is then assumed to return, like a function that lies outside the
+        analyzed regions. Undeclared code gets no such allowance, because data decoded as code also disassembles to
+        valid instructions that the lifter lacks.
 
         :param Function func:   The function to work on.
         :param bool all_funcs_completed:    Whether we treat all functions as completed functions or not.
@@ -1199,6 +1220,12 @@ class CFGBase(Analysis):
             if target_func.returning is None:
                 # the returning status of at least one of the target functions is not decided yet.
                 bail_out = True
+
+        if self._is_declared_function(func.addr) and any(
+            block_addr + func.get_block_size(block_addr) in self._unlifted_instruction_addrs
+            for block_addr in func.block_addrs_set
+        ):
+            return True if all_funcs_completed else None
 
         if bail_out:
             # We cannot determine at this point. bail out
