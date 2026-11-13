@@ -338,11 +338,15 @@ class BreakNode(BaseNode):
 
 
 class ContinueNode(BaseNode):
-    __slots__ = ("target",)
+    __slots__ = (
+        "target",
+        "target_idx",
+    )
 
-    def __init__(self, addr, target):
+    def __init__(self, addr, target, target_idx: int | None = None):
         super().__init__(addr)
         self.target = target
+        self.target_idx = target_idx
 
     def dbg_repr(self, indent=0):
         return " " * indent + "ContinueNode"

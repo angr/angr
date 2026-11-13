@@ -343,6 +343,7 @@ class PhoenixStructurer(StructurerBase):
         )
         if matched:
             assert loop_node is not None and successor_node is not None
+            self._rewrite_continues_to_jumps(loop_node)
             # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
             self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
@@ -366,6 +367,7 @@ class PhoenixStructurer(StructurerBase):
             )
             if matched:
                 assert loop_node is not None and successor_node is not None
+                self._rewrite_continues_to_jumps(loop_node)
                 # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
                 self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
                 # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
@@ -375,6 +377,7 @@ class PhoenixStructurer(StructurerBase):
         matched, loop_node, successor_node = self._match_cyclic_natural_loop(node, head, graph, full_graph)
         if matched:
             assert loop_node is not None
+            self._rewrite_continues_to_jumps(loop_node)
             if successor_node is not None:
                 # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
                 self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
@@ -386,6 +389,50 @@ class PhoenixStructurer(StructurerBase):
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
         return matched
+
+    def _rewrite_continues_to_jumps(self, loop_node: LoopNode) -> None:
+        """
+        Turn each continue in the body of a while loop, outside nested loops, that targets a block of the loop other
+        than its head back into a jump to that block. Cyclic refinement turns jumps to a loop's head, or to a do-while
+        loop's latch, into continues before the loop is structured, and the while loop eventually built around such a
+        continue can have a different head. A continue whose target is outside the loop is left alone: the target may be
+        the head of an enclosing loop, which becomes that loop's condition and so has no label for a jump to go to.
+        """
+        if loop_node.sort != "while":
+            return
+        continues = []
+
+        def _handle_Continue(node: ContinueNode, **kwargs):  # pylint:disable=unused-argument
+            if node.target != loop_node.addr:
+                continues.append(node)
+
+        def _handle_Loop(node: LoopNode, **kwargs):  # pylint:disable=unused-argument
+            return None
+
+        SequenceWalker(handlers={ContinueNode: _handle_Continue, LoopNode: _handle_Loop}).walk(loop_node.sequence_node)
+        if not continues:
+            return
+
+        blocks = set()
+
+        def _handle_Block(node: Block, **kwargs):  # pylint:disable=unused-argument
+            blocks.add((node.addr, node.idx))
+
+        SequenceWalker(handlers={Block: _handle_Block}).walk(loop_node.sequence_node)
+
+        jumps = {}
+        for cont in continues:
+            if (cont.target, cont.target_idx) not in blocks:
+                continue
+            jump = Jump(
+                self.ail_manager.next_atom(),
+                Const(self.ail_manager.next_atom(), cont.target, self.project.arch.bits),
+                target_idx=cont.target_idx,
+                ins_addr=cont.addr,
+            )
+            jumps[cont] = Block(cont.addr, 0, statements=[jump])
+        if jumps:
+            loop_node.sequence_node = cast("SequenceNode", NodeReplacer(loop_node.sequence_node, jumps).result)
 
     def _match_cyclic_while(
         self,
@@ -1220,23 +1267,35 @@ class PhoenixStructurer(StructurerBase):
                     if last_stmt is not None:
                         new_cont_node = None
                         if isinstance(last_stmt, ConditionalJump):
-                            new_cont_node = ContinueNode(last_stmt.tags["ins_addr"], continue_node.addr)
                             if (
                                 isinstance(last_stmt.true_target, Const)
                                 and last_stmt.true_target.value == continue_node.addr
                             ):
                                 new_cont_node = ConditionNode(
-                                    last_stmt.tags["ins_addr"], None, last_stmt.condition, new_cont_node
+                                    last_stmt.tags["ins_addr"],
+                                    None,
+                                    last_stmt.condition,
+                                    ContinueNode(
+                                        last_stmt.tags["ins_addr"],
+                                        continue_node.addr,
+                                        target_idx=last_stmt.true_target_idx,
+                                    ),
                                 )
                             else:
                                 new_cont_node = ConditionNode(
                                     last_stmt.tags["ins_addr"],
                                     None,
                                     UnaryOp(self.ail_manager.next_atom(), "Not", last_stmt.condition),
-                                    new_cont_node,
+                                    ContinueNode(
+                                        last_stmt.tags["ins_addr"],
+                                        continue_node.addr,
+                                        target_idx=last_stmt.false_target_idx,
+                                    ),
                                 )
                         elif isinstance(last_stmt, Jump):
-                            new_cont_node = ContinueNode(last_stmt.tags["ins_addr"], continue_node.addr)
+                            new_cont_node = ContinueNode(
+                                last_stmt.tags["ins_addr"], continue_node.addr, target_idx=last_stmt.target_idx
+                            )
 
                         if new_cont_node is not None and isinstance(cont_block, (Block, MultiNode)):
                             new_cont_block = self._copy_and_remove_last_statement_if_jump(cont_block)
