@@ -17,12 +17,13 @@ from angr.analyses.cfg.cfb import CFBlanket, Unknown
 from angr.block import Block
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from tests.analyses.cfg.cfb_reference import ReferenceCFBlanket
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
 
-class _ReferenceCFBlanket(CFBlanket):
+class _ReferenceCFBlanket(ReferenceCFBlanket):
     """
     The original add_obj/_carve (one floor query and one range query per add, pop-and-reinsert of every overlapping
     key, callbacks fired while carving) and _mark_unknowns_core (floor and ceiling queries per object).
@@ -161,8 +162,8 @@ class TestCFBlanketCarve(unittest.TestCase):
             ref = self._blanket(_ReferenceCFBlanket, proj, ev_ref)
             new = self._blanket(CFBlanket, proj, ev_new)
             if seed % 2:
-                # tiny SortedList sublists: lookups cross sublist boundaries
-                new._blanket._list._reset(4)
+                # tiny SortedList sublists in the reference: its lookups cross sublist boundaries
+                ref._blanket._list._reset(4)
             for addr, obj in objs:
                 ref.add_obj(addr, obj)
                 new.add_obj(addr, obj)
@@ -175,8 +176,8 @@ class TestCFBlanketCarve(unittest.TestCase):
             for probe in [keys[0] - 1, keys[-1] + 1, *(base + rng.randrange(-0x10, 0x310) for _ in range(100))]:
                 floor = next(new._blanket.irange(maximum=probe, reverse=True), None)
                 ceiling = next(new._blanket.irange(minimum=probe), None)
-                assert new._floor_key(probe) == floor, f"seed {seed}: floor of {probe:#x}"
-                assert new._ceiling_key(probe) == ceiling, f"seed {seed}: ceiling of {probe:#x}"
+                assert new._store.floor_key(probe) == floor, f"seed {seed}: floor of {probe:#x}"
+                assert new._store.ceiling_key(probe) == ceiling, f"seed {seed}: ceiling of {probe:#x}"
             assert [(a, _desc(o)) for a, o in new._blanket.items()] == [
                 (a, _desc(o)) for a, o in ref._blanket.items()
             ], f"seed {seed}: items differ"
@@ -234,11 +235,12 @@ class TestCFBlanketCarve(unittest.TestCase):
             ev_ref, ev_new = [], []
             ref = self._blanket(_ReferenceCFBlanket, proj, ev_ref)
             new = self._blanket(CFBlanket, proj, ev_new)
-            for bl in (ref._blanket, new._blanket):
-                bl.clear()
+            ref._blanket.clear()
+            new._store.clear()
             for addr, obj in self._random_objs(proj, rng, text.vaddr - 0x20, text.memsize + 0x40, 60):
                 ref._blanket[addr] = obj
-                new._blanket[addr] = obj
+                # stored without carving, like the reference's direct SortedDict writes
+                new._store.put_objs([(addr, obj)])
             ref._mark_unknowns()
             new._mark_unknowns()
             assert ev_new == ev_ref, f"seed {seed}"
