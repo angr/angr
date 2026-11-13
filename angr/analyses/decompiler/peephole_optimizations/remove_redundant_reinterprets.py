@@ -41,7 +41,7 @@ class RemoveRedundantReinterprets(PeepholeOptimizationExprBase):
             if isinstance(operand, Const) and isinstance(operand.value, int):
                 # replace it with a floating point constant
                 int_fmt, float_fmt = self._formats(operand.bits, expr.bits)
-                value = struct.unpack(float_fmt, struct.pack(int_fmt, operand.value))[0]
+                value = struct.unpack(float_fmt, struct.pack(int_fmt, operand.value & ((1 << operand.bits) - 1)))[0]
                 return Const(expr.idx, value, expr.bits, **expr.tags)
 
         if (
