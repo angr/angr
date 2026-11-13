@@ -415,6 +415,26 @@ class ExpressionSpotter(VVarUsesCollector):
         super().__init__()
         self.has_calls: bool = False
         self.has_loads: bool = False
+        # the value of a stack variable is read; taking its address does not count
+        self.has_stack_reads: bool = False
+
+    def _handle_VirtualVariable(
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        if not self._walking_assignment_dst and (
+            expr.was_stack
+            or (expr.was_parameter and expr.parameter_category == ailment.Expr.VirtualVariableCategory.STACK)
+        ):
+            self.has_stack_reads = True
+        return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_UnaryOp(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
+            stack_reads = self.has_stack_reads
+            r = super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+            self.has_stack_reads = stack_reads
+            return r
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         self.has_calls = True
@@ -455,6 +475,10 @@ class InterferenceChecker(SequenceWalker):
     - Condition and CascadingCondition nodes
     - an assignment to another vvar of a unified variable that the definition reads
 
+    A loop condition or iterator runs again after every run of the loop body, so a definition that is used there must
+    also survive the body: it must not contain calls, the body must not assign to a variable that it reads, and if it
+    loads from memory or reads a stack variable, the body must not call or store.
+
     :param unified_variable: Maps a vvar expression to the variable that it is displayed as.
     """
 
@@ -481,10 +505,15 @@ class InterferenceChecker(SequenceWalker):
         # candidate vvar ID -> unified variable -> IDs of the vvars of that variable that the definition reads
         self._assignment_reads: dict[int, dict[Any, set[int]]] = {}
         self._assignment_interferences: dict[int, list] = {}
+        # candidates that are used in the condition or the iterator of a loop whose body is being walked
+        self._loop_header_interferences: dict[int, list] = {}
+        self._calls_and_stores: int = 0
         self.interfered_assignments: set[int] = set()
         self.walk(node)
 
     def _after_spotting(self, obj, spotter: ExpressionSpotter) -> None:
+        if spotter.has_calls:
+            self._calls_and_stores += 1
         if spotter.has_calls or spotter.has_loads:
             # mark all existing assignments as interfered
             for vid in list(self._assignment_interferences):
@@ -525,6 +554,9 @@ class InterferenceChecker(SequenceWalker):
                 # mark all existing assignments as interfered
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
+
+            if isinstance(stmt, (ailment.Stmt.Store, ailment.Stmt.SideEffectStatement)):
+                self._calls_and_stores += 1
 
             if isinstance(stmt, ailment.Stmt.Store):
                 # mark all existing assignments as interfered
@@ -585,15 +617,16 @@ class InterferenceChecker(SequenceWalker):
 
     def _handle_def(self, vvar: VirtualVariable, stmt) -> None:
         # the folded definition would read the unified variable after this assignment to it
-        if self._unified_variable is None or not self._assignment_interferences:
+        if self._unified_variable is None or not (self._assignment_interferences or self._loop_header_interferences):
             return
         var = self._unified_variable(vvar)
         if var is None:
             return
-        for vid, interferences in self._assignment_interferences.items():
-            read_vvars = self._assignment_reads.get(vid, {}).get(var)
-            if read_vvars is not None and vvar.varid not in read_vvars:
-                interferences.append(stmt)
+        for candidates in (self._assignment_interferences, self._loop_header_interferences):
+            for vid, interferences in candidates.items():
+                read_vvars = self._assignment_reads.get(vid, {}).get(var)
+                if read_vvars is not None and vvar.varid not in read_vvars:
+                    interferences.append(stmt)
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         spotter = ExpressionSpotter()
@@ -626,10 +659,14 @@ class InterferenceChecker(SequenceWalker):
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
         spotter = ExpressionSpotter()
+        # the condition and the iterator are evaluated again after every run of the body; this holds for all loop sorts
+        # (a do-while condition is first evaluated after the body). the initializer is evaluated once, before the body.
+        reevaluated = ExpressionSpotter()
 
         # iterator
         if node.iterator is not None:
             spotter.walk_statement(node.iterator)
+            reevaluated.walk_statement(node.iterator)
 
         # initializer
         if node.initializer is not None:
@@ -638,10 +675,38 @@ class InterferenceChecker(SequenceWalker):
         # condition
         if node.condition is not None:
             spotter.walk_expression(node.condition)
+            reevaluated.walk_expression(node.condition)
 
+        header_candidates = [vid for vid in reevaluated.vvars if vid in self._assignment_interferences]
         self._after_spotting(node, spotter)
 
-        return super()._handle_Loop(node, **kwargs)
+        # candidates that are still foldable are decided after the body
+        pending: dict[int, bool] = {}
+        for vid in header_candidates:
+            if vid in self.interfered_assignments:
+                continue
+            definition = self._assignments[vid][0]
+            def_spotter = ExpressionSpotter()
+            if isinstance(definition, Statement):
+                def_spotter.walk_statement(definition)
+            else:
+                def_spotter.walk_expression(definition)
+            if def_spotter.has_calls or isinstance(definition, ailment.Stmt.SideEffectStatement):
+                # the call would run once per evaluation
+                self.interfered_assignments.add(vid)
+                continue
+            # a stack variable can change through its address, without an assignment to it in the body
+            pending[vid] = def_spotter.has_loads or def_spotter.has_stack_reads
+            self._loop_header_interferences[vid] = []
+
+        calls_and_stores = self._calls_and_stores
+        r = super()._handle_Loop(node, **kwargs)
+        memory_changed = self._calls_and_stores != calls_and_stores
+
+        for vid, reads_memory in pending.items():
+            if self._loop_header_interferences.pop(vid) or (reads_memory and memory_changed):
+                self.interfered_assignments.add(vid)
+        return r
 
     def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
         spotter = ExpressionSpotter()
