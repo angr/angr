@@ -4405,8 +4405,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     )
                 return CUnaryOp("Dereference", expr, codegen=self)
 
-        stride = 1 if base_type.size is None else base_type.size // self.project.arch.byte_width or 1
-        index, remainder = divmod(offset, stride)
+        # a pointee with no size, such as void, has no elements to index, so the whole offset is in bytes
+        stride = None if base_type.size is None else base_type.size // self.project.arch.byte_width or 1
+        index, remainder = (0, offset) if stride is None else divmod(offset, stride)
         if index != 0:
             index = CConstant(index, SimTypeInt(), codegen=self)
             kernel = expr
