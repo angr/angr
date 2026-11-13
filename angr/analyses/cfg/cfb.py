@@ -13,6 +13,7 @@ from sortedcontainers import SortedDict
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import Block
+from angr.errors import SimEngineError, SimMemoryError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 
 _l = logging.getLogger(name=__name__)
@@ -161,8 +162,7 @@ class CFBlanket(Analysis):
         self._init_regions()
 
         # initialize
-        for func in self.kb.functions.values():
-            self.add_function(func)
+        self._add_function_blocks()
         self._mark_memory_data()
         self._mark_unknowns()
 
@@ -477,6 +477,20 @@ class CFBlanket(Analysis):
         """
         for block in func.blocks:
             self.add_obj(block.addr, block)
+
+    def _add_function_blocks(self) -> None:
+        """
+        add_function() for every function of the knowledge base, without loading spilled functions.
+        """
+        factory_block = self.project.factory.block
+        for _, specs in self.kb.functions.iter_local_block_specs():
+            for addr, size, byte_string in specs:
+                # Function.blocks skips blocks it cannot create
+                try:
+                    block = factory_block(addr, size=size, byte_string=byte_string)
+                except (SimEngineError, SimMemoryError):
+                    continue
+                self.add_obj(block.addr, block)
 
     def dbg_repr(self):
         """

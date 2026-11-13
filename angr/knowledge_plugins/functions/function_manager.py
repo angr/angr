@@ -26,6 +26,7 @@ from angr.utils.smart_cache import SmartLRUCache
 
 from .function import Function, FunctionRecord
 from .function_index import AnyFunctionIndex, FunctionAddrsView, make_function_index, make_function_index_for_keys
+from .function_parser import FunctionParser
 from .soot_function import SootFunction
 
 if TYPE_CHECKING:
@@ -212,6 +213,9 @@ class FunctionDict(FunctionDictBase[K], collections.abc.MutableMapping[K, Functi
         if default is _missing:
             raise KeyError(addr)
         return default
+
+    def local_block_specs(self, addr: K) -> list[tuple[int, int, bytes | None]]:
+        return self.data[addr].local_block_specs()
 
     def __getstate__(self):
         return {"key_types": self._key_types, "items": dict(self.data)}
@@ -453,6 +457,24 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         if default is _missing:
             raise KeyError(addr)
         return default
+
+    def local_block_specs(self, addr: K) -> list[tuple[int, int, bytes | None]]:
+        """
+        get(addr).local_block_specs(), except that a spilled function is read from LMDB without being loaded into the
+        cache, and the LRU order is left alone.
+        """
+        if self.is_cached(addr):
+            func = self.data.get(addr)
+            if func is not None:
+                return func.local_block_specs()
+        if addr in self._spilled_keys and self._funcsdb is not None:
+            with self._db_load_lock, self.rtdb.begin_txn(self._funcsdb) as txn:
+                value = txn.get(str(addr).encode("utf-8"))
+            if value is not None:
+                return FunctionParser.local_block_specs_from_serialized(
+                    value, self._backref, self._backref._kb._project if self._backref is not None else None
+                )
+        raise KeyError(addr)
 
     def keys(self) -> list[K]:  # type: ignore[override]
         return self._index.addrs()
@@ -1251,6 +1273,15 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     def values(self, /, meta_only: bool = False) -> Generator[Function]:  # type: ignore
         for addr in self._function_map:
             yield self._function_map.get(addr, meta_only=meta_only)
+
+    def iter_local_block_specs(self) -> Generator[tuple[K, list[tuple[int, int, bytes | None]]]]:
+        """
+        (address, Function.local_block_specs()) of every function, in values() order. Unlike values(), spilled
+        functions are not loaded into the function cache, and the cache's LRU order is left alone.
+        """
+        fmap = self._function_map
+        for addr in fmap:
+            yield addr, fmap.local_block_specs(addr)
 
     def get_by_addr(self, addr, meta_only: bool = False) -> Function:
         return self._function_map.get(addr, meta_only=meta_only)

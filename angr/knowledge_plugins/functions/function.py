@@ -1098,6 +1098,18 @@ class Function(FunctionCore, Serializable):
             with contextlib.suppress(SimEngineError, SimMemoryError):
                 yield self.get_block(block_addr, size=self._graph.node_size(idx), byte_string=bytestr)
 
+    def local_block_specs(self) -> list[tuple[int, int, bytes | None]]:
+        """
+        (addr, size, user-supplied bytes or None) of each local block, in ``blocks`` order, without creating Blocks.
+        """
+        node_objs = self._node_objs
+        graph = self._graph
+        specs = []
+        for block_addr, idx in graph.local_items():
+            node = None if node_objs is None else node_objs.get(idx)
+            specs.append((block_addr, graph.node_size(idx), node._bytestr if isinstance(node, BlockNode) else None))
+        return specs
+
     @property
     def code_nodes(self) -> dict[int, CodeNode]:
         return {addr: self._node_obj(idx) for addr, idx in self._graph.local_items()}
