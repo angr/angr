@@ -46,7 +46,9 @@ pub(crate) fn simplify_float<'c>(
             let lhs = state.get_child_simplified(0)?;
             let rhs = state.get_child_simplified(1)?;
             match (lhs.op(), rhs.op()) {
-                (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(*float1 + *float2)?),
+                (AstOp::FPV(float1), AstOp::FPV(float2)) => {
+                    Ok(ctx.fpv(float1.add_rm(float2, *fprm))?)
+                }
                 _ => Ok(ctx.fp_add(lhs, rhs, *fprm)?),
             }
         }
@@ -54,7 +56,9 @@ pub(crate) fn simplify_float<'c>(
             let lhs = state.get_child_simplified(0)?;
             let rhs = state.get_child_simplified(1)?;
             match (lhs.op(), rhs.op()) {
-                (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(*float1 - *float2)?),
+                (AstOp::FPV(float1), AstOp::FPV(float2)) => {
+                    Ok(ctx.fpv(float1.sub_rm(float2, *fprm))?)
+                }
                 _ => Ok(ctx.fp_sub(lhs, rhs, *fprm)?),
             }
         }
@@ -62,7 +66,9 @@ pub(crate) fn simplify_float<'c>(
             let lhs = state.get_child_simplified(0)?;
             let rhs = state.get_child_simplified(1)?;
             match (lhs.op(), rhs.op()) {
-                (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(*float1 * *float2)?),
+                (AstOp::FPV(float1), AstOp::FPV(float2)) => {
+                    Ok(ctx.fpv(float1.mul_rm(float2, *fprm))?)
+                }
                 _ => Ok(ctx.fp_mul(lhs, rhs, *fprm)?),
             }
         }
@@ -70,14 +76,16 @@ pub(crate) fn simplify_float<'c>(
             let lhs = state.get_child_simplified(0)?;
             let rhs = state.get_child_simplified(1)?;
             match (lhs.op(), rhs.op()) {
-                (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(*float1 / *float2)?),
+                (AstOp::FPV(float1), AstOp::FPV(float2)) => {
+                    Ok(ctx.fpv(float1.div_rm(float2, *fprm))?)
+                }
                 _ => Ok(ctx.fp_div(lhs, rhs, *fprm)?),
             }
         }
         AstOp::FpSqrt(_, fprm) => {
             let inner = state.get_child_simplified(0)?;
             match inner.op() {
-                AstOp::FPV(float_val) => Ok(ctx.fpv(float_val.sqrt())?),
+                AstOp::FPV(float_val) => Ok(ctx.fpv(float_val.sqrt(*fprm))?),
                 _ => Ok(ctx.fp_sqrt(inner, *fprm)?),
             }
         }

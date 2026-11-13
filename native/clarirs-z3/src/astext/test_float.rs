@@ -997,3 +997,205 @@ mod semantics {
         }
     }
 }
+
+// ---------------------------------------------------------------
+// Constant folds under every rounding mode, checked against Z3
+// ---------------------------------------------------------------
+mod rounding_folds {
+    use super::*;
+
+    const MODES: [FPRM; 5] = [
+        FPRM::NearestTiesToEven,
+        FPRM::NearestTiesToAway,
+        FPRM::TowardPositive,
+        FPRM::TowardNegative,
+        FPRM::TowardZero,
+    ];
+
+    /// What Z3 computes for `term` itself, unsimplified by clarirs.
+    fn z3_value<'c>(ctx: &'c Context<'c>, term: &AstRef<'c>) -> AstRef<'c> {
+        Z3_CONTEXT.with(|z3_ctx| unsafe {
+            let simplified = Z3_simplify(*z3_ctx, *term.to_z3().unwrap());
+            AstRef::from_z3(ctx, RcAst::try_from(simplified).unwrap()).unwrap()
+        })
+    }
+
+    /// `term` folds to the value Z3 gives it. Floats are compared as IEEE
+    /// bits, so the sign of a zero counts; a NaN only has to be a NaN.
+    fn assert_folds_like_z3<'c>(ctx: &'c Context<'c>, term: AstRef<'c>) {
+        let folded = term.simplify().unwrap();
+        if let AstOp::FPV(value) = folded.op() {
+            if value.is_nan() {
+                let is_nan = z3_value(ctx, &ctx.fp_is_nan(&term).unwrap());
+                assert!(is_nan.is_true(), "{term:?} folds to NaN, Z3 disagrees");
+            } else {
+                let bits = z3_value(ctx, &ctx.fp_to_ieeebv(&term).unwrap());
+                assert_eq!(
+                    ctx.bvv(value.to_ieee_bits()).unwrap(),
+                    bits,
+                    "{term:?} folds to {value:?}"
+                );
+            }
+            return;
+        }
+        assert_eq!(folded, z3_value(ctx, &term), "{term:?}");
+    }
+
+    /// Operand pairs whose results are inexact, ties, overflow, subnormal or
+    /// an exact zero, in both signs.
+    const F64_PAIRS: &[(f64, f64)] = &[
+        (1.5, 0.2),
+        (-1.5, 0.2),
+        (0.1, 0.3),
+        (1.0, 3.0),
+        (2.0, 3.0),
+        // 1 + 2^-53 is halfway between 1 and the next f64
+        (1.0, 1.0 / 9_007_199_254_740_992.0),
+        (1.0, -1.0),
+        (1.0, 1.0 + f64::EPSILON),
+        (f64::MAX, f64::MAX),
+        (-f64::MAX, f64::MAX),
+        (f64::MIN_POSITIVE, 0.75),
+        (f64::MIN_POSITIVE, -0.3),
+        (5e-324, 0.5),
+        (5e-324, 1.5),
+    ];
+
+    const F32_PAIRS: &[(f32, f32)] = &[
+        (1.5, 0.2),
+        (-1.5, 0.2),
+        (0.1, 0.3),
+        (1.0, 3.0),
+        (2.0, 3.0),
+        // 1 + 2^-24 is halfway between 1 and the next f32
+        (1.0, 1.0 / 16_777_216.0),
+        (1.0, -1.0),
+        (1.0, 1.0 + f32::EPSILON),
+        (f32::MAX, f32::MAX),
+        (-f32::MAX, f32::MAX),
+        (f32::MIN_POSITIVE, 0.75),
+        (f32::MIN_POSITIVE, -0.3),
+        (1e-45, 0.5),
+        (1e-45, 1.5),
+    ];
+
+    /// Every pair from the tables, in its format.
+    fn operand_pairs() -> Vec<(Float, Float)> {
+        F64_PAIRS
+            .iter()
+            .map(|&(a, b)| (Float::F64(a), Float::F64(b)))
+            .chain(
+                F32_PAIRS
+                    .iter()
+                    .map(|&(a, b)| (Float::F32(a), Float::F32(b))),
+            )
+            .collect()
+    }
+
+    #[test]
+    fn arithmetic_folds_match_z3_in_every_mode() {
+        let ctx = Context::new();
+        for (a, b) in operand_pairs() {
+            let (x, y) = (ctx.fpv(a).unwrap(), ctx.fpv(b).unwrap());
+            for rm in MODES {
+                assert_folds_like_z3(&ctx, ctx.fp_add(&x, &y, rm).unwrap());
+                assert_folds_like_z3(&ctx, ctx.fp_sub(&x, &y, rm).unwrap());
+                assert_folds_like_z3(&ctx, ctx.fp_mul(&x, &y, rm).unwrap());
+                assert_folds_like_z3(&ctx, ctx.fp_div(&x, &y, rm).unwrap());
+                assert_folds_like_z3(&ctx, ctx.fp_sqrt(&x, rm).unwrap());
+            }
+        }
+    }
+
+    /// `a * b + c` for each pair, with `c` an operand or `-(a * b)`, so the
+    /// sum is the product's rounding error or an exact zero.
+    #[test]
+    fn fma_folds_match_z3_in_every_mode() {
+        let ctx = Context::new();
+        for (a, b) in operand_pairs() {
+            let (x, y) = (ctx.fpv(a).unwrap(), ctx.fpv(b).unwrap());
+            for c in [a, b, -(a * b)] {
+                let z = ctx.fpv(c).unwrap();
+                for rm in MODES {
+                    assert_folds_like_z3(&ctx, ctx.fp_fma(&x, &y, &z, rm).unwrap());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn to_integer_folds_match_z3_in_every_mode() {
+        let ctx = Context::new();
+        for v in [
+            0.5,
+            1.5,
+            2.5,
+            2.7,
+            -0.5,
+            -2.5,
+            -2.7,
+            4_503_599_627_370_497.5,
+        ] {
+            for x in [Float::F64(v), Float::F32(v as f32)].map(|f| ctx.fpv(f).unwrap()) {
+                for rm in MODES {
+                    assert_folds_like_z3(&ctx, ctx.fp_to_sbv(&x, 64, rm).unwrap());
+                    if v >= 0.0 {
+                        assert_folds_like_z3(&ctx, ctx.fp_to_ubv(&x, 64, rm).unwrap());
+                    }
+                }
+            }
+        }
+    }
+
+    /// f64 to f32, including a tie, the edge of overflow and subnormals.
+    #[test]
+    fn narrowing_folds_match_z3_in_every_mode() {
+        let ctx = Context::new();
+        let tie = 1.0 + 1.0 / 16_777_216.0;
+        for v in [
+            0.1,
+            -0.1,
+            tie,
+            -tie,
+            tie + f64::EPSILON,
+            f64::from(f32::MAX) * (1.0 + 1.0 / 16_777_216.0),
+            f64::from(f32::MAX) * (1.0 + 1.0 / 33_554_432.0),
+            f64::MAX,
+            1e-45,
+            -1e-45,
+            7e-46,
+            1e-300,
+        ] {
+            let x = ctx.fpv(Float::F64(v)).unwrap();
+            for rm in MODES {
+                assert_folds_like_z3(&ctx, ctx.fp_to_fp(&x, FSort::f32(), rm).unwrap());
+            }
+        }
+    }
+
+    /// Integers that do not fit the significand; above 2^53, rounding through
+    /// f64 first would round twice.
+    #[test]
+    fn integer_to_float_folds_match_z3_in_every_mode() {
+        let ctx = Context::new();
+        for v in [
+            (1u64 << 24) + 1,
+            (1 << 24) + 3,
+            (1 << 53) + 1,
+            (1 << 63) + (1 << 10) + 1,
+            (1 << 63) + (1 << 39) + 1,
+            u64::MAX,
+            i64::MIN as u64,
+            -((1i64 << 53) + 1) as u64,
+            -((1i64 << 62) + (1 << 9) + 1) as u64,
+        ] {
+            let int = ctx.bvv(BitVec::from((v, 64))).unwrap();
+            for fsort in [FSort::f32(), FSort::f64()] {
+                for rm in MODES {
+                    assert_folds_like_z3(&ctx, ctx.bv_to_fp_signed(&int, fsort, rm).unwrap());
+                    assert_folds_like_z3(&ctx, ctx.bv_to_fp_unsigned(&int, fsort, rm).unwrap());
+                }
+            }
+        }
+    }
+}
