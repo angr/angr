@@ -60,10 +60,36 @@ impl<K: Hash + Eq, V: Clone> Cache<K, V> for GenericCache<K, V> {
 /// A special cache for when the result type is an AST. Unlike the generic cache,
 /// this cache stores weak references to the AST nodes; the value is a
 /// `Weak<AstNode>`.
-#[derive(Debug, Default)]
-pub struct AstCache<'c>(RwLock<HashMap<u64, Weak<AstNode<'c>>>>);
+///
+/// The map is split into `1 << SHARD_BITS` independently locked shards, so
+/// threads building unrelated terms don't serialize on one lock.
+#[derive(Debug)]
+pub struct AstCache<'c> {
+    shards: Box<[Shard<'c>]>,
+}
 
-impl AstCache<'_> {
+/// Log2 of the number of shards in an [`AstCache`].
+const SHARD_BITS: u32 = 6;
+
+/// One shard, aligned so neighbouring locks do not share a cache line.
+#[derive(Debug, Default)]
+#[repr(align(128))]
+struct Shard<'c>(RwLock<HashMap<u64, Weak<AstNode<'c>>>>);
+
+impl Default for AstCache<'_> {
+    fn default() -> Self {
+        Self {
+            shards: (0..1 << SHARD_BITS).map(|_| Shard::default()).collect(),
+        }
+    }
+}
+
+impl<'c> AstCache<'c> {
+    /// The shard holding `key`, picked by its high bits.
+    fn shard(&self, key: u64) -> &RwLock<HashMap<u64, Weak<AstNode<'c>>>> {
+        &self.shards[(key >> (u64::BITS - SHARD_BITS)) as usize].0
+    }
+
     /// Remove `key` if its entry is expired (no strong refs left). Called from
     /// `AstNode::drop` so dead nodes don't leave entries (and their pinned
     /// `ArcInner` allocations) behind.
@@ -78,14 +104,15 @@ impl AstCache<'_> {
     /// served with only the read lock; the write lock is taken just when the
     /// entry actually looks dead, and the check is repeated under it.
     pub(crate) fn remove_if_expired(&self, key: u64) {
+        let shard = self.shard(key);
         {
-            let inner = self.0.read().unwrap();
+            let inner = shard.read().unwrap();
             match inner.get(&key) {
                 Some(weak) if weak.strong_count() == 0 => {}
                 _ => return,
             }
         }
-        let mut inner = self.0.write().unwrap();
+        let mut inner = shard.write().unwrap();
         if let Some(weak) = inner.get(&key)
             && weak.strong_count() == 0
         {
@@ -96,7 +123,7 @@ impl AstCache<'_> {
     /// Number of entries currently in the cache (live or expired). For tests
     /// and diagnostics.
     pub fn len(&self) -> usize {
-        self.0.read().unwrap().len()
+        self.shards.iter().map(|s| s.0.read().unwrap().len()).sum()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -106,11 +133,15 @@ impl AstCache<'_> {
 
 impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
     fn get(&self, key: &u64) -> Option<AstRef<'c>> {
-        self.0.read().unwrap().get(key).and_then(Weak::upgrade)
+        self.shard(*key)
+            .read()
+            .unwrap()
+            .get(key)
+            .and_then(Weak::upgrade)
     }
 
     fn insert(&self, key: u64, value: &AstRef<'c>) {
-        let mut inner = self.0.write().unwrap();
+        let mut inner = self.shard(key).write().unwrap();
         inner.insert(key, Arc::downgrade(value));
     }
 
@@ -127,7 +158,7 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
         // Declared before the guard so a losing duplicate drops after the
         // lock is released: its `Drop` takes the lock.
         let built = value_cv()?;
-        let mut inner = self.0.write().unwrap();
+        let mut inner = self.shard(key).write().unwrap();
         if let Some(live) = inner.get(&key).and_then(Weak::upgrade) {
             return Ok(live);
         }
@@ -281,6 +312,20 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_ast_cache_extreme_keys() -> Result<(), ClarirsError> {
+        let ctx = crate::context::Context::new();
+        let cache = AstCache::default();
+        let a = ctx.bvv(BitVec::from((1, 64)))?;
+        let b = ctx.bvv(BitVec::from((2, 64)))?;
+        cache.insert(0, &a);
+        cache.insert(u64::MAX, &b);
+        assert!(Arc::ptr_eq(&cache.get(&0).unwrap(), &a));
+        assert!(Arc::ptr_eq(&cache.get(&u64::MAX).unwrap(), &b));
+        assert_eq!(cache.len(), 2);
+        Ok(())
     }
 
     #[test]
