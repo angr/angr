@@ -25,7 +25,13 @@ from angr.rustylib.function_graph import NodeKind
 from angr.utils.smart_cache import SmartLRUCache
 
 from .function import Function, FunctionRecord
-from .function_index import AnyFunctionIndex, FunctionAddrsView, make_function_index, make_function_index_for_keys
+from .function_index import (
+    AnyFunctionIndex,
+    ChangeCursor,
+    FunctionAddrsView,
+    make_function_index,
+    make_function_index_for_keys,
+)
 from .function_parser import FunctionParser
 from .soot_function import SootFunction
 
@@ -885,6 +891,20 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     @property
     def function_addrs_set(self) -> FunctionAddrsView:
         return FunctionAddrsView(self)
+
+    def changes_cursor(self) -> ChangeCursor:
+        """
+        Start logging function additions and removals (if not yet) and return a cursor for changes_since().
+        """
+        return self._index.changes_cursor()
+
+    def changes_since(self, cursor: ChangeCursor) -> tuple[list[K], list[K], ChangeCursor] | None:
+        """
+        The net function-address changes since `cursor`: (added, removed, new_cursor), each list in ascending order.
+        An address added and removed again appears in neither. None if the cursor is not valid on this manager (its
+        address index was replaced, copied or cleared since); reload all addresses and take a new cursor then.
+        """
+        return self._index.changes_since(cursor)
 
     @property
     def _func_block_counts(self) -> dict[K, int]:

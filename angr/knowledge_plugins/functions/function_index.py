@@ -15,10 +15,32 @@ from typing import TYPE_CHECKING, Any
 
 from sortedcontainers import SortedList
 
-from angr.rustylib.function_core import FunctionIndex  # pylint:disable=import-error,no-name-in-module
+from angr.rustylib.function_core import (  # pylint:disable=import-error,no-name-in-module
+    FunctionIndex,
+    new_change_epoch,
+)
 
 if TYPE_CHECKING:
     from .function_manager import FunctionManager
+
+# (epoch, position) in an address change log
+ChangeCursor = tuple[int, int]
+
+
+def _net_changes(entries: list[tuple[Any, bool]]) -> tuple[list, list]:
+    """
+    The net (added, removed), sorted, of a sequence of successful insertions (True) and removals (False).
+    """
+    net: dict[Any, list[bool]] = {}
+    for addr, added in entries:
+        e = net.get(addr)
+        if e is None:
+            net[addr] = [added, added]
+        else:
+            e[1] = added
+    added_ = sorted(a for a, (first, last) in net.items() if first and last)
+    removed = sorted(a for a, (first, last) in net.items() if not first and not last)
+    return added_, removed
 
 
 class PyFunctionIndex:
@@ -40,6 +62,12 @@ class PyFunctionIndex:
         self._binnames: list[tuple[int, int, str | None]] = []
         self._plt_ranges: list[tuple[int, int]] = []
         self._plt_addrs: set[int] = set()
+        self._reset_changes()
+
+    def _reset_changes(self) -> None:
+        # None until the first cursor: nothing is logged without a consumer
+        self._changes_epoch: int = new_change_epoch()
+        self._changes: list[tuple[Any, bool]] | None = None
 
     def copy(self) -> PyFunctionIndex:
         o = PyFunctionIndex()
@@ -63,16 +91,33 @@ class PyFunctionIndex:
         if addr in self._addrs:
             return False
         self._addrs.add(addr)
+        if self._changes is not None:
+            self._changes.append((addr, True))
         return True
 
     def discard(self, addr) -> bool:
         if addr in self._addrs:
             self._addrs.remove(addr)
+            if self._changes is not None:
+                self._changes.append((addr, False))
             return True
         return False
 
     def clear_addrs(self) -> None:
         self._addrs.clear()
+        self._reset_changes()
+
+    def changes_cursor(self) -> ChangeCursor:
+        if self._changes is None:
+            self._changes = []
+        return self._changes_epoch, len(self._changes)
+
+    def changes_since(self, cursor: ChangeCursor) -> tuple[list, list, ChangeCursor] | None:
+        epoch, pos = cursor
+        if epoch != self._changes_epoch or self._changes is None or pos > len(self._changes):
+            return None
+        added, removed = _net_changes(self._changes[pos:])
+        return added, removed, (epoch, len(self._changes))
 
     def __contains__(self, addr) -> bool:
         return addr in self._addrs
@@ -230,9 +275,9 @@ class PyFunctionIndex:
             addrs.pop(addr, None)
 
     def clear_caches(self) -> None:
-        addrs = self._addrs
+        addrs, epoch, changes = self._addrs, self._changes_epoch, self._changes
         self.__init__()
-        self._addrs = addrs
+        self._addrs, self._changes_epoch, self._changes = addrs, epoch, changes
 
     # binary names and PLT stubs
 
@@ -316,6 +361,7 @@ class FunctionAddrsView(AbstractSet):
 
 __all__ = (
     "AnyFunctionIndex",
+    "ChangeCursor",
     "FunctionAddrsView",
     "FunctionIndex",
     "PyFunctionIndex",

@@ -9,10 +9,11 @@
 //!   for Rust callers): many function objects from records in one call, without `Function.__init__`.
 //! - `FunctionIndex`: the ordered address set of a function map plus the address-keyed caches of
 //!   `FunctionManager` (returning sets, block counts, names, signature sources, key functions, binary-name and
-//!   PLT ranges).
+//!   PLT ranges), and an opt-in log of address-set changes (`changes_cursor` / `changes_since`).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound as RangeBound;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use indexmap::{IndexMap, IndexSet};
 use pyo3::exceptions::PyValueError;
@@ -437,6 +438,86 @@ impl<V> SeqMap<V> {
     }
 }
 
+static NEXT_CHANGE_EPOCH: AtomicU64 = AtomicU64::new(1);
+
+/// A process-wide unique epoch for a change log.
+#[pyfunction]
+pub fn new_change_epoch() -> u64 {
+    NEXT_CHANGE_EPOCH.fetch_add(1, Ordering::Relaxed)
+}
+
+/// `(epoch, position)` in a change log.
+pub type ChangeCursor = (u64, usize);
+/// Net `(added, removed, new_cursor)` since a cursor.
+pub type NetChanges = (Vec<u64>, Vec<u64>, ChangeCursor);
+
+/// Opt-in log of address-set membership changes. Logging starts with the first cursor. Every log gets a fresh
+/// epoch, including clones, so a cursor never reads the log of a copied, cleared or replaced address set.
+pub struct ChangeLog {
+    epoch: u64,
+    enabled: bool,
+    entries: Vec<(u64, bool)>,
+}
+
+impl Default for ChangeLog {
+    fn default() -> Self {
+        ChangeLog {
+            epoch: new_change_epoch(),
+            enabled: false,
+            entries: Vec::new(),
+        }
+    }
+}
+
+impl Clone for ChangeLog {
+    /// A fresh log: cursors of the original are not valid on the clone.
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl ChangeLog {
+    /// Records a successful insertion (`added`) or removal.
+    #[inline]
+    pub fn record(&mut self, addr: u64, added: bool) {
+        if self.enabled {
+            self.entries.push((addr, added));
+        }
+    }
+
+    pub fn cursor(&mut self) -> ChangeCursor {
+        self.enabled = true;
+        (self.epoch, self.entries.len())
+    }
+
+    /// Net membership changes since `cursor`, in ascending address order; None if the cursor is from another log.
+    pub fn since(&self, cursor: ChangeCursor) -> Option<NetChanges> {
+        let (epoch, pos) = cursor;
+        if epoch != self.epoch || !self.enabled || pos > self.entries.len() {
+            return None;
+        }
+        // addr -> (first op was an insertion, last op was an insertion); ops on one address alternate
+        let mut net: FxHashMap<u64, (bool, bool)> = FxHashMap::default();
+        for &(addr, added) in &self.entries[pos..] {
+            net.entry(addr)
+                .and_modify(|e| e.1 = added)
+                .or_insert((added, added));
+        }
+        let mut added = Vec::new();
+        let mut removed = Vec::new();
+        for (addr, (first, last)) in net {
+            match (first, last) {
+                (true, true) => added.push(addr),
+                (false, false) => removed.push(addr),
+                _ => {}
+            }
+        }
+        added.sort_unstable();
+        removed.sort_unstable();
+        Some((added, removed, (self.epoch, self.entries.len())))
+    }
+}
+
 /// The ordered address set of a function map and the address-keyed caches of its FunctionManager.
 ///
 /// The caches follow the Python containers they replace: dict-like caches keep insertion order, and set results
@@ -458,6 +539,7 @@ pub struct FunctionIndex {
     /// min_addr -> max_addr of objects whose PLT stubs were collected, and the stubs.
     plt_ranges: BTreeMap<u64, u64>,
     plt_addrs: FxHashSet<u64>,
+    changes: ChangeLog,
 }
 
 fn set_of<'py>(
@@ -486,16 +568,37 @@ impl FunctionIndex {
 
     /// Returns True if the address is new.
     pub fn add(&mut self, addr: u64) -> bool {
-        self.addrs.insert(addr)
+        let new = self.addrs.insert(addr);
+        if new {
+            self.changes.record(addr, true);
+        }
+        new
     }
 
     /// Returns True if the address was present.
     pub fn discard(&mut self, addr: u64) -> bool {
-        self.addrs.remove(&addr)
+        let present = self.addrs.remove(&addr);
+        if present {
+            self.changes.record(addr, false);
+        }
+        present
     }
 
+    /// Also starts a new change log: cursors taken before are invalid.
     pub fn clear_addrs(&mut self) {
         self.addrs.clear();
+        self.changes = ChangeLog::default();
+    }
+
+    /// Starts logging address changes (if not yet) and returns the current `(epoch, position)`.
+    pub fn changes_cursor(&mut self) -> ChangeCursor {
+        self.changes.cursor()
+    }
+
+    /// `(added, removed, new_cursor)`: the net address changes since `cursor`, in ascending order. None if the
+    /// cursor belongs to another epoch (the index was copied or cleared since); the caller then reloads in full.
+    pub fn changes_since(&self, cursor: ChangeCursor) -> Option<NetChanges> {
+        self.changes.since(cursor)
     }
 
     pub fn __contains__(&self, addr: &Bound<'_, PyAny>) -> bool {
@@ -851,8 +954,10 @@ impl FunctionIndex {
     /// Drops every cache, keeping the addresses.
     pub fn clear_caches(&mut self) {
         let addrs = std::mem::take(&mut self.addrs);
+        let changes = std::mem::take(&mut self.changes);
         *self = Self::default();
         self.addrs = addrs;
+        self.changes = changes;
     }
 
     // --- binary names and PLT stubs -------------------------------------------------------------
@@ -899,6 +1004,7 @@ impl FunctionIndex {
 pub fn function_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FunctionCore>()?;
     m.add_class::<FunctionIndex>()?;
+    m.add_function(wrap_pyfunction!(new_change_epoch, m)?)?;
     Ok(())
 }
 
@@ -924,6 +1030,28 @@ mod tests {
             idx.irange(Some(0x10), Some(0x30), (false, true), true),
             vec![0x30]
         );
+    }
+
+    #[test]
+    fn change_log_net_changes_and_epochs() {
+        let mut idx = FunctionIndex::new();
+        idx.add(0x10);
+        let c = idx.changes_cursor();
+        idx.add(0x20);
+        idx.add(0x30);
+        idx.discard(0x30);
+        idx.discard(0x10);
+        idx.add(0x10);
+        idx.discard(0x40);
+        let (added, removed, c2) = idx.changes_since(c).unwrap();
+        assert_eq!((added, removed), (vec![0x20], vec![]));
+        idx.discard(0x20);
+        assert_eq!(idx.changes_since(c2).unwrap().1, vec![0x20]);
+        assert!(idx.copy().changes_since(c2).is_none());
+        idx.clear_caches();
+        assert!(idx.changes_since(c2).is_some());
+        idx.clear_addrs();
+        assert!(idx.changes_since(c2).is_none());
     }
 
     #[test]

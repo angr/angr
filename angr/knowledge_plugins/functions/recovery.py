@@ -36,6 +36,7 @@ from angr.rustylib.recovery_functions import (
 )
 
 from .function import Function, FunctionInfo, PrototypeSource, _node_key
+from .function_index import ChangeCursor
 from .function_manager import FunctionManager, _missing
 
 if TYPE_CHECKING:
@@ -601,6 +602,13 @@ class RecoveryFunctionManager(FunctionManager[int]):
     @property
     def store(self) -> RecoveryFunctions:
         return self._store
+
+    # membership lives in the store, not in the index
+    def changes_cursor(self) -> ChangeCursor:
+        return self._store.changes_cursor()
+
+    def changes_since(self, cursor: ChangeCursor) -> tuple[list[int], list[int], ChangeCursor] | None:
+        return self._store.changes_since(cursor)
 
     @property
     def callgraph(self) -> RecoveryCallGraph:  # type: ignore[override]

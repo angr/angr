@@ -15,6 +15,7 @@ use pyo3::exceptions::{PyKeyError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyInt, PyString};
 
+use crate::function_core::{ChangeCursor, ChangeLog, NetChanges};
 use crate::function_graph::{
     EdgeKind, EndpointKind, FunctionGraph, NodeKind, PRESENT_CONFIRMED, PRESENT_INS_ADDR,
     PRESENT_OUTSIDE, PRESENT_STMT_IDX, PRESENT_TYPE, SiteKind,
@@ -190,6 +191,8 @@ pub struct RecoveryFunctions {
     pub callgraph: CallGraph,
     /// `factory(addr, syscall)` creates a missing function (and its record) on the Python side.
     pub factory: Option<Py<PyAny>>,
+    /// Opt-in log of function additions and removals.
+    pub changes: ChangeLog,
 }
 
 fn missing(addr: u64) -> PyErr {
@@ -484,6 +487,7 @@ impl RecoveryFunctions {
         }
         let graph = FunctionGraph::untracked(py, FunctionGraph::new(addr))?;
         self.funcs.insert(addr, FuncRecord::new(graph.clone()));
+        self.changes.record(addr, true);
         self.unknown_returning.insert(addr);
         self.callgraph.add_node(addr);
         Ok(graph)
@@ -532,6 +536,7 @@ impl RecoveryFunctions {
             unknown_returning: BTreeSet::new(),
             callgraph: CallGraph::default(),
             factory: None,
+            changes: ChangeLog::default(),
         }
     }
 
@@ -596,6 +601,7 @@ impl RecoveryFunctions {
                 .insert(k.extract::<String>()?, InfoValue::from_py(&v));
         }
         self.funcs.insert(addr, rec);
+        self.changes.record(addr, true);
         self.update_returning_sets(addr, returning);
         self.callgraph.add_node(addr);
         Ok(())
@@ -605,6 +611,7 @@ impl RecoveryFunctions {
         if self.funcs.remove(&addr).is_none() {
             return false;
         }
+        self.changes.record(addr, false);
         self.nonreturning.remove(&addr);
         self.unknown_returning.remove(&addr);
         self.callgraph.remove_node(addr);
@@ -613,6 +620,16 @@ impl RecoveryFunctions {
 
     pub fn contains(&self, addr: u64) -> bool {
         self.funcs.contains_key(&addr)
+    }
+
+    /// `FunctionIndex.changes_cursor` for the function set of the store.
+    pub fn changes_cursor(&mut self) -> ChangeCursor {
+        self.changes.cursor()
+    }
+
+    /// `FunctionIndex.changes_since` for the function set of the store.
+    pub fn changes_since(&self, cursor: ChangeCursor) -> Option<NetChanges> {
+        self.changes.since(cursor)
     }
 
     pub fn __len__(&self) -> usize {
