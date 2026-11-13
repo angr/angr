@@ -5,6 +5,7 @@ __package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:dis
 
 import os
 import random
+from typing import TYPE_CHECKING, cast
 from unittest import TestCase, main, mock
 
 import archinfo
@@ -13,8 +14,13 @@ from angr.analyses.reaching_definitions.heap_allocator import HeapAllocator
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import SubjectType
 from angr.code_location import CodeLocation
+from angr.knowledge_plugins.key_definitions.atoms import Register
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from tests.common import bin_location
+
+if TYPE_CHECKING:
+    from angr.analyses.reaching_definitions.reaching_definitions import ReachingDefinitionsAnalysis
+    from angr.analyses.reaching_definitions.subject import Subject
 
 TESTS_LOCATION = os.path.join(bin_location, "tests")
 
@@ -31,15 +37,22 @@ class _MockFunctionSubject:  # pylint:disable=too-few-public-methods
 
 
 class TestReachingDefinitionsState(TestCase):
-    def test_initializing_rd_state_for_ppc_without_rtoc_value_should_raise_an_error(self):
+    def test_initializing_rd_state_for_ppc_without_an_rtoc_value_defines_no_toc_register(self):
         arch = archinfo.arch_ppc64.ArchPPC64()
-        self.assertRaises(
-            ValueError,
-            ReachingDefinitionsState,
+
+        state = ReachingDefinitionsState(
             CodeLocation(0x42, None),
             arch=arch,
-            subject=_MockFunctionSubject(),
-            analysis=None,
+            subject=cast("Subject", _MockFunctionSubject()),
+            analysis=cast("ReachingDefinitionsAnalysis", None),
+        )
+
+        rtoc_offset = arch.registers["rtoc"][0]
+        self.assertFalse(
+            any(
+                isinstance(definition.atom, Register) and definition.atom.reg_offset == rtoc_offset
+                for definition in state.all_definitions
+            )
         )
 
     def test_initializing_rd_state_for_ppc_with_rtoc_value(self):
