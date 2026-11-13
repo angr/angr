@@ -25,7 +25,7 @@ class TestGoStackCheckPreamble(unittest.TestCase):
 
         text = dec.codegen.text
         # the stack-growth preamble is a loop back to the entry, not a recursive call
-        assert "while (" in text
+        assert "while (" in text or "for (" in text
         assert "runtime.morestack_noctxt" in text
         assert "main.main(" not in text.split("\n{", 1)[1]
         # the body after the preamble is present

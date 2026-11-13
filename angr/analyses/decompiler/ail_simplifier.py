@@ -3491,6 +3491,18 @@ class AILSimplifier(Analysis):
                 if any(succ_varid not in scc for succ_varid in succs_map[varid]):
                     bail = True
                     break
+                # removal keeps a call or a side-effecting dirty helper, which still reads the other members
+                loc = rd.all_vvar_definitions[varid]
+                if loc.is_extern:
+                    continue
+                stmt = blocks_dict[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
+                if (self._statement_has_call_exprs(stmt) and not _is_flags_read_assignment(stmt)) or (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.src, DirtyExpression)
+                    and dirty_has_side_effects(stmt.src)
+                ):
+                    bail = True
+                    break
             if bail or not self._frame_read_vvar_ids.isdisjoint(scc):
                 continue
 

@@ -10,12 +10,13 @@ import unittest
 from unittest import mock
 
 import archinfo
+import networkx
 
 import angr
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Call, Const, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Call, Const, Phi, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Assignment, Return
+from angr.ailment.statement import Assignment, ConditionalJump, Return
 from angr.analyses.decompiler.ail_simplifier import AILSimplifier
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel, populate_model
@@ -149,6 +150,90 @@ class TestDeadAssignmentRemoval(unittest.TestCase):
         assert to_remove == {0, 1}
         assert to_keep == set()
         assert dead_vvar_ids == {0, 1, 2}
+
+
+def _loop_carried_cycle(middle_src):
+    """
+    entry: rax0 = 0; rbx0 = 0
+    loop:  rax1 = phi(rax0, rax3); rbx1 = phi(rbx0, rbx2); rdi = (rax1 & 0xff) | 1; rax3 = middle_src(rdi);
+           rbx2 = rbx1 + 1; if (rbx1 != 5) goto loop
+    exit:  return
+    rax3 is never read outside the cycle.
+    """
+    entry, loop, exit_ = 0x400000, 0x400010, 0x400020
+    proj = angr.load_shellcode(b"\x90" * 0x30 + b"\xc3", arch="amd64", load_address=entry)
+    proj.analyses.CFGFast(normalize=True, cross_references=False, function_starts=[entry])
+    func = proj.kb.functions[entry]
+
+    def reg(varid, offset):
+        return VirtualVariable(varid, varid, 32, VirtualVariableCategory.REGISTER, oident=offset)
+
+    def c(v):
+        return Const(None, v, 32)
+
+    rax, rbx, rdi = 16, 40, 72
+    t = reg(2, rdi)
+    mask = BinaryOp(None, "Or", [BinaryOp(None, "And", [reg(1, rax), c(0xFF)], False, bits=32), c(1)], False, bits=32)
+    blocks = [
+        Block(
+            entry,
+            0x10,
+            idx=0,
+            statements=[
+                Assignment(0, reg(0, rax), c(0), ins_addr=entry),
+                Assignment(1, reg(13, rbx), c(0), ins_addr=entry + 1),
+            ],
+        ),
+        Block(
+            loop,
+            0x10,
+            idx=0,
+            statements=[
+                Assignment(2, reg(1, rax), Phi(None, 32, [((entry, 0), reg(0, rax)), ((loop, 0), reg(3, rax))]),
+                           ins_addr=loop),
+                Assignment(3, reg(11, rbx), Phi(None, 32, [((entry, 0), reg(13, rbx)), ((loop, 0), reg(12, rbx))]),
+                           ins_addr=loop),
+                Assignment(4, t, mask, ins_addr=loop + 3),
+                Assignment(5, reg(3, rax), middle_src(t), ins_addr=loop + 6),
+                Assignment(6, reg(12, rbx), BinaryOp(None, "Add", [reg(11, rbx), c(1)], False, bits=32),
+                           ins_addr=loop + 8),
+                ConditionalJump(
+                    7,
+                    BinaryOp(None, "CmpNE", [reg(11, rbx), c(5)], False, bits=1),
+                    Const(None, loop, 64),
+                    Const(None, exit_, 64),
+                    ins_addr=loop + 0xC,
+                ),
+            ],
+        ),
+        Block(exit_, 4, idx=0, statements=[Return(8, [], ins_addr=exit_)]),
+    ]
+    graph = networkx.DiGraph()
+    graph.add_edge(blocks[0], blocks[1])
+    graph.add_edge(blocks[1], blocks[1])
+    graph.add_edge(blocks[1], blocks[2])
+    simp = proj.analyses.AILSimplifier(func, func_graph=graph, ail_manager=Manager(), fold_expressions=False)
+    loop_block = next(b for b in simp.func_graph if b.addr == loop)
+    return loop_block.statements
+
+
+class TestDeadCycleRemoval(unittest.TestCase):
+    def test_a_cycle_through_a_call_is_kept(self):
+        # the call survives removal, so the cycle that feeds its argument must survive too. removing it left the call
+        # reading an undefined variable.
+        stmts = _loop_carried_cycle(lambda t: Call(None, Const(None, 0x400028, 64), args=[t], bits=32))
+        calls = [s for s in stmts if isinstance(s, Assignment) and isinstance(s.src, Call)]
+        assert len(calls) == 1
+        defined = {s.dst.varid for s in stmts if isinstance(s, Assignment) and isinstance(s.dst, VirtualVariable)}
+        assert calls[0].src.args[0].varid in defined
+        assert any(isinstance(s, Assignment) and isinstance(s.src, Phi) and s.dst.varid == 1 for s in stmts)
+
+    def test_a_cycle_without_a_call_is_removed(self):
+        stmts = _loop_carried_cycle(lambda t: BinaryOp(None, "Add", [t, Const(None, 3, 32)], False, bits=32))
+        rax_defs = {1, 2, 3}
+        assert not any(
+            isinstance(s, Assignment) and isinstance(s.dst, VirtualVariable) and s.dst.varid in rax_defs for s in stmts
+        )
 
 
 class TestPackerFillerDecompilation(unittest.TestCase):
