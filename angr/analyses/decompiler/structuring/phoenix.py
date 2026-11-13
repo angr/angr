@@ -939,19 +939,25 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     successor = next(iter(successor_and_edgecounts.keys()))
 
-            # an exit to a region successor whose only entry in the complete graph is this edge must not be virtualized:
-            # the target would be left without any predecessor in the enclosing region, where no schema can place it.
+            # exits to a region successor that has no entry in the complete graph besides this loop's exits must not be
+            # virtualized: the target would be left without any predecessor in the enclosing region, where no schema can
+            # place it.
             # such a target must be the loop successor instead (the loop is the only way into it, so it follows the
             # loop), provided that the current successor keeps an entry from elsewhere once its exits become gotos.
             # otherwise bail so that this region dissolves into its parent, where the target is a member and the
             # acyclic schemas structure it together with the loop (e.g. a shared error block whose other entries,
             # from loops that were structured earlier, have already become gotos).
+            exit_srcs_by_dst = defaultdict(list)
+            for src, dst in outgoing_edges:
+                exit_srcs_by_dst[dst].append(src)
             sole_entry_dsts = sorted(
-                {
+                (
                     dst
-                    for _, dst in outgoing_edges
-                    if dst is not successor and dst not in graph and self._region.complete_graph_entry_count(dst) == 1
-                },
+                    for dst, srcs in exit_srcs_by_dst.items()
+                    if dst is not successor
+                    and dst not in graph
+                    and self._region.complete_graph_entry_count(dst, excluding=srcs) == 0
+                ),
                 key=lambda n: n.addr,
             )
             if sole_entry_dsts:
