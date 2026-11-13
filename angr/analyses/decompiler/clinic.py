@@ -70,7 +70,7 @@ from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
 from angr.enums import Flavors
 from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
-from angr.go.sim_type import GoSimType
+from angr.go.sim_type import GoSimType, GoSimTypeUnsafePointer
 from angr.go.typehoon.translator import GoTypeTranslator
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
@@ -3299,6 +3299,8 @@ class Clinic(Analysis, Serializable):
                 ty is not None
                 and not isinstance(ty, SimTypeBottom)
                 and ty.size == args[i].with_arch(self.project.arch).size
+                # a parameter declared unsafe.Pointer only gives way to a typed pointer
+                and (not isinstance(args[i], GoSimTypeUnsafePointer) or isinstance(ty, SimTypePointer))
             ):
                 args[i] = ty
                 changed = True
