@@ -179,6 +179,8 @@ class Block(Serializable):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = [
+        # CFBlanket hands out Blocks of its native records through a weak cache
+        "__weakref__",
         "_backup_state",
         "_bytes",
         "_capstone",
@@ -323,7 +325,11 @@ class Block(Serializable):
         return f"<Block for {self.addr:#x}, {self.size} bytes>"
 
     def __getstate__(self):
-        return {k: getattr(self, k) for k in self.__slots__ if k not in {"_capstone", "_disassembly", "_project"}}
+        return {
+            k: getattr(self, k)
+            for k in self.__slots__
+            if k not in {"_capstone", "_disassembly", "_project", "__weakref__"}
+        }
 
     def __setstate__(self, data):
         for k, v in data.items():

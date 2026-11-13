@@ -73,6 +73,8 @@ class MemoryData(Serializable):
     """
 
     __slots__ = (
+        # CFBlanket hands out trimmed copies through a weak cache
+        "__weakref__",
         "_content",
         "_key",
         "_max_size",
