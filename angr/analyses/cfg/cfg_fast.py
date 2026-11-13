@@ -1103,6 +1103,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # mapping to all known thunks
         self._known_thunks = {}
+        # their addresses: the extra_stop_points of every lift, shared by the lifted Blocks
+        self._known_thunk_addrs: set[int] = set()
         # True while kb.functions is a RecoveryFunctionManager (installed by _pre_analysis)
         self._recovery_functions = False
 
@@ -1680,13 +1682,18 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         The Block that the Python path hands to the CFBlanket for a block the Rust lifter lifted: the same lift
         options, lifted lazily.
         """
-        return self._lift(
+        # self._lift() with its defaults spelled out: one Block per Rust-lifted node, so skip the kwargs plumbing
+        return self.project.factory.block(
             addr,
             size=size,
             collect_data_refs=True,
             strict_block_end=True,
             load_from_ro_regions=True,
             const_prop=self._fold_ro_const_loads,
+            extra_stop_points=self._known_thunk_addrs,
+            backup_state=self._base_state,
+            opt_level=1,
+            cross_insn_opt=False,
         )
 
     def _cfb_add_rust_blocks(self, blocks: list[tuple[int, int]]) -> None:
@@ -2136,6 +2143,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # Scan for __x86_return_thunk and friends
         self._known_thunks = self._find_thunks()
+        self._known_thunk_addrs = set(self._known_thunks)
 
         # Go runtime knowledge. Seeding the verdicts before recovery starts is what keeps the code that follows a
         # panic-stub call site from ever being attached to a function, and the code that follows a morestack call
@@ -7658,7 +7666,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         return None
 
     def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs):  # pylint:disable=arguments-differ
-        kwargs["extra_stop_points"] = set(self._known_thunks)
+        kwargs["extra_stop_points"] = self._known_thunk_addrs
         return super()._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
 
     #

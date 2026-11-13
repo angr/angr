@@ -28,6 +28,9 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
+# the instruction addresses of every Block that has not been lifted yet; shared to save an allocation per Block
+_NO_INS_ADDRS = InsAddrList()
+
 
 class DisassemblerBlock:
     """
@@ -231,7 +234,7 @@ class Block(Serializable):
         else:
             raise ValueError('Either "project" or "arch" has to be specified.')
 
-        if project is not None and backup_state is None and project.kb.patches.values():
+        if project is not None and backup_state is None and project.kb.patches.has_patches():
             backup_state = project.kb.patches.patched_entry_state
 
         if isinstance(self.arch, ArchARM):
@@ -267,7 +270,8 @@ class Block(Serializable):
         self._const_prop = const_prop
 
         self._instructions: int | None = num_inst
-        self._instruction_addrs: InsAddrList = InsAddrList()
+        # replaced (never extended) once the block is lifted
+        self._instruction_addrs: InsAddrList = _NO_INS_ADDRS
 
         self._bytes = byte_string
         self.size = size
@@ -275,6 +279,7 @@ class Block(Serializable):
         if size is None:
             if byte_string is not None:
                 size = len(byte_string)
+                self.size = size
             else:
                 vex = self._lift_nocache(skip_stmts)
                 size = vex.size
@@ -283,13 +288,8 @@ class Block(Serializable):
                     self._vex_nostmt = vex
                 else:
                     self._vex = vex
-
-        self.size = size
-
-        if skip_stmts:
-            self._parse_vex_info(self._vex_nostmt)
-        else:
-            self._parse_vex_info(self._vex)
+                self.size = size
+                self._parse_vex_info(vex)
 
         if byte_string is None:
             if backup_state is not None:
