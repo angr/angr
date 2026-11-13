@@ -3384,6 +3384,11 @@ class TestJumpTableResolver(unittest.TestCase):
         assert set(cfg.indirect_jumps[0x414247].resolved_targets) == {0x4144C1}
         # inc esi; xor eax, eax; cmp esi, [esp+0xc]; setb al; jmp [eax*4+0x441a70]
         assert set(cfg.indirect_jumps[0x4144B0].resolved_targets) == {0x414265, 0x4144C1}
+        # jumps through constant slots in .data (e.g., jmp [0x441a7c] at 0x4144c1) do not split the function
+        func = cfg.kb.functions[0x40ED70]
+        for block_addr in (0x414247, 0x4144B0, 0x4144C7, 0x414265):
+            assert block_addr in func.block_addrs_set
+            assert block_addr not in cfg.kb.functions
 
 
 class TestJumpTableResolverCallTables(unittest.TestCase):

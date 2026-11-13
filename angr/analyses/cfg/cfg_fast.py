@@ -4021,9 +4021,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             to_outside, target_func_addr = self._is_branching_to_outside(
                                 cfg_node, resolved_target, current_function_addr, jumpkind, all_successors, irsb
                             )
-                            if jumpkind == "Ijk_Boring" and target_func_addr == current_function_addr:
-                                # an indirect jump should be jumping to the start of a function instead of resuming
-                                # the current one
+                            if (
+                                jumpkind == "Ijk_Boring"
+                                and target_func_addr == current_function_addr
+                                and cfg_node.addr == current_function_addr
+                            ):
+                                # an indirect jump at a function entry is a thunk that jumps to the start of another
+                                # function. elsewhere, obfuscators may replace direct jumps with jumps through constant
+                                # slots (e.g., `jmp [0x441a7c]`), which resume the current function.
                                 target_func_addr = resolved_target
                             edge = FunctionTransitionEdge(
                                 cfg_node,
