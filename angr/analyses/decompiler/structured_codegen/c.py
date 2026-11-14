@@ -110,6 +110,7 @@ from .base import (
     VariableFieldNode,
     VariableNode,
     register_display_name,
+    tie_break_type_name,
     variable_display_name,
     vector_convert_name,
 )
@@ -143,6 +144,7 @@ type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapp
 INDENT_DELTA = 4
 
 _ORDER_CMP_OPS = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE"})
+_EQ_CMP_OPS = frozenset({"CmpEQ", "CmpNE"})
 _INT_TYPES = (SimTypeInt, SimTypeChar, SimTypeNum)
 _FP_TYPES_BY_BITS: dict[int, type[SimTypeFloat]] = {
     32: SimTypeFloat,
@@ -246,6 +248,44 @@ def is_sign_fixing_cast(cast: CTypeCast) -> bool:
         return False
     sign = int_operand_signedness(cast.expr)
     return sign is not None and sign != d[1]
+
+
+_BOOLEAN_BINARY_OPS = frozenset(
+    {"CmpLE", "CmpLEs", "CmpLT", "CmpLTs", "CmpGT", "CmpGTs", "CmpGE", "CmpGEs", "CmpEQ", "CmpNE", "CmpUN"}
+    | {"LogicalAnd", "LogicalOr", "LogicalXor"}
+)
+
+
+def top_bit_clear(expr: CExpression) -> bool:
+    """Whether a byte-wide expression is known to be below 0x80: a truth value, or a mask with a constant below 0x80."""
+    if isinstance(expr, CUnaryOp):
+        return expr.op == "Not"
+    if not isinstance(expr, CBinaryOp):
+        return False
+    if expr.op in _BOOLEAN_BINARY_OPS:
+        return True
+    return expr.op == "And" and any(
+        isinstance(o, CConstant) and isinstance(o.value, int) and 0 <= o.value < 0x80 for o in (expr.lhs, expr.rhs)
+    )
+
+
+def widens_byte_sign_cast(cast: CTypeCast) -> bool:
+    """
+    Whether an integer cast widens a byte whose signedness a same-width cast changes, e.g. (int)(char)x for an unsigned
+    char x. The inner cast decides whether the widening sign- or zero-extends the byte, so it is not implicit, unless
+    the byte is known to be below 0x80 and both extensions agree, or the byte is the result of an add or a subtract.
+    """
+    inner = cast.expr
+    if not isinstance(inner, CTypeCast) or not is_sign_fixing_cast(inner) or top_bit_clear(inner.expr):
+        return False
+    if isinstance(inner.expr, CBinaryOp) and inner.expr.op in {"Add", "Sub"}:
+        # RemoveRedundantConversions turns Sub(Conv(8->32, x), 3) into Conv(8->32, Sub8(x, 3)) even where the binary
+        # subtracted in 32 bits; kept, the byte cast would wrap there, while C adds narrow operands in int as the
+        # binary did
+        return False
+    d = int_width_and_signedness(cast.dst_type)
+    s = int_width_and_signedness(inner.dst_type)
+    return d is not None and s is not None and s[0] == 8 and d[0] > s[0]
 
 
 def qualifies_for_implicit_cast(ty1, ty2):
@@ -917,13 +957,17 @@ class CFunction(CConstruct, FunctionNode):  # pylint:disable=abstract-method
             # sort by the following:
             #   * if it's a a non-basic type
             #   * the number of occurrences
-            #   * the repr of the type itself
+            #   * the type's name (tie_break_type_name)
             # TODO: The type selection should actually happen during variable unification
             vartypes = [x[1] for x in cvar_and_vartypes]
             count = Counter(vartypes)
             vartypes = sorted(
                 count.copy(),
-                key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
+                key=lambda x, ct=count: (
+                    isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)),
+                    ct[x],
+                    tie_break_type_name(x),
+                ),
             )
 
             vla_dim = self.codegen._array_length_cexprs.get(variable)
@@ -2522,7 +2566,7 @@ class CBinaryOp(CExpression, BinaryOpNode):
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
-        # signedness of an integer ordering compare; None when unknown
+        # the signedness an integer compare reads its operands with; None when unknown or not enforced
         self.signed = signed
         self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
 
@@ -5741,9 +5785,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             rhs = self._fp_operand_bits(rhs, expr.operands[1].bits)
 
         cmp_signed = None
+        bits = expr.operands[0].bits
         if expr.op in _ORDER_CMP_OPS and not expr.floating_point:
             cmp_signed = expr.signed
-            bits = expr.operands[0].bits
+        elif expr.op in _EQ_CMP_OPS and not expr.floating_point:
+            mixed = self._mixed_narrow_equality_operands(expr, lhs, rhs)
+            if mixed is not None:
+                lhs, rhs, bits = mixed
+                # either common signedness compares the bits; read both as signed
+                cmp_signed = True
+        if cmp_signed is not None:
             lhs = self._compare_operand(lhs, bits, cmp_signed)
             rhs = self._compare_operand(rhs, bits, cmp_signed)
 
@@ -5757,9 +5808,51 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             collapsed=expr.depth > self.binop_depth_cutoff,
         )
 
+    def _mixed_narrow_equality_operands(
+        self, expr: Expr.BinaryOp, lhs: CExpression, rhs: CExpression
+    ) -> tuple[CExpression, CExpression, int] | None:
+        """
+        The operands of an equality compare and the width it compares them at, when that width is narrower than int
+        and the two operands read with different signedness; otherwise None. C promotes an operand narrower than int
+        to int by its own signedness, so a char and an unsigned char holding the same byte of 0x80 or more compare
+        unequal; from int width up, C converts a mixed pair to unsigned and equal bits compare equal. Operands widened
+        from one narrower width the same way (both zero- or both sign-extended) compare at that width, and same-width
+        casts are looked through: neither changes which bits are equal, and MakeTypecastsImplicit can drop both later.
+        """
+        bits = expr.operands[0].bits
+        a, b = expr.operands
+        if (
+            isinstance(a, Expr.Convert)
+            and isinstance(b, Expr.Convert)
+            and isinstance(lhs, CTypeCast)
+            and isinstance(rhs, CTypeCast)
+            and a.from_type == a.to_type == b.from_type == b.to_type == Expr.ConvertType.TYPE_INT
+            and a.from_bits == b.from_bits < a.to_bits
+            and a.is_signed == b.is_signed
+        ):
+            lhs, rhs, bits = lhs.expr, rhs.expr, a.from_bits
+        if bits >= self.project.arch.sizeof.get("int", 32):
+            return None
+        operands = []
+        for operand in (lhs, rhs):
+            while isinstance(operand, CTypeCast):
+                src = int_width_and_signedness(unpack_typeref(operand.src_type))
+                dst = int_width_and_signedness(unpack_typeref(operand.dst_type))
+                if src is None or dst is None or not src[0] == dst[0] == bits:
+                    break
+                operand = operand.expr
+            ws = int_width_and_signedness(unpack_typeref(operand.type))
+            if ws is None or ws[0] != bits:
+                return None
+            operands.append(operand)
+        signs = [int_operand_signedness(operand) for operand in operands]
+        if None in signs or signs[0] == signs[1]:
+            return None
+        return operands[0], operands[1], bits
+
     def _compare_operand(self, operand: CExpression, bits: int, signed: bool) -> CExpression:
         """
-        Make an operand of an integer ordering compare read with the compare's signedness: retype constants (so
+        Make an operand of an integer compare read with the compare's signedness: retype constants (so
         0x80000058 prints as -2147483560 under a signed compare) and cast same-width variables of the other signedness.
         """
         ws = int_width_and_signedness(unpack_typeref(operand.type))
@@ -6281,6 +6374,10 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
     @classmethod
     def collapse(cls, dst_ty: SimType, child: CExpression) -> CExpression:
         result = child
+        if isinstance(child, CTypeCast) and widens_byte_sign_cast(child):
+            # _collapse_cast drops the widening but keeps the byte cast. Dropped here, the widening would leave the
+            # byte cast on its own, where it reads as an implicit same-width conversion and is dropped as well
+            return child
         if isinstance(child, CTypeCast):
             intermediate_ty = child.dst_type
             start_ty = child.src_type
@@ -6326,7 +6423,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
 
     @staticmethod
     def _is_compare_sign_cast(obj: CBinaryOp, operand: CExpression) -> bool:
-        # a cast that makes an ordering-compare operand read with the compare's signedness
+        # a cast that makes a compare operand read with the compare's signedness
         if obj.signed is None or not isinstance(operand, CTypeCast) or not is_sign_fixing_cast(operand):
             return False
         d = int_width_and_signedness(operand.dst_type)
@@ -6378,6 +6475,14 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
     def _collapse_cast(self, obj: CTypeCast, under_fp_cast: bool) -> CExpression:
         if isinstance(obj.dst_type, SimTypeFloat) and isinstance(obj.expr, CTypeCast):
             obj.expr = self._collapse_cast(obj.expr, under_fp_cast=True)
+        elif widens_byte_sign_cast(obj):
+            byte_cast = obj.expr
+            assert isinstance(byte_cast, CTypeCast)
+            byte_cast.expr = self.collapse(byte_cast.dst_type, self.handle(byte_cast.expr))
+            if byte_cast.expr.type is not None:
+                byte_cast.src_type = byte_cast.expr.type
+            if not is_sign_fixing_cast(byte_cast):
+                obj.expr = self._collapse_cast(byte_cast, under_fp_cast=False)
         else:
             obj.expr = self.handle(obj.expr)
         inner = self.collapse(obj.dst_type, obj.expr)

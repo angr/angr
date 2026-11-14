@@ -25,11 +25,14 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CReturn,
     CStructField,
     CStructuredCodeGenerator,
+    CStructuredCodeWalker,
     CTypeCast,
     CUnaryOp,
     CVariable,
     CVariableField,
+    MakeTypecastsImplicit,
     c_return_type,
+    int_operand_signedness,
     qualifies_for_simple_cast,
     type_layout_key,
     type_to_c_repr_chunks,
@@ -53,7 +56,7 @@ from angr.sim_type import (
     TypeRef,
     parse_cpp_file,
 )
-from angr.sim_variable import SimRegisterVariable
+from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimVariable
 from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -94,15 +97,112 @@ class TestConvertRendering(unittest.TestCase):
         assert self._render(32, 1) == "4660 & 1"
 
     def test_truncation_to_representable_width_is_a_cast(self):
-        assert self._render(32, 8) == "(char)4660"
+        assert self._render(32, 8) == "(unsigned char)4660"
         assert self._render(32, 16) == "(unsigned short)4660"
 
     def test_widening_is_always_a_cast(self):
         # Rounding up only loses information when truncating, so widening keeps casting even to a
         # width no C type has.
-        assert self._render(1, 5, value=1) == "(char)1"
+        assert self._render(1, 5, value=1) == "(unsigned char)1"
         assert self._render(8, 12, value=3) == "(unsigned short)3"
         assert self._render(32, 64, value=3) == "(unsigned long long)3"
+
+    def test_narrow_equality_reads_both_operands_with_one_signedness(self):
+        # C promotes a char and an unsigned char by their own signedness, so the same byte of 0x80 or more on both
+        # sides of == would compare unequal
+        codegen = self.codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+
+        def narrowed(bits, signed, value):
+            return Expr.Convert(0, 64, bits, signed, Expr.Const(0, value, 64))
+
+        def widened(expr, signed):
+            return Expr.Convert(0, expr.bits, 32, signed, expr)
+
+        for bits in (8, 16):
+            for op in ("CmpEQ", "CmpNE"):
+                lhs, rhs = narrowed(bits, False, 0x1234), narrowed(bits, True, 0x5678)
+                for operands in ([lhs, rhs], [widened(lhs, False), widened(rhs, False)]):
+                    cmp = codegen._handle(Expr.BinaryOp(0, op, operands, False))
+                    assert isinstance(cmp, CBinaryOp)
+                    assert int_operand_signedness(cmp.lhs) is True and int_operand_signedness(cmp.rhs) is True
+
+        same = codegen._handle(Expr.BinaryOp(0, "CmpEQ", [narrowed(8, False, 1), narrowed(8, False, 2)], False))
+        assert same.c_repr() == "(unsigned char)1 == (unsigned char)2"
+        wide = Expr.BinaryOp(0, "CmpEQ", [narrowed(32, False, 1), narrowed(32, True, 2)], False)
+        assert isinstance(cmp := codegen._handle(wide), CBinaryOp) and cmp.signed is None
+        # a zero-extended byte against a sign-extended one is not a compare of the bytes, so it stays a 32-bit compare
+        lhs, rhs = narrowed(8, False, 1), narrowed(8, True, 2)
+        mixed_widening = Expr.BinaryOp(0, "CmpEQ", [widened(lhs, False), widened(rhs, True)], False)
+        assert isinstance(cmp := codegen._handle(mixed_widening), CBinaryOp) and cmp.signed is None
+
+    def test_widening_a_byte_keeps_the_cast_that_sets_its_extension(self):
+        # (int)(char)b sign-extends an unsigned char b and (unsigned int)(unsigned char)b zero-extends a char b. The
+        # inner cast alone converts implicitly, but without it the byte widens with its own signedness
+        codegen = self.codegen
+
+        def widened_byte(byte_signed):
+            byte = CVariable(
+                SimRegisterVariable(0, 1, name="b"), variable_type=SimTypeChar(signed=byte_signed), codegen=codegen
+            )
+            sign_cast = CTypeCast(None, SimTypeChar(signed=not byte_signed), byte, codegen=codegen)
+            return CTypeCast(None, SimTypeInt(signed=not byte_signed), sign_cast, codegen=codegen)
+
+        for byte_signed in (False, True):
+            expected = "(char)b" if not byte_signed else "(unsigned char)b"
+            assert MakeTypecastsImplicit().handle(widened_byte(byte_signed)).c_repr() == expected
+            word = CVariable(
+                SimRegisterVariable(16, 8, name="w"), variable_type=SimTypeLongLong(signed=False), codegen=codegen
+            )
+            assignment = MakeTypecastsImplicit().handle(CAssignment(word, widened_byte(byte_signed), codegen=codegen))
+            assert isinstance(assignment, CAssignment) and assignment.rhs.c_repr() == expected
+
+        # a byte below 0x80 widens the same either way, so both casts stay implicit
+        byte = CVariable(SimRegisterVariable(0, 1, name="b"), variable_type=SimTypeChar(signed=False), codegen=codegen)
+        masked = CBinaryOp("And", byte, CConstant(0x3F, SimTypeChar(signed=False), codegen=codegen), codegen=codegen)
+        sign_cast = CTypeCast(SimTypeChar(signed=False), SimTypeChar(), masked, codegen=codegen)
+        widened = CTypeCast(None, SimTypeInt(), sign_cast, codegen=codegen)
+        assert MakeTypecastsImplicit().handle(widened).c_repr() == "b & 63"
+
+    def test_widening_a_byte_sum_keeps_the_wider_arithmetic(self):
+        # Conv(8->32, Sub8(b, 3)) is how angr's IR can spell a 32-bit subtract on a widened byte; (unsigned char)(b - 3)
+        # would wrap at 8 bits, so the sum prints as C's int arithmetic
+        codegen = self.codegen
+        byte = CVariable(SimRegisterVariable(0, 1, name="b"), variable_type=SimTypeChar(), codegen=codegen)
+        difference = CBinaryOp("Sub", byte, CConstant(3, SimTypeChar(), codegen=codegen), codegen=codegen)
+        sign_cast = CTypeCast(SimTypeChar(), SimTypeChar(signed=False), difference, codegen=codegen)
+        widened = CTypeCast(None, SimTypeInt(signed=False), sign_cast, codegen=codegen)
+        assert MakeTypecastsImplicit().handle(widened).c_repr() == "b - 3"
+
+
+class TestTiedDeclaration(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        cls.codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+
+    def test_byte_signedness_does_not_change_the_declared_candidate(self):
+        # A variable is declared with the first of its equally common candidate types by name. A byte array passed by
+        # address has to win over a uint48_t when its bytes are unsigned, as it does when they print as char
+        codegen = self.codegen
+        assert isinstance(codegen, CStructuredCodeGenerator) and codegen.cfunc is not None
+        cfunc = codegen.cfunc
+        arch = codegen.project.arch
+        variable = SimStackVariable(-0x40, 6, name="v2")
+        array = SimTypeArray(SimTypeChar(signed=False), 6).with_arch(arch)
+        scalar = SimTypeNum(48, signed=False).with_arch(arch)
+        candidates: list[tuple[CVariable, SimType]] = [
+            (CVariable(variable, variable_type=ty, codegen=codegen), ty) for ty in (scalar, array)
+        ]
+        unified: dict[SimVariable, list[tuple[CVariable, SimType]]] = {variable: candidates}
+        saved = cfunc.unified_local_vars
+        try:
+            cfunc.unified_local_vars = unified
+            declarations = "".join(chunk for chunk, _ in cfunc.variable_list_repr_chunks())
+        finally:
+            cfunc.unified_local_vars = saved
+        assert declarations.strip().startswith("unsigned char v2[6];"), declarations
 
 
 class TestGotoRendering(unittest.TestCase):
@@ -769,3 +869,26 @@ class TestPointerStepInCommaExpression(unittest.TestCase):
         for dst, _, step in comma_steps:
             assert re.search(rf"unsigned int \*{dst};", text) is not None
             assert step == "1", f"{dst} stepped by {step} bytes inside the comma expression"
+
+
+class TestUnsignedByteCompare(unittest.TestCase):
+    def test_unsigned_byte_compare_operand_prints_unsigned(self):
+        # runtime.(*mspan).decPinCounter tests a byte with `cmp byte ptr [rsi+0x10], 6; jbe`, an unsigned compare
+        bin_path = os.path.join(test_location, "x86_64", "windows", "langdetect_go.exe")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x140045F60, call_tree_depth=1)
+        dec = proj.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(cfg.functions[0x140045F60], cfg=cfg.model)
+        assert isinstance(dec.codegen, CStructuredCodeGenerator) and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        compares = []
+
+        class Collector(CStructuredCodeWalker):
+            def handle_CBinaryOp(self, obj):
+                if obj.op == "CmpGT" and isinstance(obj.rhs, CConstant) and obj.rhs.value == 6:
+                    compares.append(obj)
+                return super().handle_CBinaryOp(obj)
+
+        Collector().handle(dec.codegen.cfunc)
+        assert len(compares) == 1
+        assert compares[0].signed is False
+        assert compares[0].lhs.type.c_repr() == "unsigned char"
