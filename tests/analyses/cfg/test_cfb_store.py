@@ -12,7 +12,7 @@ import random
 import unittest
 
 import angr
-from angr.analyses.cfg.cfb import CFBlanket, Unknown
+from angr.analyses.cfg.cfb import CFBlanket, CFBObjectBatch, Unknown
 from angr.block import Block
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
@@ -285,3 +285,22 @@ class TestCfbScan(unittest.TestCase):
             # a current event object is the blanket's object
             blanket = cfb_b._blanket
             assert any(blanket.get(a) is o for a, o in big)
+
+    def test_finalize_matches_fresh_build(self):
+        for binary in ("x86_64/fauxware", "armel/fauxware"):
+            for batch in (False, True):
+                proj, cfg, cfb, events = self._run(binary, batch)
+                old_events = [_brief(*e) for e in (e for b in events for e in b)] if batch else None
+                final = cfb.finalize(kb=cfg.kb)
+                assert final is cfb
+                assert cfb._on_object_added_callback is None and cfb._on_objects_added_callback is None
+                fresh = proj.analyses[CFBlanket].prep(kb=cfg.kb)(exclude_region_types={"kernel", "tls"})
+                assert _rows(cfb) == _rows(fresh), (binary, batch)
+                assert cfb.intervals() == fresh.intervals()
+                assert [r.addr for r in cfb.regions] == [r.addr for r in fresh.regions]
+                if batch:
+                    # batches taken before finalize still read what was added
+                    assert [_brief(*e) for b in events for e in b] == old_events
+                    joined = CFBObjectBatch.concat(events)
+                    assert len(joined) == sum(len(b) for b in events)
+                    assert joined.intervals() == [i for b in events for i in b.intervals()]

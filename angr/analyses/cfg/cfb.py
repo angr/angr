@@ -154,7 +154,7 @@ class CFBObjectBatch(Sequence):
 
     CHUNK = 1024
 
-    __slots__ = ("_cfb", "_chunks", "_len", "_parts", "_starts")
+    __slots__ = ("_cfb", "_chunks", "_intervals", "_len", "_parts", "_starts")
 
     def __init__(self, cfb: CFBlanket, parts: list[CfbEvents | list[tuple[int, Any]]]):
         self._cfb = cfb
@@ -167,6 +167,18 @@ class CFBObjectBatch(Sequence):
         self._len = n
         # materialized chunks of CfbEvents parts, by (part, chunk)
         self._chunks: dict[tuple[int, int], list[tuple[int, Any]]] = {}
+        self._intervals: list[tuple[int, int | None, int, str | None]] | None = None
+
+    @staticmethod
+    def concat(batches: list[CFBObjectBatch]) -> CFBObjectBatch:
+        """
+        One batch of the events of `batches` (of the same blanket), in order, without creating objects.
+        """
+        assert batches
+        parts: list[CfbEvents | list[tuple[int, Any]]] = []
+        for batch in batches:
+            parts.extend(batch._parts)
+        return CFBObjectBatch(batches[0]._cfb, parts)
 
     def __len__(self) -> int:
         return self._len
@@ -210,13 +222,18 @@ class CFBObjectBatch(Sequence):
                 yield from self._chunk(part_idx, chunk_idx)
 
     def intervals(self) -> list[tuple[int, int | None, int, str | None]]:
-        out = []
-        for part in self._parts:
-            if isinstance(part, list):
-                out.extend(CFBlanket._interval(addr, obj) for addr, obj in part)
-            else:
-                out.extend(part.intervals())
-        return out
+        """
+        (addr, size, cls, sort) of each event, in order; computed once.
+        """
+        if self._intervals is None:
+            out = []
+            for part in self._parts:
+                if isinstance(part, list):
+                    out.extend(CFBlanket._interval(addr, obj) for addr, obj in part)
+                else:
+                    out.extend(part.intervals())
+            self._intervals = out
+        return self._intervals
 
 
 class _BlanketView:
@@ -316,9 +333,51 @@ class CFBlanket(Analysis):
 
         # initialize
         with self._bulk():
-            self._add_function_blocks()
-            self._mark_memory_data()
-            self._mark_unknowns()
+            self._build()
+
+    def _build(self) -> None:
+        self._add_function_blocks()
+        self._mark_memory_data()
+        self._mark_unknowns()
+
+    def finalize(self, kb=None, exclude_region_types: set[str] | None = None) -> CFBlanket:
+        """
+        Rebuild this blanket in place as CFBlanket(kb=kb, exclude_region_types=exclude_region_types) would build it,
+        and drop its callbacks: e.g., turn the temporary blanket of a CFG recovery into the final one. Readers see the
+        old contents until the new ones replace them at once.
+
+        :return: self
+        """
+        fresh = CFBlanket.__new__(CFBlanket)
+        fresh.__dict__.update(self.__dict__)
+        if kb is not None:
+            fresh.kb = kb
+        if exclude_region_types is not None:
+            fresh._exclude_region_types = exclude_region_types
+        fresh._store = CfbStore(Block, MemoryData, Unknown, isinstance(self.project.arch, ArchARM))
+        # the tables grow from ours, so that our records still materialize while they are replaced
+        fresh._unknown_regions = list(self._unknown_regions)
+        fresh._unknown_region_ids = dict(self._unknown_region_ids)
+        fresh._block_profiles = list(self._block_profiles)
+        fresh._md_dict = None
+        fresh._on_object_added_callback = None
+        fresh._on_object_removed_callback = None
+        fresh._on_objects_added_callback = None
+        fresh._pending_added = None
+        fresh._bulk_depth = 0
+        fresh._regions = []
+        fresh._init_regions()
+        fresh._build()
+        for name in ("_unknown_regions", "_unknown_region_ids", "_block_profiles", "_md_dict", "_regions"):
+            setattr(self, name, getattr(fresh, name))
+        self._store = fresh._store
+        self.kb = fresh.kb
+        self._exclude_region_types = fresh._exclude_region_types
+        self._on_object_added_callback = None
+        self._on_object_removed_callback = None
+        self._on_objects_added_callback = None
+        self._pending_added = None
+        return self
 
     def _init_regions(self):
         for obj in self.project.loader.all_objects:
