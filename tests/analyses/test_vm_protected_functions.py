@@ -83,8 +83,13 @@ def build_image() -> bytes:
     k = TEXT + 0x300
     put(k, b"\xe9" + rel32(BASE + k, 5, BASE + THEMIDA))
     put(THEMIDA, b"\x9c" + PUSH_ALL + b"\xeb\xfe")
+    # m: the entry saves the flags with a junk-prefixed pushfq (rep pushfq), which VEX does not decode
+    m = TEXT + 0x400
+    put(m, b"\xe9" + rel32(BASE + m, 5, BASE + VMP + 0x600))
+    put(VMP + 0x600, PUSH_ALL[:7] + b"\xf3\x9c" + PUSH_ALL[7:] + b"\xeb\xfe")
     caller = TEXT + 0x380
-    put(caller, b"\xe8" + rel32(BASE + caller, 5, BASE + k) + b"\xe8" + rel32(BASE + caller + 5, 5, BASE + t) + b"\xc3")
+    code = b"".join(b"\xe8" + rel32(BASE + caller + 5 * i, 5, BASE + c) for i, c in enumerate((k, t, m))) + b"\xc3"
+    put(caller, code)
     return bytes(img)
 
 
@@ -110,7 +115,8 @@ class TestVMProtectedFunctions(unittest.TestCase):
         proj = self._project()
         a = proj.analyses.VMProtectedFunctions()
         by_stub = {f.stub_start - BASE: f for f in a.functions}
-        assert sorted(by_stub) == [TEXT + 4, TEXT + 0x204, TEXT + 0x300], [hex(x) for x in by_stub]
+        stubs = [TEXT + 4, TEXT + 0x204, TEXT + 0x300, TEXT + 0x400]
+        assert sorted(by_stub) == stubs, [hex(x) for x in by_stub]
         assert [s.name for s in a.protector_sections] == [".vmp0", ".themida"]
         assert a.unreachable_stubs == [BASE + TEXT + 0x10]
 
@@ -129,6 +135,19 @@ class TestVMProtectedFunctions(unittest.TestCase):
         assert t.protector == "themida" and t.whole_function
         assert t.vmdeobfuscation_kwargs()["start_deobfuscation_immediately"]
         assert proj.kb.obfuscations.vm_protected_functions[t.stub_start] is t
+
+    def test_junk_prefixed_pushf(self):
+        proj = self._project()
+        a = proj.analyses.VMProtectedFunctions()
+        r = a.register_save(BASE + TEXT + 0x400)
+        assert r["ok"] and BASE + VMP + 0x608 in r["trace"]
+        m = next(f for f in a.functions if f.stub_start == BASE + TEXT + 0x400)
+        assert (m.protector, m.vm_entry, m.whole_function) == ("vmprotect", BASE + VMP + 0x600, True)
+        # prefixes that change the instruction are not skipped
+        assert a._junk_prefix_size(BASE + VMP + 0x607) == 1
+        for code in (b"\xf3\xa4", b"\xf3\x90", b"\xf3\x0f\x10\xc1", b"\x9c"):
+            proj.loader.memory.store(BASE + VMP + 0x800, code)
+            assert a._junk_prefix_size(BASE + VMP + 0x800) == 0, code
 
     def test_exits(self):
         try:

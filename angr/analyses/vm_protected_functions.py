@@ -309,6 +309,29 @@ class VMProtectedFunctionsAnalysis(Analysis):
         ins = self._insn(tgt)
         return ins is not None and (ins.mnemonic.startswith("push") or ins.mnemonic in ("call", "jmp"))
 
+    def _lift(self, addr: int):
+        blk = self.project.factory.block(addr)
+        if blk.vex.jumpkind == "Ijk_NoDecode" and blk.instructions:
+            # stop in front of the instruction the lifter rejects
+            blk = self.project.factory.block(addr, num_inst=blk.instructions)
+        return blk
+
+    def _junk_prefix_size(self, addr: int) -> int:
+        """
+        Number of leading f2/f3 bytes at ``addr`` that do not change the instruction after them (obfuscators add them
+        as junk; the lifter rejects some), else 0.
+        """
+        data = self._mem(addr, 16)
+        n = 0
+        while n < 4 and data[n] in (0xF2, 0xF3):
+            n += 1
+        if not n:
+            return 0
+        ins, bare = self._insn(addr), self._insn(addr + n)
+        if ins is None or bare is None or ins.size != bare.size + n:
+            return 0
+        return n if (ins.mnemonic, ins.op_str) == (bare.mnemonic, bare.op_str) else 0
+
     def register_save(self, addr: int, max_insns: int | None = None) -> dict:
         """
         Concretely execute from ``addr`` with every GPR set to a distinct tag. Returns which tags were stored to the
@@ -351,14 +374,19 @@ class VMProtectedFunctionsAnalysis(Analysis):
         cur = st
         while True:
             try:
-                blk = self.project.factory.block(cur.addr)
+                blk = self._lift(cur.addr)
                 insns = blk.capstone.insns
             except Exception:  # pylint:disable=broad-except
                 res["stop"] = "decode"
                 break
             if not insns:
-                res["stop"] = "decode"
-                break
+                skip = self._junk_prefix_size(cur.addr)
+                if not skip:
+                    res["stop"] = "decode"
+                    break
+                cur = cur.copy()
+                cur.regs.ip = cur.addr + skip
+                continue
             for ins in insns:
                 if res["pushf"] is None and ins.mnemonic.startswith("pushf"):
                     res["pushf"] = count[0]
@@ -433,13 +461,14 @@ class VMProtectedFunctionsAnalysis(Analysis):
                     break
                 if a < site < a + ins.size:
                     break
-                tgt = int(ins.op_str, 16) if ins.op_str.startswith("0x") else None
+                branch = ins.mnemonic.startswith(("j", "loop"))
+                tgt = int(ins.op_str, 16) if branch and ins.op_str.startswith("0x") else None
                 if ins.mnemonic == "jmp":
                     if tgt is None:
                         break
                     a = tgt
                     continue
-                if (ins.mnemonic.startswith("j") or ins.mnemonic.startswith("loop")) and tgt is not None:
+                if tgt is not None:
                     work.append(tgt)
                 a = ins.address + ins.size
         return False
