@@ -23,7 +23,7 @@ def rel32(src: int, size: int, dst: int) -> bytes:
     return struct.pack("<i", dst - (src + size))
 
 
-def pe_header(sections) -> bytes:
+def pe_header(sections, pdata=None) -> bytes:
     hdr = bytearray(0x400)
     hdr[0:2] = b"MZ"
     struct.pack_into("<I", hdr, 0x3C, 0x40)
@@ -36,6 +36,8 @@ def pe_header(sections) -> bytes:
     struct.pack_into("<II", hdr, opt + 32, 0x1000, 0x200)
     struct.pack_into("<II", hdr, opt + 56, 0x4000, 0x400)  # SizeOfImage, SizeOfHeaders
     struct.pack_into("<I", hdr, opt + 108, 16)
+    if pdata is not None:
+        struct.pack_into("<II", hdr, opt + 112 + 3 * 8, *pdata)  # exception directory
     off = opt + 0xF0
     for name, rva, flags in sections:
         struct.pack_into("<8sIIII", hdr, off, name, 0x1000, rva, 0x1000, rva)
@@ -46,9 +48,7 @@ def pe_header(sections) -> bytes:
 
 def build_image() -> bytes:
     img = bytearray(0x4000)
-    img[:0x400] = pe_header(
-        [(b".text", TEXT, 0x60000020), (b".vmp0", VMP, 0x60000020), (b".themida", THEMIDA, 0xE0000020)]
-    )
+    functions = []
 
     def put(rva, code):
         img[rva : rva + len(code)] = code
@@ -58,6 +58,7 @@ def build_image() -> bytes:
     put(f, b"\x48\x83\xec\x28" + b"\xe9" + rel32(BASE + f + 4, 5, BASE + VMP))
     put(f + 9, b"\xcc" * (f_exit - f - 9))
     put(f_exit, b"\x48\x83\xc4\x28\xc3")  # native continuation: add rsp, 0x28; ret
+    functions.append((f, f_exit + 5))
     # VMProtect entry stub and handler; it checks the pushed reference, saves everything, calls an API and exits
     put(VMP, b"\x68\x34\x12\x00\x00" + b"\xe8" + rel32(BASE + VMP + 5, 5, BASE + VMP + 0x100))
     h = VMP + 0x100
@@ -74,11 +75,17 @@ def build_image() -> bytes:
     g = TEXT + 0x100
     put(g, b"\x53\xe8" + rel32(BASE + g + 1, 5, BASE + VMP + 0x500) + b"\x5b\xc3")
     put(VMP + 0x500, b"\xb8\x02\x00\x00\x00\xc3")
+    # g2: after such a call, a native context save: not a VM entry either
+    g2 = TEXT + 0x140
+    code = b"\xe8" + rel32(BASE + g2, 5, BASE + VMP + 0x500) + b"\x9c" + PUSH_ALL + POP_ALL + b"\x9d\xc3"
+    put(g2, code)
+    functions += [(g, g + 8), (g2, g2 + len(code))]
     # VMProtect 3.6+ style: the push/call stub is built in place. It borrows rcx/rbx, restores them through
     # rbx-relative loads, leaves the reference on the stack and calls the entry.
     t = TEXT + 0x200
     stub = bytes.fromhex("51539c48c7c350000000488b4c1cc048c744241034120000488b5c1cb89d488d642408")
     put(t, b"\x48\x83\xec\x28" + stub + b"\xe8" + rel32(BASE + t + 4 + len(stub), 5, BASE + h))
+    functions.append((t, t + 4 + len(stub) + 5))
     # k: Themida-style entry: jmp into the writable protector section, which starts with pushfq
     k = TEXT + 0x300
     put(k, b"\xe9" + rel32(BASE + k, 5, BASE + THEMIDA))
@@ -87,9 +94,28 @@ def build_image() -> bytes:
     m = TEXT + 0x400
     put(m, b"\xe9" + rel32(BASE + m, 5, BASE + VMP + 0x600))
     put(VMP + 0x600, PUSH_ALL[:7] + b"\xf3\x9c" + PUSH_ALL[7:] + b"\xeb\xfe")
+    functions += [(k, k + 5), (m, m + 5)]
+    # n: the VM's stubs are in .vmp0 and its handler is in the body n's virtualization freed: the entry hops through
+    # .vmp0 and saves the registers in .text. A second stub is one the VM returns to.
+    n, handler = TEXT + 0x500, TEXT + 0x600
+    put(n, b"\x48\x83\xec\x28" + b"\xe9" + rel32(BASE + n + 4, 5, BASE + VMP + 0x700))
+    for stub in (VMP + 0x700, VMP + 0x740):
+        put(stub, b"\x68\x78\x56\x00\x00" + b"\xe9" + rel32(BASE + stub + 5, 5, BASE + handler))
+    code = b"\x9c" + PUSH_ALL
+    put(handler, code + b"\xe9" + rel32(BASE + handler + len(code), 5, BASE + VMP + 0x780))
+    put(VMP + 0x780, b"\xeb\xfe")
+    functions.append((n, n + 0x180))
     caller = TEXT + 0x380
-    code = b"".join(b"\xe8" + rel32(BASE + caller + 5 * i, 5, BASE + c) for i, c in enumerate((k, t, m))) + b"\xc3"
+    code = b"".join(b"\xe8" + rel32(BASE + caller + 5 * i, 5, BASE + c) for i, c in enumerate((k, t, m, n))) + b"\xc3"
     put(caller, code)
+    functions.append((caller, caller + len(code)))
+
+    table = b"".join(struct.pack("<III", b, e, 0) for b, e in sorted(functions))
+    put(0x800, table)
+    img[:0x400] = pe_header(
+        [(b".text", TEXT, 0x60000020), (b".vmp0", VMP, 0x60000020), (b".themida", THEMIDA, 0xE0000020)],
+        pdata=(0x800, len(table)),
+    )
     return bytes(img)
 
 
@@ -115,7 +141,7 @@ class TestVMProtectedFunctions(unittest.TestCase):
         proj = self._project()
         a = proj.analyses.VMProtectedFunctions()
         by_stub = {f.stub_start - BASE: f for f in a.functions}
-        stubs = [TEXT + 4, TEXT + 0x204, TEXT + 0x300, TEXT + 0x400]
+        stubs = [TEXT + 4, TEXT + 0x204, TEXT + 0x300, TEXT + 0x400, TEXT + 0x504]
         assert sorted(by_stub) == stubs, [hex(x) for x in by_stub]
         assert [s.name for s in a.protector_sections] == [".vmp0", ".themida"]
         assert a.unreachable_stubs == [BASE + TEXT + 0x10]
@@ -148,6 +174,18 @@ class TestVMProtectedFunctions(unittest.TestCase):
         for code in (b"\xf3\xa4", b"\xf3\x90", b"\xf3\x0f\x10\xc1", b"\x9c"):
             proj.loader.memory.store(BASE + VMP + 0x800, code)
             assert a._junk_prefix_size(BASE + VMP + 0x800) == 0, code
+
+    def test_vm_code_in_native_section(self):
+        proj = self._project()
+        a = proj.analyses.VMProtectedFunctions()
+        n = next(f for f in a.functions if f.stub_start == BASE + TEXT + 0x504)
+        assert (n.function_addr, n.vm_entry, n.whole_function) == (BASE + TEXT + 0x500, BASE + VMP + 0x700, False)
+        assert n.function_extent == (BASE + TEXT + 0x500, BASE + TEXT + 0x680)
+        # the registers are saved in .text; the stubs in .vmp0 that jump there are confirmed too, but are not entries
+        r = a.register_save(n.stub_start)
+        assert {a._section_of(x).name for x in r["saved_at"]} == {".text"}
+        assert a.register_save(BASE + VMP + 0x745)["ok"]
+        assert [s.name for s in a.protector_sections] == [".vmp0", ".themida"]
 
     def test_exits(self):
         try:

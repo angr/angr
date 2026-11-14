@@ -307,7 +307,8 @@ class VMProtectedFunctionsAnalysis(Analysis):
 
     def _plausible_target(self, tgt: int) -> bool:
         ins = self._insn(tgt)
-        return ins is not None and (ins.mnemonic.startswith("push") or ins.mnemonic in ("call", "jmp"))
+        # a push, or a transfer (obfuscated entries may start with a junk conditional jump)
+        return ins is not None and (ins.mnemonic.startswith(("push", "j")) or ins.mnemonic == "call")
 
     def _lift(self, addr: int):
         blk = self.project.factory.block(addr)
@@ -476,7 +477,8 @@ class VMProtectedFunctionsAnalysis(Analysis):
     def _confirm(self, site: int, tgt: int, kind: str, func_start: int | None):
         r = self.register_save(site)
         if r["ok"]:
-            return site, r
+            # a call that returns before the registers are saved is an ordinary call
+            return (site, r) if kind != "call" or site + 5 not in r["trace"] else None
         # VMProtect 3.6+ builds the "push <bytecode ref>; call <entry>" in place, ahead of the call: find the stub
         # start. Starting inside the stub restores garbage into the registers it borrowed, so the shortest complete
         # save marks the stub start.
@@ -485,7 +487,9 @@ class VMProtectedFunctionsAnalysis(Analysis):
         best = None
         for p in self._back_starts(site, func_start):
             rr = self.register_save(p, max_insns=min(600, self._max_save_insns))
-            if rr["ok"] and site in rr["trace"] and (best is None or rr["insns"] < best[1]["insns"]):
+            if not rr["ok"] or site not in rr["trace"] or site + 5 in rr["trace"]:
+                continue
+            if best is None or rr["insns"] < best[1]["insns"]:
                 best = (p, rr)
         return best
 
@@ -513,12 +517,23 @@ class VMProtectedFunctionsAnalysis(Analysis):
                 continue
             found.append((site, tgt, kind, r[0], r[1]))
 
-        # The registers must be saved by code in another section than the transfer's own: that section is a
-        # protector section, and transfers originating in one are VM internals.
+        # A section is native when a confirmed stub in it is reached from the start of an exception-directory function.
+        native_ev = set()
+        for f in found:
+            entry = self._containing_table_entry(table, f[3])
+            if entry is not None and self._reachable(f[3], [entry[0]]):
+                native_ev.add(id(self._section_of(f[3])))
+
+        # The registers must be saved by VM code: code in another section than the transfer's own, or, when the VM's
+        # code is interleaved with the transfer's section, code reached through the target section. That section is
+        # a protector section unless it is native, and transfers originating in one are VM internals.
         valid, prot = [], set()
         for f in found:
+            ssec = self._section_of(f[0])
             sec = self._save_section(f[4])
-            if sec is not None and sec is not self._section_of(f[0]):
+            if sec is ssec:
+                sec = self._section_of(f[1])
+            if sec is not None and sec is not ssec and id(sec) not in native_ev:
                 valid.append(f)
                 prot.add(id(sec))
         found = [f for f in valid if id(self._section_of(f[0])) not in prot]
