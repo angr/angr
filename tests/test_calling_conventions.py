@@ -132,6 +132,19 @@ class TestCallingConvention(TestCase):
             with self.assertRaises(AngrTypeError):
                 cc.return_val(unsized)
 
+    def test_SystemVAMD64_scalar_return_clears_rax(self):
+        p = load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        cc = SimCCSystemVAMD64(p.arch)
+        state.regs.rax = claripy.BVV(-1, 64)
+        cc.set_return_val(state, claripy.BVV(0xB, 32), SimTypeInt())
+        assert state.solver.eval(state.regs.rax) == 0xB
+
+        # the fields of a struct packed into rax must not clear each other
+        pair = SimStruct({"a": SimTypeInt(), "b": SimTypeInt()}).with_arch(p.arch)
+        cc.set_return_val(state, {"a": claripy.BVV(1, 32), "b": claripy.BVV(2, 32)}, pair)
+        assert state.solver.eval(state.regs.rax) == 0x2_0000_0001
+
     def test_SystemVAMD64_flatten_int(self):
         arch = archinfo.arch_from_id("amd64")
         cc = SimCCSystemVAMD64(arch)
