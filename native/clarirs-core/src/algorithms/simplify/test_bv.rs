@@ -1399,3 +1399,17 @@ fn test_add_of_negative_constant_is_a_sub() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn test_rotate_shift_mask_amounts_overflow() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 64)?;
+    let shl = ctx.shl(&x, &ctx.bvv(BitVec::from((65u64, 64)))?)?;
+    let lshr = ctx.lshr(&x, &ctx.bvv(BitVec::from((u64::MAX, 64)))?)?;
+    let masked = ctx.and2(
+        &ctx.or2(&shl, &lshr)?,
+        &ctx.bvv(BitVec::from((0xffu64, 64)))?,
+    )?;
+    assert_eq!(masked.simplify()?, masked);
+    Ok(())
+}
