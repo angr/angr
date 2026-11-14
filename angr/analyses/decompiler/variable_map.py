@@ -43,6 +43,10 @@ def variable_map_of(manager: Manager) -> VariableMap:
     return vm
 
 
+def _stack_offset_of(obj) -> int | None:
+    return obj.stack_offset if getattr(obj, "was_stack", False) else None
+
+
 class VariableMap:
     """
     A side container that maps the ``.idx`` of AIL :class:`Statement` and :class:`Expression` objects to
@@ -82,6 +86,7 @@ class VariableMap:
         "_variables",
         "_variants",
         "_vvar_id_to_struct_member",
+        "_vvar_id_to_struct_member_stack_offset",
         "_vvar_id_to_variable",
         "_vvar_id_to_variable_offset",
     )
@@ -110,6 +115,8 @@ class VariableMap:
         # of the access into it. Kept apart from ``variable`` so the atom's own variable stays intact.
         self._struct_members: dict[int, tuple[SimVariable, int]] = {}
         self._vvar_id_to_struct_member: dict[int, tuple[SimVariable, int]] = {}
+        # the stack offset of the vvar a struct_member fallback entry was recorded for
+        self._vvar_id_to_struct_member_stack_offset: dict[int, int | None] = {}
 
     #
     # Key helper
@@ -149,8 +156,11 @@ class VariableMap:
         if m is not None:
             return m
         varid = getattr(obj, "varid", None)
-        if varid is not None:
-            return self._vvar_id_to_struct_member.get(varid)
+        if varid is not None and varid in self._vvar_id_to_struct_member:
+            # dephication may give one ID to vvars of different stack slots
+            if self._vvar_id_to_struct_member_stack_offset[varid] != _stack_offset_of(obj):
+                return None
+            return self._vvar_id_to_struct_member[varid]
         return None
 
     def custom_string(self, obj: AILObject | int) -> bool:
@@ -215,6 +225,7 @@ class VariableMap:
         varid = getattr(obj, "varid", None)
         if varid is not None:
             self._vvar_id_to_struct_member[varid] = variable, offset
+            self._vvar_id_to_struct_member_stack_offset[varid] = _stack_offset_of(obj)
 
     def set_custom_string(self, obj: AILObject | int, value: bool = True) -> None:
         self._custom_strings[self._key(obj)] = value
