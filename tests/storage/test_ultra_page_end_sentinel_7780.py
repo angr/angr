@@ -7,6 +7,7 @@ symbolic_bitmap.get durante los merges de VFG. Master limita los candidatos a `s
 pero el centinela seguía creándose violando el invariante `offsets < page_size`.
 Este test fija el invariante.
 """
+
 from __future__ import annotations
 
 from angr import SimState, claripy
@@ -19,7 +20,6 @@ from angr.storage.memory_mixins import (
     SymbolicMergerMixin,
     UltraPagesMixin,
 )
-
 from tests.common import minimal_project
 
 
