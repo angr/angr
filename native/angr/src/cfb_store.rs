@@ -506,10 +506,40 @@ fn descs_to_py<'py>(
     Ok((pairs, specs))
 }
 
+/// Adds the time until it is dropped to `CfbStore.t_add`.
+struct AddTimer<'a> {
+    store: &'a CfbStore,
+    start: std::time::Instant,
+}
+
+impl<'a> AddTimer<'a> {
+    fn new(store: &'a CfbStore) -> Self {
+        AddTimer {
+            store,
+            start: std::time::Instant::now(),
+        }
+    }
+}
+
+impl Drop for AddTimer<'_> {
+    fn drop(&mut self) {
+        let ns = self.start.elapsed().as_nanos() as u64;
+        self.store
+            .t_add
+            .fetch_add(ns, std::sync::atomic::Ordering::Relaxed);
+        self.store
+            .n_add
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 /// The interval store of a `CFBlanket`.
 #[pyclass(module = "angr.rustylib.cfb", frozen)]
 pub struct CfbStore {
     inner: Mutex<Inner>,
+    /// Nanoseconds spent in, and number of, add calls (for profiling).
+    t_add: std::sync::atomic::AtomicU64,
+    n_add: std::sync::atomic::AtomicU64,
     block_type: Py<PyType>,
     md_type: Py<PyType>,
     unknown_type: Py<PyType>,
@@ -566,6 +596,7 @@ impl CfbStore {
         profile: u32,
         want: bool,
     ) -> PyResult<()> {
+        let _t = AddTimer::new(self);
         let mut grave = Vec::new();
         {
             let mut s = self.lock(py)?;
@@ -596,6 +627,7 @@ impl CfbStore {
     }
 
     fn add_new(&self, py: Python<'_>, objs: Vec<NewObj>, want: bool) -> PyResult<()> {
+        let _t = AddTimer::new(self);
         let mut grave = Vec::new();
         {
             let mut s = self.lock(py)?;
@@ -627,6 +659,8 @@ impl CfbStore {
         inner.purge_at = 4096;
         CfbStore {
             inner: Mutex::new(inner),
+            t_add: Default::default(),
+            n_add: Default::default(),
             block_type,
             md_type,
             unknown_type,
@@ -713,6 +747,7 @@ impl CfbStore {
                 }
             }
         }
+        let _t = AddTimer::new(self);
         let mut grave = Vec::new();
         {
             let mut s = self.lock(py)?;
@@ -852,6 +887,12 @@ impl CfbStore {
         Ok(())
     }
 
+    /// {"add_ns": time spent in add calls, "adds": their number}
+    fn stats(&self) -> std::collections::HashMap<&'static str, u64> {
+        let o = std::sync::atomic::Ordering::Relaxed;
+        [("add_ns", self.t_add.load(o)), ("adds", self.n_add.load(o))].into()
+    }
+
     /// One scan Block (see `add_scan_blocks`) stored at `key`.
     fn add_scan_block(
         &self,
@@ -863,6 +904,7 @@ impl CfbStore {
         want_events: bool,
     ) -> PyResult<()> {
         let key = to_key(key)?;
+        let _t = AddTimer::new(self);
         let mut grave = Vec::new();
         {
             let mut s = self.lock(py)?;
