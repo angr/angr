@@ -1079,13 +1079,16 @@ impl CfbStore {
 
     /// (addr, size, class, sort) of each record with a key in [minimum, maximum] (inclusive, optional), ascending.
     /// class is one of CLASS_*: the class of the object the record materializes to; sort is the MemoryData sort.
-    #[pyo3(signature = (minimum=None, maximum=None))]
+    /// With `class_mask`, only records whose class bit (1 << class) is set.
+    #[pyo3(signature = (minimum=None, maximum=None, class_mask=None))]
     fn intervals<'py>(
         &self,
         py: Python<'py>,
         minimum: Option<i128>,
         maximum: Option<i128>,
+        class_mask: Option<u8>,
     ) -> PyResult<Bound<'py, PyList>> {
+        let mask = class_mask.unwrap_or(u8::MAX);
         let Some((lo, hi)) = bounds(minimum, maximum, (true, true)) else {
             return Ok(PyList::empty(py));
         };
@@ -1094,6 +1097,7 @@ impl CfbStore {
             (
                 s.map
                     .range((lo, hi))
+                    .filter(|(_, r)| mask & (1 << r.class()) != 0)
                     .map(|(&k, r)| (k, r.size_opt(), r.class(), r.sort))
                     .collect(),
                 s.sort_names.clone(),
@@ -1288,15 +1292,25 @@ impl CfbEvents {
         descs_to_py(py, descs)
     }
 
-    /// (addr, size, class, sort) of each event, as `CfbStore.intervals` gives them.
-    fn intervals<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+    /// (addr, size, class, sort) of each event, as `CfbStore.intervals` gives them (`class_mask` likewise).
+    #[pyo3(signature = (class_mask=None))]
+    fn intervals<'py>(
+        &self,
+        py: Python<'py>,
+        class_mask: Option<u8>,
+    ) -> PyResult<Bound<'py, PyList>> {
+        let mask = class_mask.unwrap_or(u8::MAX);
         let names = self.store.get().lock(py)?.sort_names.clone();
         let names: Vec<Option<Bound<'py, PyString>>> = names
             .iter()
             .map(|n| n.as_deref().map(|n| PyString::intern(py, n)))
             .collect();
         let out = PyList::empty(py);
-        for ev in &self.evs {
+        for ev in self
+            .evs
+            .iter()
+            .filter(|ev| mask & (1 << ev.rec.class()) != 0)
+        {
             out.append((
                 ev.key,
                 ev.rec.size_opt(),

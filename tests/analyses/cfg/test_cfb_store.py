@@ -304,3 +304,17 @@ class TestCfbScan(unittest.TestCase):
                     joined = CFBObjectBatch.concat(events)
                     assert len(joined) == sum(len(b) for b in events)
                     assert joined.intervals() == [i for b in events for i in b.intervals()]
+
+    def test_intervals_class_filter(self):
+        _, cfg, cfb, events = self._run("x86_64/fauxware", True)
+        wanted = (CFBlanket.CLASS_BLOCK, CFBlanket.CLASS_MD)
+        for batch in events:
+            assert batch.intervals(classes=wanted) == [i for i in batch.intervals() if i[2] in wanted]
+            assert batch.intervals(classes=()) == []
+        cfb.finalize(kb=cfg.kb)
+        assert cfb.intervals(classes=wanted) == [i for i in cfb.intervals() if i[2] in wanted]
+        assert cfb.intervals(classes=[CFBlanket.CLASS_UNKNOWN])
+        assert all(i[2] == CFBlanket.CLASS_UNKNOWN for i in cfb.intervals(classes=[CFBlanket.CLASS_UNKNOWN]))
+        # plain-list parts are filtered too
+        mixed = CFBObjectBatch(cfb, [cfb.items()[:20]])
+        assert mixed.intervals(classes=wanted) == [i for i in mixed.intervals() if i[2] in wanted]

@@ -145,6 +145,18 @@ class Unknown:
         return f"<Unknown {self.addr:#x}-{self.addr + self.size:#x}>"
 
 
+def _class_mask(classes: Iterable[int] | None) -> int | None:
+    """
+    The bit mask of CLASS_* values that CfbStore.intervals filters by; None for all classes.
+    """
+    if classes is None:
+        return None
+    mask = 0
+    for cls in classes:
+        mask |= 1 << cls
+    return mask
+
+
 class CFBObjectBatch(Sequence):
     """
     The (addr, obj) pairs that one on_objects_added call reports, in order. Objects are created on access, in chunks;
@@ -167,7 +179,8 @@ class CFBObjectBatch(Sequence):
         self._len = n
         # materialized chunks of CfbEvents parts, by (part, chunk)
         self._chunks: dict[tuple[int, int], list[tuple[int, Any]]] = {}
-        self._intervals: list[tuple[int, int | None, int, str | None]] | None = None
+        # intervals() results by class mask (None: all classes)
+        self._intervals: dict[int | None, list[tuple[int, int | None, int, str | None]]] = {}
 
     @staticmethod
     def concat(batches: list[CFBObjectBatch]) -> CFBObjectBatch:
@@ -221,19 +234,23 @@ class CFBObjectBatch(Sequence):
             for chunk_idx in range((len(part) + self.CHUNK - 1) // self.CHUNK):
                 yield from self._chunk(part_idx, chunk_idx)
 
-    def intervals(self) -> list[tuple[int, int | None, int, str | None]]:
+    def intervals(self, classes: Iterable[int] | None = None) -> list[tuple[int, int | None, int, str | None]]:
         """
-        (addr, size, cls, sort) of each event, in order; computed once.
+        (addr, size, cls, sort) of each event, in order, optionally of the given CFBlanket.CLASS_* only; computed once
+        per class selection.
         """
-        if self._intervals is None:
+        mask = _class_mask(classes)
+        out = self._intervals.get(mask)
+        if out is None:
             out = []
             for part in self._parts:
                 if isinstance(part, list):
-                    out.extend(CFBlanket._interval(addr, obj) for addr, obj in part)
+                    rows = (CFBlanket._interval(addr, obj) for addr, obj in part)
+                    out.extend(r for r in rows if mask is None or mask & (1 << r[2]))
                 else:
-                    out.extend(part.intervals())
-            self._intervals = out
-        return self._intervals
+                    out.extend(part.intervals(mask))
+            self._intervals[mask] = out
+        return out
 
 
 class _BlanketView:
@@ -547,13 +564,14 @@ class CFBlanket(Analysis):
         return pairs
 
     def intervals(
-        self, minimum: int | None = None, maximum: int | None = None
+        self, minimum: int | None = None, maximum: int | None = None, classes: Iterable[int] | None = None
     ) -> list[tuple[int, int | None, int, str | None]]:
         """
         (addr, size, cls, sort) of every object with an address in [minimum, maximum], ascending, without creating
         the objects. cls is one of CLASS_BLOCK, CLASS_MD, CLASS_UNKNOWN and CLASS_OTHER; sort is the MemoryData sort.
+        With `classes`, only objects of those classes (filtered before the tuples are built).
         """
-        return self._store.intervals(minimum, maximum)
+        return self._store.intervals(minimum, maximum, _class_mask(classes))
 
     def __getitem__(self, addr):
         obj, spec = self._store.get(addr)
