@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import json
 import unittest
 
+from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.variable_map import VariableMap
 from angr.sim_type import SimTypeChar, SimTypePointer
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
@@ -68,6 +69,18 @@ class TestVariableMap(unittest.TestCase):
         assert vm.variable_offset(2) == 4
         assert vm.custom_string(2) is True
         assert vm.struct_member(2) == (var, 8)
+
+    def test_struct_member_vvar_fallback_needs_same_stack_slot(self):
+        # dephication can give one vvar ID to vvars of different stack slots; the ID fallback must not cross slots
+        vm = VariableMap()
+        struct_var = SimStackVariable(-424, 12, ident="s_1a8")
+        vm.set_struct_member(VirtualVariable(1, 7, 32, VirtualVariableCategory.STACK, oident=-416), struct_var, 8)
+
+        assert vm.struct_member(VirtualVariable(2, 7, 32, VirtualVariableCategory.STACK, oident=-416)) == (
+            struct_var,
+            8,
+        )
+        assert vm.struct_member(VirtualVariable(3, 7, 32, VirtualVariableCategory.STACK, oident=-600)) is None
 
     def test_json_round_trip(self):
         vm = VariableMap()

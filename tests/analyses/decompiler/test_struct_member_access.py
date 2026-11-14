@@ -4,6 +4,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os.path
+import re
 import unittest
 
 import archinfo
@@ -18,7 +19,11 @@ from angr.analyses.decompiler.structured_codegen.c import (
 from angr.sim_type import (
     PointerDisposition,
     SimCppClass,
+    SimStruct,
+    SimTypeBottom,
+    SimTypeFunction,
     SimTypeInt,
+    SimTypeLongLong,
     SimTypePointer,
 )
 from tests.common import bin_location, print_decompilation_result
@@ -62,6 +67,39 @@ class TestStructMemberAccess(unittest.TestCase):
         assert '.a = "123"' in text
         assert ".b.a = 2" in text
         assert ".b.b = 3" in text
+
+
+class TestStructMemberSlotReuse(unittest.TestCase):
+    def test_struct_member_read_before_overwrite(self):
+        # gcc -O2 of: s.a = x; s.b = y; g(&s); old = s.a; s.a = y + 1; h(old); g(&s); return s.b;
+        # the old s.a is reloaded into rdi before the slot is overwritten, so h() gets the old value
+        f_addr, g_addr, h_addr = 0x401130, 0x401180, 0x401190
+        code = bytes.fromhex(
+            "55534889f34883c3014883ec184889e548893c244889ef4889742408e82f000000488b3c2448891c24e832000000"
+            "4889efe81a000000488b4424084883c4185b5dc3662e0f1f8400000000000f1f4000"
+            "488b074803470848894708c30f1f4000"  # g
+            "48893d812e0000c3"  # h
+        )
+        proj = angr.load_shellcode(code, arch="AMD64", load_address=f_addr)
+        cfg = proj.analyses.CFGFast(normalize=True, function_starts=[f_addr, g_addr, h_addr])
+        proj.analyses.CompleteCallingConventions(recover_variables=False)
+        proj.kb.functions[g_addr].name = "g"
+        proj.kb.functions[h_addr].name = "h"
+        arch = proj.arch
+        struct = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong()}, name="S").with_arch(arch)
+        proj.kb.functions[g_addr].prototype = SimTypeFunction(
+            [SimTypePointer(struct)], SimTypeLongLong()
+        ).with_arch(arch)
+        proj.kb.functions[h_addr].prototype = SimTypeFunction([SimTypeLongLong()], SimTypeBottom()).with_arch(arch)
+
+        dec = proj.analyses.Decompiler(proj.kb.functions[f_addr], cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        text = dec.codegen.text
+        assert re.search(r"\b(v\d+)\.a = [^;]+;\s*h\(\1\.a\);", text) is None, text
+        written = re.search(r"\b(v\d+)\.a = a0;", text)
+        assert written is not None, text
+        assert re.search(rf"\bh\({written.group(1)}\.a\);", text) is not None, text
 
 
 class _MinimalCodegen(CStructuredCodeGenerator):
