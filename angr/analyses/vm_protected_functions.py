@@ -89,6 +89,9 @@ class VMProtectedFunction:
     confidence: float
     whole_function: bool
     stub_addrs: list[int] = field(default_factory=list)
+    # entries in the same function that its native code does not reach from the start: regions entered after an
+    # earlier one exits, and VM re-entry stubs
+    later_entry_sites: list[int] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
     exits: list[VMExit] | None = None
 
@@ -105,7 +108,7 @@ class VMProtectedFunction:
         kw = {
             "start_addr": start,
             "vm_start_addr": start,
-            "vm_entry_sites": sorted({self.stub_start, self.entry_site, *self.stub_addrs}),
+            "vm_entry_sites": sorted({self.stub_start, self.entry_site, *self.stub_addrs, *self.later_entry_sites}),
             "vm_function_extent": self.function_extent,
         }
         if self.whole_function:
@@ -250,8 +253,8 @@ class VMProtectedFunctionsAnalysis(Analysis):
             or (ins.mnemonic == "mov" and ops.startswith("qwordptr[rsp+"))
         )
 
-    def _known_function_starts(self, native: list[PESection]) -> set[int]:
-        starts = {f for f in self.kb.functions} if len(self.kb.functions) else set()
+    def _known_function_starts(self, native: list[PESection], cfg: bool = True) -> set[int]:
+        starts = {f for f in self.kb.functions} if cfg and len(self.kb.functions) else set()
         table = self._function_table()
         starts |= {b for b, _ in table}
         mo = self.project.loader.main_object
@@ -279,6 +282,19 @@ class VMProtectedFunctionsAnalysis(Analysis):
                     if a % 16 == 0 and a < s.init_end and self._is_prologue(a):
                         starts.add(a)
         return starts
+
+    def _is_function_boundary(self, addr: int, firm: set[int], vm_targets: set[int]) -> bool:
+        """
+        Without an exception directory: does a function start at ``addr``? CFG recovery also puts functions on the
+        VM code and junk that fill a virtualized body, so a start known from it alone must look like one: a prologue
+        that follows a return or padding and that the VM does not jump to.
+        """
+        if addr in firm:
+            return True
+        if addr in vm_targets or not self._is_prologue(addr):
+            return False
+        prev = self._mem(addr - 3, 3)
+        return prev[2] in (0xC3, 0xCC) or prev[0] == 0xC2
 
     #
     # Entry discovery
@@ -539,10 +555,16 @@ class VMProtectedFunctionsAnalysis(Analysis):
         found = [f for f in valid if id(self._section_of(f[0])) not in prot]
         self.protector_sections = [s for s in execs if id(s) in prot]
         native = [s for s in execs if id(s) not in prot]
-        starts = sorted(self._known_function_starts(native))
+        starts = self._known_function_starts(native)
+        if not table:
+            firm = self._known_function_starts(native, cfg=False)
+            vm_targets = {t for s, t, k in cands if k == "jmp" and id(self._section_of(s)) in prot}
+            starts = {a for a in starts if self._is_function_boundary(a, firm, vm_targets)}
+        starts = sorted(starts)
 
         # Stubs reached only by the VM (re-entry stubs VMProtect puts in the space a virtualized body freed) are not
         # function entries: the entry must be reached by the function's native code.
+        later = []
         if table or starts:
             reach = []
             for f in found:
@@ -552,6 +574,7 @@ class VMProtectedFunctionsAnalysis(Analysis):
                     reach.append(f)
                 else:
                     self.unreachable_stubs.append(f[3])
+                    later.append(f)
             found = reach
 
         by_stub = {}
@@ -561,6 +584,11 @@ class VMProtectedFunctionsAnalysis(Analysis):
             by_stub[stub] = (site, tgt, kind, stub, r)
         for site, tgt, kind, stub, r in sorted(by_stub.values(), key=lambda x: x[3]):
             self.functions.append(self._describe(site, tgt, kind, stub, r, table, starts, native))
+        for site, _, _, stub, _ in later:
+            for func in self.functions:
+                ext = func.function_extent
+                if ext is not None and ext[0] <= stub < ext[1]:
+                    func.later_entry_sites = sorted({*func.later_entry_sites, stub, site})
 
     def _save_section(self, r) -> PESection | None:
         counts = {}
