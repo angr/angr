@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections.abc import Callable, Iterable, Iterator
+from bisect import bisect_right
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any
 
 import cle
@@ -27,6 +28,7 @@ from angr.rustylib.cfb import (
     KIND_MD,
     KIND_TRIM,
     KIND_UNKNOWN,
+    CfbEvents,
     CfbStore,
 )
 
@@ -143,6 +145,80 @@ class Unknown:
         return f"<Unknown {self.addr:#x}-{self.addr + self.size:#x}>"
 
 
+class CFBObjectBatch(Sequence):
+    """
+    The (addr, obj) pairs that one on_objects_added call reports, in order. Objects are created on access, in chunks;
+    an object that is still in the blanket is the blanket's object. intervals() reports (addr, size, cls, sort)
+    without creating objects, like CFBlanket.intervals().
+    """
+
+    CHUNK = 1024
+
+    __slots__ = ("_cfb", "_chunks", "_len", "_parts", "_starts")
+
+    def __init__(self, cfb: CFBlanket, parts: list[CfbEvents | list[tuple[int, Any]]]):
+        self._cfb = cfb
+        self._parts = parts
+        self._starts: list[int] = []
+        n = 0
+        for part in parts:
+            self._starts.append(n)
+            n += len(part)
+        self._len = n
+        # materialized chunks of CfbEvents parts, by (part, chunk)
+        self._chunks: dict[tuple[int, int], list[tuple[int, Any]]] = {}
+
+    def __len__(self) -> int:
+        return self._len
+
+    def _chunk(self, part_idx: int, chunk_idx: int) -> list[tuple[int, Any]]:
+        key = (part_idx, chunk_idx)
+        pairs = self._chunks.get(key)
+        if pairs is None:
+            part = self._parts[part_idx]
+            assert isinstance(part, CfbEvents)
+            start = chunk_idx * self.CHUNK
+            pairs, specs = part.descs(start, start + self.CHUNK)
+            if specs:
+                self._cfb._materialize_pairs(pairs, specs)
+            self._chunks[key] = pairs
+        return pairs
+
+    def _item(self, i: int) -> tuple[int, Any]:
+        part_idx = bisect_right(self._starts, i) - 1
+        offset = i - self._starts[part_idx]
+        part = self._parts[part_idx]
+        if isinstance(part, list):
+            return part[offset]
+        return self._chunk(part_idx, offset // self.CHUNK)[offset % self.CHUNK]
+
+    def __getitem__(self, i):  # type: ignore[override]
+        if isinstance(i, slice):
+            return [self._item(j) for j in range(*i.indices(self._len))]
+        if i < 0:
+            i += self._len
+        if not 0 <= i < self._len:
+            raise IndexError(i)
+        return self._item(i)
+
+    def __iter__(self) -> Iterator[tuple[int, Any]]:
+        for part_idx, part in enumerate(self._parts):
+            if isinstance(part, list):
+                yield from part
+                continue
+            for chunk_idx in range((len(part) + self.CHUNK - 1) // self.CHUNK):
+                yield from self._chunk(part_idx, chunk_idx)
+
+    def intervals(self) -> list[tuple[int, int | None, int, str | None]]:
+        out = []
+        for part in self._parts:
+            if isinstance(part, list):
+                out.extend(CFBlanket._interval(addr, obj) for addr, obj in part)
+            else:
+                out.extend(part.intervals())
+        return out
+
+
 class _BlanketView:
     """
     `CFBlanket._blanket`: a read-only mapping view of the blanket, for code written against the SortedDict of earlier
@@ -207,15 +283,16 @@ class CFBlanket(Analysis):
         exclude_region_types: set[str] | None = None,
         on_object_added: Callable[[int, Any], None] | None = None,
         on_object_removed: Callable[[int, Any], None] | None = None,
-        on_objects_added: Callable[[list[tuple[int, Any]]], None] | None = None,
+        on_objects_added: Callable[[CFBObjectBatch], None] | None = None,
     ):
         """
         :param on_object_added:   Callable with parameters (addr, obj) called after an object is added to the blanket.
         :param on_object_removed: Callable with parameters (addr, obj) called after an object is removed from the
                                   blanket.
-        :param on_objects_added:  Callable with a list of (addr, obj) called after objects are added to the blanket:
+        :param on_objects_added:  Callable with a CFBObjectBatch (a lazy sequence of (addr, obj)) called after objects
+                                  are added to the blanket:
                                   once per add_obj/remove_obj call that added objects, once per add_objs call, and
-                                  once for the initial build. The lists hold what on_object_added gets, in order.
+                                  once for the initial build. A batch holds what on_object_added gets, in order.
         """
         self._store = CfbStore(Block, MemoryData, Unknown, isinstance(self.project.arch, ArchARM))
         # (object, segment, section, loader) of the native Unknown records, by region id
@@ -223,12 +300,14 @@ class CFBlanket(Analysis):
         self._unknown_region_ids: dict[tuple[int, int, int, bool], int] = {}
         # the memory data of the CFG model that MemoryData records refer to
         self._md_dict: MemoryDataDict | None = None
+        # lift options of BLOCK records by profile id; 0 is factory.block's defaults
+        self._block_profiles: list[dict[str, Any] | None] = [None]
 
         self._on_object_added_callback = on_object_added
         self._on_object_removed_callback = on_object_removed
         self._on_objects_added_callback = on_objects_added
-        # the (addr, obj) pairs not yet delivered to on_objects_added; None without that callback
-        self._pending_added: list[tuple[int, Any]] | None = None if on_objects_added is None else []
+        # the events not yet delivered to on_objects_added, as CFBObjectBatch parts; None without that callback
+        self._pending_added: list[CfbEvents | list[tuple[int, Any]]] | None = None if on_objects_added is None else []
         self._bulk_depth = 0
         self._regions = []
         self._exclude_region_types = exclude_region_types or set()
@@ -436,6 +515,10 @@ class CFBlanket(Analysis):
             # positional: about half the cost of keywords, and native Unknowns are the most common events
             return Unknown(key, size, None, object_, segment, section, loader)
         if kind == KIND_BLOCK:
+            if payload:
+                # a block of a CFG scan, keyed by its real address
+                lift_addr = key | 1 if flags & F_THUMB else key
+                return self.project.factory.block(lift_addr, size=size, **self._block_profiles[payload])
             # as _add_function_blocks' eager path: key is the block address (odd for Thumb)
             return self.project.factory.block(key, size=size)
         if kind == KIND_BLOCK_BYTES:
@@ -471,18 +554,23 @@ class CFBlanket(Analysis):
         """
         Hand the store's queued events to on_object_added and to the on_objects_added queue.
         """
-        pairs, specs = self._store.take_events()
-        if specs:
-            self._materialize_pairs(pairs, specs)
         cb = self._on_object_added_callback
-        if cb:
+        pending = self._pending_added
+        if cb is not None:
+            pairs, specs = self._store.take_events()
+            if specs:
+                self._materialize_pairs(pairs, specs)
             for addr, obj in pairs:
                 cb(addr, obj)
-        pending = self._pending_added
-        if pending is not None:
-            pending.extend(pairs)
-            if self._bulk_depth == 0:
-                self._flush_added()
+            if pending is not None and pairs:
+                pending.append(pairs)
+        elif pending is not None:
+            # objects are created when the batch is read
+            batch = self._store.take_event_batch()
+            if batch is not None:
+                pending.append(batch)
+        if pending is not None and self._bulk_depth == 0:
+            self._flush_added()
 
     @staticmethod
     def _obj_size(obj) -> int | None:
@@ -501,6 +589,39 @@ class CFBlanket(Analysis):
         self._store.add_obj(addr, obj, want)
         if want:
             self._deliver_events()
+
+    def register_block_profile(self, kwargs: dict[str, Any]) -> int:
+        """
+        Register factory.block() keyword arguments for add_scan_block.
+
+        :return: The profile id.
+        """
+        self._block_profiles.append(kwargs)
+        return len(self._block_profiles) - 1
+
+    def add_scan_block(self, addr: int, lift_addr: int, size: int, profile: int) -> None:
+        """
+        add_obj(addr, factory.block(lift_addr, size=size, **profile kwargs)), without creating the Block until it is
+        accessed.
+        """
+        want = self._want_events
+        self._store.add_scan_block(addr, lift_addr, size, profile, want)
+        if want:
+            self._deliver_events()
+
+    @staticmethod
+    def _interval(addr: int, obj) -> tuple[int, int | None, int, str | None]:
+        """
+        What intervals() reports for an object.
+        """
+        size = CFBlanket._obj_size(obj)
+        if isinstance(obj, Block):
+            return addr, size, CLASS_BLOCK, None
+        if isinstance(obj, MemoryData):
+            return addr, size, CLASS_MD, obj.sort
+        if isinstance(obj, Unknown):
+            return addr, size, CLASS_UNKNOWN, None
+        return addr, size, CLASS_OTHER, None
 
     def add_objs(self, objs: Iterable[tuple[int, Any]]) -> None:
         """
@@ -527,20 +648,26 @@ class CFBlanket(Analysis):
         """
         Defer on_objects_added until the outermost bulk operation ends.
         """
-        self._bulk_depth += 1
+        self._bulk_enter()
         try:
             yield
         finally:
-            self._bulk_depth -= 1
-            if self._bulk_depth == 0:
-                self._flush_added()
+            self._bulk_exit()
+
+    def _bulk_enter(self) -> None:
+        self._bulk_depth += 1
+
+    def _bulk_exit(self) -> None:
+        self._bulk_depth -= 1
+        if self._bulk_depth == 0:
+            self._flush_added()
 
     def _flush_added(self) -> None:
         pending = self._pending_added
         if pending:
             self._pending_added = []
             assert self._on_objects_added_callback is not None
-            self._on_objects_added_callback(pending)
+            self._on_objects_added_callback(CFBObjectBatch(self, pending))
 
     def _trim(self, obj, new_start: int, new_end: int):
         """
@@ -625,6 +752,7 @@ class CFBlanket(Analysis):
         self._store = store
         self.__dict__.setdefault("_unknown_regions", [])
         self.__dict__.setdefault("_md_dict", None)
+        self.__dict__.setdefault("_block_profiles", [None])
         self.__dict__.setdefault("_on_objects_added_callback", None)
         self.__dict__.setdefault("_pending_added", None)
         self.__dict__.setdefault("_bulk_depth", 0)

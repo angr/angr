@@ -557,6 +557,44 @@ impl CfbStore {
         })
     }
 
+    /// The Blocks of a CFG scan: (lift address, size) in creation order, keyed by the real address (`addr & ~1` on
+    /// ARM, where an odd lift address is Thumb), lifted with options `profile` (see `KIND_BLOCK`).
+    pub fn add_scan_blocks(
+        &self,
+        py: Python<'_>,
+        blocks: &[(u64, u32)],
+        profile: u32,
+        want: bool,
+    ) -> PyResult<()> {
+        let mut grave = Vec::new();
+        {
+            let mut s = self.lock(py)?;
+            let arm = s.arm;
+            for &(addr, size) in blocks {
+                let key = if arm { addr & !1 } else { addr };
+                s.add(
+                    py,
+                    key,
+                    Self::scan_rec(arm, addr, size, profile),
+                    None,
+                    want,
+                    &mut grave,
+                );
+            }
+        }
+        drop(grave);
+        Ok(())
+    }
+
+    fn scan_rec(arm: bool, lift_addr: u64, size: u32, profile: u32) -> Rec {
+        let mut rec = Rec::new(KIND_BLOCK, CLASS_BLOCK, Some(size as i64));
+        rec.payload = profile;
+        if arm && lift_addr & 1 == 1 {
+            rec.flags |= F_THUMB;
+        }
+        rec
+    }
+
     fn add_new(&self, py: Python<'_>, objs: Vec<NewObj>, want: bool) -> PyResult<()> {
         let mut grave = Vec::new();
         {
@@ -812,6 +850,37 @@ impl CfbStore {
         }
         drop(grave);
         Ok(())
+    }
+
+    /// One scan Block (see `add_scan_blocks`) stored at `key`.
+    fn add_scan_block(
+        &self,
+        py: Python<'_>,
+        key: i128,
+        lift_addr: u64,
+        size: u32,
+        profile: u32,
+        want_events: bool,
+    ) -> PyResult<()> {
+        let key = to_key(key)?;
+        let mut grave = Vec::new();
+        {
+            let mut s = self.lock(py)?;
+            let rec = Self::scan_rec(s.arm, lift_addr, size, profile);
+            s.add(py, key, rec, None, want_events, &mut grave);
+        }
+        drop(grave);
+        Ok(())
+    }
+
+    /// The queued events as a CfbEvents batch, or None if there are none.
+    fn take_event_batch(slf: &Bound<'_, Self>) -> PyResult<Option<CfbEvents>> {
+        let py = slf.py();
+        let evs = std::mem::take(&mut slf.get().lock(py)?.events);
+        Ok((!evs.is_empty()).then(|| CfbEvents {
+            store: slf.clone().unbind(),
+            evs,
+        }))
     }
 
     /// The queued events as (pairs, specs); see `scan`.
@@ -1135,8 +1204,81 @@ fn bounds(
     ok.then_some((lo, hi))
 }
 
+/// Events taken from a CfbStore, materialized on access: an event whose record is still current gives the stored
+/// object, any other a copy of what was added.
+#[pyclass(module = "angr.rustylib.cfb", frozen)]
+pub struct CfbEvents {
+    store: Py<CfbStore>,
+    evs: Vec<Ev>,
+}
+
+#[pymethods]
+impl CfbEvents {
+    fn __len__(&self) -> usize {
+        self.evs.len()
+    }
+
+    /// (pairs, specs) of events [start, stop), as `CfbStore.scan` gives them.
+    fn descs<'py>(
+        &self,
+        py: Python<'py>,
+        start: usize,
+        stop: usize,
+    ) -> PyResult<(Bound<'py, PyList>, Bound<'py, PyList>)> {
+        let stop = stop.min(self.evs.len());
+        let start = start.min(stop);
+        let descs: Vec<(u64, Desc)> = {
+            let s = self.store.get().lock(py)?;
+            self.evs[start..stop]
+                .iter()
+                .map(|ev| {
+                    let current = s
+                        .map
+                        .get(&ev.key)
+                        .is_some_and(|r| r.generation == ev.rec.generation);
+                    (
+                        ev.key,
+                        s.desc(py, ev.key, &ev.rec, ev.src.as_ref(), current),
+                    )
+                })
+                .collect()
+        };
+        descs_to_py(py, descs)
+    }
+
+    /// (addr, size, class, sort) of each event, as `CfbStore.intervals` gives them.
+    fn intervals<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let names = self.store.get().lock(py)?.sort_names.clone();
+        let names: Vec<Option<Bound<'py, PyString>>> = names
+            .iter()
+            .map(|n| n.as_deref().map(|n| PyString::intern(py, n)))
+            .collect();
+        let out = PyList::empty(py);
+        for ev in &self.evs {
+            out.append((
+                ev.key,
+                ev.rec.size_opt(),
+                ev.rec.class(),
+                names[ev.rec.sort as usize].clone(),
+            ))?;
+        }
+        Ok(out)
+    }
+
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        visit.call(&self.store)?;
+        for ev in &self.evs {
+            if let Some(Src::Obj(o)) = &ev.src {
+                visit.call(o)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 pub fn cfb(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CfbStore>()?;
+    m.add_class::<CfbEvents>()?;
     m.add("KIND_PYOBJ", KIND_PYOBJ)?;
     m.add("KIND_UNKNOWN", KIND_UNKNOWN)?;
     m.add("KIND_BLOCK_TRIM", KIND_BLOCK_TRIM)?;

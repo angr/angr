@@ -26,6 +26,7 @@ use pyo3::types::{PyBool, PyDict, PyList, PySet, PyTuple};
 use pyo3::{PyTraverseError, PyVisit};
 use rustc_hash::FxHashSet;
 
+use crate::cfb_store::CfbStore;
 use crate::cfg_graph::{BYTES_LOADER, BYTES_MANUAL, CfgGraph, NodeFields};
 use crate::cfg_jobs::{
     FuncEdge, JK_BORING, JK_CALL, JK_EXCEPTION, JK_FAKERET, JK_RET, JobRec, JobType, NodeRef,
@@ -220,8 +221,10 @@ pub struct BlockScanner {
     conf: Config,
     data_refs: Vec<DataRefRec>,
     new_node_addrs: Vec<u64>,
-    /// `(addr, lifted size)` of each new node in creation order, for `cfg._cfb_add_rust_blocks`; None without a CFB.
+    /// `(addr, lifted size)` of each new node in creation order, for the CFBlanket; None without a CFB.
     cfb_blocks: Option<Vec<(u64, u32)>>,
+    /// Add `cfb_blocks` to the CFBlanket's store in Rust instead of through `cfg._cfb_add_rust_blocks`.
+    cfb_native: bool,
     stats: IndexMap<String, u64>,
     /// `_eh_frame_boundary_addrs_sorted` and the list object it was copied from.
     eh_sorted: Vec<u64>,
@@ -358,8 +361,36 @@ impl BlockScanner {
             && !blocks.is_empty()
         {
             let blocks = std::mem::take(blocks);
-            ctx.cfg
-                .call_method1(intern!(py, "_cfb_add_rust_blocks"), (blocks,))?;
+            if self.cfb_native {
+                // (store, lift profile, whether the CFBlanket wants events, whether per object)
+                let (store, profile, want, per_object): (Bound<'_, CfbStore>, u32, bool, bool) =
+                    ctx.cfg
+                        .call_method0(intern!(py, "_cfb_scan_args"))?
+                        .extract()?;
+                if per_object {
+                    // on_object_added sees the blanket after each block, and on_objects_added gets one batch, as
+                    // with add_objs
+                    ctx.cfg.call_method0(intern!(py, "_cfb_begin_scan_batch"))?;
+                    for block in &blocks {
+                        store.get().add_scan_blocks(
+                            py,
+                            std::slice::from_ref(block),
+                            profile,
+                            true,
+                        )?;
+                        ctx.cfg.call_method0(intern!(py, "_cfb_deliver_events"))?;
+                    }
+                    ctx.cfg.call_method0(intern!(py, "_cfb_end_scan_batch"))?;
+                } else {
+                    store.get().add_scan_blocks(py, &blocks, profile, want)?;
+                    if want {
+                        ctx.cfg.call_method0(intern!(py, "_cfb_deliver_events"))?;
+                    }
+                }
+            } else {
+                ctx.cfg
+                    .call_method1(intern!(py, "_cfb_add_rust_blocks"), (blocks,))?;
+            }
         }
         if !self.new_node_addrs.is_empty() {
             let addrs = std::mem::take(&mut self.new_node_addrs);
@@ -2380,6 +2411,7 @@ impl BlockScanner {
             data_refs: Vec::new(),
             new_node_addrs: Vec::new(),
             cfb_blocks: None,
+            cfb_native: false,
             stats: IndexMap::new(),
             eh_sorted: Vec::new(),
             eh_list: None,
@@ -2390,10 +2422,13 @@ impl BlockScanner {
         })
     }
 
-    /// Hand each new node to `cfg._cfb_add_rust_blocks` (at every flush) so that the CFBlanket gets the blocks the
-    /// Python path would add.
-    fn set_cfb(&mut self, enabled: bool) {
+    /// Hand each new node to the CFBlanket at every flush, so that it gets the blocks the Python path would add:
+    /// with `native`, into the store returned by `cfg._cfb_scan_args()`, then `cfg._cfb_deliver_events()`;
+    /// otherwise through `cfg._cfb_add_rust_blocks`.
+    #[pyo3(signature = (enabled, native=false))]
+    fn set_cfb(&mut self, enabled: bool, native: bool) {
         self.cfb_blocks = enabled.then(Vec::new);
+        self.cfb_native = enabled && native;
     }
 
     /// Resolve indirect jumps through `chain` without escaping to `_create_jobs` where possible. `plt_all` and

@@ -26,6 +26,11 @@ class BlockScanner:
         arch_registers: dict[str, tuple[int, int]],
         arm_options: tuple[bool, bool, bool] | None,
     ) -> None: ...
+    def set_cfb(self, enabled: bool, native: bool = False) -> None:
+        """
+        Hand each new node to the CFBlanket at every flush: with `native`, into the store that
+        `cfg._cfb_scan_args()` returns, then `cfg._cfb_deliver_events()`; otherwise via `cfg._cfb_add_rust_blocks`.
+        """
     def run(self, cfg: Any, budget_ns: int | None = None) -> bool:
         """
         Process queued jobs until the queue is empty or ``budget_ns`` has elapsed (False), or the front job needs

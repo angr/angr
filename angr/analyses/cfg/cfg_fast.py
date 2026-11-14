@@ -56,6 +56,7 @@ from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.rustylib import SegmentList
+from angr.rustylib.cfb import CfbStore
 from angr.rustylib.cfg_block import BlockScanner
 from angr.rustylib.cfg_funcs import FunctionsBuilder
 from angr.rustylib.cfg_jobs import (
@@ -1100,6 +1101,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._data_type_guessing_handlers = [] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
         self._cfb = cfb
+        # the CFBlanket's lift profile id per const_prop value (see _cfb_profile)
+        self._cfb_profiles: dict[bool, int] = {}
+        # whether the CFBlanket gets native records for _cfb_block's blocks; decided when the scan starts
+        self._cfb_native_blocks = False
 
         # mapping to all known thunks
         self._known_thunks = {}
@@ -1675,7 +1680,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             ),
         )
         if self._cfb is not None:
-            self._block_scanner.set_cfb(True)
+            self._block_scanner.set_cfb(True, self._cfb_native_blocks)
 
     def _cfb_block(self, addr: int, size: int) -> Block:
         """
@@ -1695,6 +1700,57 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             opt_level=1,
             cross_insn_opt=False,
         )
+
+    def _cfb_native(self) -> bool:
+        """
+        Whether the CFBlanket gets native records for the blocks _cfb_block would create. A Block created with a
+        backup state, or while there are patches, reads its bytes at once, so those are created eagerly.
+        """
+        return self._base_state is None and not self.project.kb.patches.has_patches()
+
+    def _cfb_profile(self) -> int:
+        """
+        The CFBlanket lift profile of _cfb_block with the current options.
+        """
+        const_prop = self._fold_ro_const_loads
+        profile = self._cfb_profiles.get(const_prop)
+        if profile is None:
+            assert self._cfb is not None
+            profile = self._cfb.register_block_profile(
+                {
+                    "collect_data_refs": True,
+                    "strict_block_end": True,
+                    "load_from_ro_regions": True,
+                    "const_prop": const_prop,
+                    "extra_stop_points": self._known_thunk_addrs,
+                    "backup_state": self._base_state,
+                    "opt_level": 1,
+                    "cross_insn_opt": False,
+                }
+            )
+            self._cfb_profiles[const_prop] = profile
+        return profile
+
+    def _cfb_scan_args(self) -> tuple[CfbStore, int, bool, bool]:
+        """
+        (store, lift profile, whether events are wanted, whether on_object_added wants them one by one) for the Rust
+        scan's CFBlanket blocks.
+        """
+        assert self._cfb is not None
+        cfb = self._cfb
+        return cfb._store, self._cfb_profile(), cfb._want_events, cfb._on_object_added_callback is not None
+
+    def _cfb_deliver_events(self) -> None:
+        assert self._cfb is not None
+        self._cfb._deliver_events()
+
+    def _cfb_begin_scan_batch(self) -> None:
+        assert self._cfb is not None
+        self._cfb._bulk_enter()
+
+    def _cfb_end_scan_batch(self) -> None:
+        assert self._cfb is not None
+        self._cfb._bulk_exit()
 
     def _cfb_add_rust_blocks(self, blocks: list[tuple[int, int]]) -> None:
         """
@@ -2269,6 +2325,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         self._job_ctr = 0
 
+        if self._cfb is not None:
+            self._cfb_native_blocks = self._cfb_native()
         self._init_block_scanner()
         self._init_ijr_chain()
 
@@ -7018,9 +7076,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 byte_string=irsb_string,
             )
             if self._cfb is not None:
-                self._cfb.add_obj(
-                    real_addr, lifted_block if lifted_block is not None else self._cfb_block(addr, cfb_block_size)
-                )
+                if lifted_block is not None:
+                    self._cfb.add_obj(real_addr, lifted_block)
+                elif self._cfb_native_blocks:
+                    self._cfb.add_scan_block(real_addr, addr, cfb_block_size, self._cfb_profile())
+                else:
+                    self._cfb.add_obj(real_addr, self._cfb_block(addr, cfb_block_size))
 
             self._model.add_node(addr, cfg_node)
 
