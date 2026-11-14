@@ -11,6 +11,8 @@ FunctionManager that make_functions() builds afterwards is a normal one.
 
 from __future__ import annotations
 
+import functools
+import weakref
 from collections.abc import Generator, Iterable, Iterator
 from typing import TYPE_CHECKING
 
@@ -128,7 +130,8 @@ class RecoveryFunction(Function):
         graph = store.create(addr)
         self._store = store
         self._gen = 0
-        self._init_slots(function_manager, addr, graph, None, None, None, PrototypeSource.NONE, False)
+        # the manager owns its views; they refer to it weakly
+        self._init_slots(function_manager._self_proxy, addr, graph, None, None, None, PrototypeSource.NONE, False)
         project = self.project
         assert project is not None
         is_syscall = project.simos.is_syscall_addr(addr) if syscall is None else syscall
@@ -164,7 +167,7 @@ class RecoveryFunction(Function):
         self._store = store
         self._gen = 0
         self._init_slots(
-            function_manager,
+            function_manager._self_proxy,
             func.addr,
             func._graph,
             func.calling_convention,
@@ -579,6 +582,15 @@ class RecoveryFunctionMap:
         return r
 
 
+def _call_store_factory(manager_ref: weakref.ref, addr: int, syscall: bool) -> None:
+    """
+    RecoveryFunctions' factory callback; holds its manager weakly.
+    """
+    manager = manager_ref()
+    if manager is not None:
+        manager._store_factory(addr, syscall)
+
+
 class RecoveryFunctionManager(FunctionManager[int]):
     """
     The kb.functions of a CFGFast scan. Function state lives in a Rust RecoveryFunctions store; RecoveryFunction
@@ -589,10 +601,13 @@ class RecoveryFunctionManager(FunctionManager[int]):
         KnowledgeBasePlugin.__init__(self, kb=kb)
         self.function_address_types = kb._project.arch.function_address_types
         self.address_types = kb._project.arch.address_types
+        # views, the function map and the store's factory refer to the manager weakly, so that nothing but its users
+        # keeps it alive: it holds the whole scan state and is dropped once make_functions() has replaced it
+        self._self_proxy = weakref.proxy(self)
         self._store = RecoveryFunctions()
-        self._store.set_factory(self._store_factory)
+        self._store.set_factory(functools.partial(_call_store_factory, weakref.ref(self)))
         self._views: dict[int, RecoveryFunction] = {}
-        self._function_map = RecoveryFunctionMap(self)  # type: ignore[assignment]
+        self._function_map = RecoveryFunctionMap(self._self_proxy)  # type: ignore[assignment]
         self._callgraph = RecoveryCallGraph(self._store)
         self._arg_registers = kb._project.arch.argument_registers
         self._init_caches()
@@ -929,7 +944,7 @@ class RecoveryFunctionManager(FunctionManager[int]):
 
     def clear(self):
         self._store = RecoveryFunctions()
-        self._store.set_factory(self._store_factory)
+        self._store.set_factory(functools.partial(_call_store_factory, weakref.ref(self)))
         self._views = {}
         self._callgraph = RecoveryCallGraph(self._store)
         self._init_caches()

@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import weakref
 from collections import UserDict, defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 from enum import Enum
@@ -144,11 +145,37 @@ class PrototypeSource(int, Enum):
 class FunctionInfo(UserDict):
     """
     A dictionary that updates the .dirty field of the Function object when modified.
+
+    It refers to its function weakly: the function owns it, and a strong back-reference would make every function a
+    reference cycle that only the garbage collector frees.
     """
 
     def __init__(self, func: Function):
         super().__init__()
         self._func = func
+
+    @property
+    def _func(self) -> Function | None:
+        ref = self._func_ref
+        return None if ref is None else ref()
+
+    @_func.setter
+    def _func(self, func: Function | None) -> None:
+        self._func_ref = None if func is None else weakref.ref(func)
+
+    def __getstate__(self):
+        # the owner re-attaches itself (Function.__setstate__)
+        return {"data": self.data}
+
+    def __setstate__(self, state):
+        self.data = state["data"]
+        # states pickled before the weak back-reference carry the function itself
+        self._func = state.get("_func")
+
+    def _mark_dirty(self) -> None:
+        func = self._func
+        if func is not None:
+            func._dirty = True
 
     def __setitem__(self, key, value):
         if not isinstance(value, (str, int, float, bool, list, dict)):
@@ -157,11 +184,11 @@ class FunctionInfo(UserDict):
             )
         if not isinstance(key, str):
             raise TypeError("FunctionInfo only supports str keys.")
-        self._func._dirty = True
+        self._mark_dirty()
         super().__setitem__(key, value)
 
     def __delitem__(self, key):
-        self._func._dirty = True
+        self._mark_dirty()
         super().__delitem__(key)
 
     def copy(self, owner: Function) -> FunctionInfo:  # type: ignore[reportIncompatibleMethodOverride]
@@ -1452,9 +1479,12 @@ class Function(FunctionCore, Serializable):
                 state[k] = False
         if "_graph" not in state:
             self._set_legacy_state(state)
-            return
-        for k, v in state.items():
-            setattr(self, k, v)
+        else:
+            for k, v in state.items():
+                setattr(self, k, v)
+        info = self._info
+        if isinstance(info, FunctionInfo):
+            info._func = self
 
     def _set_legacy_state(self, state: dict) -> None:
         """
