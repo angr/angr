@@ -47,7 +47,7 @@ pub(crate) fn simplify_float<'c>(
             let rhs = state.get_child_simplified(1)?;
             match (lhs.op(), rhs.op()) {
                 (AstOp::FPV(float1), AstOp::FPV(float2)) => {
-                    Ok(ctx.fpv(float1.add_rm(float2, *fprm))?)
+                    Ok(ctx.fpv(float1.add_rm(float2, *fprm)?)?)
                 }
                 _ => Ok(ctx.fp_add(lhs, rhs, *fprm)?),
             }
@@ -57,7 +57,7 @@ pub(crate) fn simplify_float<'c>(
             let rhs = state.get_child_simplified(1)?;
             match (lhs.op(), rhs.op()) {
                 (AstOp::FPV(float1), AstOp::FPV(float2)) => {
-                    Ok(ctx.fpv(float1.sub_rm(float2, *fprm))?)
+                    Ok(ctx.fpv(float1.sub_rm(float2, *fprm)?)?)
                 }
                 _ => Ok(ctx.fp_sub(lhs, rhs, *fprm)?),
             }
@@ -67,7 +67,7 @@ pub(crate) fn simplify_float<'c>(
             let rhs = state.get_child_simplified(1)?;
             match (lhs.op(), rhs.op()) {
                 (AstOp::FPV(float1), AstOp::FPV(float2)) => {
-                    Ok(ctx.fpv(float1.mul_rm(float2, *fprm))?)
+                    Ok(ctx.fpv(float1.mul_rm(float2, *fprm)?)?)
                 }
                 _ => Ok(ctx.fp_mul(lhs, rhs, *fprm)?),
             }
@@ -77,7 +77,7 @@ pub(crate) fn simplify_float<'c>(
             let rhs = state.get_child_simplified(1)?;
             match (lhs.op(), rhs.op()) {
                 (AstOp::FPV(float1), AstOp::FPV(float2)) => {
-                    Ok(ctx.fpv(float1.div_rm(float2, *fprm))?)
+                    Ok(ctx.fpv(float1.div_rm(float2, *fprm)?)?)
                 }
                 _ => Ok(ctx.fp_div(lhs, rhs, *fprm)?),
             }
@@ -117,7 +117,7 @@ pub(crate) fn simplify_float<'c>(
             );
             match (a.op(), b.op(), c.op()) {
                 (AstOp::FPV(fa), AstOp::FPV(fb), AstOp::FPV(fc)) => {
-                    Ok(ctx.fpv(fa.mul_add(fb, fc, *fprm))?)
+                    Ok(ctx.fpv(fa.mul_add(fb, fc, *fprm)?)?)
                 }
                 _ => Ok(ctx.fp_fma(a, b, c, *fprm)?),
             }

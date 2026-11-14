@@ -178,61 +178,68 @@ impl Float {
         }
     }
 
-    /// `operand` in this value's format, rounded to nearest-even if narrowed.
-    fn convert_operand(&self, operand: &Self) -> Self {
-        match (self, operand) {
-            (Float::F32(_), Float::F64(v)) => Float::F32(*v as f32),
-            (Float::F64(_), Float::F32(v)) => Float::F64(f64::from(*v)),
-            _ => *operand,
+    /// An error unless `operand` is in this value's format.
+    fn check_sort(&self, operand: &Self) -> Result<(), BitVecError> {
+        if self.fsort() == operand.fsort() {
+            Ok(())
+        } else {
+            Err(BitVecError::MismatchedLengths {
+                left: self.fsort().size(),
+                right: operand.fsort().size(),
+            })
         }
     }
 
-    /// `self + other`, rounded by `rm`. `other` is converted to this value's
-    /// format.
-    pub fn add_rm(&self, other: &Self, rm: FPRM) -> Self {
-        let other = self.convert_operand(other);
-        let (Some(x), Some(y)) = (exact(self), exact(&other)) else {
-            return *self + other;
+    /// `self + other`, rounded by `rm`.
+    pub fn add_rm(&self, other: &Self, rm: FPRM) -> Result<Self, BitVecError> {
+        self.check_sort(other)?;
+        let (Some(x), Some(y)) = (exact(self), exact(other)) else {
+            return Ok(*self + *other);
         };
-        round_sum(x, y, self.fsort(), rm)
+        Ok(round_sum(x, y, self.fsort(), rm))
     }
 
     /// `self - other`, rounded by `rm`.
-    pub fn sub_rm(&self, other: &Self, rm: FPRM) -> Self {
+    pub fn sub_rm(&self, other: &Self, rm: FPRM) -> Result<Self, BitVecError> {
         self.add_rm(&-*other, rm)
     }
 
-    /// `self * other`, rounded by `rm`. `other` is converted to this value's
-    /// format.
-    pub fn mul_rm(&self, other: &Self, rm: FPRM) -> Self {
-        let other = self.convert_operand(other);
-        let (Some((xn, xm, xe)), Some((yn, ym, ye))) = (exact(self), exact(&other)) else {
-            return *self * other;
+    /// `self * other`, rounded by `rm`.
+    pub fn mul_rm(&self, other: &Self, rm: FPRM) -> Result<Self, BitVecError> {
+        self.check_sort(other)?;
+        let (Some((xn, xm, xe)), Some((yn, ym, ye))) = (exact(self), exact(other)) else {
+            return Ok(*self * *other);
         };
-        round_exact(xn != yn, xm * ym, xe + ye, false, self.fsort(), rm)
+        Ok(round_exact(
+            xn != yn,
+            xm * ym,
+            xe + ye,
+            false,
+            self.fsort(),
+            rm,
+        ))
     }
 
-    /// `self / other`, rounded by `rm`. `other` is converted to this value's
-    /// format.
-    pub fn div_rm(&self, other: &Self, rm: FPRM) -> Self {
-        let other = self.convert_operand(other);
-        let divisor = exact(&other).filter(|(_, m, _)| !m.is_zero());
+    /// `self / other`, rounded by `rm`.
+    pub fn div_rm(&self, other: &Self, rm: FPRM) -> Result<Self, BitVecError> {
+        self.check_sort(other)?;
+        let divisor = exact(other).filter(|(_, m, _)| !m.is_zero());
         let (Some((xn, xm, xe)), Some((yn, ym, ye))) = (exact(self), divisor) else {
-            return *self / other;
+            return Ok(*self / *other);
         };
         // Enough quotient bits for the significand plus a rounding bit
         let k = i64::from(self.fsort().mantissa) + 3 + ym.bits() as i64 - xm.bits() as i64;
         let k = k.max(0);
         let num = xm << k as u64;
         let (quot, rem) = (&num / &ym, &num % &ym);
-        round_exact(
+        Ok(round_exact(
             xn != yn,
             quot,
             xe - ye - k,
             !rem.is_zero(),
             self.fsort(),
             rm,
-        )
+        ))
     }
 
     pub fn from_f64_with_rounding(value: f64, rm: FPRM, fsort: FSort) -> Result<Self, BitVecError> {
@@ -528,19 +535,19 @@ impl Float {
         }
     }
 
-    /// `self * b + c` rounded once by `rm`. Both operands are converted to
-    /// this value's format.
-    pub fn mul_add(&self, b: &Self, c: &Self, rm: FPRM) -> Self {
-        let (b, c) = (self.convert_operand(b), self.convert_operand(c));
-        let (Some((xn, xm, xe)), Some((yn, ym, ye)), Some(z)) = (exact(self), exact(&b), exact(&c))
+    /// `self * b + c` rounded once by `rm`.
+    pub fn mul_add(&self, b: &Self, c: &Self, rm: FPRM) -> Result<Self, BitVecError> {
+        self.check_sort(b)?;
+        self.check_sort(c)?;
+        let (Some((xn, xm, xe)), Some((yn, ym, ye)), Some(z)) = (exact(self), exact(b), exact(c))
         else {
-            return match (*self, b, c) {
+            return Ok(match (*self, *b, *c) {
                 (Float::F32(a), Float::F32(b), Float::F32(c)) => Float::F32(a.mul_add(b, c)),
                 (Float::F64(a), Float::F64(b), Float::F64(c)) => Float::F64(a.mul_add(b, c)),
                 _ => unreachable!(),
-            };
+            });
         };
-        round_sum((xn != yn, xm * ym, xe + ye), z, self.fsort(), rm)
+        Ok(round_sum((xn != yn, xm * ym, xe + ye), z, self.fsort(), rm))
     }
 
     /// `fp.min`: a NaN operand yields the other one. SMT-LIB leaves a
@@ -700,9 +707,7 @@ pub fn recompose_f64_big_endian(sign: u8, exponent: u16, mantissa: u64) -> f64 {
     f64::from_bits(bits.to_be())
 }
 
-// Correctly rounded arithmetic in every rounding mode: each operation computes
-// its exact result as `±mag * 2^exp` (plus a sticky bit for division and square
-// root) and rounds it once with `round_exact`. Only f32 and f64 are supported.
+// Each operation computes its exact result as `±mag * 2^exp` and rounds it once.
 
 /// A finite value as `(negative, mag, exp)`, its value being `±mag * 2^exp`;
 /// `None` for NaN and the infinities.
@@ -789,7 +794,8 @@ fn round_exact(neg: bool, mag: BigUint, exp: i64, sticky: bool, fsort: FSort, rm
 }
 
 /// `x + y` rounded once. An exact zero sum is `-0` when both terms are `-0`,
-/// and otherwise only toward negative.
+/// and otherwise only toward negative. Shared by `add_rm` and `mul_add`, whose
+/// exact product has no `Float` form.
 fn round_sum(
     (xn, xm, xe): (bool, BigUint, i64),
     (yn, ym, ye): (bool, BigUint, i64),
@@ -827,13 +833,13 @@ mod tests {
         let up = 1.0 + 2f32.powi(-11) + 2f32.powi(-23);
         let down = 1.0 + 2f32.powi(-11);
         let rne = FPRM::NearestTiesToEven;
-        assert_eq!(a.mul_add(&a, &tiny, rne), Float::F32(up));
-        assert_eq!(a.mul_add(&a, &-tiny, rne), Float::F32(down));
+        assert_eq!(a.mul_add(&a, &tiny, rne), Ok(Float::F32(up)));
+        assert_eq!(a.mul_add(&a, &-tiny, rne), Ok(Float::F32(down)));
 
         let x = Float::F64(0.1);
         assert_eq!(
             x.mul_add(&Float::F64(10.0), &Float::F64(-1.0), rne),
-            Float::F64(0.1f64.mul_add(10.0, -1.0))
+            Ok(Float::F64(0.1f64.mul_add(10.0, -1.0)))
         );
     }
 
@@ -873,7 +879,7 @@ mod tests {
             for (rm, want) in modes.iter().zip(want) {
                 let got = Float::F64(a).mul_add(&Float::F64(b), &Float::F64(c), *rm);
                 assert_eq!(
-                    got.to_f64().unwrap().to_bits(),
+                    got.unwrap().to_f64().unwrap().to_bits(),
                     want.to_bits(),
                     "{a} * {b} + {c} under {rm:?}"
                 );
@@ -916,23 +922,28 @@ mod tests {
         for (rm, want) in modes.iter().zip([lo, hi, hi, lo, lo]) {
             assert_eq!(
                 a.mul_add(&a, &Float::F32(0.0), *rm),
-                Float::F32(want),
+                Ok(Float::F32(want)),
                 "{rm:?}"
             );
         }
     }
 
     #[test]
-    fn mixed_operands_round_in_self_format() {
+    fn mixed_formats_are_an_error() {
         use super::*;
         let a = Float::F32(1.5);
         let rm = FPRM::TowardPositive;
+        let err = Err(BitVecError::MismatchedLengths {
+            left: 32,
+            right: 64,
+        });
         for b in [1e-30, 0.0, f64::INFINITY, f64::NAN].map(Float::F64) {
-            for r in [a.add_rm(&b, rm), a.mul_rm(&b, rm), a.div_rm(&b, rm)] {
-                assert!(matches!(r, Float::F32(_)), "{a:?} op {b:?} gave {r:?}");
-            }
-            let r = a.mul_add(&b, &b, rm);
-            assert!(matches!(r, Float::F32(_)), "fma {a:?} {b:?} gave {r:?}");
+            assert_eq!(a.add_rm(&b, rm), err, "{b:?}");
+            assert_eq!(a.sub_rm(&b, rm), err, "{b:?}");
+            assert_eq!(a.mul_rm(&b, rm), err, "{b:?}");
+            assert_eq!(a.div_rm(&b, rm), err, "{b:?}");
+            assert_eq!(a.mul_add(&b, &a, rm), err, "{b:?}");
+            assert_eq!(a.mul_add(&a, &b, rm), err, "{b:?}");
         }
     }
 
