@@ -418,6 +418,86 @@ class _BinOpCounter(AILBlockViewer):
         super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
+def _stack_vvar_read_ranges(node, varid: int, size: int, out: list[tuple[int, int]], depth: int = 0) -> None:
+    """
+    Collect the byte ranges (relative to the vvar) that an AIL statement or expression reads of vvar ``varid`` as a
+    value. Taking its address reads nothing.
+    """
+    if depth > 200:
+        out.append((0, size))
+        return
+    if isinstance(node, ailment.Expr.VirtualVariable):
+        if node.varid == varid:
+            out.append((0, size))
+        return
+    if isinstance(node, ailment.Expr.UnaryOp) and node.op == "Reference":
+        return
+    if isinstance(node, ailment.Expr.Extract) and isinstance(node.offset, ailment.Expr.Const):
+        base = node.base
+        if isinstance(base, ailment.Expr.VirtualVariable):
+            if base.varid == varid:
+                out.append((node.offset.value, node.offset.value + node.bits // 8))
+            return
+    if isinstance(node, ailment.Expr.Insert):
+        # the bytes of the base under the inserted values are not read
+        chain = []
+        base = node
+        while isinstance(base, ailment.Expr.Insert) and isinstance(base.offset, ailment.Expr.Const):
+            chain.append(base)
+            base = base.base
+        if chain and isinstance(base, ailment.Expr.VirtualVariable):
+            if base.varid == varid:
+                ranges = [(0, size)]
+                for ins in chain:
+                    lo, hi = ins.offset.value, ins.offset.value + ins.value.bits // 8
+                    ranges = [r for a, b in ranges for r in ((a, min(b, lo)), (max(a, hi), b)) if r[0] < r[1]]
+                out.extend(ranges)
+            for ins in chain:
+                _stack_vvar_read_ranges(ins.value, varid, size, out, depth + 1)
+            return
+    if isinstance(node, ailment.Stmt.Assignment) and isinstance(node.dst, ailment.Expr.VirtualVariable):
+        _stack_vvar_read_ranges(node.src, varid, size, out, depth + 1)
+        return
+    children = _direct_children(node)
+    if children is None:
+        # any other node: a value read anywhere inside counts in full
+        found = _StackReferenceCollector()
+        if isinstance(node, ailment.Stmt.Statement):
+            found.walk_statement(node)
+        else:
+            found.walk_expression(node)
+        if varid in found.values:
+            out.append((0, size))
+        return
+    for child in children:
+        _stack_vvar_read_ranges(child, varid, size, out, depth + 1)
+
+
+def _direct_children(node) -> list | None:
+    """
+    The direct sub-expressions of the common AIL expressions and statements, or None for any other node.
+    """
+    if isinstance(node, ailment.Expr.Const):
+        return []
+    if isinstance(node, ailment.Expr.BinaryOp):
+        return list(node.operands)
+    if isinstance(node, (ailment.Expr.UnaryOp, ailment.Expr.Convert, ailment.Expr.Reinterpret)):
+        return [node.operand]
+    if isinstance(node, ailment.Expr.Load):
+        return [node.addr]
+    if isinstance(node, ailment.Expr.Extract):
+        return [node.base, node.offset]
+    if isinstance(node, ailment.Expr.Insert):
+        return [node.base, node.offset, node.value]
+    if isinstance(node, ailment.Expr.ITE):
+        return [node.cond, node.iftrue, node.iffalse]
+    if isinstance(node, ailment.Stmt.Store):
+        return [node.addr, node.data]
+    if isinstance(node, ailment.Stmt.ConditionalJump):
+        return [node.condition]
+    return None
+
+
 class _StackReferenceCollector(AILBlockViewer):
     """
     Collects the IDs of the vvars whose addresses a statement takes, and of the vvars it reads as values.
@@ -437,6 +517,13 @@ class _StackReferenceCollector(AILBlockViewer):
     def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
         self.values.add(expr.varid)
         return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Assignment(self, stmt_idx, stmt, block):
+        if isinstance(stmt.dst, ailment.Expr.VirtualVariable):
+            # a definition, not a read
+            self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+            return None
+        return super()._handle_Assignment(stmt_idx, stmt, block)
 
 
 class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
@@ -556,7 +643,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._stack_complex_type_offsets: list[int] = []
         # stack vvars inside a struct- or array-typed stack variable, collected while linking:
         # varid -> [base offset, absolute offset, size, whether each occurrence is the variable itself, consistent,
-        # occurrences]
+        # occurrences, the unified variables of the occurrences that are not the variable itself]
         self._stack_vvar_struct_cover: dict[int, list] = {}
         self._stack_vvars_outside_struct: set[int] = set()
         # Load/Store accesses through the address of a stack vvar, mapped once that vvar's mapping is decided
@@ -4384,26 +4471,31 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # the occurrence must sit where its variable is
         consistent = vvar.stack_offset == stack_offset
         if info is None:
-            self._stack_vvar_struct_cover[vvar.varid] = [
+            info = self._stack_vvar_struct_cover[vvar.varid] = [
                 base_offset,
                 stack_offset,
                 vvar.size,
-                {is_self},
+                set(),
                 consistent,
-                [vvar],
+                [],
+                set(),
             ]
-            return
-        if info[:3] != [base_offset, stack_offset, vvar.size] or not consistent:
+        elif info[:3] != [base_offset, stack_offset, vvar.size] or not consistent:
             info[4] = False
         info[3].add(is_self)
         info[5].append(vvar)
+        if not is_self:
+            info[6].add(unified if unified is not None else variable)
 
     def _map_stack_vvars_to_struct_members(self, ail_graph: networkx.DiGraph, liveness) -> None:
         """
-        Map stack vvars inside struct- or array-typed stack variables to member accesses. A vvar is mapped only if no
-        overlapping vvar rendered as the same variable holds an older value that is still live where the vvar is
-        defined (or the other way around), and only together with every vvar it shares a phi congruence class with,
-        since dephication gives them one ID.
+        Map stack vvars inside struct- or array-typed stack variables to member accesses.
+
+        The decision is made for a whole group of vvars at once: the vvars of a phi congruence class (dephication gives
+        them one ID) and the vvars that share a variable, so that a variable is never rendered partly as itself and
+        partly as a member. A group is mapped only if none of its vvars overlaps a vvar rendered as the same struct
+        such that the bytes the newer one writes are still read from the older one afterwards. Taking the address of
+        the older vvar is not such a read: it names the storage, which is one once they are the same variable.
         """
         infos = self._stack_vvar_struct_cover
         mapped: set[int] = set()
@@ -4440,16 +4532,27 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # vvars read without any definition (broken SSA) stand for whatever the slot holds
         undefined_values: set[int] = set()
         undefined = {v for v in infos if v not in deflocs}
-        if undefined:
-            finder = _StackReferenceCollector()
-            for block in GraphUtils.quasi_topological_sort_nodes(ail_graph):
-                for stmt_idx, stmt in enumerate(block.statements):
-                    finder.varids.clear()
-                    finder.values.clear()
-                    finder.walk_statement(stmt)
-                    for v in finder.varids & undefined:
-                        ref_deflocs.setdefault(v, ((block.addr, block.idx), stmt_idx))
-                    undefined_values |= finder.values & undefined
+        # where each vvar is read as a value (not by taking its address): varid -> block -> statement indices. a phi
+        # reads its sources at the end of the source blocks.
+        value_uses: defaultdict[int, defaultdict[tuple[int, int], list[int]]] = defaultdict(lambda: defaultdict(list))
+        finder = _StackReferenceCollector()
+        for block in GraphUtils.quasi_topological_sort_nodes(ail_graph):
+            block_key = block.addr, block.idx
+            for stmt_idx, stmt in enumerate(block.statements):
+                if is_phi_assignment(stmt):
+                    for src, vvar in stmt.src.src_and_vvars:
+                        if vvar is not None and vvar.varid in infos:
+                            src_key = (src[0], src[1]) if src is not None else block_key
+                            value_uses[vvar.varid][src_key].append(len(blocks[src_key].statements))
+                    continue
+                finder.varids.clear()
+                finder.values.clear()
+                finder.walk_statement(stmt)
+                for v in finder.varids & undefined:
+                    ref_deflocs.setdefault(v, (block_key, stmt_idx))
+                undefined_values |= finder.values & undefined
+                for v in finder.values & infos.keys():
+                    value_uses[v][block_key].append(stmt_idx)
 
         def defloc(v: int) -> tuple[tuple[int, int], int] | None:
             # None: defined before the function body (an argument)
@@ -4515,10 +4618,97 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             if d_older is not None and dominates(d_newer, d_older):
                 return False
             live = live_after_def(newer)
-            return live is None or older in live
+            if live is not None and older not in live:
+                return False
+            return any(read_after_def(older, d_newer, d_older, lo, hi) for lo, hi in written_ranges(newer, older))
 
-        # a class all of whose occurrences are the variable itself is rendered as the variable; any other class
-        # becomes member accesses as a whole
+        def written_ranges(newer: int, older: int) -> list[tuple[int, int]]:
+            """
+            The stack bytes in which newer may differ from older: only the inserted ones when newer is defined by
+            inserting values into older.
+            """
+            n_lo, n_size = infos[newer][1], infos[newer][2]
+            loc = deflocs.get(newer)
+            if loc is not None and loc[1].block_addr is not None and loc[1].stmt_idx is not None:
+                stmt = blocks[(loc[1].block_addr, loc[1].block_idx)].statements[loc[1].stmt_idx]
+                if isinstance(stmt, ailment.Stmt.Assignment):
+                    src = stmt.src
+                    ranges = []
+                    while isinstance(src, ailment.Expr.Insert) and isinstance(src.offset, ailment.Expr.Const):
+                        ranges.append((n_lo + src.offset.value, n_lo + src.offset.value + src.value.bits // 8))
+                        src = src.base
+                    if (
+                        ranges
+                        and isinstance(src, ailment.Expr.VirtualVariable)
+                        and src.varid == older
+                        and infos[older][1] == n_lo
+                        and infos[older][2] == n_size
+                    ):
+                        return ranges
+            return [(n_lo, n_lo + n_size)]
+
+        read_cache: dict[tuple, bool] = {}
+        overlap_cache: dict[tuple, dict[tuple[int, int], list[int]]] = {}
+
+        def overlapping_value_uses(older: int, lo: int, hi: int) -> dict[tuple[int, int], list[int]]:
+            """
+            The value reads of older that touch the stack bytes [lo, hi).
+            """
+            key = older, lo, hi
+            if key not in overlap_cache:
+                o_lo, o_size = infos[older][1], infos[older][2]
+                result: dict[tuple[int, int], list[int]] = {}
+                for block_key, stmt_idxs in value_uses.get(older, {}).items():
+                    stmts = blocks[block_key].statements
+                    kept = []
+                    for i in stmt_idxs:
+                        ranges: list[tuple[int, int]] = []
+                        if i >= len(stmts):
+                            # a phi in a successor
+                            ranges.append((0, o_size))
+                        else:
+                            _stack_vvar_read_ranges(stmts[i], older, o_size, ranges)
+                        if any(o_lo + a < hi and lo < o_lo + b for a, b in ranges):
+                            kept.append(i)
+                    if kept:
+                        result[block_key] = kept
+                overlap_cache[key] = result
+            return overlap_cache[key]
+
+        def read_after_def(older: int, d_newer, d_older, lo: int, hi: int) -> bool:
+            """
+            Whether the bytes [lo, hi) of the value of older are read on some path from d_newer before older is defined
+            again.
+            """
+            key = older, d_newer, lo, hi
+            if key in read_cache:
+                return read_cache[key]
+            uses = overlapping_value_uses(older, lo, hi)
+            result = False
+            if uses:
+                start, start_idx = d_newer
+                seen = set()
+                queue = [(start, start_idx + 1, None)]
+                while queue and not result:
+                    block_key, lo_idx, hi_idx = queue.pop()
+                    if d_older is not None and d_older[0] == block_key and d_older[1] >= lo_idx:
+                        hi_idx = d_older[1] if hi_idx is None else min(hi_idx, d_older[1])
+                    if any(lo_idx <= i and (hi_idx is None or i <= hi_idx) for i in uses.get(block_key, ())):
+                        result = True
+                        break
+                    if hi_idx is not None or block_key not in blocks:
+                        continue
+                    for succ in ail_graph.successors(blocks[block_key]):
+                        succ_key = succ.addr, succ.idx
+                        if succ_key in seen:
+                            continue
+                        seen.add(succ_key)
+                        # back at the definition of newer: only what precedes it
+                        queue.append((succ_key, 0, start_idx if succ_key == start else None))
+            read_cache[key] = result
+            return result
+
+        # a class all of whose occurrences are the variable itself is rendered as the variable
         all_self = {v for m in classes.values() if all(infos[v][3] == {True} for v in m) for v in m}
         # base offset -> byte ranges rendered as that variable, with their vvar IDs
         taken: defaultdict[int, list[tuple[int, int, int]]] = defaultdict(list)
@@ -4526,25 +4716,56 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             base, lo, size = infos[varid][:3]
             taken[base].append((lo, lo + size, varid))
 
-        for members in sorted((sorted(m) for m in classes.values()), key=lambda m: m[0]):
-            if members[0] in all_self:
+        # group the other classes by the variables their occurrences are linked to
+        group_parent: dict = {}
+
+        def group_find(k):
+            group_parent.setdefault(k, k)
+            while group_parent[k] != k:
+                group_parent[k] = group_parent[group_parent[k]]
+                k = group_parent[k]
+            return k
+
+        for varid, info in infos.items():
+            if varid in all_self:
                 continue
-            if not all(infos[v][4] and v not in self._stack_vvars_outside_struct for v in members):
-                continue
-            if len({(infos[v][0], infos[v][1]) for v in members}) != 1:
-                continue
-            base, lo, _, _, _, _ = infos[members[0]]
-            if any(
+            for variable in info[6]:
+                group_parent[group_find(("var", id(variable)))] = group_find(("class", find(varid)))
+        groups: defaultdict = defaultdict(list)
+        for varid in infos:
+            if varid not in all_self:
+                groups[group_find(("class", find(varid)))].append(varid)
+
+        def conflicts(v: int, w: int, lo2: int, hi2: int) -> bool:
+            lo = infos[v][1]
+            return (
                 lo2 < lo + infos[v][2]
                 and lo < hi2
                 and (holds_older_live_value(w, v) or holds_older_live_value(v, w))
-                for v in members
-                for lo2, hi2, w in taken[base]
+            )
+
+        for members in sorted((sorted(m) for m in groups.values()), key=lambda m: m[0]):
+            if not all(infos[v][4] and v not in self._stack_vvars_outside_struct for v in members):
+                continue
+            by_class: defaultdict[int, list[int]] = defaultdict(list)
+            for v in members:
+                by_class[find(v)].append(v)
+            if any(len({(infos[v][0], infos[v][1]) for v in cls}) != 1 for cls in by_class.values()):
+                continue
+            if any(conflicts(v, w, lo2, hi2) for v in members for lo2, hi2, w in taken[infos[v][0]]):
+                continue
+            if any(
+                find(v) != find(w)
+                and infos[v][0] == infos[w][0]
+                and conflicts(v, w, infos[w][1], infos[w][1] + infos[w][2])
+                for i, v in enumerate(members)
+                for w in members[i + 1 :]
             ):
                 continue
-            the_var = self._stack_complex_types[base][0]
             for v in members:
-                taken[base].append((lo, lo + infos[v][2], v))
+                base, lo, size = infos[v][:3]
+                the_var = self._stack_complex_types[base][0]
+                taken[base].append((lo, lo + size, v))
                 mapped.add(v)
                 for vvar in infos[v][5]:
                     self.variable_map.set_struct_member(vvar, the_var, lo - base)
