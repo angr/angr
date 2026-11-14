@@ -46,7 +46,10 @@ def pe_header(sections, pdata=None) -> bytes:
     return bytes(hdr)
 
 
-def build_image() -> bytes:
+def build_image(pdata: bool = True) -> bytes:
+    """
+    With ``pdata``, the image has an exception directory and a VM whose handler lies in .text.
+    """
     img = bytearray(0x4000)
     functions = []
 
@@ -59,6 +62,10 @@ def build_image() -> bytes:
     put(f + 9, b"\xcc" * (f_exit - f - 9))
     put(f_exit, b"\x48\x83\xc4\x28\xc3")  # native continuation: add rsp, 0x28; ret
     functions.append((f, f_exit + 5))
+    # a VM handler fragment in the virtualized body that looks like a prologue, and the function after f
+    put(f + 0x22, b"\x55\xc3")
+    put(VMP + 0x480, b"\xe9" + rel32(BASE + VMP + 0x480, 5, BASE + f + 0x22))
+    put(f_exit + 5, b"\x55\x48\x89\xe5\x5d\xc3")
     # VMProtect entry stub and handler; it checks the pushed reference, saves everything, calls an API and exits
     put(VMP, b"\x68\x34\x12\x00\x00" + b"\xe8" + rel32(BASE + VMP + 5, 5, BASE + VMP + 0x100))
     h = VMP + 0x100
@@ -95,26 +102,30 @@ def build_image() -> bytes:
     put(m, b"\xe9" + rel32(BASE + m, 5, BASE + VMP + 0x600))
     put(VMP + 0x600, PUSH_ALL[:7] + b"\xf3\x9c" + PUSH_ALL[7:] + b"\xeb\xfe")
     functions += [(k, k + 5), (m, m + 5)]
-    # n: the VM's stubs are in .vmp0 and its handler is in the body n's virtualization freed: the entry hops through
-    # .vmp0 and saves the registers in .text. A second stub is one the VM returns to.
-    n, handler = TEXT + 0x500, TEXT + 0x600
-    put(n, b"\x48\x83\xec\x28" + b"\xe9" + rel32(BASE + n + 4, 5, BASE + VMP + 0x700))
-    for stub in (VMP + 0x700, VMP + 0x740):
-        put(stub, b"\x68\x78\x56\x00\x00" + b"\xe9" + rel32(BASE + stub + 5, 5, BASE + handler))
-    code = b"\x9c" + PUSH_ALL
-    put(handler, code + b"\xe9" + rel32(BASE + handler + len(code), 5, BASE + VMP + 0x780))
-    put(VMP + 0x780, b"\xeb\xfe")
-    functions.append((n, n + 0x180))
+    callees = [k, t, m]
+    if pdata:
+        # n: the VM's stubs are in .vmp0 and its handler is in the body n's virtualization freed: the entry hops
+        # through .vmp0 and saves the registers in .text. A second stub is one the VM returns to.
+        n, handler = TEXT + 0x500, TEXT + 0x600
+        put(n, b"\x48\x83\xec\x28" + b"\xe9" + rel32(BASE + n + 4, 5, BASE + VMP + 0x700))
+        for stub in (VMP + 0x700, VMP + 0x740):
+            put(stub, b"\x68\x78\x56\x00\x00" + b"\xe9" + rel32(BASE + stub + 5, 5, BASE + handler))
+        code = b"\x9c" + PUSH_ALL
+        put(handler, code + b"\xe9" + rel32(BASE + handler + len(code), 5, BASE + VMP + 0x780))
+        put(VMP + 0x780, b"\xeb\xfe")
+        functions.append((n, n + 0x180))
+        callees.append(n)
     caller = TEXT + 0x380
-    code = b"".join(b"\xe8" + rel32(BASE + caller + 5 * i, 5, BASE + c) for i, c in enumerate((k, t, m, n))) + b"\xc3"
+    code = b"".join(b"\xe8" + rel32(BASE + caller + 5 * i, 5, BASE + c) for i, c in enumerate(callees)) + b"\xc3"
     put(caller, code)
     functions.append((caller, caller + len(code)))
 
     table = b"".join(struct.pack("<III", b, e, 0) for b, e in sorted(functions))
-    put(0x800, table)
+    if pdata:
+        put(0x800, table)
     img[:0x400] = pe_header(
         [(b".text", TEXT, 0x60000020), (b".vmp0", VMP, 0x60000020), (b".themida", THEMIDA, 0xE0000020)],
-        pdata=(0x800, len(table)),
+        pdata=(0x800, len(table)) if pdata else None,
     )
     return bytes(img)
 
@@ -122,17 +133,21 @@ def build_image() -> bytes:
 class TestVMProtectedFunctions(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        fd, cls.path = tempfile.mkstemp(suffix=".bin")
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(build_image())
+        cls.paths = []
+        for pdata in (True, False):
+            fd, path = tempfile.mkstemp(suffix=".bin")
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(build_image(pdata))
+            cls.paths.append(path)
 
     @classmethod
     def tearDownClass(cls):
-        os.unlink(cls.path)
+        for path in cls.paths:
+            os.unlink(path)
 
-    def _project(self):
+    def _project(self, pdata: bool = True):
         return angr.Project(
-            self.path,
+            self.paths[0 if pdata else 1],
             main_opts={"backend": "blob", "arch": "AMD64", "base_addr": BASE, "entry_point": BASE + TEXT},
             auto_load_libs=False,
         )
@@ -186,6 +201,23 @@ class TestVMProtectedFunctions(unittest.TestCase):
         assert {a._section_of(x).name for x in r["saved_at"]} == {".text"}
         assert a.register_save(BASE + VMP + 0x745)["ok"]
         assert [s.name for s in a.protector_sections] == [".vmp0", ".themida"]
+
+    def test_function_extent_without_exception_directory(self):
+        proj = self._project(pdata=False)
+        # functions CFG recovery puts in a virtualized body: a re-entry stub, a handler fragment, the native
+        # continuation; and the function that follows
+        for off in (0x10, 0x22, 0x40, 0x45):
+            proj.kb.functions.function(BASE + TEXT + off, create=True)
+        a = proj.analyses.VMProtectedFunctions()
+        stubs = [TEXT + 4, TEXT + 0x204, TEXT + 0x300, TEXT + 0x400]
+        assert [f.stub_start - BASE for f in a.functions] == stubs, a.functions
+        assert a.unreachable_stubs == [BASE + TEXT + 0x10]
+        f = a.functions[0]
+        assert f.function_extent == (BASE + TEXT, BASE + TEXT + 0x45)
+        f.exits = a.find_exits(f)
+        assert f.native_exits == [BASE + TEXT + 0x40]
+        kw = f.vmdeobfuscation_kwargs()
+        assert kw["vm_entry_sites"] == [BASE + TEXT + 4, BASE + TEXT + 0x10, BASE + TEXT + 0x15]
 
     def test_exits(self):
         try:
