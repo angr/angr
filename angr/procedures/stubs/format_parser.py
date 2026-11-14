@@ -47,13 +47,14 @@ class FormatString:
         return sss.concat(c)
 
     def _get_str_at(self, str_addr, max_length=None):
-        if max_length is None:
+        if max_length is None or isinstance(max_length, int):
             strlen = self.parser._sim_strlen(str_addr)  # pylint:disable=protected-access
 
             # TODO: we probably could do something more fine-grained here.
 
             # throw away strings which are just the NULL terminator
-            max_length = self.parser.state.solver.max_int(strlen)
+            longest = self.parser.state.solver.max_int(strlen)
+            max_length = longest if max_length is None else min(longest, max_length)
             if max_length == 0:
                 return claripy.BVV(b"")
 
@@ -82,8 +83,12 @@ class FormatString:
                 # okay now for the interesting stuff
                 # what type of format specifier is it?
                 fmt_spec = component
+                precision = isinstance(fmt_spec.length_spec, int) and fmt_spec.string.startswith(b".")
                 if fmt_spec.spec_type == b"s":
-                    str_length = va_arg("size_t") if fmt_spec.length_spec == b".*" else None
+                    if fmt_spec.length_spec == b".*":
+                        str_length = va_arg("size_t")
+                    else:
+                        str_length = fmt_spec.length_spec if precision else None
                     str_ptr = va_arg("char*")
                     sss = self._add_to_string(sss, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
@@ -105,15 +110,23 @@ class FormatString:
                     elif fmt_spec.spec_type == b"o":
                         s_val = f"{c_val:o}"
                     elif fmt_spec.spec_type == b"p":
-                        # glibc prints "(nil)" for a null pointer
-                        s_val = f"{c_val:#x}" if c_val else "(nil)"
+                        # glibc prints "(nil)" for a null pointer, and pads the digits to a precision
+                        digits = fmt_spec.length_spec if precision else 0
+                        s_val = f"0x{c_val:0{digits}x}" if c_val else "(nil)"
                     else:
                         raise SimProcedureError(f"Unimplemented format specifier '{fmt_spec.spec_type}'")
 
-                    if isinstance(fmt_spec.length_spec, int):
+                    if precision and fmt_spec.spec_type in (b"c", b"p"):
+                        # %c ignores a precision and %p has applied it
+                        pass
+                    elif precision and fmt_spec.length_spec == 0 and c_val == 0:
+                        # zero with precision 0 prints no digits
+                        s_val = ""
+                    elif isinstance(fmt_spec.length_spec, int):
                         if fmt_spec.pad_chr == "0" and s_val.startswith("-"):
-                            # zero padding goes between the sign and the digits
-                            s_val = "-" + s_val[1:].rjust(fmt_spec.length_spec - 1, "0")
+                            # zero padding goes between the sign and the digits; a precision counts digits only
+                            digits = fmt_spec.length_spec if precision else fmt_spec.length_spec - 1
+                            s_val = "-" + s_val[1:].rjust(digits, "0")
                         else:
                             s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
 
@@ -567,19 +580,21 @@ class FormatParser(SimProcedure):
         elif nugget.startswith(b"."):
             pad_chr = "0"
             nugget = nugget[1:]
+            length_spec = 0
+            length_spec_str_len = 1
 
         for j, c in enumerate(nugget):
             if c in ascii_digits:
                 length_str.append(c)
             else:
                 nugget = nugget[j:]
-                if length_spec is None:
-                    length_spec = None if len(length_str) == 0 else int(bytes(length_str))
+                if length_spec != b".*" and length_str:
+                    length_spec = int(bytes(length_str))
                 break
 
         # we need the length of the format's length specifier to extract the format and nothing else
-        if length_spec_str_len == 0 and length_str:
-            length_spec_str_len = len(length_str)
+        if length_spec != b".*":
+            length_spec_str_len += len(length_str)
         # is it an actual format?
         # pylint: disable=not-an-iterable,unsubscriptable-object
         for spec in all_spec:

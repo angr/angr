@@ -47,6 +47,9 @@ class TestSprintf(unittest.TestCase):
         fmt_addr, out = 0x200000, 0x300000
         state.memory.store(fmt_addr, fmt + b"\x00")
         sprintf = angr.SIM_PROCEDURES["libc"]["sprintf"]()
+        if isinstance(value, bytes):
+            state.memory.store(0x210000, value + b"\x00")
+            value = 0x210000
         sprintf.execute(state, arguments=[out, fmt_addr, claripy.BVV(value, 64)])
         return state.solver.eval(state.memory.load(out, 32), cast_to=bytes).split(b"\x00")[0]
 
@@ -79,6 +82,16 @@ class TestSprintf(unittest.TestCase):
     def test_sprintf_zero_padded_negative(self):
         assert self._sprintf(b"%05d", 0xFFFFFFFF) == b"-0001"
         assert self._sprintf(b"%05d", 42) == b"00042"
+
+    def test_sprintf_precision(self):
+        assert self._sprintf(b"%.5d", 42) == b"00042"
+        assert self._sprintf(b"%.5d", 0xFFFFFFFF) == b"-00001"
+        assert self._sprintf(b"%.3x!", 0xA) == b"00a!"
+        assert self._sprintf(b"%.d!", 0) == b"!"
+        assert self._sprintf(b"%.3c", 0x41) == b"A"
+        assert self._sprintf(b"%.3p", 0x2A) == b"0x02a"
+        assert self._sprintf(b"%.3s", b"hello") == b"hel"
+        assert self._sprintf(b"%.s!", b"hello") == b"!"
 
     def test_sprintf_ptrdiff_unsigned(self):
         assert self._sprintf(b"%tu", 0xFFFFFFFFFFFFFFFF) == b"18446744073709551615"
