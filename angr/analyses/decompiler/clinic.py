@@ -124,7 +124,7 @@ from angr.utils.ail_serialization import (
 )
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.graph import GraphUtils
-from angr.utils.ssa import VVarUsesCollector, get_vvar_deflocs, is_phi_assignment
+from angr.utils.ssa import VVarUsesCollector, clobber_def_ids, get_vvar_deflocs, is_phi_assignment
 from angr.utils.vvar_set import VVarSet
 from angr.utils.types import dereference_simtype_by_lib, unpack_typeref
 from angr.utils.vex import block_branch_ins_addr
@@ -420,17 +420,23 @@ class _BinOpCounter(AILBlockViewer):
 
 class _StackReferenceCollector(AILBlockViewer):
     """
-    Collects the IDs of the vvars whose addresses a statement takes.
+    Collects the IDs of the vvars whose addresses a statement takes, and of the vvars it reads as values.
     """
 
     def __init__(self):
         super().__init__()
         self.varids: set[int] = set()
+        self.values: set[int] = set()
 
     def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
         if expr.op == "Reference" and isinstance(expr.operand, ailment.Expr.VirtualVariable):
             self.varids.add(expr.operand.varid)
+            return None
         return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.values.add(expr.varid)
+        return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
@@ -549,9 +555,12 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._stack_complex_types: dict[int, tuple[SimStackVariable, int]] = {}
         self._stack_complex_type_offsets: list[int] = []
         # stack vvars inside a struct- or array-typed stack variable, collected while linking:
-        # varid -> [base offset, absolute offset, size, is the variable itself, consistent, occurrences]
+        # varid -> [base offset, absolute offset, size, whether each occurrence is the variable itself, consistent,
+        # occurrences]
         self._stack_vvar_struct_cover: dict[int, list] = {}
         self._stack_vvars_outside_struct: set[int] = set()
+        # Load/Store accesses through the address of a stack vvar, mapped once that vvar's mapping is decided
+        self._pending_stack_memory_members: list[tuple] = []
         # VariableMap is a side container that holds variable/variable_offset/custom_string/reference_values and the
         # sibling reference_variable/reference_variable_offset for AIL atoms, keyed by their .idx. It supersedes
         # storing this information directly on AIL Statement/Expression objects.
@@ -4235,6 +4244,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._collect_stack_complex_types(var_manager)
         self._stack_vvar_struct_cover = {}
         self._stack_vvars_outside_struct = set()
+        self._pending_stack_memory_members = []
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
         self._map_stack_vvars_to_struct_members(ail_graph, liveness)
@@ -4316,6 +4326,28 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self.variable_map.set_struct_member(expr_or_stmt, the_var, stack_offset - base_offset)
         return True
 
+    def _note_stack_memory_access(
+        self,
+        variable_manager: VariableManagerInternal,
+        atom: ailment.Expr.Expression | ailment.Stmt.Statement,
+        addr: ailment.Expr.Expression,
+        variable: SimStackVariable,
+        stack_offset: int,
+        size: int,
+    ) -> None:
+        """
+        Map a stack memory access to a struct member, or defer it if its address is taken from a stack vvar: it must
+        then follow how that vvar is rendered.
+        """
+        finder = _StackReferenceCollector()
+        finder.walk_expression(addr)
+        if finder.varids:
+            self._pending_stack_memory_members.append(
+                (variable_manager, atom, variable, stack_offset, size, frozenset(finder.varids))
+            )
+        else:
+            self._map_stackvar_to_struct_member(variable_manager, atom, variable, stack_offset, size)
+
     def _note_stack_vvar_in_struct(
         self,
         variable_manager: VariableManagerInternal,
@@ -4328,6 +4360,14 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         decided per vvar in _map_stack_vvars_to_struct_members(), once all occurrences are known.
         """
         stack_offset = variable.offset + (offset or 0)
+        if (
+            stack_offset != vvar.stack_offset
+            and variable.size
+            and variable.offset <= vvar.stack_offset
+            and vvar.stack_offset + vvar.size <= variable.offset + variable.size
+        ):
+            # the variable of the whole region the vvar is in
+            stack_offset = vvar.stack_offset
         cover = self._stack_complex_type_covering(stack_offset, vvar.size)
         info = self._stack_vvar_struct_cover.get(vvar.varid)
         if cover is None:
@@ -4335,14 +4375,27 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             return
         base_offset, the_var = cover
         unified = variable_manager.unified_variable(variable)
-        is_self = unified is not None and unified is variable_manager.unified_variable(the_var)
+        # an access inside the variable itself is a member access
+        is_self = (
+            stack_offset == base_offset
+            and unified is not None
+            and unified is variable_manager.unified_variable(the_var)
+        )
         # the occurrence must sit where its variable is
         consistent = vvar.stack_offset == stack_offset
         if info is None:
-            self._stack_vvar_struct_cover[vvar.varid] = [base_offset, stack_offset, vvar.size, is_self, consistent, [vvar]]
+            self._stack_vvar_struct_cover[vvar.varid] = [
+                base_offset,
+                stack_offset,
+                vvar.size,
+                {is_self},
+                consistent,
+                [vvar],
+            ]
             return
-        if info[:4] != [base_offset, stack_offset, vvar.size, is_self] or not consistent:
+        if info[:3] != [base_offset, stack_offset, vvar.size] or not consistent:
             info[4] = False
+        info[3].add(is_self)
         info[5].append(vvar)
 
     def _map_stack_vvars_to_struct_members(self, ail_graph: networkx.DiGraph, liveness) -> None:
@@ -4353,7 +4406,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         since dephication gives them one ID.
         """
         infos = self._stack_vvar_struct_cover
+        mapped: set[int] = set()
         if not infos:
+            self._map_pending_stack_memory_members(infos, mapped)
             return
 
         parent: dict[int, int] = {}
@@ -4382,15 +4437,19 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
 
         # a vvar defined only by taking its address (a buffer a callee fills) is defined at its first reference
         ref_deflocs: dict[int, tuple[tuple[int, int], int]] = {}
+        # vvars read without any definition (broken SSA) stand for whatever the slot holds
+        undefined_values: set[int] = set()
         undefined = {v for v in infos if v not in deflocs}
         if undefined:
             finder = _StackReferenceCollector()
             for block in GraphUtils.quasi_topological_sort_nodes(ail_graph):
                 for stmt_idx, stmt in enumerate(block.statements):
                     finder.varids.clear()
+                    finder.values.clear()
                     finder.walk_statement(stmt)
                     for v in finder.varids & undefined:
                         ref_deflocs.setdefault(v, ((block.addr, block.idx), stmt_idx))
+                    undefined_values |= finder.values & undefined
 
         def defloc(v: int) -> tuple[tuple[int, int], int] | None:
             # None: defined before the function body (an argument)
@@ -4424,10 +4483,17 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                     live = liveness.model.live_outs[d[0]].copy()
                     collector = VVarUsesCollector()
                     for stmt in reversed(blocks[d[0]].statements[d[1] + 1 :]):
+                        defs = list(stmt.tags.get("extra_defs", [])) + clobber_def_ids(stmt)
                         if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(
                             stmt.dst, ailment.Expr.VirtualVariable
                         ):
-                            live.discard(stmt.dst.varid)
+                            defs.append(stmt.dst.varid)
+                        elif isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(
+                            stmt.ret_expr, ailment.Expr.VirtualVariable
+                        ):
+                            defs.append(stmt.ret_expr.varid)
+                        for def_varid in defs:
+                            live.discard(def_varid)
                         if is_phi_assignment(stmt):
                             continue
                         collector.reset()
@@ -4437,19 +4503,33 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             return live_after_cache[v]
 
         def holds_older_live_value(older: int, newer: int) -> bool:
-            if not dominates(defloc(older), defloc(newer)):
+            if older in undefined_values or newer in undefined_values:
+                return False
+            d_newer, d_older = defloc(newer), defloc(older)
+            if d_newer is None:
+                # nothing is older than an argument
+                return False
+            # liveness takes a vvar defined by a reference as live from the function entry
+            if older in ref_deflocs and not dominates(d_older, d_newer):
+                return False
+            if d_older is not None and dominates(d_newer, d_older):
                 return False
             live = live_after_def(newer)
             return live is None or older in live
 
+        # a class all of whose occurrences are the variable itself is rendered as the variable; any other class
+        # becomes member accesses as a whole
+        all_self = {v for m in classes.values() if all(infos[v][3] == {True} for v in m) for v in m}
         # base offset -> byte ranges rendered as that variable, with their vvar IDs
         taken: defaultdict[int, list[tuple[int, int, int]]] = defaultdict(list)
-        for varid, (base, lo, size, is_self, _, _) in infos.items():
-            if is_self:
-                taken[base].append((lo, lo + size, varid))
+        for varid in all_self:
+            base, lo, size = infos[varid][:3]
+            taken[base].append((lo, lo + size, varid))
 
         for members in sorted((sorted(m) for m in classes.values()), key=lambda m: m[0]):
-            if not all(infos[v][4] and not infos[v][3] and v not in self._stack_vvars_outside_struct for v in members):
+            if members[0] in all_self:
+                continue
+            if not all(infos[v][4] and v not in self._stack_vvars_outside_struct for v in members):
                 continue
             if len({(infos[v][0], infos[v][1]) for v in members}) != 1:
                 continue
@@ -4465,10 +4545,23 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             the_var = self._stack_complex_types[base][0]
             for v in members:
                 taken[base].append((lo, lo + infos[v][2], v))
+                mapped.add(v)
                 for vvar in infos[v][5]:
                     self.variable_map.set_struct_member(vvar, the_var, lo - base)
+        self._map_pending_stack_memory_members(infos, mapped | all_self)
         self._stack_vvar_struct_cover = {}
         self._stack_vvars_outside_struct = set()
+
+    def _map_pending_stack_memory_members(self, infos: dict[int, list], rendered_in_struct: set[int]) -> None:
+        """
+        Map the deferred Load/Store accesses. An access through the address of a stack vvar that stays its own variable
+        is not a member access.
+        """
+        for variable_manager, atom, variable, stack_offset, size, ref_varids in self._pending_stack_memory_members:
+            if any(v in infos and v not in rendered_in_struct for v in ref_varids):
+                continue
+            self._map_stackvar_to_struct_member(variable_manager, atom, variable, stack_offset, size)
+        self._pending_stack_memory_members = []
 
     def _set_expr_variable(self, expr, variable, offset) -> None:
         self.variable_map.set_variable(expr, variable, offset)
@@ -4501,8 +4594,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                     var, offset = next(iter(mem_vars))
                     self._set_store_variable(stmt, var, offset)
                     if isinstance(var, SimStackVariable):
-                        self._map_stackvar_to_struct_member(
-                            variable_manager, stmt, var, var.offset + (offset or 0), stmt.size
+                        self._note_stack_memory_access(
+                            variable_manager, stmt, stmt.addr, var, var.offset + (offset or 0), stmt.size
                         )
                 else:
                     # check if the dest address is a variable
@@ -4656,8 +4749,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                 var, offset = _pick_var_and_offset(variables)
                 self._set_expr_variable(expr, var, offset)
                 if isinstance(var, SimStackVariable):
-                    self._map_stackvar_to_struct_member(
-                        variable_manager, expr, var, var.offset + (offset or 0), expr.size
+                    self._note_stack_memory_access(
+                        variable_manager, expr, expr.addr, var, var.offset + (offset or 0), expr.size
                     )
 
         elif isinstance(expr, ailment.Expr.BinaryOp):
