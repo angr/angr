@@ -10,12 +10,19 @@ import unittest
 import archinfo
 
 import angr
+import networkx
+
 from angr import default_cc
+from angr.ailment import Block, Manager
+from angr.ailment.expression import BinaryOp, Const, Load, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment
+from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.decompiler.structured_codegen.c import (
     CBinaryOp,
     CExpression,
     CStructuredCodeGenerator,
 )
+from angr.analyses.decompiler.variable_map import VariableMap
 from angr.sim_type import (
     PointerDisposition,
     SimCppClass,
@@ -26,6 +33,8 @@ from angr.sim_type import (
     SimTypeLongLong,
     SimTypePointer,
 )
+from angr.sim_variable import SimStackVariable
+from angr.utils.vvar_set import VVarSet
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -100,6 +109,168 @@ class TestStructMemberSlotReuse(unittest.TestCase):
         written = re.search(r"\b(v\d+)\.a = a0;", text)
         assert written is not None, text
         assert re.search(rf"\bh\({written.group(1)}\.a\);", text) is not None, text
+
+
+class _FakeVariableManager:
+    """Answers find_variables_by_atom() from a fixed {(stmt_idx, atom idx): (variable, offset)} table."""
+
+    def __init__(self, atom_vars):
+        self.atom_vars = atom_vars
+
+    def find_variables_by_atom(self, block_addr, stmt_idx, atom, block_idx=None):  # pylint:disable=unused-argument
+        v = self.atom_vars.get((stmt_idx, atom.idx))
+        return {v} if v is not None else set()
+
+    def unified_variable(self, variable):
+        return variable
+
+
+class _FakeVariablesPlugin:
+    def __init__(self, manager):
+        self.manager = manager
+
+    def __getitem__(self, key):
+        return self.manager
+
+    def get_global_manager(self, flavor=None):  # pylint:disable=unused-argument
+        return None
+
+
+class _FakeKB:
+    def __init__(self, manager):
+        self.variables = _FakeVariablesPlugin(manager)
+
+
+class _FakeFunction:
+    addr = 0x400000
+
+
+class _FakeLiveness:
+    def __init__(self, block):
+        self.model = type("model", (), {"live_outs": {(block.addr, block.idx): VVarSet()}})()
+
+
+class TestStructMemberLinking(unittest.TestCase):
+    """
+    Links one hand-built block against a 0x34-byte struct-typed stack variable at -0x34. Neither shape occurs in the
+    sweep binaries on master; devirtualized VM bodies produce both.
+    """
+
+    STRUCT = SimStackVariable(-0x34, 0x34, ident="s_34", name="s")
+
+    @classmethod
+    def _link(cls, statements, atom_vars):
+        block = Block(0x400000, 0x10, statements=statements, idx=0)
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        clinic = Clinic.__new__(Clinic)
+        clinic.function = _FakeFunction()
+        clinic.flavor = None
+        clinic.entry_node_addr = (block.addr, block.idx)
+        clinic.variable_map = VariableMap()
+        clinic._stack_complex_types = {cls.STRUCT.offset: (cls.STRUCT, 0x34)}
+        clinic._stack_complex_type_offsets = [cls.STRUCT.offset]
+        clinic._stack_vvar_struct_cover = {}
+        clinic._stack_vvars_outside_struct = set()
+        clinic._pending_stack_memory_members = []
+        clinic._link_variables_on_block(block, _FakeKB(_FakeVariableManager(atom_vars)))
+        clinic._map_stack_vvars_to_struct_members(graph, _FakeLiveness(block))
+        return clinic.variable_map
+
+    def test_load_through_unmapped_vvar_is_not_a_member(self):
+        # w covers the struct and is read after v overwrites part of it, so v stays its own variable; a load through
+        # &v must then not read the struct either
+        m = Manager()
+        whole = VirtualVariable(m.next_atom(), 1, 0x34 * 8, VirtualVariableCategory.STACK, oident=-0x34)
+        part = VirtualVariable(m.next_atom(), 2, 48, VirtualVariableCategory.STACK, oident=-18)
+        part_use = VirtualVariable(m.next_atom(), 2, 48, VirtualVariableCategory.STACK, oident=-18)
+        whole_use = VirtualVariable(m.next_atom(), 1, 0x34 * 8, VirtualVariableCategory.STACK, oident=-0x34)
+        load = Load(
+            m.next_atom(),
+            BinaryOp(
+                m.next_atom(),
+                "Add",
+                [UnaryOp(m.next_atom(), "Reference", part_use, bits=64), Const(m.next_atom(), 2, 64)],
+                False,
+                bits=64,
+            ),
+            2,
+            "Iend_LE",
+        )
+
+        def reg(varid):
+            return VirtualVariable(m.next_atom(), varid, 64, VirtualVariableCategory.REGISTER, oident=16)
+
+        statements = [
+            Assignment(m.next_atom(), whole, reg(10), ins_addr=0x400000),
+            Assignment(m.next_atom(), part, reg(11), ins_addr=0x400004),
+            Assignment(m.next_atom(), reg(12), load, ins_addr=0x400008),
+            Assignment(m.next_atom(), reg(13), whole_use, ins_addr=0x40000C),
+        ]
+        part_var = SimStackVariable(-18, 6, ident="s_12")
+        vm = self._link(
+            statements,
+            {
+                (0, whole.idx): (self.STRUCT, 0),
+                (1, part.idx): (part_var, 0),
+                (2, part_use.idx): (part_var, 0),
+                (2, load.idx): (part_var, 2),
+                (3, whole_use.idx): (self.STRUCT, 0),
+            },
+        )
+        assert vm.struct_member(part) is None
+        assert vm.struct_member(load) is None
+
+    def test_vvar_in_struct_region_variable_is_a_member(self):
+        # the reference to v is linked to the variable of the whole region; v is still a member at its own offset
+        m = Manager()
+        part = VirtualVariable(m.next_atom(), 2, 32, VirtualVariableCategory.STACK, oident=-20)
+        part_ref = VirtualVariable(m.next_atom(), 2, 32, VirtualVariableCategory.STACK, oident=-20)
+        statements = [
+            Assignment(
+                m.next_atom(),
+                part,
+                VirtualVariable(m.next_atom(), 10, 32, VirtualVariableCategory.REGISTER, oident=16),
+                ins_addr=0x400000,
+            ),
+            Assignment(
+                m.next_atom(),
+                VirtualVariable(m.next_atom(), 11, 64, VirtualVariableCategory.REGISTER, oident=24),
+                UnaryOp(m.next_atom(), "Reference", part_ref, bits=64),
+                ins_addr=0x400004,
+            ),
+        ]
+        vm = self._link(
+            statements,
+            {(0, part.idx): (SimStackVariable(-20, 4, ident="s_14"), 0), (1, part_ref.idx): (self.STRUCT, None)},
+        )
+        assert vm.struct_member(part) == (self.STRUCT, 0x34 - 20)
+        assert vm.struct_member(part_ref) == (self.STRUCT, 0x34 - 20)
+
+    def test_vvar_linked_to_struct_and_other_variable_is_a_member(self):
+        # one occurrence of the whole-struct vvar is linked to the struct, another to a separate variable at the same
+        # slot; all of them must render as the struct
+        m = Manager()
+        whole = VirtualVariable(m.next_atom(), 2, 0x34 * 8, VirtualVariableCategory.STACK, oident=-0x34)
+        whole_ref = VirtualVariable(m.next_atom(), 2, 0x34 * 8, VirtualVariableCategory.STACK, oident=-0x34)
+        statements = [
+            Assignment(
+                m.next_atom(),
+                whole,
+                VirtualVariable(m.next_atom(), 10, 0x34 * 8, VirtualVariableCategory.REGISTER, oident=16),
+                ins_addr=0x400000,
+            ),
+            Assignment(
+                m.next_atom(),
+                VirtualVariable(m.next_atom(), 11, 64, VirtualVariableCategory.REGISTER, oident=24),
+                UnaryOp(m.next_atom(), "Reference", whole_ref, bits=64),
+                ins_addr=0x400004,
+            ),
+        ]
+        other = SimStackVariable(-0x34, 0x34, ident="s_34_other")
+        vm = self._link(statements, {(0, whole.idx): (other, 0), (1, whole_ref.idx): (self.STRUCT, None)})
+        assert vm.struct_member(whole) == (self.STRUCT, 0)
+        assert vm.struct_member(whole_ref) == (self.STRUCT, 0)
 
 
 class _MinimalCodegen(CStructuredCodeGenerator):
