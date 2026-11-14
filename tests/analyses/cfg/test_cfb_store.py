@@ -202,3 +202,86 @@ class TestCfbStore(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _brief(addr, obj) -> tuple:
+    # comparable across projects
+    return addr, type(obj).__name__, obj.size, getattr(obj, "thumb", None), obj.addr
+
+
+class TestCfbScan(unittest.TestCase):
+    """The CFG scan feeds the store directly; on_objects_added gets lazy batches."""
+
+    def _run(self, binary: str, batch: bool, patch: bool = False):
+        proj = angr.Project(os.path.join(test_location, binary), auto_load_libs=False)
+        if patch:
+            proj.kb.patches.add_patch(proj.entry & ~1, b"\x00")
+        events: list = []
+        if batch:
+            cfb = proj.analyses[CFBlanket].prep(kb=KnowledgeBase(proj))(
+                exclude_region_types={"kernel", "tls"}, on_objects_added=events.append
+            )
+        else:
+            cfb = proj.analyses[CFBlanket].prep(kb=KnowledgeBase(proj))(
+                exclude_region_types={"kernel", "tls"}, on_object_added=lambda a, o: events.append((a, o))
+            )
+        cfg = proj.analyses.CFGFast(normalize=True, cfb=cfb)
+        return proj, cfg, cfb, events
+
+    def test_scan_is_native(self):
+        from angr.analyses.cfg.cfg_fast import CFGFast
+        from angr.rustylib.cfb import KIND_BLOCK
+
+        calls = []
+        orig_rust, orig_block = CFGFast._cfb_add_rust_blocks, CFGFast._cfb_block
+        CFGFast._cfb_add_rust_blocks = lambda self, blocks: calls.append("rust")
+        CFGFast._cfb_block = lambda self, addr, size: calls.append("block")
+        try:
+            for binary in ("x86_64/fauxware", "armel/fauxware"):
+                for batch in (False, True):
+                    _, cfg, cfb, _ = self._run(binary, batch)
+                    assert cfg._cfb_native_blocks
+                    # scan blocks are records with a lift profile
+                    assert any(kind == KIND_BLOCK and payload for _, kind, _, _, payload, _, _ in cfb._store.state()[0])
+            assert not calls
+        finally:
+            CFGFast._cfb_add_rust_blocks, CFGFast._cfb_block = orig_rust, orig_block
+
+    def test_scan_blocks_lift_like_cfb_block(self):
+        for binary in ("x86_64/fauxware", "armel/fauxware"):
+            _, cfg, cfb, _ = self._run(binary, True)
+            for a, o in cfb._blanket.items():
+                if isinstance(o, Block) and o._opt_level == 1:
+                    ref = cfg._cfb_block(o.addr, o.size)
+                    assert (a & ~1 if binary.startswith("armel") else a) == a
+                    assert (o.addr, o.size, o.thumb, o._collect_data_refs, o._const_prop) == (
+                        ref.addr,
+                        ref.size,
+                        ref.thumb,
+                        ref._collect_data_refs,
+                        ref._const_prop,
+                    )
+                    assert o._extra_stop_points is cfg._known_thunk_addrs
+
+    def test_patches_keep_eager_scan_blocks(self):
+        from angr.rustylib.cfb import KIND_BLOCK
+
+        _, cfg, cfb, _ = self._run("x86_64/fauxware", True, patch=True)
+        assert not cfg._cfb_native_blocks
+        assert not any(kind == KIND_BLOCK and payload for _, kind, _, _, payload, _, _ in cfb._store.state()[0])
+
+    def test_batches(self):
+        for binary in ("x86_64/fauxware", "armel/fauxware"):
+            _, _, _, single = self._run(binary, False)
+            _, _, cfb_b, batches = self._run(binary, True)
+            flat = [e for b in batches for e in b]
+            assert [_brief(*e) for e in flat] == [_brief(*e) for e in single], binary
+            assert [i for b in batches for i in b.intervals()] == [CFBlanket._interval(a, o) for a, o in flat]
+            big = max(batches, key=len)
+            assert big[-1] is big[len(big) - 1] and big[0] is next(iter(big))
+            assert [_row(*e) for e in big[1:5]] == [_row(*e) for e in list(big)[1:5]]
+            with self.assertRaises(IndexError):
+                _ = big[len(big)]
+            # a current event object is the blanket's object
+            blanket = cfb_b._blanket
+            assert any(blanket.get(a) is o for a, o in big)

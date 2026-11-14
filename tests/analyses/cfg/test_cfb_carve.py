@@ -255,23 +255,23 @@ class TestCFBlanketCarve(unittest.TestCase):
             on_object_added=lambda a, o: single.append((a, o)), on_objects_added=batches.append
         )
         # the initial build is one batch
-        assert len(batches) == 1 and batches[0] == single
+        assert len(batches) == 1 and list(batches[0]) == single
         rng = random.Random(1)
         objs = self._random_objs(proj, rng, base, 0x300, 100)
         # add_obj: one batch per call
         for addr, obj in objs[:50]:
             n = len(single)
             cfb.add_obj(addr, obj)
-            assert batches[-1] == single[n:]
+            assert list(batches[-1]) == single[n:]
         # add_objs: one batch per call
         n, n_batches = len(single), len(batches)
         cfb.add_objs(objs[50:])
-        assert len(batches) == n_batches + 1 and batches[-1] == single[n:]
+        assert len(batches) == n_batches + 1 and list(batches[-1]) == single[n:]
         # remove_obj reports its filler
         key = next(k for k, o in cfb._blanket.items() if isinstance(o, Block))
         n = len(single)
         cfb.remove_obj(key)
-        assert batches[-1] == single[n:] and isinstance(single[-1][1], Unknown)
+        assert list(batches[-1]) == single[n:] and isinstance(single[-1][1], Unknown)
         assert [e for b in batches for e in b] == single
 
     def test_batch_callback_during_cfg(self):
