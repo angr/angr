@@ -14,7 +14,16 @@ import networkx
 
 from angr import default_cc
 from angr.ailment import Block, Manager
-from angr.ailment.expression import BinaryOp, Const, Load, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import (
+    BinaryOp,
+    Const,
+    Extract,
+    Insert,
+    Load,
+    UnaryOp,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.decompiler.structured_codegen.c import (
@@ -133,7 +142,10 @@ class _FakeVariablesPlugin:
         return self.manager
 
     def get_global_manager(self, flavor=None):  # pylint:disable=unused-argument
-        return None
+        return self
+
+    def get_global_variables(self, addr):  # pylint:disable=unused-argument
+        return set()
 
 
 class _FakeKB:
@@ -165,6 +177,8 @@ class TestStructMemberLinking(unittest.TestCase):
         graph.add_node(block)
         clinic = Clinic.__new__(Clinic)
         clinic.function = _FakeFunction()
+        # only consulted for constants
+        clinic.project = angr.load_shellcode(b"\x90", arch="AMD64")
         clinic.flavor = None
         clinic.entry_node_addr = (block.addr, block.idx)
         clinic.variable_map = VariableMap()
@@ -271,6 +285,108 @@ class TestStructMemberLinking(unittest.TestCase):
         vm = self._link(statements, {(0, whole.idx): (other, 0), (1, whole_ref.idx): (self.STRUCT, None)})
         assert vm.struct_member(whole) == (self.STRUCT, 0)
         assert vm.struct_member(whole_ref) == (self.STRUCT, 0)
+
+    def test_vvars_of_one_variable_are_mapped_together(self):
+        # a and b belong to one variable x; b overwrites bytes of w while w is still read, so b stays x, and then a
+        # must stay x too
+        m = Manager()
+
+        def stack(varid, offset):
+            return VirtualVariable(m.next_atom(), varid, 32, VirtualVariableCategory.STACK, oident=offset)
+
+        def reg(varid):
+            return VirtualVariable(m.next_atom(), varid, 32, VirtualVariableCategory.REGISTER, oident=16)
+
+        w, b, a, w_use = stack(1, -0x34), stack(2, -0x34), stack(3, -0x30), stack(1, -0x34)
+        statements = [
+            Assignment(m.next_atom(), w, reg(10), ins_addr=0x400000),
+            Assignment(m.next_atom(), b, reg(11), ins_addr=0x400004),
+            Assignment(m.next_atom(), a, reg(12), ins_addr=0x400008),
+            Assignment(m.next_atom(), reg(13), w_use, ins_addr=0x40000C),
+        ]
+        x = SimStackVariable(-0x34, 8, ident="s_34_x")
+        vm = self._link(
+            statements,
+            {
+                (0, w.idx): (self.STRUCT, 0),
+                (1, b.idx): (x, 0),
+                (2, a.idx): (x, 4),
+                (3, w_use.idx): (self.STRUCT, 0),
+            },
+        )
+        assert vm.struct_member(b) is None
+        assert vm.struct_member(a) is None
+
+    def test_taking_the_address_of_the_older_value_is_not_a_read(self):
+        # w is only referenced after v overwrites part of it: the reference names the storage, so v is a member
+        m = Manager()
+        whole = VirtualVariable(m.next_atom(), 1, 0x34 * 8, VirtualVariableCategory.STACK, oident=-0x34)
+        part = VirtualVariable(m.next_atom(), 2, 48, VirtualVariableCategory.STACK, oident=-18)
+        whole_ref = VirtualVariable(m.next_atom(), 1, 0x34 * 8, VirtualVariableCategory.STACK, oident=-0x34)
+
+        def reg(varid, bits):
+            return VirtualVariable(m.next_atom(), varid, bits, VirtualVariableCategory.REGISTER, oident=16)
+
+        statements = [
+            Assignment(m.next_atom(), whole, reg(10, 0x34 * 8), ins_addr=0x400000),
+            Assignment(m.next_atom(), part, reg(11, 48), ins_addr=0x400004),
+            Assignment(
+                m.next_atom(), reg(12, 64), UnaryOp(m.next_atom(), "Reference", whole_ref, bits=64), ins_addr=0x400008
+            ),
+        ]
+        vm = self._link(
+            statements,
+            {
+                (0, whole.idx): (self.STRUCT, 0),
+                (1, part.idx): (SimStackVariable(-18, 6, ident="s_12"), 0),
+                (2, whole_ref.idx): (self.STRUCT, None),
+            },
+        )
+        assert vm.struct_member(part) == (self.STRUCT, 0x34 - 18)
+
+    def _link_insert_then_read(self, read_offset: int):
+        # n = Insert(w, 0, 8 bytes) is a variable of its own; w is read at read_offset afterwards
+        m = Manager()
+        bits = 0x34 * 8
+
+        def whole(varid):
+            return VirtualVariable(m.next_atom(), varid, bits, VirtualVariableCategory.STACK, oident=-0x34)
+
+        def reg(varid, reg_bits):
+            return VirtualVariable(m.next_atom(), varid, reg_bits, VirtualVariableCategory.REGISTER, oident=16)
+
+        w, w_base, n, w_use = whole(1), whole(1), whole(2), whole(1)
+        statements = [
+            Assignment(m.next_atom(), w, reg(10, bits), ins_addr=0x400000),
+            Assignment(
+                m.next_atom(),
+                n,
+                Insert(m.next_atom(), w_base, Const(m.next_atom(), 0, 64), reg(11, 64), "Iend_LE"),
+                ins_addr=0x400004,
+            ),
+            Assignment(
+                m.next_atom(),
+                reg(12, 32),
+                Extract(m.next_atom(), 32, w_use, Const(m.next_atom(), read_offset, 64), "Iend_LE"),
+                ins_addr=0x400008,
+            ),
+        ]
+        other = SimStackVariable(-0x34, 0x34, ident="s_34_other")
+        vm = self._link(
+            statements,
+            {
+                (0, w.idx): (self.STRUCT, 0),
+                (1, n.idx): (other, 0),
+                (1, w_base.idx): (self.STRUCT, 0),
+                (2, w_use.idx): (self.STRUCT, 0),
+            },
+        )
+        return vm.struct_member(n)
+
+    def test_insert_only_conflicts_with_reads_of_the_inserted_bytes(self):
+        # the bytes of w that n did not replace are the same in both
+        assert self._link_insert_then_read(16) == (self.STRUCT, 0)
+        assert self._link_insert_then_read(4) is None
 
 
 class _MinimalCodegen(CStructuredCodeGenerator):
