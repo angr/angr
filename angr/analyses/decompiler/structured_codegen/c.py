@@ -6236,6 +6236,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
     ):
         expr_var = self._variable_map.variable(expr)
         member = self._variable_map.struct_member(expr) if expr_var is not None else None
+        if member is None and ref and expr.was_stack and isinstance(expr_var, SimStackVariable):
+            # the address of a slot inside a wider variable
+            offset = self._variable_map.variable_offset(expr)
+            if offset and expr_var.offset + offset == expr.stack_offset:
+                member = expr_var, offset
         if member is not None:
             # the vvar is a member of a struct- or array-typed stack variable
             cbasevar = self._variable(member[0], None, vvar_id=expr.varid)
