@@ -199,7 +199,7 @@ class TestVex(unittest.TestCase):
 
     def test_x86_use_seg_selector_index_out_of_range(self):
         s = SimState(project=minimal_project("X86"))
-        s.globals["x86_cr0"] = 1
+        s.globals["x86_cr0"] = 1  # pyright: ignore[reportIndexIssue]
         # a GDT with a limit of 1, and a selector for its entry 1
         gdt, selector = claripy.BVV(1, 64), claripy.BVV(1 << 3, 32)
         res = s_ccall.x86g_use_seg_selector(s, claripy.BVV(0, 64), gdt, selector, claripy.BVV(0, 32))
