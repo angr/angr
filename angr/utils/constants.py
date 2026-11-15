@@ -85,7 +85,7 @@ def _has_repeated_bit_pattern(bitstr: str) -> bool:
     return False
 
 
-def should_use_hex(value: int, bits: int | None = None) -> bool:
+def should_use_hex(value: int, bits: int | None = None, bitwise: bool = False) -> bool:
     """
     Heuristically decide whether an integer constant reads better in hexadecimal than in decimal in decompiled output.
 
@@ -110,6 +110,11 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
     7. The value is a nonzero multiple of 1000 -- a "round" human-authored decimal number (e.g. ``5000``, ``20000``).
     8. The magnitude is small (``abs(value) <= 9``) -- e.g. small loop counters and offsets.
 
+    Hexadecimal (returns ``True``):
+
+    8b. ``bitwise`` is set and the value is **>= 256** -- an operand of a bitwise AND/OR/XOR is a set of bits
+        (e.g. ``0x4002``, ``0x241002``).
+
     Hexadecimal (weak signal, returns ``True``):
 
     9. The low byte is zero and the value is ``> 0xff`` -- a "round" hex number (e.g. ``0x1200``).
@@ -121,6 +126,7 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
     :param value:   The integer value to format.
     :param bits:    The bit-width of the value's type. Used to normalize negative values to their unsigned form. If
                     ``None``, the value's own bit length is used.
+    :param bitwise: The value is a direct operand of a bitwise AND, OR, or XOR.
     :return:        ``True`` if the value should be displayed in hexadecimal, ``False`` for decimal.
     """
 
@@ -174,6 +180,10 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
     # 8. small magnitudes
     if abs(value) <= 9:
         return False
+
+    # 8b. masks and flag sets
+    if bitwise and value >= 0x100:
+        return True
 
     # 9. round hex numbers (low byte zero)
     if u > 0xFF and (u & 0xFF) == 0:

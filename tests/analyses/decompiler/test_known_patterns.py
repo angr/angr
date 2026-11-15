@@ -1042,7 +1042,7 @@ class TestCtypeMacros(TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "isspace(" not in text and "isalnum(" not in text
-        assert "8200" in text  # 0x2008: _ISspace | _ISalnum
+        assert "0x2008" in text  # _ISspace | _ISalnum
 
     def test_errno_is_rendered_as_a_name(self):
         # errno is not a KnownPattern: it expands to *(__errno_location()),

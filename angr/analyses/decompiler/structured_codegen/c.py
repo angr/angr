@@ -1907,7 +1907,7 @@ class CAssignment(CStatement):
             # a = a + x  =>  a += x
             # a = x + a  =>  a += x
             yield f" {compound_assignment_ops[self.rhs.op]}= ", self
-            yield from CExpression._try_c_repr_chunks(compound_expr_rhs)
+            yield from self.rhs.operand_chunks(compound_expr_rhs)
         else:
             yield " = ", self
             yield from CExpression._try_c_repr_chunks(self.rhs)
@@ -2771,7 +2771,7 @@ class CBinaryOp(CExpression, BinaryOpNode):
             yield from self._try_c_repr_chunks(self.lhs)
             yield ")", paren
         else:
-            yield from self._try_c_repr_chunks(self.lhs)
+            yield from self.operand_chunks(self.lhs)
 
         # operator
         yield op, self
@@ -2786,7 +2786,21 @@ class CBinaryOp(CExpression, BinaryOpNode):
             yield from self._try_c_repr_chunks(self.rhs)
             yield ")", paren
         else:
-            yield from self._try_c_repr_chunks(self.rhs)
+            yield from self.operand_chunks(self.rhs)
+
+    def operand_chunks(self, operand):
+        """
+        Render a direct operand. A constant operand of a bitwise operation is a set of bits and reads in hexadecimal,
+        except in `-(cond) & N`, which selects the number N.
+        """
+        if self.op in {"And", "Or", "Xor"} and isinstance(operand, CConstant):
+            other = self.rhs if operand is self.lhs else self.lhs
+            while isinstance(other, CTypeCast):
+                other = other.expr
+            if not (self.op == "And" and isinstance(other, CUnaryOp) and other.op == "Neg"):
+                yield from operand.c_repr_chunks(bitwise=True)
+                return
+        yield from self._try_c_repr_chunks(operand)
 
     def _c_repr_chunks_opfirst(self, op):
         yield op, self
@@ -3194,12 +3208,15 @@ class CConstant(CExpression, ConstantNode):
 
     @property
     def fmt_hex(self):
+        return self._use_hex()
+
+    def _use_hex(self, bitwise: bool = False) -> bool:
         result = self.fmt.get("hex", None)
         if result is None:
             result = False
             if isinstance(self.value, int):
                 bits = self._type.size if self._type is not None else None
-                result = should_use_hex(self.value, bits)
+                result = should_use_hex(self.value, bits, bitwise=bitwise)
         return result
 
     @fmt_hex.setter
@@ -3266,7 +3283,11 @@ class CConstant(CExpression, ConstantNode):
             base_str = base_str.replace('"', '\\"')
         return f'{prefix}"{base_str}"'
 
-    def c_repr_chunks(self, indent=0, asexpr=False):
+    def c_repr_chunks(self, indent=0, asexpr=False, bitwise=False):
+        """
+        :param bitwise: The constant is a direct operand of a bitwise And, Or, or Xor.
+        """
+
         def _default_output(v) -> str | None:
             if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String and v.content is not None:
                 return CConstant.str_to_c_str(v.content.decode("utf-8"), maxlen=self.codegen.max_str_len)
@@ -3300,7 +3321,7 @@ class CConstant(CExpression, ConstantNode):
                 if isinstance(self._type, SimTypeInt):
                     refval = self.reference_values[self._type]
                     if isinstance(refval, int):
-                        yield self.fmt_int(refval), self
+                        yield self.fmt_int(refval, bitwise=bitwise), self
                         return
                     yield hex(self.reference_values[self._type]), self
                     return
@@ -3331,7 +3352,7 @@ class CConstant(CExpression, ConstantNode):
 
                 refval = self.reference_values[self._type]
                 if isinstance(refval, int):
-                    yield self.fmt_int(refval), self
+                    yield self.fmt_int(refval, bitwise=bitwise), self
                     return
                 o = _default_output(self.reference_values[self.type])
                 if o is not None:
@@ -3361,7 +3382,7 @@ class CConstant(CExpression, ConstantNode):
             yield _decode_binary128(self.value), self
 
         elif isinstance(self.value, int):
-            str_value = self.fmt_int(self.value)
+            str_value = self.fmt_int(self.value, bitwise=bitwise)
             yield str_value, self
         else:
             s = str(self.value)
@@ -3371,11 +3392,12 @@ class CConstant(CExpression, ConstantNode):
                 s += "f"
             yield s, self
 
-    def fmt_int(self, value: int) -> str:
+    def fmt_int(self, value: int, bitwise: bool = False) -> str:
         """
         Format an integer using the format setup of the current node.
 
         :param value:   The integer value to format.
+        :param bitwise: The constant is a direct operand of a bitwise And, Or, or Xor.
         :return:        The formatted string.
         """
 
@@ -3402,7 +3424,7 @@ class CConstant(CExpression, ConstantNode):
                 assert self._type.size is not None
                 value += 2**self._type.size
 
-        if self.fmt_hex:
+        if self._use_hex(bitwise):
             return hex(value)
 
         return str(value)

@@ -97,6 +97,14 @@ class TestShouldUseHex(unittest.TestCase):
         self._assert_hex(0xC0000005, bits=32)
         self._assert_hex(0xC0000005, bits=64)
 
+    def test_bitwise_operands(self):
+        for v in (260, 1301, 8200, 16386, 2363394):
+            assert should_use_hex(v, 32) is False
+            assert should_use_hex(v, 32, bitwise=True) is True
+        # below 256 and the decimal rules are not affected
+        for v in (10, 100, 254, 5000, 10000, 111112):
+            assert should_use_hex(v, 32, bitwise=True) is False
+
 
 if __name__ == "__main__":
     unittest.main()

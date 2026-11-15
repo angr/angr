@@ -1959,7 +1959,7 @@ class TestX87PushEcxFrame:
         text = self._text(self.set_exp)
         assert re.search(r"double sub_40b8f4\(double a0, [\w ]+ a1\)", text), text
         assert "0x3fe" in text, text
-        assert "32783" in text, text
+        assert "0x800f" in text, text
         assert re.search(r"return \w+;", text), text
 
     def test_frnd(self):

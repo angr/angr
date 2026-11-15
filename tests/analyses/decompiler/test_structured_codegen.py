@@ -90,9 +90,9 @@ class TestConvertRendering(unittest.TestCase):
     def test_truncation_to_unrepresentable_width_is_masked(self):
         # No C type is 5, 3 or 1 bits wide. A cast would round up to the next real type and keep
         # bits the conversion discards, so these have to be spelled as a mask instead.
-        assert self._render(32, 5) == "4660 & 31"
-        assert self._render(32, 3) == "4660 & 7"
-        assert self._render(32, 1) == "4660 & 1"
+        assert self._render(32, 5) == "0x1234 & 31"
+        assert self._render(32, 3) == "0x1234 & 7"
+        assert self._render(32, 1) == "0x1234 & 1"
 
     def test_truncation_to_representable_width_is_a_cast(self):
         assert self._render(32, 8) == "(char)4660"
