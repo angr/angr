@@ -299,6 +299,26 @@ class TestStructMemberAccess(unittest.TestCase):
         codegen._register_carried_variables = None
         assert re.fullmatch(r"\w+", codegen._handle_VirtualVariable(vvar).c_repr()) is not None
 
+    def test_extract_from_dereferenced_leading_member(self):
+        # caller:
+        #   push rbx; push rbp; sub rsp, 0x28; mov rdi, rsp; call callee; mov rbx, [rsp]; mov ebp, [rsp]
+        #   mov rdi, rsp; call callee; mov edi, ebp; call sink; add rax, rbx; add rsp, 0x28; pop rbp; pop rbx; ret
+        # callee:
+        #   mov dword ptr [rdi+0x10], 1; mov byte ptr [rdi+0x14], 2; ret
+        # sink:
+        #   lea eax, [rdi+1]; ret
+        code = bytes.fromhex(
+            "53554883ec284889e7e820000000488b1c248b2c244889e7e81100000089efe8160000004801d84883c4285d5bc3"
+            "c7471001000000c6471402c38d4701c3"
+        )
+        text = self._decompile_shellcode(code, 0x40002E, 0x40003A)
+        m = re.search(r"^\s+st_\w+ (v\d+);", text, re.MULTILINE)
+        assert m is not None, text
+        var = m.group(1)
+        # the low 4 of the leading 8 bytes: no address of a dereference
+        assert re.search(rf" \*\(unsigned int \*\)&?{var}\.padding_0(\[0\])?;", text) is not None, text
+        assert "&*" not in text, text
+
 
 class TestStructMemberSlotReuse(unittest.TestCase):
     def test_struct_member_read_before_overwrite(self):

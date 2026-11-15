@@ -6171,10 +6171,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return CTypeCast(shifted.type, target_type, shifted, codegen=self)
 
         voidp = SimTypePointer(SimTypeBottom()).with_arch(self.project.arch)
+        if isinstance(child, CUnaryOp) and child.op == "Dereference":
+            # &*p is p
+            child_ref = child.operand
+            while isinstance(child_ref, CTypeCast) and isinstance(child_ref.type, SimTypePointer):
+                child_ref = child_ref.expr
+        else:
+            child_ref = CUnaryOp("Reference", child, codegen=self)
         inner_expr = CTypeCast(
             SimTypePointer(child_type).with_arch(self.project.arch),
             voidp,
-            CUnaryOp("Reference", child, codegen=self),
+            child_ref,
             codegen=self,
         )
         if offset != 0:
