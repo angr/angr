@@ -235,6 +235,60 @@ class TestStructMemberLinking(unittest.TestCase):
         assert vm.struct_member(part) is None
         assert vm.struct_member(load) is None
 
+    def test_load_linked_to_unmapped_variable_is_not_a_member(self):
+        # x overwrites bytes of w that are read afterwards and stays its own variable; p does not and is a member. a
+        # load through &p that reads x must not read the struct
+        m = Manager()
+
+        def stack(varid, offset, size):
+            return VirtualVariable(m.next_atom(), varid, size * 8, VirtualVariableCategory.STACK, oident=offset)
+
+        def reg(varid, bits=64):
+            return VirtualVariable(m.next_atom(), varid, bits, VirtualVariableCategory.REGISTER, oident=16)
+
+        whole, p, x = stack(1, -0x34, 0x34), stack(2, -18, 6), stack(3, -24, 16)
+        p_use, whole_use = stack(2, -18, 6), stack(1, -0x34, 0x34)
+        load = Load(
+            m.next_atom(),
+            BinaryOp(
+                m.next_atom(),
+                "Add",
+                [UnaryOp(m.next_atom(), "Reference", p_use, bits=64), Const(m.next_atom(), 2, 64)],
+                False,
+                bits=64,
+            ),
+            4,
+            "Iend_LE",
+        )
+        statements = [
+            Assignment(m.next_atom(), whole, reg(10, 0x34 * 8), ins_addr=0x400000),
+            Assignment(m.next_atom(), p, reg(11, 48), ins_addr=0x400004),
+            Assignment(m.next_atom(), x, reg(12, 128), ins_addr=0x400008),
+            Assignment(m.next_atom(), reg(13, 32), load, ins_addr=0x40000C),
+            Assignment(
+                m.next_atom(),
+                reg(14, 32),
+                Extract(m.next_atom(), 32, whole_use, Const(m.next_atom(), 0x34 - 24, 64), "Iend_LE"),
+                ins_addr=0x400010,
+            ),
+        ]
+        p_var = SimStackVariable(-18, 6, ident="s_12")
+        x_var = SimStackVariable(-24, 16, ident="s_18")
+        vm = self._link(
+            statements,
+            {
+                (0, whole.idx): (self.STRUCT, 0),
+                (1, p.idx): (p_var, 0),
+                (2, x.idx): (x_var, 0),
+                (3, p_use.idx): (p_var, 0),
+                (3, load.idx): (x_var, 8),
+                (4, whole_use.idx): (self.STRUCT, 0),
+            },
+        )
+        assert vm.struct_member(p) == (self.STRUCT, 0x34 - 18)
+        assert vm.struct_member(x) is None
+        assert vm.struct_member(load) is None
+
     def test_vvar_in_struct_region_variable_is_a_member(self):
         # the reference to v is linked to the variable of the whole region; v is still a member at its own offset
         m = Manager()
