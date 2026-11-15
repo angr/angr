@@ -8,21 +8,6 @@ use std::sync::Arc;
 
 use crate::{algorithms::walk, cache::GenericCache, prelude::*};
 
-/// The operands of `op` when it is associative and commutative, so that the
-/// order and grouping of its operands carry no meaning; `None` otherwise.
-fn commutative_operands<'a, 'c>(op: &'a AstOp<'c>) -> Option<&'a [AstRef<'c>]> {
-    match op {
-        AstOp::And(v)
-        | AstOp::Or(v)
-        | AstOp::Xor(v)
-        | AstOp::Add(v)
-        | AstOp::Mul(v)
-        | AstOp::Union(v)
-        | AstOp::Intersection(v) => Some(v),
-        _ => None,
-    }
-}
-
 /// A set of `from -> to` substitutions for [`AstNode::replace_many`].
 ///
 /// Besides whole-node matches, an entry whose `from` is an associative and
@@ -47,7 +32,11 @@ impl<'c> Replacements<'c> {
     /// Adds `from -> to`, replacing any entry for the same `from`.
     pub fn insert(&mut self, from: AstRef<'c>, to: AstRef<'c>) {
         self.patterns.retain(|(f, _)| *f != from);
-        if commutative_operands(from.op()).is_some_and(|v| !v.is_empty()) {
+        if from
+            .op()
+            .associative_commutative_operands()
+            .is_some_and(|v| !v.is_empty())
+        {
             let key = |f: &AstRef<'c>| (Reverse(f.op().num_children()), f.hash());
             let at = self.patterns.partition_point(|(f, _)| key(f) < key(&from));
             self.patterns.insert(at, (from.clone(), to.clone()));
@@ -164,8 +153,10 @@ impl<'c> AstNode<'c> {
             // (which keep their replaced forms); a lone operand is returned bare.
             |node, children| {
                 let patterns = &replacements.patterns;
-                let Some(operands) =
-                    commutative_operands(node.op()).filter(|_| !patterns.is_empty())
+                let Some(operands) = node
+                    .op()
+                    .associative_commutative_operands()
+                    .filter(|_| !patterns.is_empty())
                 else {
                     return ctx.make_ast_annotated(
                         node.op().with_children(children),
@@ -179,8 +170,11 @@ impl<'c> AstNode<'c> {
                     .try_fold(
                         (multiset(operands), Vec::new()),
                         |(mut unmatched, mut substituted), (from, to)| {
-                            let needed =
-                                multiset(commutative_operands(from.op()).unwrap_or_default());
+                            let needed = multiset(
+                                from.op()
+                                    .associative_commutative_operands()
+                                    .unwrap_or_default(),
+                            );
                             let times = needed
                                 .iter()
                                 .map(|(hash, n)| unmatched.get(hash).unwrap_or(&0) / n)

@@ -150,39 +150,7 @@ pub fn canonicalize<'c>(
     Ok((replacement_map, counter, result))
 }
 
-/// `true` when `op` is associative and commutative, so that the order of its
-/// operands carries no meaning. This is the same set of ops that
-/// [`crate::algorithms::replace::Replacements`] recognizes for commutative
-/// pattern matching.
-fn is_associative_commutative(op: &AstOp<'_>) -> bool {
-    matches!(
-        op,
-        AstOp::And(_)
-            | AstOp::Or(_)
-            | AstOp::Xor(_)
-            | AstOp::Add(_)
-            | AstOp::Mul(_)
-            | AstOp::Union(_)
-            | AstOp::Intersection(_)
-    )
-}
-
-/// Deterministic order key for the operands of an associative-commutative op:
-/// the cached structural hash first, then the structural form on a hash
-/// collision, so the resulting order never depends on the operand order the
-/// AST happened to be built with.
-fn compare_operands(a: &AstRef<'_>, b: &AstRef<'_>) -> Ordering {
-    a.hash()
-        .cmp(&b.hash())
-        .then_with(|| format!("{:?}", a.op()).cmp(&format!("{:?}", b.op())))
-}
-
-/// Rebuilds `ast` with the operands of every associative-commutative op
-/// (`And`, `Or`, `Xor`, `Add`, `Mul`, `Union`, `Intersection`) in a
-/// deterministic order, so that two ASTs differing only in the operand order
-/// of those ops produce the same canonical form. Operand order carries no
-/// meaning for these ops, so the rebuilt AST is semantically identical to
-/// its input.
+/// Orders associative-commutative operands by structural hash.
 pub fn order_commutative_operands<'c>(ast: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
     walk(
         ast.clone(),
@@ -190,8 +158,13 @@ pub fn order_commutative_operands<'c>(ast: &AstRef<'c>) -> Result<AstRef<'c>, Cl
         |node: AstRef<'c>, children: &[AstRef<'c>]| {
             let ctx = node.context();
             let mut children = children.to_vec();
-            if is_associative_commutative(node.op()) {
-                children.sort_by(compare_operands);
+            if node.op().associative_commutative_operands().is_some() {
+                children.sort_by(|a, b| {
+                    a.hash()
+                        .cmp(&b.hash())
+                        // Break hash collisions independently of the input order.
+                        .then_with(|| format!("{:?}", a.op()).cmp(&format!("{:?}", b.op())))
+                });
             }
             ctx.make_ast_annotated(
                 node.op().with_children(&children),
@@ -337,9 +310,6 @@ mod tests {
 
         let (map, counter, canonical) = canonicalize(&dyn_ast)?;
 
-        // Check that the variable was renamed to v0. The operands of the
-        // commutative `Add` come out in canonical (structural hash) order,
-        // which places the constant first here.
         let canonical_expected = ctx.add(&ctx.bvv(BitVec::from((5, 64)))?, &ctx.bvs("v0", 64)?)?;
         let dyn_canonical_expected = canonical_expected.clone();
 
@@ -365,9 +335,6 @@ mod tests {
         let (_, counter1, canonical1) = canonicalize(&dyn_ast1)?;
         let (_, counter2, canonical2) = canonicalize(&dyn_ast2)?;
 
-        // a -> v0, z -> v1 in both cases. The commutative `Add` operands
-        // come out in canonical (structural hash) order, so both inputs now
-        // produce the identical canonical form.
         let expected = ctx.add(&ctx.bvs("v1", 64)?, &ctx.bvs("v0", 64)?)?;
 
         assert_eq!(canonical1, expected);
@@ -539,9 +506,6 @@ mod tests {
         Ok(())
     }
 
-    /// angr/angr#5796: the same expression built with the operands of a
-    /// commutative op in a different order must canonicalize identically,
-    /// otherwise the unicorn congruency check flakes on equivalent states.
     #[test]
     fn test_canonicalize_commutative_operand_order_issue_5796() -> Result<(), ClarirsError> {
         let ctx = Context::new();
@@ -554,7 +518,6 @@ mod tests {
         let b1 = ctx.eq_(&ctx.extract(&x1, 31, 4)?, &zero28)?;
         let ast1 = ctx.or2(&a1, &b1)?;
 
-        // the unicorn side produces the same expression with `or` operands swapped
         let x2 = ctx.bvs("filesize_file_2_???_177_32", 32)?;
         let a2 = ctx.sle(&x2, &zero32)?;
         let b2 = ctx.eq_(&ctx.extract(&x2, 31, 4)?, &zero28)?;
@@ -571,9 +534,6 @@ mod tests {
         Ok(())
     }
 
-    /// Operand-order independence must hold for every n-ary commutative op,
-    /// including when the swapped subtrees carry differently named variables,
-    /// so renaming order and operand order cannot interact.
     #[test]
     fn test_canonicalize_commutative_ops_order_independent() -> Result<(), ClarirsError> {
         let ctx = Context::new();
@@ -590,7 +550,6 @@ mod tests {
             ctx.add_many([x.clone(), y.clone(), five.clone()])?,
         ];
 
-        // same expressions, operands reversed, different variable names
         let a = ctx.bvs("beta_1", 32)?;
         let b = ctx.bvs("omega_2", 32)?;
         let right: Vec<AstRef> = vec![
