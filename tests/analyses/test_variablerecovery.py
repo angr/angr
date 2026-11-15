@@ -8,6 +8,7 @@ import os
 import unittest
 from typing import Any
 
+import networkx
 import pyvex
 
 import angr
@@ -608,6 +609,70 @@ class TestStackAddressesOnA16BitArchitecture(unittest.TestCase):
         # Distinct offsets have to stay distinct, or two stack slots share one key.
         addresses = {state.stack_addr_from_offset(offset) for offset in range(-0x400, 0x400)}
         assert len(addresses) == 0x800
+
+
+class TestStackReferenceOffset(unittest.TestCase):
+    """
+    Hand-built AIL: master's SSA rarely keeps the address of a stack vvar past a wider definition of its bytes;
+    devirtualized VM bodies do.
+    """
+
+    @staticmethod
+    def _recover(*ref_offsets: int):
+        # part = 1; wide = 2; reg = &a, or reg = &a == &b
+        proj = angr.load_shellcode(b"\xc3", arch="AMD64", load_address=0x400000)
+        proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions[0x400000]
+        m = ailment.Manager()
+        vvar, category = ailment.Expr.VirtualVariable, ailment.Expr.VirtualVariableCategory
+
+        def stack(varid, offset, size):
+            return vvar(m.next_atom(), varid, size * 8, category.STACK, oident=offset)
+
+        part, wide = stack(1, -0x28, 4), stack(2, -0x30, 16)
+        operands = [stack(1, -0x28, 4) if offset == -0x28 else stack(2, -0x30, 16) for offset in ref_offsets]
+        refs = [ailment.Expr.UnaryOp(m.next_atom(), "Reference", operand, bits=64) for operand in operands]
+        src = refs[0] if len(refs) == 1 else ailment.Expr.BinaryOp(m.next_atom(), "CmpEQ", refs, False, bits=1)
+        block = ailment.Block(
+            0x400000,
+            1,
+            statements=[
+                ailment.Stmt.Assignment(
+                    m.next_atom(), part, ailment.Expr.Const(m.next_atom(), 1, 32), ins_addr=0x400000
+                ),
+                ailment.Stmt.Assignment(
+                    m.next_atom(), wide, ailment.Expr.Const(m.next_atom(), 2, 128), ins_addr=0x400000
+                ),
+                ailment.Stmt.Assignment(
+                    m.next_atom(),
+                    vvar(m.next_atom(), 3, src.bits, category.REGISTER, oident=16),
+                    src,
+                    ins_addr=0x400000,
+                ),
+            ],
+        )
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        kb = angr.KnowledgeBase(proj)
+        kb.functions = proj.kb.functions
+        proj.analyses.VariableRecoveryFast(
+            func, func_graph=graph, kb=kb, track_sp=False, unify_variables=False, fail_fast=True
+        )
+        manager = kb.variables[func.addr]
+        ((wide_var, _),) = manager.find_variables_by_atom(block.addr, 1, wide, block_idx=block.idx)
+        return wide_var, [manager.find_variables_by_atom(block.addr, 2, o, block_idx=block.idx) for o in operands]
+
+    def test_address_inside_a_wider_variable_keeps_its_offset(self):
+        wide_var, linked = self._recover(-0x28)
+        assert linked == [{(wide_var, 8)}]
+
+    def test_address_of_a_variable_has_no_offset(self):
+        wide_var, linked = self._recover(-0x30)
+        assert linked == [{(wide_var, None)}]
+
+    def test_offset_of_another_address_in_the_statement_is_not_reused(self):
+        wide_var, linked = self._recover(-0x28, -0x30)
+        assert linked == [{(wide_var, 8)}, {(wide_var, None)}]
 
 
 if __name__ == "__main__":

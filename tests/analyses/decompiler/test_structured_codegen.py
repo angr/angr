@@ -44,6 +44,7 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeChar,
     SimTypeDouble,
+    SimTypeFixedSizeArray,
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
@@ -54,7 +55,7 @@ from angr.sim_type import (
     TypeRef,
     parse_cpp_file,
 )
-from angr.sim_variable import SimRegisterVariable
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -104,6 +105,45 @@ class TestConvertRendering(unittest.TestCase):
         assert self._render(1, 5, value=1) == "(char)1"
         assert self._render(8, 12, value=3) == "(unsigned short)3"
         assert self._render(32, 64, value=3) == "(unsigned long long)3"
+
+
+class TestStackVVarReference(unittest.TestCase):
+    """
+    The address of a stack vvar that is linked to a wider variable. Rendered through the code generator of a
+    decompiled function with hand-built atoms; master's SSA does not produce the shape.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.load_shellcode(b"\xc3", arch="AMD64", load_address=0x400000)
+        cfg = cls.proj.analyses.CFGFast(normalize=True)
+        cls.func = cls.proj.kb.functions[0x400000]
+        cls.codegen = cls.proj.analyses.Decompiler(cls.func, cfg=cfg.model).codegen
+        cls.idx = itertools.count(0x10000)
+
+    def _ref(self, ty: SimType, var_offset: int, slot: int, offset: int) -> str:
+        manager = self.proj.kb.dec_variables[self.func.addr]
+        var = SimStackVariable(var_offset, 16, ident=f"t_{-var_offset:x}", name="v")
+        manager.add_variable("stack", var.offset, var)
+        manager.set_variable_type(var, ty.with_arch(self.proj.arch))
+        vvar = Expr.VirtualVariable(next(self.idx), next(self.idx), 32, Expr.VirtualVariableCategory.STACK, oident=slot)
+        self.codegen._variable_map.set_variable(vvar, var, offset)
+        return self.codegen._handle(Expr.UnaryOp(next(self.idx), "Reference", vvar, bits=64)).c_repr()
+
+    def test_offset_into_an_array(self):
+        assert self._ref(SimTypeFixedSizeArray(SimTypeChar(), 16), -0x30, -0x28, 8) == "(uint32_t *)&v[8]"
+        assert self._ref(SimTypeFixedSizeArray(SimTypeInt(), 4), -0x50, -0x48, 8) == "&v[2]"
+
+    def test_offset_into_a_struct(self):
+        ty = SimStruct({"a": SimTypeLongLong(), "b": SimTypeInt(), "c": SimTypeInt()}, name="S")
+        assert self._ref(ty, -0x70, -0x64, 12) == "&v.c"
+
+    def test_no_offset(self):
+        assert self._ref(SimTypeFixedSizeArray(SimTypeChar(), 16), -0x90, -0x90, 0) == "v"
+
+    def test_offset_that_is_not_the_slot_is_ignored(self):
+        # the variable is declared elsewhere: its offset says nothing about this slot
+        assert self._ref(SimTypeFixedSizeArray(SimTypeChar(), 16), -0xB0, -0xC4, 8) == "v"
 
 
 class TestGotoRendering(unittest.TestCase):
