@@ -20,6 +20,8 @@ def load(state, off, size):
 
 
 class TestFstat64(unittest.TestCase):
+    """Tests for the fstat64 SimProcedure."""
+
     def test_mips32_layout(self):
         for endness in (archinfo.Endness.BE, archinfo.Endness.LE):
             with self.subTest(endness=endness):
