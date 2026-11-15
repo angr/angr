@@ -10,6 +10,7 @@ from functools import lru_cache
 from tempfile import NamedTemporaryFile
 from unittest import SkipTest, skip, skipIf, skipUnless
 
+import archinfo
 import networkx
 from elftools.elf.elffile import ELFFile
 from rich.console import Console
@@ -42,7 +43,7 @@ if not os.path.isdir(bin_location) and not os.getenv("CI", "") == "true":
     )
 
 
-def minimal_project(arch="AMD64", **kwargs) -> Project:
+def minimal_project(arch: str | archinfo.Arch = "AMD64", **kwargs) -> Project:
     """
     Build a tiny single-nop shellcode Project for the given architecture (an ``archinfo.Arch`` or an arch name).
 

@@ -17,6 +17,8 @@ def getrlimit(state, arguments):
 
 
 class TestGetrlimit(unittest.TestCase):
+    """Tests for the getrlimit SimProcedure."""
+
     def test_rlimit_stack_layout(self):
         for arch in (archinfo.ArchAMD64(), archinfo.ArchX86(), archinfo.ArchMIPS32(archinfo.Endness.BE)):
             with self.subTest(arch=arch.name):
