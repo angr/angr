@@ -645,8 +645,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # varid -> [base offset, absolute offset, size, whether each occurrence is the variable itself, consistent,
         # occurrences, the unified variables of the occurrences that are not the variable itself]
         self._stack_vvar_struct_cover: dict[int, list] = {}
-        self._stack_vvars_outside_struct: set[int] = set()
-        # Load/Store accesses through the address of a stack vvar, mapped once that vvar's mapping is decided
+        # stack vvars that are not inside one: varid -> the unified variables of their occurrences
+        self._stack_vvars_outside_struct: dict[int, set[SimVariable]] = {}
+        # stack Load/Store accesses, mapped once the mapping of the stack vvars is decided
         self._pending_stack_memory_members: list[tuple] = []
         # VariableMap is a side container that holds variable/variable_offset/custom_string/reference_values and the
         # sibling reference_variable/reference_variable_offset for AIL atoms, keyed by their .idx. It supersedes
@@ -4330,7 +4331,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # Link variables and struct member information to every statement and expression
         self._collect_stack_complex_types(var_manager)
         self._stack_vvar_struct_cover = {}
-        self._stack_vvars_outside_struct = set()
+        self._stack_vvars_outside_struct = {}
         self._pending_stack_memory_members = []
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
@@ -4423,17 +4424,14 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         size: int,
     ) -> None:
         """
-        Map a stack memory access to a struct member, or defer it if its address is taken from a stack vvar: it must
-        then follow how that vvar is rendered.
+        Record a stack memory access. It is mapped to a struct member in _map_pending_stack_memory_members(): it must
+        follow how the vvars of its variable and the vvars whose addresses it uses are rendered.
         """
         finder = _StackReferenceCollector()
         finder.walk_expression(addr)
-        if finder.varids:
-            self._pending_stack_memory_members.append(
-                (variable_manager, atom, variable, stack_offset, size, frozenset(finder.varids))
-            )
-        else:
-            self._map_stackvar_to_struct_member(variable_manager, atom, variable, stack_offset, size)
+        self._pending_stack_memory_members.append(
+            (variable_manager, atom, variable, stack_offset, size, frozenset(finder.varids))
+        )
 
     def _note_stack_vvar_in_struct(
         self,
@@ -4457,11 +4455,13 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             stack_offset = vvar.stack_offset
         cover = self._stack_complex_type_covering(stack_offset, vvar.size)
         info = self._stack_vvar_struct_cover.get(vvar.varid)
+        unified = variable_manager.unified_variable(variable)
         if cover is None:
-            self._stack_vvars_outside_struct.add(vvar.varid)
+            self._stack_vvars_outside_struct.setdefault(vvar.varid, set()).add(
+                unified if unified is not None else variable
+            )
             return
         base_offset, the_var = cover
-        unified = variable_manager.unified_variable(variable)
         # an access inside the variable itself is a member access
         is_self = (
             stack_offset == base_offset
@@ -4771,15 +4771,23 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                     self.variable_map.set_struct_member(vvar, the_var, lo - base)
         self._map_pending_stack_memory_members(infos, mapped | all_self)
         self._stack_vvar_struct_cover = {}
-        self._stack_vvars_outside_struct = set()
+        self._stack_vvars_outside_struct = {}
 
     def _map_pending_stack_memory_members(self, infos: dict[int, list], rendered_in_struct: set[int]) -> None:
         """
         Map the deferred Load/Store accesses. An access through the address of a stack vvar that stays its own variable
-        is not a member access.
+        is not a member access, and neither is an access to a variable that some stack vvar is rendered as: it reads
+        or writes that variable.
         """
+        own_variables = {id(var) for variables in self._stack_vvars_outside_struct.values() for var in variables}
+        for v, info in infos.items():
+            if v not in rendered_in_struct:
+                own_variables.update(id(var) for var in info[6])
         for variable_manager, atom, variable, stack_offset, size, ref_varids in self._pending_stack_memory_members:
             if any(v in infos and v not in rendered_in_struct for v in ref_varids):
+                continue
+            unified = variable_manager.unified_variable(variable)
+            if id(unified if unified is not None else variable) in own_variables:
                 continue
             self._map_stackvar_to_struct_member(variable_manager, atom, variable, stack_offset, size)
         self._pending_stack_memory_members = []

@@ -185,7 +185,7 @@ class TestStructMemberLinking(unittest.TestCase):
         clinic._stack_complex_types = {cls.STRUCT.offset: (cls.STRUCT, 0x34)}
         clinic._stack_complex_type_offsets = [cls.STRUCT.offset]
         clinic._stack_vvar_struct_cover = {}
-        clinic._stack_vvars_outside_struct = set()
+        clinic._stack_vvars_outside_struct = {}
         clinic._pending_stack_memory_members = []
         clinic._link_variables_on_block(block, _FakeKB(_FakeVariableManager(atom_vars)))
         clinic._map_stack_vvars_to_struct_members(graph, _FakeLiveness(block))
