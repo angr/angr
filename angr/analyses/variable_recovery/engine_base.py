@@ -176,9 +176,10 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
             # find the correct variable
             existing_vars: list[tuple[SimVariable, int]] = []
-            for candidate, offset in var_candidates:
+            for candidate, _ in var_candidates:
                 if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
-                    existing_vars.append((candidate, offset if offset is not None else 0))
+                    # the recorded offset may be of another address in this statement
+                    existing_vars.append((candidate, 0))
             if existing_vars:
                 variable, _ = existing_vars[0]
 
@@ -197,6 +198,13 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                         for values in vs.values():
                             for v in values:
                                 for var_stack_offset, var in self.state.extract_variables(v):
+                                    if (
+                                        isinstance(var, SimStackVariable)
+                                        and isinstance(var.offset, int)
+                                        and 0 <= stack_offset - var.offset < var.size
+                                    ):
+                                        # the annotation is the offset of the stored value, not of this address
+                                        var_stack_offset = stack_offset - var.offset
                                     existing_vars.append((var, var_stack_offset))
 
                     if not existing_vars:
@@ -282,9 +290,10 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
             # find the correct variable
             existing_vars: list[tuple[SimVariable, int]] = []
-            for candidate, offset in var_candidates:
+            for candidate, _ in var_candidates:
                 if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
-                    existing_vars.append((candidate, offset if offset is not None else 0))
+                    # the recorded offset may be of another address in this statement
+                    existing_vars.append((candidate, 0))
         elif self.state.is_global_variable_address(data):
             # this is probably an address for a global variable
             global_var_addr = data.concrete_value
