@@ -1,8 +1,9 @@
+# pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
 import unittest
 
-from angr.rustylib.automaton import EpsilonNFA, State, Symbol
+from angr.rustylib.automaton import EpsilonNFA, State, Symbol  # pylint:disable=import-error,no-name-in-module
 
 
 class _Collider:
