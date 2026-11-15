@@ -147,7 +147,55 @@ class TestSscanf(unittest.TestCase):
         inst = scanf.execute(state, arguments=[fmt, out])
 
         assert state.solver.eval(inst.ret_expr) == 1
+        assert state.satisfiable()
         assert state.solver.eval(state.memory.load(out, 2), cast_to=bytes) == b"42"
+        assert state.solver.eval(state.memory.load(out + 2, 1)) == 0
+
+    def test_sscanf_scanset_letter_range(self):
+        # %[a-z] matches a run of lowercase letters and stops at the first
+        # byte outside the range.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        src, fmt, out = 0x100000, 0x200000, 0x300000
+        state.memory.store(src, b"helloWORLD\x00")
+        state.memory.store(fmt, b"%[a-z]\x00")
+
+        sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
+        inst = sscanf.execute(state, arguments=[src, fmt, out])
+
+        assert state.solver.eval(inst.ret_expr) == 1
+        assert state.solver.eval(state.memory.load(out, 5), cast_to=bytes) == b"hello"
+        assert state.solver.eval(state.memory.load(out + 5, 1)) == 0
+
+    def test_sscanf_scanset_negated_range(self):
+        # %[^0-9] matches non-digits and stops at the first digit.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        src, fmt, out = 0x100000, 0x200000, 0x300000
+        state.memory.store(src, b"abc123\x00")
+        state.memory.store(fmt, b"%[^0-9]\x00")
+
+        sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
+        inst = sscanf.execute(state, arguments=[src, fmt, out])
+
+        assert state.solver.eval(inst.ret_expr) == 1
+        assert state.solver.eval(state.memory.load(out, 3), cast_to=bytes) == b"abc"
+        assert state.solver.eval(state.memory.load(out + 3, 1)) == 0
+
+    def test_sscanf_scanset_literal_dash(self):
+        # A '-' at the start of the set is literal: %[-a] matches 'a', '-'
+        # and stops at anything else.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        src, fmt, out = 0x100000, 0x200000, 0x300000
+        state.memory.store(src, b"a-b\x00")
+        state.memory.store(fmt, b"%[-a]\x00")
+
+        sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
+        inst = sscanf.execute(state, arguments=[src, fmt, out])
+
+        assert state.solver.eval(inst.ret_expr) == 1
+        assert state.solver.eval(state.memory.load(out, 2), cast_to=bytes) == b"a-"
         assert state.solver.eval(state.memory.load(out + 2, 1)) == 0
 
     def test_scanf_p_spec_simpackets(self):

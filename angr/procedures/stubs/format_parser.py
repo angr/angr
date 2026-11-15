@@ -359,6 +359,8 @@ class FormatString:
                     # the match. A byte whose membership cannot be proven ends the match
                     # without being consumed - documented approximation: we do not fork
                     # on symbolic membership.
+                    if dest is None or position is None:
+                        raise SimProcedureError("scanset conversion requires a destination argument")
                     max_len = (
                         fmt_spec.length_spec
                         if fmt_spec.length_spec is not None
@@ -827,8 +829,19 @@ class ScanfFormatParser(FormatParser):
             charset.append(0x5D)
             i += 1
         while i < len(nugget) and nugget[i] != 0x5D:
-            charset.append(nugget[i])
-            i += 1
+            # 'x-y' denotes a range; '-' is literal when first or last (C99 7.19.6.2p12)
+            if (
+                nugget[i] == 0x2D
+                and charset
+                and i + 1 < len(nugget)
+                and nugget[i + 1] != 0x5D
+                and charset[-1] <= nugget[i + 1]
+            ):
+                charset.extend(range(charset[-1] + 1, nugget[i + 1] + 1))
+                i += 2
+            else:
+                charset.append(nugget[i])
+                i += 1
         if i >= len(nugget) or not charset:
             return None
         i += 1  # consume the closing ']'
