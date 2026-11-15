@@ -3801,6 +3801,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self.cexterns: set[CVariable] | None = None
         self._array_length_cexprs: dict[SimVariable, CExpression] = {}
         self._sse_typing: SSEVectorTyping | None = None
+        self._register_carried_variables: set[SimVariable] | None = None
         self.display_notes = display_notes
         self.max_str_len = max_str_len
         self.prettify_thiscall = prettify_thiscall
@@ -3850,6 +3851,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         self.reset_ident_counters()
         self._sse_typing = self._collect_sse_vector_kinds()
+        self._register_carried_variables = None
         obj = self._handle(self._sequence)
 
         # render the runtime dimension of every variable-length array (e.g. ``blk[e->bs]``) through the
@@ -4405,6 +4407,39 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if mark_used:
             self._variables_in_use[variable] = cvar
         return cvar
+
+    def _is_register_carried(self, variable: SimVariable) -> bool:
+        """
+        Whether the variable is unified with a register variable.
+        """
+        varman = self.kb.dec_variables[self._func.addr]
+        if self._register_carried_variables is None:
+            self._register_carried_variables = {
+                varman.unified_variable(v) or v for v in varman.get_variables(sort="reg")
+            }
+        return (varman.unified_variable(variable) or variable) in self._register_carried_variables
+
+    def _is_leading_bytes_of_composite(self, vvar: Expr.VirtualVariable, variable: SimVariable, ty: SimType) -> bool:
+        """
+        Whether the vvar is only the leading bytes of the struct- or array-typed object that its variable is typed as.
+        """
+        ty = unpack_typeref(ty)
+        if isinstance(ty, SimStruct):
+            if ty.size is None or ty.size <= vvar.bits:
+                return False
+        elif isinstance(ty, SimTypeArray):
+            # a register cannot hold an array; a stack array is not a value even when the vvar covers all of it
+            if not vvar.was_stack or ty.size is None or ty.size < vvar.bits:
+                return False
+            if self._is_register_carried(variable):
+                # unified with a register variable: a scalar that is spilled to the stack, whatever its type
+                return False
+        else:
+            return False
+        # the vvar must start where the variable starts
+        if self._variable_map.variable_offset(vvar):
+            return False
+        return not (vvar.was_stack and isinstance(variable, SimStackVariable) and vvar.stack_offset != variable.offset)
 
     def _get_variable_reference(self, cvar: CVariable) -> CExpression:
         """
@@ -5116,19 +5151,31 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             if (
                 isinstance(stmt.dst, Expr.VirtualVariable)
                 and isinstance(cdst, CVariable)
-                and isinstance(cdst_ty := unpack_typeref(cdst.type), SimStruct)
-                and cdst_ty.size is not None
-                and cdst_ty.size > stmt.dst.bits
+                and self._is_leading_bytes_of_composite(stmt.dst, cdst.variable, cdst.type)
                 and csrc.type is not None
             ):
-                # the vvar is only the leading bytes of a struct-typed stack object: write its leading field
+                # the vvar is only the leading bytes of a struct- or array-typed object: write its leading member
+                src_ty = unpack_typeref(csrc.type)
+                # an array is not a value, and neither is a constant typed as a struct
+                src_is_int = isinstance(src_ty, SimTypeArray) or (
+                    isinstance(src_ty, SimStruct) and isinstance(csrc, CConstant)
+                )
                 cdst = self._access_constant_offset(
                     self._get_variable_reference(cdst),
                     0,
-                    csrc.type,
+                    (
+                        csrc.type
+                        if csrc.type.size == stmt.dst.bits and not src_is_int
+                        else SimTypeNum(stmt.dst.bits, signed=False).with_arch(self.project.arch)
+                    ),
                     True,
                     lambda old, proposed: proposed if qualifies_for_simple_cast(old, proposed) else old,
                 )
+                if isinstance(csrc, CConstant) and src_is_int:
+                    # the constant is the member's value, not the object's
+                    csrc = CConstant(
+                        csrc.value, cdst.type, reference_values=csrc.reference_values, tags=csrc.tags, codegen=self
+                    )
             if (
                 isinstance(stmt.src, Expr.Convert)
                 and stmt.src.to_type == Expr.ConvertType.TYPE_FP
@@ -6257,6 +6304,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if expr_var is not None:
             cvar = self._variable(expr_var, None, vvar_id=expr.varid)
 
+            if not lvalue and self._is_leading_bytes_of_composite(expr, expr_var, cvar.type):
+                # the vvar is only the leading bytes of a struct- or array-typed object: read its leading member.
+                # this goes before the size check since the variable may still have its placeholder size
+                return self._access_constant_offset(
+                    self._get_variable_reference(cvar),
+                    0,
+                    SimTypeNum(expr.bits, signed=False).with_arch(self.project.arch),
+                    False,
+                    lambda old, proposed: proposed if qualifies_for_simple_cast(old, proposed) else old,
+                )
             if not lvalue and expr_var.size != expr.size:
                 l.warning(
                     "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
@@ -6273,20 +6330,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 if dst_type is not None:
                     dst_type = dst_type.with_arch(self.project.arch)
                     return CTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
-            elif (
-                not lvalue
-                and isinstance(cvar_ty := unpack_typeref(cvar.type), SimStruct)
-                and cvar_ty.size is not None
-                and cvar_ty.size > expr.bits
-            ):
-                # the vvar is only the leading bytes of a struct-typed stack object: read its leading field
-                return self._access_constant_offset(
-                    self._get_variable_reference(cvar),
-                    0,
-                    SimTypeNum(expr.bits, signed=False).with_arch(self.project.arch),
-                    False,
-                    lambda old, proposed: proposed if qualifies_for_simple_cast(old, proposed) else old,
-                )
             return cvar
 
         if expr.was_reg:

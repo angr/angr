@@ -12,7 +12,6 @@ import archinfo
 import angr
 import networkx
 
-from angr import default_cc
 from angr.ailment import Block, Manager
 from angr.ailment.expression import (
     BinaryOp,
@@ -26,6 +25,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.clinic import Clinic
+from angr import ailment, default_cc
 from angr.analyses.decompiler.structured_codegen.c import (
     CBinaryOp,
     CExpression,
@@ -38,6 +38,7 @@ from angr.sim_type import (
     SimStruct,
     SimTypeBottom,
     SimTypeFunction,
+    SimTypeArray,
     SimTypeInt,
     SimTypeLongLong,
     SimTypePointer,
@@ -85,6 +86,218 @@ class TestStructMemberAccess(unittest.TestCase):
         assert '.a = "123"' in text
         assert ".b.a = 2" in text
         assert ".b.b = 3" in text
+
+    @staticmethod
+    def _decompile_shellcode_dec(code: bytes, *callee_addrs: int):
+        # decompile the callees, then the caller at 0x400000 with the callees' prototypes available
+        proj = angr.load_shellcode(code, arch="amd64", load_address=0x400000)
+        cfg = proj.analyses.CFGFast(normalize=True, function_starts=[0x400000, *callee_addrs])
+        proj.analyses.CompleteCallingConventions(recover_variables=False)
+        for addr in callee_addrs:
+            proj.analyses.Decompiler(addr, cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses.Decompiler(0x400000, cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        return proj, dec
+
+    def _decompile_shellcode(self, code: bytes, *callee_addrs: int) -> str:
+        return self._decompile_shellcode_dec(code, *callee_addrs)[1].codegen.text
+
+    @staticmethod
+    def _store_of_typed_zero(proj, dec, ty) -> str:
+        # re-render the caller's `stack vvar = 0` with the constant typed as ty
+        stmt = next(
+            stmt
+            for block in dec.clinic.graph.nodes
+            for stmt in block.statements
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Const)
+        )
+        src = ailment.Expr.Const(None, 0, stmt.src.bits, type=ty.with_arch(proj.arch), **stmt.src.tags)
+        typed = ailment.Stmt.Assignment(None, stmt.dst, src, **stmt.tags)
+        return dec.codegen._handle_Stmt_Assignment(typed).c_repr().strip()
+
+    def test_read_leading_member_of_stack_struct(self):
+        # caller:
+        #   push rbx; sub rsp, 0x20; mov rsi, rdi; mov rdi, rsp; call callee
+        #   mov rax, [rsp]; mov ebx, [rax+4]; xor esi, esi; mov rdi, rsp; call callee
+        #   mov eax, ebx; add rsp, 0x20; pop rbx; ret
+        # callee:
+        #   mov [rdi], rsi; mov dword ptr [rdi+8], 1; mov byte ptr [rdi+0xc], 2; ret
+        code = bytes.fromhex(
+            "534883ec204889fe4889e7e819000000488b04248b580431f64889e7e80800000089d84883c4205bc3"
+            "488937c7470801000000c6470c02c3"
+        )
+        text = self._decompile_shellcode(code, 0x400029)
+        m = re.search(r"^\s+st_\w+ (v\d+);", text, re.MULTILINE)
+        assert m is not None, text
+        var = m.group(1)
+        # the pointer in the first member is dereferenced; the struct itself is never cast to a scalar
+        assert re.search(rf"\({var}\.field_0 \+ 4\)", text) is not None, text
+        assert re.search(rf"\)\s*{var}\b(?!\.)", text) is None, text
+
+    def test_read_leading_element_of_stack_array(self):
+        # caller:
+        #   sub rsp, 0x28; mov rdi, rsp; call callee; mov rax, [rsp]; mov eax, [rax+4]; add rsp, 0x28; ret
+        # callee:
+        #   mov rax, [rdi+8]; add rax, [rdi+0x18]; ret
+        code = bytes.fromhex("4883ec284889e7e80c000000488b04248b40044883c428c3488b470848034718c3")
+        text = self._decompile_shellcode(code, 0x400018)
+        m = re.search(r"^\s+unsigned long long (v\d+)\[\d+\];", text, re.MULTILINE)
+        assert m is not None, text
+        var = m.group(1)
+        # the pointer in the first element is dereferenced, not the address of the array
+        assert re.search(rf"\((\*{var}|{var}\[0\]) \+ 4\)", text) is not None, text
+
+    def test_write_leading_element_of_stack_array(self):
+        # caller:
+        #   push rbx; sub rsp, 0x20; mov rbx, rdi; mov rdi, rsp; call callee
+        #   mov [rsp], rbx; mov rdi, rsp; call callee; add rsp, 0x20; pop rbx; ret
+        # callee:
+        #   mov rax, [rdi+8]; add rax, [rdi+0x18]; ret
+        code = bytes.fromhex("534883ec204889fb4889e7e81200000048891c244889e7e8060000004883c4205bc3488b470848034718c3")
+        text = self._decompile_shellcode(code, 0x400022)
+        m = re.search(r"^\s+unsigned long long (v\d+)\[\d+\];", text, re.MULTILINE)
+        assert m is not None, text
+        var = m.group(1)
+        # an array is not assignable
+        assert re.search(rf"^\s+(\*{var}|{var}\[0\]) = ", text, re.MULTILINE) is not None, text
+        assert re.search(rf"^\s+{var} = ", text, re.MULTILINE) is None, text
+
+    def test_read_stack_array_of_the_same_size(self):
+        # caller:
+        #   push rbx; sub rsp, 0x10; mov [rsp+8], rdi; lea rdi, [rsp+8]; call callee
+        #   mov rax, [rsp+8]; add rsp, 0x10; pop rbx; ret
+        # callee:
+        #   mov dword ptr [rdi], 1; mov dword ptr [rdi+4], 2; ret
+        code = bytes.fromhex(
+            "534883ec1048897c2408488d7c2408e80b000000488b4424084883c4105bc3c70701000000c7470402000000c3"
+        )
+        text = self._decompile_shellcode(code, 0x40001F)
+        m = re.search(r"^\s+unsigned int (v\d+)\[2\];", text, re.MULTILINE)
+        assert m is not None, text
+        var = m.group(1)
+        # the 8 bytes in the array are returned, not its address
+        assert re.search(rf"return \*\(\w+ \*\){var};", text) is not None, text
+
+    def test_write_stack_array_of_the_same_size(self):
+        # caller:
+        #   push rbx; sub rsp, 0x10; lea rdi, [rsp+8]; call callee; mov qword ptr [rsp+8], 0
+        #   lea rdi, [rsp+8]; call callee; add rsp, 0x10; pop rbx; ret
+        # callee:
+        #   mov dword ptr [rdi], 1; mov dword ptr [rdi+4], 2; ret
+        code = bytes.fromhex(
+            "534883ec10488d7c2408e81900000048c744240800000000488d7c2408e8060000004883c4105bc3"
+            "c70701000000c7470402000000c3"
+        )
+        proj, dec = self._decompile_shellcode_dec(code, 0x400028)
+        text = dec.codegen.text
+        m = re.search(r"^\s+unsigned int (v\d+)\[2\];", text, re.MULTILINE)
+        assert m is not None, text
+        var = m.group(1)
+        assert re.search(rf"^\s+\*\(\w+ \*\){var} = 0;", text, re.MULTILINE) is not None, text
+        # a constant typed as the array itself is still the 8 bytes stored
+        typed = self._store_of_typed_zero(proj, dec, SimTypeArray(SimTypeInt(signed=False), 2))
+        assert re.fullmatch(rf"\*\(\w+ \*\){var} = 0;", typed) is not None, typed
+
+    # caller:
+    #   sub rsp, 0x28; mov rsi, rdi; mov rdi, rsp; call callee; mov <size> ptr [rsp], 0
+    #   xor esi, esi; mov rdi, rsp; call callee; add rsp, 0x28; ret
+    # callee:
+    #   mov [rdi], rsi; mov dword ptr [rdi+8], 1; mov byte ptr [rdi+0xc], 2; ret
+    STRUCT_WRITE_CALLEE = "488937c7470801000000c6470c02c3"
+
+    def test_write_leading_member_of_stack_struct_composite_constant(self):
+        # mov qword ptr [rsp], 0
+        code = bytes.fromhex(
+            "4883ec284889fe4889e7e81700000048c704240000000031f64889e7e8050000004883c428c3" + self.STRUCT_WRITE_CALLEE
+        )
+        proj, dec = self._decompile_shellcode_dec(code, 0x400026)
+        # a constant typed as a struct of the size of the store is still an integer
+        pair = SimStruct({"x": SimTypeInt(), "y": SimTypeInt()}, name="P")
+        typed = self._store_of_typed_zero(proj, dec, pair)
+        assert re.fullmatch(r"v\d+\.field_0 = 0;", typed) is not None, typed
+
+    def test_write_leading_member_of_stack_struct_narrow(self):
+        # mov byte ptr [rsp], 0
+        code = bytes.fromhex(
+            "4883ec284889fe4889e7e813000000c604240031f64889e7e8050000004883c428c3" + self.STRUCT_WRITE_CALLEE
+        )
+        proj, dec = self._decompile_shellcode_dec(code, 0x400022)
+        assert re.search(r"^\s+\*\(char \*\)&v\d+\.field_0 = 0;", dec.codegen.text, re.MULTILINE) is not None
+        # a constant typed as a struct of another size: one byte is written
+        pair = SimStruct({"x": SimTypeInt(), "y": SimTypeInt()}, name="P")
+        typed = self._store_of_typed_zero(proj, dec, pair)
+        assert re.fullmatch(r"\*\(uint8_t \*\)&v\d+\.field_0 = 0;", typed) is not None, typed
+
+    def test_write_leading_member_of_stack_struct_struct_source(self):
+        # caller:
+        #   push rbx; sub rsp, 0x20; mov rbx, rdi; mov rdi, rsp; call callee; mov [rsp], rbx
+        #   mov rdi, rsp; call callee; add rsp, 0x20; pop rbx; ret
+        # callee:
+        #   mov dword ptr [rdi], 1; mov dword ptr [rdi+4], 2; mov qword ptr [rdi+8], 3; mov byte ptr [rdi+0x10], 4; ret
+        code = bytes.fromhex(
+            "534883ec204889fb4889e7e81200000048891c244889e7e8060000004883c4205bc3"
+            "c70701000000c747040200000048c7470803000000c6471004c3"
+        )
+        proj, dec = self._decompile_shellcode_dec(code, 0x400022)
+        stmt = next(
+            stmt
+            for block in dec.clinic.graph.nodes
+            for stmt in block.statements
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.VirtualVariable)
+        )
+        assert isinstance(stmt.dst, ailment.Expr.VirtualVariable) and stmt.dst.was_stack
+        # retype the source as a struct of the size of the store: the two leading members are copied as a struct
+        codegen = dec.codegen
+        pair = SimStruct({"x": SimTypeInt(), "y": SimTypeInt()}, name="P").with_arch(proj.arch)
+        src_var = codegen._variable_map.variable(stmt.src)
+        proj.kb.dec_variables[0x400000].set_variable_type(src_var, pair)
+        codegen.ailexpr2cnode.clear()
+        text = codegen._handle_Stmt_Assignment(stmt).c_repr().strip()
+        assert re.match(r"\*\(struct P \*\)&v\d+\.field_0 = ", text) is not None, text
+
+    def test_leading_member_only_at_variable_base(self):
+        # the caller of test_read_leading_element_of_stack_array
+        code = bytes.fromhex("4883ec284889e7e80c000000488b04248b40044883c428c3488b470848034718c3")
+        _, dec = self._decompile_shellcode_dec(code, 0x400018)
+        ret = next(
+            stmt
+            for block in dec.clinic.graph.nodes
+            for stmt in block.statements
+            if isinstance(stmt, ailment.Stmt.Return)
+        )
+        vvar = ret.ret_exprs[0].addr.operands[0]
+        assert isinstance(vvar, ailment.Expr.VirtualVariable) and vvar.was_stack
+        codegen = dec.codegen
+        var = codegen._variable_map.variable(vvar)
+        assert re.fullmatch(r"\*v\d+", codegen._handle_VirtualVariable(vvar).c_repr()) is not None
+        # linked 4 bytes into the variable, the vvar is not its leading element
+        codegen._variable_map.set_variable(vvar, var, 4)
+        assert re.fullmatch(r"v\d+", codegen._handle_VirtualVariable(vvar).c_repr()) is not None
+
+    def test_register_carried_variable_typed_as_array_stays_plain(self):
+        # the caller of test_read_stack_array_of_the_same_size
+        code = bytes.fromhex(
+            "534883ec1048897c2408488d7c2408e80b000000488b4424084883c4105bc3c70701000000c7470402000000c3"
+        )
+        proj, dec = self._decompile_shellcode_dec(code, 0x40001F)
+        ret = next(
+            stmt
+            for block in dec.clinic.graph.nodes
+            for stmt in block.statements
+            if isinstance(stmt, ailment.Stmt.Return)
+        )
+        vvar = ret.ret_exprs[0]
+        assert isinstance(vvar, ailment.Expr.VirtualVariable) and vvar.was_stack
+        codegen = dec.codegen
+        varman = proj.kb.dec_variables[0x400000]
+        var = codegen._variable_map.variable(vvar)
+        assert re.fullmatch(r"\*\(\w+ \*\)v\d+", codegen._handle_VirtualVariable(vvar).c_repr()) is not None
+        # unified with a register variable, the array-typed variable is a spilled scalar
+        reg_var = varman.get_variables(sort="reg")[0]
+        varman.set_unified_variable(reg_var, varman.unified_variable(var))
+        codegen._register_carried_variables = None
+        assert re.fullmatch(r"\w+", codegen._handle_VirtualVariable(vvar).c_repr()) is not None
 
 
 class TestStructMemberSlotReuse(unittest.TestCase):
