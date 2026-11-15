@@ -4348,6 +4348,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             and dst_ty is not None
             and cdst_type is not None
             and cdst_type != csrc.type
+            # there is no cast to an array type
+            and not isinstance(dst_ty, SimTypeArray)
         ):
             csrc = CTypeCast(csrc.type, cdst_type, csrc, codegen=self)
         return CAssignment(cdst, csrc, codegen=self, **kwargs)

@@ -299,6 +299,21 @@ class TestStructMemberAccess(unittest.TestCase):
         codegen._register_carried_variables = None
         assert re.fullmatch(r"\w+", codegen._handle_VirtualVariable(vvar).c_repr()) is not None
 
+    def test_no_cast_to_an_array_type(self):
+        # a register variable typed char[8] is assigned the difference of two integers
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "head.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(proj.kb.functions["elide_tail_lines_seekable"], cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        text = dec.codegen.text
+        m = re.search(r"^\s+char (\w+)\[8\];  // rbp", text, re.MULTILINE)
+        assert m is not None, text
+        var = m.group(1)
+        assert re.search(rf"^\s+{var} = a4 - \w+;", text, re.MULTILINE) is not None, text
+        assert re.search(r"\(\w+\[\d+\]\)", text) is None, text
+
     def test_extract_from_dereferenced_leading_member(self):
         # caller:
         #   push rbx; push rbp; sub rsp, 0x28; mov rdi, rsp; call callee; mov rbx, [rsp]; mov ebp, [rsp]
