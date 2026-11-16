@@ -1,11 +1,11 @@
-"""Regresión para #7780: Store simbólico que termina exactamente al final de una
-page no debe crear claves fuera de rango en symbolic_data.
+""Regression for #7780: Symbolic Store that ends exactly at the end of a
+page you should not create out-of-range keys in symbolic_data.
 
-El angr 10.0.2 tenía _ultra_changed_candidates sin tope (`range(off, off + mo.length)`),
-y la clave centinela `addr + size` en page_size provocaba IndexError en
-symbolic_bitmap.get durante los merges de VFG. Master limita los candidatos a `size`,
-pero el centinela seguía creándose violando el invariante `offsets < page_size`.
-Este test fija el invariante.
+The 10.0.2 angr had _ultra_changed_candidates without top (`range(off, off + mo.length)`),
+and the sentry key `addr + size` in page_size provoked IndexError in
+symbolic_bitmap.get during VFG merges. Master limits candidates to `size`,
+but the sentinel kept creating itself by violating the invariant `offsets < page_size`.
+This test sets the invariant.
 """
 
 from __future__ import annotations
