@@ -13,3 +13,6 @@ repository = { workspace = true }
 clarirs-core = { path = "../clarirs-core" }
 num-bigint = { version = "0.4.6" }
 num-traits = "0.2"
+
+[lints]
+workspace = true

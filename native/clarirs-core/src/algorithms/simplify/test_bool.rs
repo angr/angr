@@ -1,17 +1,7 @@
-use anyhow::Result;
-use clarirs_num::BitVec;
-
-use crate::{
-    ast::{
-        AstFactory,
-        annotation::{Annotation, AnnotationType},
-        op::AstOp,
-    },
-    context::Context,
-};
+use crate::prelude::*;
 
 #[test]
-fn test_prim() -> Result<()> {
+fn test_prim() -> Result<(), ClarirsError> {
     let ctx = Context::default();
     let true_ast = ctx.true_()?;
     let false_ast = ctx.false_()?;
@@ -25,7 +15,7 @@ fn test_prim() -> Result<()> {
 }
 
 #[test]
-fn test_xor_double_negation() -> Result<()> {
+fn test_xor_double_negation() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let x = ctx.bools("x")?;
@@ -64,7 +54,7 @@ fn test_xor_double_negation() -> Result<()> {
 }
 
 #[test]
-fn test_not() -> Result<()> {
+fn test_not() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let true_ast = ctx.true_()?;
@@ -95,7 +85,7 @@ fn test_not() -> Result<()> {
 }
 
 #[test]
-fn test_or() -> Result<()> {
+fn test_or() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let true_ast = ctx.true_()?;
@@ -126,7 +116,7 @@ fn test_or() -> Result<()> {
 }
 
 #[test]
-fn test_xor() -> Result<()> {
+fn test_xor() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let true_ast = ctx.true_()?;
@@ -158,7 +148,7 @@ fn test_xor() -> Result<()> {
 }
 
 #[test]
-fn test_if() -> Result<()> {
+fn test_if() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let true_ast = ctx.true_()?;
@@ -208,7 +198,7 @@ fn test_if() -> Result<()> {
 }
 
 #[test]
-fn test_eq() -> Result<()> {
+fn test_eq() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let true_ast = ctx.true_()?;
@@ -240,7 +230,7 @@ fn test_eq() -> Result<()> {
 }
 
 #[test]
-fn test_neq() -> Result<()> {
+fn test_neq() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let true_ast = ctx.true_()?;
@@ -272,7 +262,7 @@ fn test_neq() -> Result<()> {
 }
 
 #[test]
-fn test_bv_eq_neq_constant_canonicalized_to_right() -> Result<()> {
+fn test_bv_eq_neq_constant_canonicalized_to_right() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let x = ctx.bvs("x", 64)?;
@@ -302,7 +292,7 @@ fn test_bv_eq_neq_constant_canonicalized_to_right() -> Result<()> {
 }
 
 #[test]
-fn test_ult() -> Result<()> {
+fn test_ult() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let table = vec![
@@ -336,7 +326,7 @@ fn test_ult() -> Result<()> {
 }
 
 #[test]
-fn test_ule() -> Result<()> {
+fn test_ule() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let table = vec![
@@ -370,7 +360,7 @@ fn test_ule() -> Result<()> {
 }
 
 #[test]
-fn test_ugt() -> Result<()> {
+fn test_ugt() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let table = vec![
@@ -404,7 +394,7 @@ fn test_ugt() -> Result<()> {
 }
 
 #[test]
-fn test_uge() -> Result<()> {
+fn test_uge() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let table = vec![
@@ -438,7 +428,7 @@ fn test_uge() -> Result<()> {
 }
 
 #[test]
-fn test_slt() -> Result<()> {
+fn test_slt() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let table = vec![
@@ -482,7 +472,7 @@ fn test_slt() -> Result<()> {
 }
 
 #[test]
-fn test_sle() -> Result<()> {
+fn test_sle() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let table = vec![
@@ -526,7 +516,7 @@ fn test_sle() -> Result<()> {
 }
 
 #[test]
-fn test_sgt() -> Result<()> {
+fn test_sgt() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let table = vec![
@@ -570,7 +560,7 @@ fn test_sgt() -> Result<()> {
 }
 
 #[test]
-fn test_sge() -> Result<()> {
+fn test_sge() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let table = vec![
@@ -614,7 +604,7 @@ fn test_sge() -> Result<()> {
 }
 
 #[test]
-fn test_boolean_identity_simplifications() -> Result<()> {
+fn test_boolean_identity_simplifications() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let x = ctx.bools("x")?;
@@ -645,7 +635,7 @@ fn test_boolean_identity_simplifications() -> Result<()> {
 }
 
 #[test]
-fn test_booleq_identity_simplification_without_floats() -> Result<()> {
+fn test_booleq_identity_simplification_without_floats() -> Result<(), ClarirsError> {
     // BoolEq(x, x) should simplify to true
     let ctx = Context::default();
     let a = ctx.bvs("a", 64)?;
@@ -664,7 +654,7 @@ fn test_booleq_identity_simplification_without_floats() -> Result<()> {
 }
 
 #[test]
-fn test_booleq_identity_simplification_with_floats() -> Result<()> {
+fn test_booleq_identity_simplification_with_floats() -> Result<(), ClarirsError> {
     // BoolEq(x, x) SHOULD simplify to true even when x involves floats.
     // NaN != NaN applies to fp== itself, but bool== of two identical boolean
     // expressions is always true: whatever value (fp== A B) takes, both sides
@@ -686,7 +676,7 @@ fn test_booleq_identity_simplification_with_floats() -> Result<()> {
 }
 
 #[test]
-fn test_relocatable_annotations_preserved_through_simplification() -> Result<()> {
+fn test_relocatable_annotations_preserved_through_simplification() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let annotation = Annotation::new(AnnotationType::Uninitialized, true, true);
@@ -712,7 +702,7 @@ fn test_relocatable_annotations_preserved_through_simplification() -> Result<()>
 }
 
 #[test]
-fn test_non_eliminatable_non_relocatable_blocks_simplification() -> Result<()> {
+fn test_non_eliminatable_non_relocatable_blocks_simplification() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     // SimplificationAvoidance is !eliminatable && !relocatable
@@ -737,7 +727,7 @@ fn test_non_eliminatable_non_relocatable_blocks_simplification() -> Result<()> {
 }
 
 #[test]
-fn test_eliminatable_non_relocatable_does_not_block_simplification() -> Result<()> {
+fn test_eliminatable_non_relocatable_does_not_block_simplification() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     // An eliminatable, non-relocatable annotation should NOT block simplification
@@ -766,7 +756,7 @@ fn test_eliminatable_non_relocatable_does_not_block_simplification() -> Result<(
 }
 
 #[test]
-fn test_flatten_with_identity_keeps_argument_count() -> Result<()> {
+fn test_flatten_with_identity_keeps_argument_count() -> Result<(), ClarirsError> {
     let ctx = Context::new();
     let x = ctx.bools("x")?;
     let y = ctx.bools("y")?;
@@ -795,7 +785,7 @@ fn test_flatten_with_identity_keeps_argument_count() -> Result<()> {
 }
 
 #[test]
-fn test_zero_ext_cmp_equal_inner_widths_compares_inners() -> Result<()> {
+fn test_zero_ext_cmp_equal_inner_widths_compares_inners() -> Result<(), ClarirsError> {
     let ctx = Context::new();
     let x = ctx.bvs("x", 8)?;
     let y = ctx.bvs("y", 8)?;
@@ -813,7 +803,7 @@ fn test_zero_ext_cmp_equal_inner_widths_compares_inners() -> Result<()> {
 }
 
 #[test]
-fn test_zero_ext_cmp_unequal_inner_widths_not_rewritten() -> Result<()> {
+fn test_zero_ext_cmp_unequal_inner_widths_not_rewritten() -> Result<(), ClarirsError> {
     let ctx = Context::new();
     let x = ctx.bvs("x", 8)?;
     let y = ctx.bvs("y", 32)?;
@@ -833,7 +823,7 @@ fn test_zero_ext_cmp_unequal_inner_widths_not_rewritten() -> Result<()> {
 }
 
 #[test]
-fn test_masked_cmp_constant_outside_mask() -> Result<()> {
+fn test_masked_cmp_constant_outside_mask() -> Result<(), ClarirsError> {
     let ctx = Context::new();
     let x = ctx.bvs("x", 8)?;
     let bv8 = |v: u64| ctx.bvv(BitVec::from((v, 8)));
@@ -869,7 +859,7 @@ fn test_masked_cmp_constant_outside_mask() -> Result<()> {
 }
 
 #[test]
-fn test_masked_cmp_matches_concrete_evaluation() -> Result<()> {
+fn test_masked_cmp_matches_concrete_evaluation() -> Result<(), ClarirsError> {
     // Every masked-AND comparison rewrite must agree with folding the original
     // expression once x is concrete, whether or not the constant fits in the mask.
     let ctx = Context::new();
@@ -905,7 +895,7 @@ fn test_masked_cmp_matches_concrete_evaluation() -> Result<()> {
 }
 
 #[test]
-fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<()> {
+fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<(), ClarirsError> {
     let ctx = Context::new();
     let c = ctx.bools("c")?;
     let a = ctx.bools("a")?;
@@ -931,7 +921,7 @@ fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<()> {
 }
 
 #[test]
-fn test_fp_eq_is_ieee_and_eq_is_identity() -> Result<()> {
+fn test_fp_eq_is_ieee_and_eq_is_identity() -> Result<(), ClarirsError> {
     use clarirs_num::Float;
     let ctx = Context::default();
     let nan = ctx.fpv(Float::from(f64::NAN))?;
@@ -950,7 +940,7 @@ fn test_fp_eq_is_ieee_and_eq_is_identity() -> Result<()> {
 }
 
 #[test]
-fn test_fp_eq_is_not_reflexive() -> Result<()> {
+fn test_fp_eq_is_not_reflexive() -> Result<(), ClarirsError> {
     let ctx = Context::default();
     let x = ctx.fps("x", clarirs_num::FSort::f64())?;
 

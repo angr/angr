@@ -9,7 +9,6 @@ members = [
 ]
 
 [workspace.dependencies]
-anyhow = "1"
 thiserror = "2"
 
 [workspace.package]

@@ -261,7 +261,6 @@ name = "clarirs-core"
 version = "0.1.0"
 dependencies = [
  "ahash",
- "anyhow",
  "clarirs-num",
  "num-bigint",
  "num-traits",
@@ -274,7 +273,6 @@ dependencies = [
 name = "clarirs-num"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "num-bigint",
  "num-traits",
  "serde",
