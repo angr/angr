@@ -205,7 +205,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             except StopIteration:
                 pass
             else:
-                if endpiece != addr + size:
+                if endpiece != addr + size and addr + size < memory.page_size:
                     self.symbolic_data[addr + size] = self.symbolic_data[endpiece]
 
             # clear range
