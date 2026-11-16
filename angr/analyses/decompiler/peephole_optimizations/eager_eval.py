@@ -513,6 +513,6 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 # unsigned extension
                 return Const(expr.idx, expr.operand.value, expr.to_bits, **expr.operand.tags)
             # signed extension
-            v = sign_extend(expr.operand.value, expr.to_bits)
+            v = sign_extend(expr.operand.value, expr.from_bits) & ((1 << expr.to_bits) - 1)
             return Const(expr.idx, v, expr.to_bits, **expr.operand.tags)
         return None

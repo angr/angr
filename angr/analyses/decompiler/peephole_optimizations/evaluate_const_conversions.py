@@ -6,6 +6,7 @@ import archinfo
 
 from angr.ailment.expression import Const, Convert, Extract
 from angr.ailment.utils import is_lsb_extract
+from angr.utils.bits import sign_extend
 
 from .base import PeepholeOptimizationExprBase
 
@@ -46,9 +47,10 @@ class EvaluateConstConversions(PeepholeOptimizationExprBase):
             return None
 
         value = inner.value
-        value &= (1 << expr.bits) - 1  # disards sign
-        if signed and value >= 1 << (expr.bits - 1):
-            value -= 1 << expr.bits  # re-adds sign
+        if signed and inner.bits < expr.bits:
+            # the sign is that of the source width
+            value = sign_extend(value, inner.bits)
+        value &= (1 << expr.bits) - 1
 
         return Const(inner.idx, value, expr.bits, **inner.tags)
 
