@@ -380,6 +380,17 @@ mod from_z3 {
         assert_eq!(expected, result);
     }
 
+    #[test]
+    fn value_f32_subnormal() {
+        let ctx = Context::new();
+        for value in [f32::from_bits(1), f32::from_bits(0x807f_ffff)] {
+            let z3_ast = RcAst::mk_fp_val_f32(value);
+            let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
+            let expected = ctx.fpv(Float::F32(value)).unwrap();
+            assert_eq!(expected, result);
+        }
+    }
+
     // -- Unary ops --
 
     #[test]

@@ -871,11 +871,32 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                 Z3_fpa_get_ebits(z3_ctx, sort),
                                 Z3_fpa_get_sbits(z3_ctx, sort) - 1,
                             );
-                            let val = Z3_get_numeral_double(z3_ctx, *ast);
                             if fsort == FSort::f32() {
-                                ctx.fpv(Float::F32(val as f32))
+                                // Z3_get_numeral_double misreads an f32 subnormal
+                                let (mut sign, mut exponent, mut significand) = (false, 0i64, 0u64);
+                                if !(Z3_fpa_get_numeral_sign(z3_ctx, *ast, &mut sign)
+                                    && Z3_fpa_get_numeral_exponent_int64(
+                                        z3_ctx,
+                                        *ast,
+                                        &mut exponent,
+                                        true,
+                                    )
+                                    && Z3_fpa_get_numeral_significand_uint64(
+                                        z3_ctx,
+                                        *ast,
+                                        &mut significand,
+                                    ))
+                                {
+                                    return Err(ClarirsError::ConversionError(
+                                        "expected a numeral".to_string(),
+                                    ));
+                                }
+                                let bits = (sign as u32) << 31
+                                    | (exponent as u32) << 23
+                                    | significand as u32;
+                                ctx.fpv(Float::F32(f32::from_bits(bits)))
                             } else {
-                                ctx.fpv(Float::F64(val))
+                                ctx.fpv(Float::F64(Z3_get_numeral_double(z3_ctx, *ast)))
                             }
                         }
                         DeclKind::FpaNan => {
