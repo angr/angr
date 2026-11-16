@@ -80,6 +80,7 @@ class Labels(KnowledgeBasePlugin):
         o = Labels(self._kb)
         o._labels = dict(self._labels.items())
         o._reverse_labels = dict(self._reverse_labels.items())
+        return o
 
     def get_unique_label(self, label):
         """
