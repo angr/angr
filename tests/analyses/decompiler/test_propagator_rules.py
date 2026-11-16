@@ -366,6 +366,26 @@ class TestPropagatorRules(unittest.TestCase):
             if isinstance(expr, VirtualVariable)
         }
 
+    def test_spropagator_bp_saved_in_a_slot_keeps_its_value_in_another_block(self):
+        # push rbp; mov rbp, rsp; mov bpl, 0; sub rsp, 0x40; mov [rsp+0x10], rbp; lea rbp, [rsp+0x20]; test edi, edi;
+        # jz L; mov dword [rbp+4], 1; L: mov rax, [rsp+0x10]; mov [rsi], rax; mov eax, [rbp+4]; add rsp, 0x40;
+        # pop rbp; ret
+        # In VM mode the saved rbp is propagated into the store of block L. It is the rbp of the entry block, not
+        # the frame offset rbp has at the entry of L (sp-0x28).
+        code = bytes.fromhex(
+            "554889e540b5004883ec4048896c2410488d6c242085ff7407c7450401000000488b4424104889068b45044883c4405dc3"
+        )
+        proj = angr.load_shellcode(code, "AMD64", load_address=0x400000, start_offset=0)
+        cfg = proj.analyses.CFGFast(normalize=True, function_starts=[0x400000], fail_fast=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=False)
+        dec = proj.analyses.Decompiler(cfg.functions[0x400000], cfg=cfg, fail_fast=True, vm_deobfuscation=True)
+        assert dec.clinic is not None and dec.clinic.cc_graph is not None
+        stores = [s for b in dec.clinic.cc_graph for s in b.statements if isinstance(s, Store)]
+        assert len(stores) == 1, stores
+        data = stores[0].data
+        assert not isinstance(data, StackBaseOffset), data
+        assert not (isinstance(data, UnaryOp) and data.op == "Reference"), data
+
     def test_spropagator_vm_does_not_propagate_a_slot_whose_address_is_taken(self):
         # the callee may write the slot through its address, so the read after the call is not the definition
         for src_kind in ("stack_address", "const_arm_ite"):

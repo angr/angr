@@ -331,6 +331,7 @@ class SPropagator:
         func_graph: networkx.DiGraph | None = None,
         only_consts: bool = True,
         stack_pointer_tracker=None,
+        graph_defs=None,
         func_args: set[VirtualVariable] | None = None,
         func_addr: int | None = None,
         stack_arg_offsets: set[int] | None = None,
@@ -355,6 +356,8 @@ class SPropagator:
         self.func_args = func_args
         self.only_consts = only_consts
         self._sp_tracker = stack_pointer_tracker
+        # unique vvar definitions of the graph a block subject belongs to (GraphVVarDefs), if known
+        self._graph_defs = graph_defs
         if call_sp_adjustments is None and stack_pointer_tracker is not None:
             call_sp_adjustments = getattr(stack_pointer_tracker, "call_sp_adjustments", None)
         # call instruction -> sp change from the end of the instruction to its return site (None: unknown)
@@ -426,7 +429,32 @@ class SPropagator:
 
         sb_offset = None
         def_entry = vvar_deflocs.get(vvar_id)
-        if def_entry is None or def_entry[1].is_extern:
+        graph_def = None
+        if (
+            (def_entry is None or def_entry[1].is_extern)
+            and self._graph_defs is not None
+            and reg_offset != self.project.arch.sp_offset
+        ):
+            # bp defined in another block of the graph: the use may have been propagated here from anywhere (through
+            # a stack slot that saved the register), so the offset is the one its definition gave, as within a block.
+            # sp keeps the offset at the entry of the block: SSA gives a call no definition of sp, so after a call an
+            # sp variable stands for the register where the callee left it, whatever its definition wrote.
+            graph_def = self._graph_defs.def_location(vvar_id)
+        if graph_def is not None:
+            def_block, def_stmt_idx = graph_def
+            def_ins = def_block.statements[def_stmt_idx].tags.get("ins_addr")
+            if is_phi_assignment(def_block.statements[def_stmt_idx]):
+                entry_ins = next(
+                    (stmt.tags["ins_addr"] for stmt in def_block.statements if "ins_addr" in stmt.tags), None
+                )
+                return None if entry_ins is None else self._sp_tracker.offset_before(entry_ins, reg_offset)
+            if (
+                def_ins is not None
+                and def_ins != use_ins
+                and self._is_last_reg_write_in_insn(def_block, def_stmt_idx, def_ins, reg_offset)
+            ):
+                return self._sp_tracker.offset_after(def_ins, reg_offset)
+        elif def_entry is None or def_entry[1].is_extern:
             if self.mode == "function" and self.func_addr is not None:
                 # live-in at function entry
                 sb_offset = self._sp_tracker.offset_before(self.func_addr, reg_offset)

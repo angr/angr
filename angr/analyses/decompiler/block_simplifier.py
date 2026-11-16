@@ -258,6 +258,7 @@ class BlockSimplifier:
                 subject=block,
                 func_addr=self.func_addr,
                 stack_pointer_tracker=self._stack_pointer_tracker,
+                graph_defs=self._graph_defs,
                 ail_manager=self._ail_manager,
             )
         return self._propagator
