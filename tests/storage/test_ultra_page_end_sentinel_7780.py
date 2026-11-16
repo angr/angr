@@ -1,5 +1,5 @@
 ""Regression for #7780: Symbolic Store that ends exactly at the end of a
-page you should not create out-of-range keys in symbolic_data.
+page you should not create out-of-range keys in symbolic_data..
 
 The 10.0.2 angr had _ultra_changed_candidates without top (`range(off, off + mo.length)`),
 and the sentry key `addr + size` in page_size provoked IndexError in
