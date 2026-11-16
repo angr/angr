@@ -1,8 +1,7 @@
 use crate::prelude::*;
-use anyhow::Result;
 
 #[test]
-fn test_bv_to_fp_of_fp_to_ieeebv_is_identity() -> Result<()> {
+fn test_bv_to_fp_of_fp_to_ieeebv_is_identity() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     let x = ctx.fps("x", FSort::f64())?;
@@ -13,7 +12,7 @@ fn test_bv_to_fp_of_fp_to_ieeebv_is_identity() -> Result<()> {
 }
 
 #[test]
-fn test_bv_to_fp_of_fp_to_ieeebv_different_sort_not_simplified() -> Result<()> {
+fn test_bv_to_fp_of_fp_to_ieeebv_different_sort_not_simplified() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     // Reinterpreting an f64's 64-bit pattern as some other 64-bit float sort
@@ -28,7 +27,7 @@ fn test_bv_to_fp_of_fp_to_ieeebv_different_sort_not_simplified() -> Result<()> {
 }
 
 #[test]
-fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<()> {
+fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<(), ClarirsError> {
     let ctx = Context::new();
     let c = ctx.bools("c")?;
     let a = ctx.fps("a", FSort::f64())?;
@@ -42,7 +41,7 @@ fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<()> {
 }
 
 #[test]
-fn test_min_max_fma_round_fold_constants() -> Result<()> {
+fn test_min_max_fma_round_fold_constants() -> Result<(), ClarirsError> {
     let ctx = Context::new();
     let fpv = |v: f64| ctx.fpv(Float::from(v));
 

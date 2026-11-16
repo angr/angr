@@ -1,6 +1,5 @@
 use super::{BitVec, BitVecError};
 
-use anyhow::Result;
 use num_bigint::{BigInt, BigUint};
 use num_traits::Zero;
 use smallvec::SmallVec;

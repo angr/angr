@@ -1,8 +1,7 @@
 use crate::prelude::*;
-use anyhow::Result;
 
 #[test]
-fn test_str_index_of() -> Result<()> {
+fn test_str_index_of() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     // (haystack, needle, start, expected position; u64::MAX is -1)
@@ -46,7 +45,7 @@ fn test_str_index_of() -> Result<()> {
 }
 
 #[test]
-fn test_str_substr() -> Result<()> {
+fn test_str_substr() -> Result<(), ClarirsError> {
     let ctx = Context::new();
 
     // (string, start, length, expected)
@@ -88,7 +87,7 @@ fn test_str_substr() -> Result<()> {
 }
 
 #[test]
-fn test_str_concat() -> Result<()> {
+fn test_str_concat() -> Result<(), ClarirsError> {
     let ctx = Context::new();
     let x = ctx.strings("x")?;
     let y = ctx.strings("y")?;
