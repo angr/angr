@@ -12,7 +12,6 @@
 //! metaclass ``__instancecheck__`` that dispatches on the variant kind.
 //! See ``angr/ailment/statement.py`` for the marker classes.
 
-use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -20,22 +19,21 @@ use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression, VariantIdx, next};
+use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
 use crate::ailment::enums::StatementKind;
 use crate::ailment::tags::{Tags, TagsView};
 use crate::ailment::{CachedHash, CmpMode, hash_of};
-use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
-use serde::ser::{SerializeStruct, SerializeTupleVariant};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
 // StmtHeader -- shared header carried by every variant
 // ---------------------------------------------------------------------------
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StmtHeader {
     pub idx: i64,
     pub tags: Tags,
+    #[serde(skip)]
     pub cached_hash: CachedHash,
     /// Runtime-only marker: true once a peephole-optimization pass has run this statement to
     /// fixpoint, letting later passes skip it. Never serialized, ignored by
@@ -70,7 +68,7 @@ impl StmtHeader {
 // StmtInner -- fat enum, one arm per legacy Statement subclass
 // ---------------------------------------------------------------------------
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum StmtInner {
     Assignment {
         dst: Arc<AilExpression>,
@@ -157,7 +155,7 @@ impl StmtInner {
 // AilStatement -- pure Rust, not exposed
 // ---------------------------------------------------------------------------
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AilStatement {
     pub header: StmtHeader,
     pub inner: StmtInner,
@@ -1877,277 +1875,5 @@ impl<'py> IntoPyObject<'py> for &AilStatement {
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         Bound::new(py, Statement::wrap(self.clone()))
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Serialization
-// ---------------------------------------------------------------------------
-
-// Hand-written serde impls for [`AilStatement`]; companion to the
-// expression-side impls in ``ail_expr.rs`` (which also
-// documents the encoding). The header fields (``idx``, ``tags``)
-// come first, then the [`StmtInner`] variant index and its fields
-// in declaration order; ``cached_hash`` is rebuilt empty on read.
-//
-// Keep the variant order and per-variant field lists in sync with
-// the [`StmtInner`] declaration; any change to either is a wire
-// format break (pickled AIL nodes from older builds stop loading).
-
-// -- AilStatement: header fields + inner variant ---------------------
-
-const STMT_FIELDS: &[&str] = &["idx", "tags", "inner"];
-
-impl Serialize for AilStatement {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut st = s.serialize_struct("AilStatement", STMT_FIELDS.len())?;
-        st.serialize_field("idx", &self.header.idx)?;
-        st.serialize_field("tags", &self.header.tags)?;
-        st.serialize_field("inner", &self.inner)?;
-        st.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for AilStatement {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct StmtVisitor;
-        impl<'de> Visitor<'de> for StmtVisitor {
-            type Value = AilStatement;
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("an AIL statement")
-            }
-            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-                let idx: i64 = next(&mut seq)?;
-                let tags: Tags = next(&mut seq)?;
-                let inner: StmtInner = next(&mut seq)?;
-                Ok(AilStatement {
-                    header: StmtHeader::new(idx, tags),
-                    inner,
-                })
-            }
-        }
-        d.deserialize_struct("AilStatement", STMT_FIELDS, StmtVisitor)
-    }
-}
-
-// -- StmtInner --------------------------------------------------------
-
-/// Variant names and per-variant field counts, in [`StmtInner`]
-/// declaration order. The index into these tables is the wire tag.
-const STMT_VARIANTS: &[&str] = &[
-    "Assignment",
-    "WeakAssignment",
-    "Label",
-    "Store",
-    "Jump",
-    "ConditionalJump",
-    "SideEffectStatement",
-    "Return",
-    "CAS",
-    "DirtyStatement",
-    "NoOp",
-];
-#[rustfmt::skip]
-const STMT_FIELD_COUNTS: &[usize] = &[2, 2, 1, 5, 2, 5, 3, 1, 8, 1, 0];
-
-const NOOP_TAG: u32 = 10;
-
-impl Serialize for StmtInner {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match self {
-            StmtInner::Assignment { dst, src } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 0, "Assignment", 2)?;
-                tv.serialize_field(dst)?;
-                tv.serialize_field(src)?;
-                tv.end()
-            }
-            StmtInner::WeakAssignment { dst, src } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 1, "WeakAssignment", 2)?;
-                tv.serialize_field(dst)?;
-                tv.serialize_field(src)?;
-                tv.end()
-            }
-            StmtInner::Label { name } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 2, "Label", 1)?;
-                tv.serialize_field(name)?;
-                tv.end()
-            }
-            StmtInner::Store {
-                addr,
-                data,
-                size,
-                endness,
-                guard,
-            } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 3, "Store", 5)?;
-                tv.serialize_field(addr)?;
-                tv.serialize_field(data)?;
-                tv.serialize_field(size)?;
-                tv.serialize_field(endness)?;
-                tv.serialize_field(guard)?;
-                tv.end()
-            }
-            StmtInner::Jump { target, target_idx } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 4, "Jump", 2)?;
-                tv.serialize_field(target)?;
-                tv.serialize_field(target_idx)?;
-                tv.end()
-            }
-            StmtInner::ConditionalJump {
-                condition,
-                true_target,
-                false_target,
-                true_target_idx,
-                false_target_idx,
-            } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 5, "ConditionalJump", 5)?;
-                tv.serialize_field(condition)?;
-                tv.serialize_field(true_target)?;
-                tv.serialize_field(false_target)?;
-                tv.serialize_field(true_target_idx)?;
-                tv.serialize_field(false_target_idx)?;
-                tv.end()
-            }
-            StmtInner::SideEffectStatement {
-                expr,
-                ret_expr,
-                fp_ret_expr,
-            } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 6, "SideEffectStatement", 3)?;
-                tv.serialize_field(expr)?;
-                tv.serialize_field(ret_expr)?;
-                tv.serialize_field(fp_ret_expr)?;
-                tv.end()
-            }
-            StmtInner::Return { ret_exprs } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 7, "Return", 1)?;
-                tv.serialize_field(ret_exprs)?;
-                tv.end()
-            }
-            StmtInner::CAS {
-                addr,
-                data_lo,
-                data_hi,
-                expd_lo,
-                expd_hi,
-                old_lo,
-                old_hi,
-                endness,
-            } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 8, "CAS", 8)?;
-                tv.serialize_field(addr)?;
-                tv.serialize_field(data_lo)?;
-                tv.serialize_field(data_hi)?;
-                tv.serialize_field(expd_lo)?;
-                tv.serialize_field(expd_hi)?;
-                tv.serialize_field(old_lo)?;
-                tv.serialize_field(old_hi)?;
-                tv.serialize_field(endness)?;
-                tv.end()
-            }
-            StmtInner::DirtyStatement { dirty } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 9, "DirtyStatement", 1)?;
-                tv.serialize_field(dirty)?;
-                tv.end()
-            }
-            StmtInner::NoOp => s.serialize_unit_variant("StmtInner", NOOP_TAG, "NoOp"),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for StmtInner {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct InnerVisitor;
-        impl<'de> Visitor<'de> for InnerVisitor {
-            type Value = StmtInner;
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("an AIL statement variant")
-            }
-            fn visit_enum<A: EnumAccess<'de>>(self, data: A) -> Result<Self::Value, A::Error> {
-                let (VariantIdx(tag), variant) = data.variant()?;
-                if tag == NOOP_TAG {
-                    variant.unit_variant()?;
-                    return Ok(StmtInner::NoOp);
-                }
-                let Some(&nfields) = STMT_FIELD_COUNTS.get(tag as usize) else {
-                    return Err(de::Error::custom(format_args!(
-                        "invalid AIL statement variant index {tag}"
-                    )));
-                };
-                variant.tuple_variant(nfields, FieldsVisitor { tag })
-            }
-        }
-
-        /// Decodes the payload of the variant selected by ``tag``.
-        /// Fields are read in the same order the ``Serialize`` impl
-        /// writes them (= ``StmtInner`` declaration order).
-        struct FieldsVisitor {
-            tag: u32,
-        }
-        impl<'de> Visitor<'de> for FieldsVisitor {
-            type Value = StmtInner;
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "AIL {} payload", STMT_VARIANTS[self.tag as usize])
-            }
-            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-                Ok(match self.tag {
-                    0 => StmtInner::Assignment {
-                        dst: next(&mut seq)?,
-                        src: next(&mut seq)?,
-                    },
-                    1 => StmtInner::WeakAssignment {
-                        dst: next(&mut seq)?,
-                        src: next(&mut seq)?,
-                    },
-                    2 => StmtInner::Label {
-                        name: next(&mut seq)?,
-                    },
-                    3 => StmtInner::Store {
-                        addr: next(&mut seq)?,
-                        data: next(&mut seq)?,
-                        size: next(&mut seq)?,
-                        endness: next(&mut seq)?,
-                        guard: next(&mut seq)?,
-                    },
-                    4 => StmtInner::Jump {
-                        target: next(&mut seq)?,
-                        target_idx: next(&mut seq)?,
-                    },
-                    5 => StmtInner::ConditionalJump {
-                        condition: next(&mut seq)?,
-                        true_target: next(&mut seq)?,
-                        false_target: next(&mut seq)?,
-                        true_target_idx: next(&mut seq)?,
-                        false_target_idx: next(&mut seq)?,
-                    },
-                    6 => StmtInner::SideEffectStatement {
-                        expr: next(&mut seq)?,
-                        ret_expr: next(&mut seq)?,
-                        fp_ret_expr: next(&mut seq)?,
-                    },
-                    7 => StmtInner::Return {
-                        ret_exprs: next(&mut seq)?,
-                    },
-                    8 => StmtInner::CAS {
-                        addr: next(&mut seq)?,
-                        data_lo: next(&mut seq)?,
-                        data_hi: next(&mut seq)?,
-                        expd_lo: next(&mut seq)?,
-                        expd_hi: next(&mut seq)?,
-                        old_lo: next(&mut seq)?,
-                        old_hi: next(&mut seq)?,
-                        endness: next(&mut seq)?,
-                    },
-                    9 => StmtInner::DirtyStatement {
-                        dirty: next(&mut seq)?,
-                    },
-                    // NoOp is handled as a unit variant in
-                    // ``visit_enum``; other tags were validated there.
-                    _ => unreachable!(),
-                })
-            }
-        }
-
-        d.deserialize_enum("StmtInner", STMT_VARIANTS, InnerVisitor)
     }
 }

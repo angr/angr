@@ -30,14 +30,14 @@ use pyo3::exceptions::{PyKeyError, PyStopIteration, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyMapping, PyTuple};
 use pyo3::{Borrowed, Py, PyAny};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// Value stored in the `extras` bucket for cold / unknown tag keys.
 ///
 /// The primitive variants serde-round-trip cleanly; the `Opaque` variant
 /// holds a Python object (e.g. a SimVariable that hasn't been refactored to
 /// an ident yet) and is silently skipped during Serde serialization.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TagExtra {
     Bool(bool),
     Int(i64),
@@ -46,7 +46,7 @@ pub enum TagExtra {
     IntList(Vec<i64>),
     StrList(Vec<String>),
     /// Non-primitive Python value. Serde skips it.
-    Opaque(Py<PyAny>),
+    Opaque(#[serde(skip_serializing, deserialize_with = "deserialize_none")] Py<PyAny>),
 }
 
 impl PartialEq for TagExtra {
@@ -69,53 +69,8 @@ impl PartialEq for TagExtra {
 
 impl Eq for TagExtra {}
 
-// Serde: encode primitives as a tagged enum; treat Opaque as if it were None
-// so we don't write Python objects into the byte stream.
-impl Serialize for TagExtra {
-    fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeStructVariant;
-        match self {
-            TagExtra::Bool(v) => ser.serialize_newtype_variant("TagExtra", 0, "Bool", v),
-            TagExtra::Int(v) => ser.serialize_newtype_variant("TagExtra", 1, "Int", v),
-            TagExtra::Float(v) => ser.serialize_newtype_variant("TagExtra", 2, "Float", v),
-            TagExtra::Str(v) => ser.serialize_newtype_variant("TagExtra", 3, "Str", v),
-            TagExtra::IntList(v) => ser.serialize_newtype_variant("TagExtra", 4, "IntList", v),
-            TagExtra::StrList(v) => ser.serialize_newtype_variant("TagExtra", 5, "StrList", v),
-            TagExtra::Opaque(_) => {
-                let v = ser.serialize_struct_variant("TagExtra", 6, "Opaque", 0)?;
-                v.end()
-            }
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for TagExtra {
-    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        // Externally tagged (the serde default) to mirror the hand-written
-        // ``Serialize`` impl above, which emits plain variant indices.
-        // Internally/adjacently tagged enums require a self-describing
-        // format and are rejected by postcard at deserialization time.
-        #[derive(Deserialize)]
-        enum Helper {
-            Bool(bool),
-            Int(i64),
-            Float(f64),
-            Str(String),
-            IntList(Vec<i64>),
-            StrList(Vec<String>),
-            Opaque {},
-        }
-        let h: Helper = Deserialize::deserialize(de)?;
-        Ok(match h {
-            Helper::Bool(v) => TagExtra::Bool(v),
-            Helper::Int(v) => TagExtra::Int(v),
-            Helper::Float(v) => TagExtra::Float(v),
-            Helper::Str(v) => TagExtra::Str(v),
-            Helper::IntList(v) => TagExtra::IntList(v),
-            Helper::StrList(v) => TagExtra::StrList(v),
-            Helper::Opaque {} => TagExtra::Opaque(Python::attach(|py| py.None())),
-        })
-    }
+fn deserialize_none<'de, D: Deserializer<'de>>(_: D) -> Result<Py<PyAny>, D::Error> {
+    Python::attach(|py| Ok(py.None()))
 }
 
 /// A tag key. Known keys are enum variants; arbitrary Python string keys

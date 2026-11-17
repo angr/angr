@@ -202,7 +202,7 @@ pub fn hash_of<T: Hash + ?Sized>(v: &T) -> i64 {
 /// `i64::MIN` as the sentinel and silently remapped a real hash of
 /// `i64::MIN` to `i64::MIN + 1`, colliding with the genuine hash of
 /// `i64::MIN + 1`.)
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CachedHash {
     hash: AtomicI64,
     present: AtomicBool,
@@ -242,12 +242,6 @@ impl Clone for CachedHash {
             hash: AtomicI64::new(self.hash.load(Ordering::Relaxed)),
             present: AtomicBool::new(self.present.load(Ordering::Relaxed)),
         }
-    }
-}
-
-impl Default for CachedHash {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
