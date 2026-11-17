@@ -13,6 +13,7 @@ historically turned into a synthetic ``strncpy`` and reconstructed as a
 The fixtures and helper blocks below must remain free of RXRE-specific
 references; they only exercise angr itself.
 """
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -26,11 +27,9 @@ from angr.ailment.expression import (
     Load,
     Register,
     StackBaseOffset,
-    UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.manager import Manager
 from angr.ailment.statement import (
     Assignment,
     Return,
@@ -40,36 +39,35 @@ from angr.ailment.statement import (
 from angr.analyses.decompiler.optimization_passes.inlined_strcpy_simplifier import (
     InlinedStrcpySimplifier,
 )
-
 from tests.analyses.decompiler.test_inlined_string_simplifiers import (
     _StackWriteBlockBuilder,
     _strcpy_copies,
 )
 
 X86_7294 = bytes.fromhex(
-    "83ec04"          # sub esp, 4
+    "83ec04"  # sub esp, 4
     "c704242f2e2d2c"  # mov dword ptr [esp], 0x2c2d2e2f
-    "8b0424"          # mov eax, [esp]
-    "83c404c3"        # add esp, 4; ret
+    "8b0424"  # mov eax, [esp]
+    "83c404c3"  # add esp, 4; ret
 )
 
 # conditional branch on the value loaded from the stack slot (two blocks)
 X86_7294_BRANCH = bytes.fromhex(
-    "83ec04"      # sub esp, 4
+    "83ec04"  # sub esp, 4
     "c704242f2e2d2c"  # mov dword ptr [esp], 0x2c2d2e2f
-    "8b0424"      # mov eax, [esp]
+    "8b0424"  # mov eax, [esp]
     "3d2f2e2d2c"  # cmp eax, 0x2c2d2e2f
-    "7402"        # je +2
-    "33c0"        # xor eax, eax
-    "83c404"      # add esp, 4
-    "c3"          # ret
+    "7402"  # je +2
+    "33c0"  # xor eax, eax
+    "83c404"  # add esp, 4
+    "c3"  # ret
 )
 
 X86_ABCD = bytes.fromhex(
-    "83ec04"      # sub esp, 4
+    "83ec04"  # sub esp, 4
     "c7042441424344"  # mov dword ptr [esp], 0x44434241 ("ABCD")
-    "33c0"        # xor eax, eax
-    "83c404c3"    # add esp, 4; ret
+    "33c0"  # xor eax, eax
+    "83c404c3"  # add esp, 4; ret
 )
 
 
@@ -104,8 +102,7 @@ class TestScalarStackRegression(unittest.TestCase):
         _, statements = builder.run(InlinedStrcpySimplifier)
         self.assertFalse(
             any(
-                isinstance(stmt, SideEffectStatement)
-                and getattr(stmt.expr, "target", None) in ("strcpy", "strncpy")
+                isinstance(stmt, SideEffectStatement) and getattr(stmt.expr, "target", None) in ("strcpy", "strncpy")
                 for stmt in statements
             ),
         )
@@ -122,17 +119,13 @@ class TestScalarStackRegression(unittest.TestCase):
         builder = _StackWriteBlockBuilder()
         builder.store_bytes(-108, b"hello, ")
         builder.statements.append(
-            Store(builder.manager.next_atom(), pointer,
-                  Const(builder.manager.next_atom(), 0x41, 8), 1, "Iend_LE")
+            Store(builder.manager.next_atom(), pointer, Const(builder.manager.next_atom(), 0x41, 8), 1, "Iend_LE")
         )
         builder.store_bytes(-101, b"world!!")
         simplifier, statements = builder.run(InlinedStrcpySimplifier)
         copies = _strcpy_copies(builder, simplifier, statements)
         self.assertEqual(copies, [(-108, b"hello, ", 7), (-101, b"world!!", 7)])
-        barrier_idx = next(
-            i for i, stmt in enumerate(statements)
-            if not isinstance(stmt, SideEffectStatement)
-        )
+        barrier_idx = next(i for i, stmt in enumerate(statements) if not isinstance(stmt, SideEffectStatement))
         barrier = statements[barrier_idx]
         self.assertIsInstance(barrier, Store)
         self.assertEqual(barrier.addr.varid, pointer.varid)
@@ -142,19 +135,25 @@ class TestScalarStackRegression(unittest.TestCase):
         # no strncpy is synthesised in that case
         builder = _StackWriteBlockBuilder()
         dst = builder.vvar(-4, 32)
-        builder.statements.append(Assignment(builder.manager.next_atom(), dst,
-                                             Const(builder.manager.next_atom(), 741158447, 32)))
-        addr = BinaryOp(builder.manager.next_atom(), "Add",
-                        [StackBaseOffset(builder.manager.next_atom(), 64, -4),
-                         Register(builder.manager.next_atom(), 7, 64)],
-                        signed=False, bits=64)
-        builder.statements.append(Return(builder.manager.next_atom(),
-                                         [Load(builder.manager.next_atom(), addr, 4, "Iend_LE")]))
+        builder.statements.append(
+            Assignment(builder.manager.next_atom(), dst, Const(builder.manager.next_atom(), 741158447, 32))
+        )
+        addr = BinaryOp(
+            builder.manager.next_atom(),
+            "Add",
+            [StackBaseOffset(builder.manager.next_atom(), 64, -4), Register(builder.manager.next_atom(), 7, 64)],
+            signed=False,
+            bits=64,
+        )
+        builder.statements.append(
+            Return(builder.manager.next_atom(), [Load(builder.manager.next_atom(), addr, 4, "Iend_LE")])
+        )
         _, statements = builder.run(InlinedStrcpySimplifier)
         self.assertFalse(
-            any(isinstance(stmt, SideEffectStatement)
-                and getattr(stmt.expr, "target", None) in ("strcpy", "strncpy")
-                for stmt in statements)
+            any(
+                isinstance(stmt, SideEffectStatement) and getattr(stmt.expr, "target", None) in ("strcpy", "strncpy")
+                for stmt in statements
+            )
         )
 
     def test_const_printable_store_with_no_readers_still_folds(self):

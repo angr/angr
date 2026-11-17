@@ -5,6 +5,7 @@ import string
 
 from archinfo import Endness
 
+from angr.ailment import AILBlockViewer
 from angr.ailment.expression import (
     BinaryOp,
     Call,
@@ -15,15 +16,13 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import Assignment, SideEffectStatement, Store
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, SideEffectStatement, Store
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.procedures import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
 
 from .inlined_string_utils import InlinedStringCopySimplifierBase
 from .optimization_pass import OptimizationPassStage
-from angr.ailment import AILBlockViewer
-from angr.ailment.statement import ConditionalJump, Jump
 
 ASCII_PRINTABLES = set(string.printable)
 ASCII_DIGITS = set(string.digits)
@@ -53,12 +52,23 @@ class _ScalarUseFinder(AILBlockViewer):
     because order is no longer linear.
     """
 
-    STRING_CALLS = frozenset({
-        "strcpy", "strncpy", "strcat", "strncat",
-        "memcpy", "memmove", "memset",
-        "strlen", "strcmp", "strncmp", "memcmp",
-        "strchr", "strrchr",
-    })
+    STRING_CALLS = frozenset(
+        {
+            "strcpy",
+            "strncpy",
+            "strcat",
+            "strncat",
+            "memcpy",
+            "memmove",
+            "memset",
+            "strlen",
+            "strcmp",
+            "strncmp",
+            "memcmp",
+            "strchr",
+            "strrchr",
+        }
+    )
 
     def __init__(self, region: set[int]):
         super().__init__()
@@ -95,7 +105,6 @@ class _ScalarUseFinder(AILBlockViewer):
                 self.unresolved = True
             elif self._overlap(off, size, self._region):
                 self._hit = True
-        return None
 
     def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
         off = self._addr_off(expr.addr)
@@ -108,7 +117,6 @@ class _ScalarUseFinder(AILBlockViewer):
         self._addr_position = True
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
         self._addr_position = False
-        return None
 
     def _handle_UnaryOp(self, expr_idx, op, stmt_idx, stmt, block):
         if op.op == "Reference":
@@ -136,7 +144,6 @@ class _ScalarUseFinder(AILBlockViewer):
         self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
         self._addr_position = False
         self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
-        return None
 
     def _handle_Assignment(self, stmt_idx, stmt, block):
         dst = stmt.dst
@@ -149,7 +156,6 @@ class _ScalarUseFinder(AILBlockViewer):
                 self.unresolved = True
         # the dst is a definition, never a use; src is a value read
         self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-        return None
 
 
 class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
@@ -348,10 +354,13 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
             off = None
             if isinstance(addr, StackBaseOffset):
                 off = addr.offset if isinstance(addr.offset, int) else None
-            elif (isinstance(addr, UnaryOp) and addr.op == "Reference"
-                  and isinstance(addr.operand, VirtualVariable)
-                  and addr.operand.was_stack
-                  and isinstance(addr.operand.stack_offset, int)):
+            elif (
+                isinstance(addr, UnaryOp)
+                and addr.op == "Reference"
+                and isinstance(addr.operand, VirtualVariable)
+                and addr.operand.was_stack
+                and isinstance(addr.operand.stack_offset, int)
+            ):
                 off = addr.operand.stack_offset
             if off is not None and isinstance(size, int) and size > 0:
                 region = set(range(off, off + size))
@@ -418,7 +427,7 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
             return "ABSTAIN"
         if succ in ("not_scanned", "clean"):
             if branch:
-                return "ABSTAIN"   # T15: branch with no hit evidence -> abstain (contract)
+                return "ABSTAIN"  # T15: branch with no hit evidence -> abstain (contract)
             return "SAFE_TO_TRANSFORM"
         return "ABSTAIN"
 
