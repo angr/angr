@@ -346,7 +346,7 @@ class NormalizedFunction:
             call_targets = []
             if n.addr in self.orig_function.get_call_sites():
                 call_targets.append(self.orig_function.get_call_target(n.addr))
-            if n.addr in self.merged_blocks:
+            if n in self.merged_blocks:
                 for block in self.merged_blocks[n]:
                     if block.addr in self.orig_function.get_call_sites():
                         call_targets.append(self.orig_function.get_call_target(block.addr))
