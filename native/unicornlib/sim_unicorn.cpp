@@ -201,7 +201,7 @@ void State::stop(stop_t reason, bool do_commit) {
 bool State::step(address_t current_address, int32_t size, bool check_stop_points) {
         bool result = false;
 	if (track_bbls) {
-		bbl_addrs.push_back(current_address);
+		bbl_addrs.push_back(to_angr_block_address(current_address));
 	}
 	if (track_stack) {
 		stack_pointers.push_back(get_stack_pointer());
@@ -342,7 +342,9 @@ void State::commit() {
 		}
 		blocks_with_symbolic_stmts.emplace_back(curr_block_details);
 	}
-	if (curr_block_details.block_addr == trace_last_block_addr) {
+	// The last block of the trace may or may not have the THUMB bit set
+	address_t thumb_bit = (arch == UC_ARCH_ARM) ? 1 : 0;
+	if ((curr_block_details.block_addr | thumb_bit) == (trace_last_block_addr | thumb_bit)) {
 		trace_last_block_curr_count += 1;
 	}
 	// Update details of concrete writes to re-execute
@@ -1709,7 +1711,7 @@ VEXLiftResult* State::lift_block(address_t block_address, int32_t block_size) {
 		const int post_slack = 8;
 		std::unique_ptr<uint8_t[]> instructions(new uint8_t[pre_slack + block_size + post_slack]);
 		std::memset(instructions.get(), 0, pre_slack + block_size + post_slack);
-		uc_mem_read(this->uc, block_address, instructions.get() + pre_slack, block_size);
+		uc_mem_read(this->uc, block_address & ~1ULL, instructions.get() + pre_slack, block_size);
 		lift_address = block_address | 1;
 		insn_start = instructions.get() + pre_slack + 1;
 		return vex_lift(vex_guest, vex_archinfo, insn_start, lift_address, 99, block_size,
@@ -2439,7 +2441,7 @@ bool State::is_block_next_target_symbolic() const {
 }
 
 void State::set_curr_block_details(address_t block_address, int32_t block_size) {
-	curr_block_details.block_addr = block_address;
+	curr_block_details.block_addr = to_angr_block_address(block_address);
 	curr_block_details.block_size = block_size;
 	return;
 }

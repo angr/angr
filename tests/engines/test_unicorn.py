@@ -465,6 +465,27 @@ class TestUnicorn(unittest.TestCase):
         assert len(pg_explore_avoid.avoid) == 1
         assert pg_explore_avoid.avoid[0].addr == addr
 
+    def test_thumb_block_addrs(self):
+        """
+        Test if the addresses of THUMB blocks executed in unicorn engine have the THUMB bit set.
+        """
+
+        code = """
+            movs r0, #5
+            b next
+        next:
+            adds r0, #1
+            b last
+        last:
+            adds r0, #1
+        """
+        p = angr.load_shellcode(code, "armel", load_address=0x10000, thumb=True)
+        state = p.factory.blank_state(addr=0x10001, add_options=so.unicorn)
+        state.unicorn.max_steps = 2
+        successors = state.step()
+        assert successors.description.startswith("Unicorn")
+        assert successors.successors[0].history.recent_bbl_addrs == [0x10001, 0x10005]
+
     def test_single_step(self):
         p = angr.Project(os.path.join(test_location, "i386", "uc_stop"), auto_load_libs=False)
 

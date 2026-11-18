@@ -790,6 +790,11 @@ class State {
 		return ((cpsr_reg_val & 32) != 0);
 	}
 
+	inline address_t to_angr_block_address(address_t block_address) const {
+		// angr sets the least significant bit of the address of a THUMB block but unicorn does not
+		return ((arch == UC_ARCH_ARM) && is_thumb_mode()) ? (block_address | 1) : block_address;
+	}
+
 	public:
 		uc_engine *uc;
 
