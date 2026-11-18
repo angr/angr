@@ -44,6 +44,10 @@ typelib.add("Guid", guid)
 
 known_struct_names: set[str] = set()
 
+# The metadata declares handles (HWND, HANDLE, ...) and LONG_PTR-sized integer typedefs alike as IntPtr. These are
+# the integers.
+INTPTR_INTEGER_TYPEDEFS = {"LPARAM", "LRESULT", "SHANDLE_PTR"}
+
 
 def is_anonymous_struct(s_name: str) -> bool:
     return "_anonymous_e__" in s_name.lower() or "<anon>" in s_name.lower()
@@ -73,9 +77,9 @@ def get_angr_type_from_name(name):
     if name == "Double":
         return angr.types.SimTypeFloat(size=64)
     if name == "UIntPtr":
-        return angr.types.SimTypePointer(angr.types.SimTypeInt(signed=False, label="UInt"), label="UIntPtr")
+        return angr.types.SimTypeLength(signed=False, label="UIntPtr")
     if name == "IntPtr":
-        return angr.types.SimTypePointer(angr.types.SimTypeInt(signed=True, label="Int"), label="IntPtr")
+        return angr.types.SimTypeLength(signed=True, label="IntPtr")
     if name == "Void":
         return angr.types.SimTypeBottom(label="Void")
     if name == "Boolean":
@@ -103,7 +107,13 @@ def get_typeref_if_available(t: angr.types.SimType) -> angr.types.SimType:
 
 def handle_json_type(t, anon_typelib: SimTypeCollection | None, create_missing: bool = False):
     if t["Kind"] == "NativeTypedef":
-        ty = handle_json_type(t["Def"], anon_typelib, create_missing=create_missing)
+        definition = t["Def"]
+        is_intptr = definition["Kind"] == "Native" and definition["Name"] == "IntPtr"
+        if is_intptr and t["Name"] not in INTPTR_INTEGER_TYPEDEFS:
+            # a handle
+            ty = angr.types.SimTypePointer(angr.types.SimTypeInt(signed=True, label="Int"))
+        else:
+            ty = handle_json_type(definition, anon_typelib, create_missing=create_missing)
         ty.label = t["Name"]
         return ty
     if t["Kind"] == "Native":

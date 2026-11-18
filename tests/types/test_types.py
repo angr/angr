@@ -25,6 +25,7 @@ from angr.sim_type import (
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
+    SimTypeLength,
     SimTypeLong,
     SimTypeLongLong,
     SimTypeNum,
@@ -515,6 +516,12 @@ class TestTypes(unittest.TestCase):
         back_empty = SimType.from_json(json.loads(json.dumps(empty.to_json())))
         assert isinstance(back_empty, SimCppClass)
         assert back_empty.size == 0
+
+    def test_length_json_roundtrip_keeps_signedness(self):
+        for signed in (True, False):
+            back = SimType.from_json(json.loads(json.dumps(SimTypeLength(signed=signed).to_json())))
+            assert isinstance(back, SimTypeLength)
+            assert back.signed is signed
 
     def test_simstruct_cmp_recursion_error(self):
         t0 = SimStruct(fields={"a": SimTypeBottom()})
