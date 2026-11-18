@@ -2141,6 +2141,10 @@ class SimCCSystemVAMD64(SimCC):
             ptr_loc = self.RETURN_VAL if perspective_returned else SimRegArg("rdi", 8)
             assert ptr_loc is not None
             return SimReferenceArgument(ptr_loc, referenced_loc)
+        if classification == ["INTEGER"] and isinstance(ty, (SimTypeReg, SimTypeNum)):
+            # a scalar clears the rest of rax, as SimCC.return_val does
+            assert ty.size is not None and self.RETURN_VAL is not None
+            return self.RETURN_VAL.refine(size=ty.size // self.arch.byte_width, arch=self.arch)
         mapped_classes = []
         int_iter = iter([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
         fp_iter = iter([self.FP_RETURN_VAL, self.OVERFLOW_FP_RETURN_VAL])
