@@ -1222,6 +1222,19 @@ class DirectedGraphHelper[T]:
         assert self._node_order is not None
         return self._node_order
 
+    def replace_head(self, old_node: T, new_node: T) -> None:
+        """
+        Move the head from ``old_node`` to ``new_node``.
+
+        replace_node() and replace_nodes() already do this as part of their cache updates. A graph update that
+        rewrites too much for those to describe drops the caches with reset() instead, and reset() keeps the head
+        on purpose: the head is what the caches are rebuilt *from*, not part of them. So an update that takes the
+        head out of the graph has to say where it went, or the next rebuild walks from a node the graph no longer
+        holds and the graph raises for it.
+        """
+        if old_node == self._head:
+            self._head = new_node
+
     def reset(self):
         self._node_order = None
         self._postorder_node_to_llnode = None
