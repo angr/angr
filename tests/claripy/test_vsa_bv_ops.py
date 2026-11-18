@@ -731,12 +731,14 @@ class TestVSAPrecisionLoss(unittest.TestCase):
         When adding values near the maximum representable value, overflow can occur.
         This should cause SI to collapse to TOP or produce an over-approximation.
         """
-        # Add two intervals where overflow is likely
-        result = self.si_near_max + self.si_near_max
+        # Add two different intervals where overflow is likely (equal intervals are the same AST, and a value
+        # added to itself is simplified into an exact multiplication by two)
+        si_near_max_2 = claripy.SI(bits=32, stride=1, lower_bound=0xFFFFFE00, upper_bound=0xFFFFFFFF)
+        result = self.si_near_max + si_near_max_2
 
         # Verify precision loss
         has_precision_loss = self.assert_precision_loss(
-            [self.si_near_max, self.si_near_max], result, "addition with overflow"
+            [self.si_near_max, si_near_max_2], result, "addition with overflow"
         )
 
         # This operation should cause significant precision loss due to overflow
