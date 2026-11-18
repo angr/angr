@@ -533,6 +533,39 @@ class FactCollector(Analysis):
     def _callee_proto(self, func: Function) -> SimTypeFunction | None:
         return func.get_prototype(self._flavor)
 
+    def _has_trusted_prototype(self, func: Function) -> bool:
+        return (
+            func.calling_convention is not None
+            and self._callee_proto(func) is not None
+            and func.get_prototype_source(self._flavor) >= PrototypeSource.SIMPROC
+        )
+
+    def _walkable_target(self, func: Function) -> bool:
+        """
+        Whether to walk the blocks of ``func``, the target of a tail jump whose prototype is not trusted. Do not walk it
+        when it has no calling convention or prototype: it has not been analyzed yet, or no convention fits its reads,
+        as with an exception-handling chunk split off from a larger function. Do not walk it either when its guessed
+        prototype takes every argument register of that convention: code that reads every argument register, such as a
+        va_start save area or Go's gcWriteBarrier saving registers around a call, does not show which registers the
+        jumping function passes on.
+        """
+        cc = func.calling_convention
+        proto = self._callee_proto(func)
+        if cc is None or proto is None:
+            return False
+        if not cc.ARG_REGS:
+            return True
+        try:
+            locs = cc.arg_locs(self._callee_proto_deref(func))
+        except (TypeError, ValueError):
+            return False
+        used = set()
+        for loc in locs:
+            for part in loc.get_footprint():
+                if isinstance(part, SimRegArg):
+                    used.add(part.reg_name)
+        return not set(cc.ARG_REGS) <= used
+
     def _callee_proto_deref(self, func: Function) -> SimTypeFunction | None:
         proto = func.get_prototype(self._flavor)
         if proto is None or func.prototype_libname is None or not func.uses_default_prototype_for(self._flavor):
@@ -567,7 +600,7 @@ class FactCollector(Analysis):
         init_state.bp_value = init_state.sp_value
 
         traversed = set()
-        # the last element marks a tail call
+        # the bool marks a tail call; the last element is the function whose graph holds the node
         queue: list[
             tuple[
                 int,
@@ -575,11 +608,12 @@ class FactCollector(Analysis):
                 CodeNode | BlockNode | HookNode | FuncNode,
                 CodeNode | BlockNode | HookNode | FuncNode | None,
                 bool,
+                Function,
             ]
-        ] = [(0, init_state, startpoint, None, False)]
+        ] = [(0, init_state, startpoint, None, False, self.function)]
         end_states: list[FactCollectorState] = []
         while queue:
-            depth, state, node, retnode, is_tailcall = queue.pop(0)
+            depth, state, node, retnode, is_tailcall, graph_func = queue.pop(0)
             if isinstance(node, BlockNode) and node in traversed:
                 continue
             traversed.add(node)
@@ -599,21 +633,37 @@ class FactCollector(Analysis):
                     continue
             if is_tailcall and self.kb.functions.contains_addr(node.addr):
                 tail_func = self.kb.functions.get_by_addr(node.addr)
-                self._tailcall_pops |= self._tailcall_callee_pops(state, tail_func)
-                if (
-                    func is None
-                    and tail_func.calling_convention is not None
-                    and self._callee_proto(tail_func) is not None
-                    and tail_func.get_prototype_source(self._flavor) >= PrototypeSource.SIMPROC
-                ):
-                    # a tail jump targets a BlockNode. Treat it as a call if the target's prototype is trustworthy.
-                    # otherwise, analyzing the target's first block is safer than using the inferred arguments.
+                if graph_func is self.function:
+                    self._tailcall_pops |= self._tailcall_callee_pops(state, tail_func)
+                if func is None and (self._has_trusted_prototype(tail_func) or graph_func is not self.function):
+                    # a tail jump targets a BlockNode. Treat it as a call if the target's prototype is trustworthy, or
+                    # if it leaves a target we are walking: reading on into its target compounds the guesses.
                     func = tail_func
+                elif (
+                    func is None
+                    and tail_func is not self.function
+                    and tail_func.startpoint is not None
+                    and self._walkable_target(tail_func)
+                ):
+                    # otherwise, analyzing the target's code is safer than using its inferred arguments. Walk the
+                    # target's own graph: in ours, the target's entry block has no successors.
+                    graph_func = tail_func
+                    node = tail_func.startpoint
+                    traversed.add(node)
+                    # the target sees which registers we wrote, not the values we wrote to them, which would otherwise
+                    # feed its frame-pointer and register-save bookkeeping
+                    state = state.copy()
+                    for offset in state.simple_regs:
+                        if offset in state.reg_writes:
+                            state.simple_regs[offset] = None
             if func is not None:
-                if func.calling_convention is not None and self._callee_proto(func) is not None:
+                # inside a tail-jump target, a guessed callee prototype is part of what made the target's own guessed
+                # prototype, which we just declined to use
+                consume = graph_func is self.function or self._has_trusted_prototype(func)
+                if consume and func.calling_convention is not None and self._callee_proto(func) is not None:
                     # consume args and overwrite the return register
                     self._handle_function(state, func)
-                elif self._track_arg_passthru and state.sp_value is not None:
+                elif consume and self._track_arg_passthru and state.sp_value is not None:
                     # no usable prototype: still record which of our own args were pushed to the outgoing call
                     # stack so that the i386 FP arg heuristics can detect individually-passed args
                     pushed_args = []
@@ -624,8 +674,10 @@ class FactCollector(Analysis):
                                 pushed_args.append(val)
                     if pushed_args:
                         self.pushed_arg_callsites[state.ins_addr] = (func, pushed_args)
-                if (func.calling_convention is None or self._callee_proto(func) is None) and not func.is_syscall:
-                    # the callee's prototype is unknown, so use the default cc
+                if (
+                    not consume or func.calling_convention is None or self._callee_proto(func) is None
+                ) and not func.is_syscall:
+                    # the callee's prototype is unknown or unused, so use the default cc
                     default_cc_cls = default_cc_for_project(self.project)
                     if default_cc_cls is not None:
                         self._clobber_caller_saved_regs(state, default_cc_cls(self.project.arch))
@@ -640,10 +692,12 @@ class FactCollector(Analysis):
                     if self.project.arch.ret_offset is not None:
                         # the callee clobbers the return register whether or not its prototype is known
                         new_state.simple_regs[self.project.arch.ret_offset] = None
-                    queue.append((depth, new_state, retnode, None, False))
+                    queue.append((depth, new_state, retnode, None, False, graph_func))
                 continue
 
             block = self.project.factory.block(node.addr, size=node.size)
+            # a tail-jump target may use bp differently from us
+            engine.bp_as_gpr = graph_func.info.get("bp_as_gpr", False)
             engine.process(state, block=block)
             if block.vex.jumpkind == "Ijk_Ret" and self.project.arch.ret_offset is not None:
                 self._ret_values.append(state.simple_regs.get(self.project.arch.ret_offset))
@@ -651,7 +705,7 @@ class FactCollector(Analysis):
             successor_added = False
             call_succ, ret_succ = None, None
             call_is_tail = False
-            for succ, data in self.function.transition_out_edges(node):
+            for succ, data in graph_func.transition_out_edges(node):
                 edge_type = data.get("type")
                 outside = data.get("outside", False)
                 if depth + 1 <= self._max_depth:
@@ -661,7 +715,7 @@ class FactCollector(Analysis):
                     elif edge_type == "transition" and not outside:
                         if succ not in traversed:
                             successor_added = True
-                            queue.append((depth + 1, state.copy(), succ, None, False))
+                            queue.append((depth + 1, state.copy(), succ, None, False, graph_func))
                     elif edge_type in {"call", "syscall"} or (edge_type == "transition" and outside):
                         # a call or a tail-call
                         # note that it's ok to traverse a called function multiple times
@@ -672,7 +726,7 @@ class FactCollector(Analysis):
                         call_is_tail = edge_type == "transition"
             if call_succ is not None:
                 successor_added = True
-                queue.append((depth + 1, state.copy(), call_succ, ret_succ, call_is_tail))
+                queue.append((depth + 1, state.copy(), call_succ, ret_succ, call_is_tail, graph_func))
 
             if not successor_added:
                 end_states.append(state)
