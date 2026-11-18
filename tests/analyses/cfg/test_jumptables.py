@@ -2754,6 +2754,46 @@ class TestJumpTableResolver(unittest.TestCase):
         cfg.normalize()
         assert 0x41D0E8 not in cfg.model.jump_tables
 
+    def test_aarch64_libc_jumptables(self):
+        # The jump table at 0x4ad528 has halfword entries (ldrh), and the one at 0x4213f4 has negative entries
+        # (ldrb; add ..., sxtb #2). The index of the one at 0x4fedc8 is range-checked on both paths into the jump
+        # block, at 0x4fec1c and at 0x4fedbc, and both checks branch to 0x4fec28 otherwise.
+        p = angr.Project(os.path.join(test_location, "aarch64", "libc.so.6"), auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()()
+
+        self._compare(
+            cfg.model.jump_tables,
+            [
+                J(0x4AD528, 0x514240, [0x4ADA9C, 0x4ADA9C, 0x4ADA50, 0x4AD9B0, 0x4AD5F4]),
+                J(
+                    0x4213F4,
+                    0x502070,
+                    [0x421438, 0x4213D4, 0x4213D4, 0x4213D4, 0x421438, 0x421450, 0x42147C, 0x4214A8, 0x42140C],
+                ),
+                J(
+                    0x4FEDC8,
+                    0x520A08,
+                    [
+                        0x4FEF40,
+                        0x4FEF30,
+                        0x4FEDF0,
+                        0x4FEF30,
+                        0x4FEF18,
+                        0x4FEF30,
+                        0x4FEDF0,
+                        0x4FEF04,
+                        0x4FEF04,
+                        0x4FEF18,
+                        0x4FEDF0,
+                        0x4FEDE0,
+                        0x4FEDE0,
+                        0x4FEDE0,
+                        0x4FEF78,
+                    ],
+                ),
+            ],
+        )
+
     #
     # The jump table should be occupied and marked as data
     #
