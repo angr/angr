@@ -600,6 +600,24 @@ class TestUnicorn(unittest.TestCase):
             state.unicorn.setup_flags()
             assert not state.solver.satisfiable(extra_constraints=[state.regs.flags != before.regs.flags])
 
+    def test_thumb_pc_synced_on_stop(self):
+        """
+        Test if the state is still in THUMB mode after unicorn engine stops.
+        """
+
+        code = """
+            movs r0, #5
+            b next
+        next:
+            adds r0, #1
+        """
+        p = angr.load_shellcode(code, "armel", load_address=0x10000, thumb=True)
+        state = p.factory.blank_state(addr=0x10001, add_options=so.unicorn)
+        state.unicorn.max_steps = 1
+        successors = state.step()
+        assert successors.description.startswith("Unicorn")
+        assert successors.successors[0].addr == 0x10005
+
     def test_vex_archinfo_ctypes_mirror_matches_native(self):
         """
         The ctypes mirror of VexArchInfo is passed by value into unicornlib, which lifts with it. If it
