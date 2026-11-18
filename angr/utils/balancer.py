@@ -325,6 +325,10 @@ class Balancer:
             balanced_truism = self._balance(truism)
             log.debug("... handling")
             self._handle(balanced_truism)
+            if len(balanced_truism.args) == 2 and cast(BV, balanced_truism.args[1]).cardinality > 1:
+                # other unknowns remain on the right-hand side, so the isolated term's bound does not bound the
+                # compared expression; bound that expression as well
+                self._handle(truism)
 
     @staticmethod
     def _handleable_truism(t: Bool) -> bool:
