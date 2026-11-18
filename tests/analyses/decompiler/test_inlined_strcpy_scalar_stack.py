@@ -37,11 +37,11 @@ from angr.ailment.statement import (
     SideEffectStatement,
     Store,
 )
-from angr.analyses.decompiler.optimization_passes.inlined_wcscpy_simplifier import (
-    InlinedWcscpySimplifierLate,
-)
 from angr.analyses.decompiler.optimization_passes.inlined_strcpy_simplifier import (
     InlinedStrcpySimplifier,
+)
+from angr.analyses.decompiler.optimization_passes.inlined_wcscpy_simplifier import (
+    InlinedWcscpySimplifierLate,
 )
 from tests.analyses.decompiler.test_inlined_string_simplifiers import (
     _StackWriteBlockBuilder,

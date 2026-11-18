@@ -135,7 +135,6 @@ class _ScalarUseFinder(AILBlockViewer):
             return False
         return bool(region & set(range(off, off + size)))
 
-
     @property
     def hit_scalar_use(self) -> bool:
         return self._hit
@@ -384,10 +383,14 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
                             # Caller-callsite consistency: la dirección del caller enganchada
                             # en el puente debe ser exactamente la función que está siendo
                             # simplificada por este pase, no una dirección de un vecino.
-                            verdict = bridge.decide_for_stmt(self.project, set(region), stmt,
-                                                              function_addr=_func_addr,
-                                                              callsite_addr=_call_addr,
-                                                              stmt_index=stmt_idx)
+                            verdict = bridge.decide_for_stmt(
+                                self.project,
+                                set(region),
+                                stmt,
+                                function_addr=_func_addr,
+                                callsite_addr=_call_addr,
+                                stmt_index=stmt_idx,
+                            )
                         if isinstance(verdict, dict) and verdict.get("decision") in ("SAFE_TO_TRANSFORM", "IRRELEVANT"):
                             continue
                     bad_stmts = True
@@ -414,6 +417,7 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
         """
         import os
         import sys
+
         try:
             candidates = [
                 os.environ.get("RXRE_TOOLS_DIR"),
@@ -432,25 +436,30 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
                     sys.path.insert(0, candidate)
                 try:
                     from ier import angr_guard_bridge as _bridge  # type: ignore[reportMissingImports]  # runtime-resolved via sys.path, not importable statically
+
                     return _bridge
                 except Exception:
                     if os.environ.get("RXRE_BRIDGE_DEBUG"):
                         import traceback
+
                         traceback.print_exc()
                     return None
             # fallback para paquetes instalados en site-packages (import path default)
             try:
                 from ier import angr_guard_bridge as _bridge  # type: ignore[reportMissingImports]  # runtime-resolved via sys.path, not importable statically
+
                 return _bridge
             except Exception:
                 if os.environ.get("RXRE_BRIDGE_DEBUG"):
                     sys.stderr.write(
                         "[M11.5] RXRE bridge not available (env vars unset, "
-                        "site-packages import failed); autonomous path taken\n")
+                        "site-packages import failed); autonomous path taken\n"
+                    )
                 return None
         except Exception:
             if os.environ.get("RXRE_BRIDGE_DEBUG"):
                 import traceback
+
                 traceback.print_exc()
             return None
 
