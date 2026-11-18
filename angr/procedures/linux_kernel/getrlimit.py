@@ -12,13 +12,18 @@ class getrlimit(angr.SimProcedure):
     def run(self, resource, rlim):
         if self.state.solver.eval(resource) == 3:  # RLIMIT_STACK
             l.debug("running getrlimit(RLIMIT_STACK)")
-            self.state.memory.store(rlim, 8388608, 8)  # rlim_cur
+            # struct rlimit is two unsigned longs
+            arch = self.state.arch
+            endness = arch.memory_endness
+            self.state.memory.store(rlim, 8388608, arch.bytes, endness=endness)  # rlim_cur
             self.state.memory.store(
-                rlim + 8, self.state.solver.Unconstrained("rlim_max", 8 * 8, key=("api", "rlimit", "stack"))
+                rlim + arch.bytes,
+                self.state.solver.Unconstrained("rlim_max", arch.bits, key=("api", "rlimit", "stack")),
+                endness=endness,
             )
             return 0
         l.debug("running getrlimit(other)")
-        return self.state.solver.Unconstrained("rlimit", self.arch.sizeof["int"], key=("api", "rlimit", "other"))
+        return self.state.solver.Unconstrained("rlimit", self.state.arch.sizeof["int"], key=("api", "rlimit", "other"))
 
 
 class ugetrlimit(getrlimit):
