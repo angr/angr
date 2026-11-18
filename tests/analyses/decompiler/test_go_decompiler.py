@@ -695,6 +695,20 @@ class TestNames(unittest.TestCase):
         assert not is_go_closure_name("pkg.(*T).funcName")
 
 
+class TestEqualityFunctionSignatures(unittest.TestCase):
+    def test_signature_from_go1_5(self):
+        # go1.4 and earlier also pass the size, so their equality functions keep the guess
+        for version, name, expected in (
+            ("go1.10.8", "type..eq.runtime.itab", "func(unsafe.Pointer, unsafe.Pointer) bool"),
+            ("go1.4.3", "type..eq.runtime._panic", None),
+        ):
+            proj = angr.Project(go_binary(version, "basics_stripped"), auto_load_libs=False)
+            sigs = proj.kb.go_signatures
+            sigs.load_sources()
+            proto = sigs.prototype(name)
+            assert (None if proto is None else str(proto)) == expected, (version, proto)
+
+
 class TestInferredSignatureRecords(unittest.TestCase):
     def test_result_words_and_groups(self):
         rec = GoInferredSignature()
