@@ -14,6 +14,7 @@ from angr.calling_conventions import (
     SimStructArg,
 )
 from angr.enums import Flavors
+from angr.errors import AngrTypeError
 from angr.sim_type import SimTypeBottom
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -82,7 +83,12 @@ class ReturnMaker(AILGraphWalker):
                 if self.function.prototype_libname
                 else prototype.returnty
             )
-            ret_val = self.cc.return_val(returnty, perspective_returned=True)
+            try:
+                ret_val = self.cc.return_val(returnty, perspective_returned=True)
+            except AngrTypeError:
+                # a recovered prototype can name a type the convention has no ABI for. Treat it like any other
+                # location the convention cannot name (the warning below) instead of failing the whole function.
+                ret_val = None
         new_stmt = stmt.copy()
         new_ret_exprs = list(new_stmt.ret_exprs)
         deref_size = None
