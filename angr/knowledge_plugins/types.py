@@ -10,6 +10,7 @@ from angr.sim_type import ALL_TYPES, SimType, TypeRef
 from .plugin import KnowledgeBasePlugin
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.cross_function_type_inference import CrossFunctionInferenceState
     from angr.knowledge_base import KnowledgeBase
 
 FRUITS = [
@@ -41,6 +42,7 @@ class TypesStore(KnowledgeBasePlugin, UserDict[str, TypeRef]):
 
     def __init__(self, kb):
         super().__init__(kb=kb)
+        self._cross_function_inference: dict[str, CrossFunctionInferenceState] = {}
 
     def copy(self, kb: KnowledgeBase | None = None) -> TypesStore:
         """
@@ -77,6 +79,7 @@ class TypesStore(KnowledgeBasePlugin, UserDict[str, TypeRef]):
 
     def __setstate__(self, state):
         self.data = state
+        self._cross_function_inference = {}
 
     def iter_own(self):
         """

@@ -13,7 +13,7 @@ from angr.analyses.typehoon.translator import TypeTranslator
 from angr.engines.light.engine import SimEngineNostmtAIL, ail_binop_handler, ail_unop_handler
 from angr.errors import SimMemoryMissingError
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
-from angr.sim_type import SimTypeFunction, SimTypePointer
+from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypePointer
 from angr.sim_variable import SimStackVariable, SimVariable
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.constants import MAX_ACCESS_SIZE
@@ -302,7 +302,13 @@ class SimEngineVRAIL(
                 isinstance(expr.target, (ailment.Expr.Const, str))
                 or expr.tags.get("is_prototype_guessed", True) is False
             ) and expr.args is not None:
-                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, list(expr.args))
+                self._call_add_arg_based_type_constraints(
+                    prototype,
+                    prototype_libname,
+                    args,
+                    list(expr.args),
+                    func.addr if func is not None and func.is_prototype_refinable_for(self._flavor) else None,
+                )
             # handle return type
             # Trust guessed prototypes for FP return types -- CC detects FP
             # returns structurally (PutI/xmm analysis), not by guessing.
@@ -385,7 +391,13 @@ class SimEngineVRAIL(
                 isinstance(stmt.expr.target, (ailment.Expr.Const, str))
                 or stmt.tags.get("is_prototype_guessed", True) is False
             ):
-                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, stmt.expr.args)
+                self._call_add_arg_based_type_constraints(
+                    prototype,
+                    prototype_libname,
+                    args,
+                    stmt.expr.args,
+                    func.addr if func is not None and func.is_prototype_refinable_for(self._flavor) else None,
+                )
             # handle return type
             return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
             ret_ty = self.tv_manager.new_tv()
@@ -424,17 +436,70 @@ class SimEngineVRAIL(
                 create_variable=create_variable,
             )
 
+    def _member_address_argument(self, arg_atom) -> bool:
+        """
+        Whether a call argument is the constant address of a member inside a wider global object (``&g.name`` handed to
+        strncpy). Its value maps to the object's type variable, so constraining it with the callee's parameter type
+        would type the whole object as the member's pointer. Instead, record that a member starts at that offset (its
+        size is unknown, so as a one-byte access) and let the caller skip the parameter constraint.
+        """
+        if not isinstance(arg_atom, ailment.Expr.Const) or not isinstance(arg_atom.value, int):
+            return False
+        addr = arg_atom.value
+        for variable in self.state.global_variable_manager.get_global_variables(addr):
+            if variable.addr is None or not variable.size or not 0 < addr - variable.addr < variable.size:
+                continue
+            if not self.state.typevars.has_type_variable_for(variable):
+                self.state.typevars.add_type_variable(variable, self.tv_manager.new_tv())
+            base_typevar = self.state.typevars.get_type_variable(variable)
+            member_typevar = self._create_access_typevar(base_typevar, False, 1, addr - variable.addr)
+            self.state.add_type_constraint(typevars.Subtype(member_typevar, typeconsts.TopType()))
+            return True
+        return False
+
     def _call_add_arg_based_type_constraints(
-        self, prototype: SimTypeFunction, prototype_libname: str | None, args: list, arg_atoms: list
+        self,
+        prototype: SimTypeFunction,
+        prototype_libname: str | None,
+        args: list,
+        arg_atoms: list,
+        callee_addr: int | None = None,
     ) -> None:
         # add type constraints
         if not args:
             return
 
-        for arg, _arg_atom, arg_type in zip(args, arg_atoms, prototype.args):
+        for arg_idx, (arg, _arg_atom, arg_type) in enumerate(zip(args, arg_atoms, prototype.args)):
             if arg.typevar is None:
                 continue
+            if self._member_address_argument(_arg_atom):
+                # &g.member handed to a callee: the callee's parameter type is about the member, not the object
+                continue
             arg_type = dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
+            # record pointer arguments so the decompiler can later union partial struct layouts recovered for the same
+            # caller value across multiple callees. Only callees whose prototypes the decompiler owns are recorded: a
+            # library function's ``char *`` view carries no layout evidence and must never be rewritten.
+            if (
+                callee_addr is not None
+                and isinstance(arg.typevar, typevars.TypeVariable)
+                and isinstance(arg_type, SimTypePointer)
+            ):
+                # the SSA id of the argument value, taken before vvar_to_vvar collapses phi-related values into one
+                # variable: a register that carries different objects at different call sites must not have their
+                # layouts unioned just because variable recovery gave both the same variable
+                value_id = _arg_atom.varid if isinstance(_arg_atom, ailment.Expr.VirtualVariable) else None
+                self.state._analysis.arg_struct_observations[arg.typevar].append(
+                    (callee_addr, arg_idx, arg_type, value_id)
+                )
+            elif (
+                callee_addr is None
+                and isinstance(arg.typevar, typevars.TypeVariable)
+                and isinstance(arg_type, SimTypePointer)
+                and not isinstance(arg_type.pts_to, SimTypeBottom)
+            ):
+                # a fixed prototype's typed pointer (strcmp's char *) uses the value as that type, e.g. as the member at
+                # offset 0 of a struct; a void * (memcpy) takes any object
+                self.state._analysis.arg_typed_sink_typevars.add(arg.typevar)
             arg_ty = self.type_lifter.lift(arg_type)
             if arg.typevar is not None and isinstance(
                 arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
