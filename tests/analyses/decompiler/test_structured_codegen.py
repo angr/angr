@@ -23,12 +23,15 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CExpression,
     CGoto,
     CReturn,
+    CStatements,
     CStructField,
     CStructuredCodeGenerator,
+    CStructuredCodeWalker,
     CTypeCast,
     CUnaryOp,
     CVariable,
     CVariableField,
+    MakeTypecastsImplicit,
     c_return_type,
     qualifies_for_simple_cast,
     type_layout_key,
@@ -316,6 +319,87 @@ class TestRightShiftRendering(unittest.TestCase):
                 assert text.count(f"signed_status{width}(") == 1
                 assert source.prototype == prototype
                 assert not result.structuring_failures
+
+
+class TestWideningOperand(unittest.TestCase):
+    """A sign extension on an operand of +, - or *, or on the left operand of <<, sets the width C computes it in."""
+
+    @classmethod
+    def setUpClass(cls):
+        project = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "ffs"), auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        project.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True)
+        result = project.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(
+            cfg.kb.functions["sub_404060"], cfg=cfg.model
+        )
+        codegen = result.codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        assert codegen.text is not None and codegen.cfunc is not None
+        cls.codegen = codegen
+        cls.text = codegen.text
+        variables: dict[str, CVariable] = {}
+
+        class _Variables(CStructuredCodeWalker):
+            def handle_CVariable(self, obj):
+                variables.setdefault(obj.c_repr(), obj)
+                return obj
+
+        _Variables().handle(codegen.cfunc)
+        cls.i, cls.n1 = variables["i"], variables["n1"]  # an int and an unsigned long long
+        arch = project.arch
+        cls.ll = SimTypeLongLong(signed=True).with_arch(arch)
+        cls.ull = SimTypeLongLong(signed=False).with_arch(arch)
+        cls.int = SimTypeInt(signed=True).with_arch(arch)
+        cls.char = SimTypeChar(signed=True).with_arch(arch)
+
+    def _cast(self, ty, expr):
+        return CTypeCast(None, ty, expr, codegen=self.codegen)
+
+    def _op(self, op, lhs, rhs):
+        return CBinaryOp(op, lhs, rhs, codegen=self.codegen)
+
+    def _const(self, value):
+        return CConstant(value, self.ull, codegen=self.codegen)
+
+    def _assign(self, lhs, rhs) -> str:
+        statements = CStatements([CAssignment(lhs, rhs, codegen=self.codegen)], codegen=self.codegen)
+        return MakeTypecastsImplicit().handle(statements).statements[0].c_repr().strip()
+
+    def test_sign_extended_int_is_scaled_in_64_bits(self):
+        # the __memmove_chk size: movsxd rdx, ebx; shl rdx, 4, with ebx the int i
+        assert "int i;" in self.text
+        assert "(long long)i * 16" in self.text
+
+    def test_operand_of_a_narrower_operation(self):
+        # (char)i * 3 cannot leave an int, so C computes it in int, and adding i needs i's own sign extension
+        mul = self._op("Mul", self._cast(self.ll, self._cast(self.char, self.i)), self._const(3))
+        expr = self._op("Add", mul, self._cast(self.ll, self.i))
+        assert self._assign(self.n1, expr) == "n1 = (char)i * 3 + (long long)i;"
+
+    def test_and_with_a_signed_operand_is_not_bounded(self):
+        masked = self._op("And", self._cast(self.int, self._cast(self.char, self.i)), self.i)
+        expr = self._op("Mul", self._cast(self.ll, masked), self._const(0x100))
+        assert self._assign(self.n1, expr) == "n1 = (long long)((char)i & i) * 0x100;"
+
+    def test_shift_takes_the_type_of_its_left_operand(self):
+        shifted = self._op("Shl", self._cast(self.ll, self.i), self.n1)
+        assert self._assign(self.n1, shifted) == "n1 = (long long)i << n1;"
+        # C ignores the amount's type, so the amount gets no cast back
+        amount = self._cast(self.ull, self._cast(self.char, self.i))
+        shifted = self._op("Shl", self._cast(self.ll, self.i), amount)
+        assert self._assign(self.n1, shifted) == "n1 = (long long)i << (char)i;"
+
+    def test_negation_takes_the_type_of_its_operand(self):
+        negated = CUnaryOp("Neg", self._cast(self.ll, self.i), codegen=self.codegen)
+        assert self._assign(self.n1, self._op("Sub", negated, self._cast(self.ll, self.i))) == "n1 = -i - (long long)i;"
+
+    def test_result_that_cannot_overflow_or_is_truncated_keeps_its_narrower_form(self):
+        byte = self._op("Mul", self._cast(self.ll, self._cast(self.char, self.i)), self._const(0x100))
+        assert self._assign(self.n1, byte) == "n1 = (char)i * 0x100;"
+        masked = self._op("And", self._op("Mul", self._cast(self.ll, self.i), self._const(16)), self._const(0xFFFFFFFF))
+        assert self._assign(self.n1, masked) == "n1 = i * 16 & 0xffffffff;"
+        narrowed = self._cast(self.int, self._op("Mul", self._cast(self.ll, self.i), self._const(3)))
+        assert "long long" not in self._assign(self.i, narrowed)
 
 
 class TestStoreWidth(unittest.TestCase):
