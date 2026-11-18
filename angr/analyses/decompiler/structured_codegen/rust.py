@@ -104,6 +104,7 @@ from .base import (
     VariableFieldNode,
     VariableNode,
     register_display_name,
+    tie_break_type_name,
     variable_display_name,
     vector_convert_name,
 )
@@ -549,13 +550,17 @@ class RustFunction(RustConstruct, FunctionNode):  # pylint:disable=abstract-meth
             # sort by the following:
             #   * if it's a a non-basic type
             #   * the number of occurrences
-            #   * the repr of the type itself
+            #   * the type's name (tie_break_type_name)
             # TODO: The type selection should actually happen during variable unification
             vartypes = [x[1] for x in cvar_and_vartypes]
             count = Counter(vartypes)
             vartypes = sorted(
                 count.copy(),
-                key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
+                key=lambda x, ct=count: (
+                    isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)),
+                    ct[x],
+                    tie_break_type_name(x),
+                ),
             )
 
             for i, var_type in enumerate(vartypes):
