@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import os
 import re
 import unittest
 from unittest import mock
@@ -12,7 +13,12 @@ from angr.ailment.expression import UnaryOp, VirtualVariable
 from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment
 from angr.go.optimization_passes.runtime_rewriter import GoRuntimeRewriter
-from tests.analyses.decompiler.test_go_decompiler import GoDecompilationTarget, go_binary, go_func_addrs
+from tests.analyses.decompiler.test_go_decompiler import (
+    GoDecompilationTarget,
+    go_binary,
+    go_func_addrs,
+    test_location,
+)
 from tests.common import load_project_with_scoped_cfg
 
 
@@ -157,6 +163,43 @@ class TestStackClosureSelfReference(unittest.TestCase):
         assert "end" in state
         text = dec.codegen.text
         assert "sort.Slice(items, main.sortItems.func1{cap_0: items})" in text, text
+
+
+class TestStaticFuncvalVariableGo127(GoDecompilationTarget):
+    """
+    runtime.callCgoSymbolizer assigns ``call := cgocall`` or ``call = asmcgocall``, both static funcvals, and calls
+    ``call(_cgo_call_symbolizer_function, noescape(unsafe.Pointer(arg)))`` through the variable.
+    """
+
+    BINARY = go_binary("go1.27.1", "basics")
+    # cgocall and asmcgocall are reached only through the func value, so the scoped CFG needs them named
+    FUNCS = ("runtime.callCgoSymbolizer", "runtime.cgocall", "runtime.asmcgocall")
+
+    def test_call_through_func_variable(self):
+        text = self.texts["runtime.callCgoSymbolizer"]
+        m = re.search(r"^\s+(\w+) = runtime\.cgocall$", text, re.MULTILINE)
+        assert m, text
+        call = rf"^\s+{m.group(1)}\(_cgo_call_symbolizer_function, runtime\.noescape\(arg\)\)$"
+        assert re.search(call, text, re.MULTILINE), text
+
+
+class TestStaticFuncvalVariableAArch64Go127(TestStaticFuncvalVariableGo127):
+    BINARY = go_binary("go1.27.1", "basics", "aarch64")
+
+
+class TestStackArgumentStoresI386Go127(GoDecompilationTarget):
+    """
+    Go passes arguments on the stack on 386. runtime.cgoContextPCs fills a cgoTracebackArg on the stack and calls
+    ``call(_cgo_call_traceback_function, noescape(unsafe.Pointer(&arg)))``; the guessed call site takes the struct's
+    slots for extra arguments, so narrowing the call to cgocall's signature must not drop the struct's fields.
+    """
+
+    BINARY = os.path.join(test_location, "i386", "langdetect_go")
+    FUNCS = ("runtime.cgoContextPCs", "runtime.cgocall", "runtime.asmcgocall")
+
+    def test_struct_fields_are_kept(self):
+        text = self.texts["runtime.cgoContextPCs"]
+        assert "len(buf)" in text, text
 
 
 if __name__ == "__main__":
