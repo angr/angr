@@ -6084,6 +6084,17 @@ class TestDecompiler(unittest.TestCase):
         assert isinstance(arg2_type, SimTypeLongLong), f"Unexpected arg2 type: {arg2_type}"
         assert arg2_type.signed is False
 
+    def test_decompiling_abnormal_switch_case_case2_extra_head_into_loop(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4A8800, expand_call_tree=False, run_ccc=False)
+        f = proj.kb.functions[0x4A8800]  # miniz_oxide::inflate::core::transfer
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        # 0x4a8a81 is an extra head of the switch at 0x4a88ee, and its other successor is the 4-byte copy loop at
+        # 0x4a8a8b, which nothing else reaches. the loop must keep that edge rather than be reached by a goto
+        assert "LABEL_4a8a8b" not in d.codegen.text
+
     def test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump(self, decompiler_options=None):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "0a9bd4898d4c966cda1102952a74b3b829581c5b6bbeb4c4e6a09cefde8c0d26"
