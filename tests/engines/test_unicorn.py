@@ -503,6 +503,30 @@ class TestUnicorn(unittest.TestCase):
 
         assert result == b"FLAG{l00ps_4r3_t00_34sy_r1gh7??}"
 
+    def test_symbolic_condition_of_select(self):
+        """
+        Test if a value selected using a symbolic condition is symbolic even if the values to select from are concrete.
+        """
+
+        code = """
+            mov rax, 1
+            mov rbx, 2
+            cmp rdi, 5
+            cmove rax, rbx
+            jmp next
+        next:
+            nop
+        """
+        p = angr.load_shellcode(code, "amd64", load_address=0x400000)
+        state = p.factory.blank_state(addr=0x400000, add_options=so.unicorn)
+        state.regs.rdi = claripy.BVS("x", 64)
+        state.unicorn.max_steps = 1
+        successors = state.step()
+        assert successors.description.startswith("Unicorn")
+        succ = successors.successors[0]
+        assert succ.solver.eval_one(succ.regs.rax, extra_constraints=[succ.regs.rdi == 5]) == 2
+        assert succ.solver.eval_one(succ.regs.rax, extra_constraints=[succ.regs.rdi == 6]) == 1
+
     def test_symbolic_flags_thunk_preserved_on_setup(self):
         """
         Test if the VEX flags thunk is kept whole when unicorn is set up on a state whose flags operand is symbolic and
