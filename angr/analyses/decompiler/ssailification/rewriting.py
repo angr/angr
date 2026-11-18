@@ -83,6 +83,10 @@ class RewritingAnalysis:
         self.out_blocks = {}
         self.out_states = {}
         self.resized_func_args: dict[VirtualVariable, VirtualVariable] = {}
+        # varids of the vvars made for extern defs in the initial state instead of reusing a function argument's vvar
+        self._extern_vvar_ids: set[int] = set()
+        # stack phi sources made by _stack_phi_source, keyed by (replaced extern vvar's varid, phi offset, phi size)
+        self._stack_phi_placeholders: dict[tuple[int, int, int], VirtualVariable] = {}
         # loop_states stores states at the beginning of a loop block *after a loop iteration*, where the block is the
         # following:
         #    0x4036df | t4 = (rcx<8> == 0x0<64>)
@@ -373,6 +377,7 @@ class RewritingAnalysis:
                 varid = self._engine_ail.current_vvar_id
                 self._engine_ail.current_vvar_id += 1
                 vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
+                self._extern_vvar_ids.add(varid)
             more_args.append(vvar)
 
         # update state with function arguments
@@ -508,6 +513,8 @@ class RewritingAnalysis:
                                     stack_offset=stmt.dst.stack_offset,
                                 ),
                             )
+                            if vvar is not None:
+                                vvar = self._stack_phi_source(vvar, stmt.dst)
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                         if any_pred and original_node.idx == 0 and original_node.addr == self._function.addr:
                             arg_vvar = next(
@@ -529,6 +536,32 @@ class RewritingAnalysis:
 
                 node = node.copy(statements=phi_stmts + phi_extraction_stmts + other_stmts)
                 self.out_blocks[node_key] = node
+
+    def _stack_phi_source(self, src: VirtualVariable, dst: VirtualVariable) -> VirtualVariable:
+        """
+        Return a source for the stack phi `dst`, given `src`, the vvar holding the phi's offset at the end of a
+        predecessor. An extern placeholder that holds only some of the phi's bytes is replaced by a placeholder of
+        exactly the phi's bytes; any other source is returned as is.
+
+        Ssailification places a phi over narrower definitions at its offset because the rewriter turns a partial write
+        into an update of the whole variable. An extern placeholder is not a write and keeps the extent the traversal
+        recorded for it, which is one byte when the function uses the slot's address, for example to pass it to a
+        callee, on a path that has not written the slot (SimEngineSSATraversal._handle_expr_StackBaseOffset).
+        """
+        if src.varid not in self._extern_vvar_ids:
+            return src
+        src_off, dst_off = src.stack_offset, dst.stack_offset
+        if src_off <= dst_off and dst_off + dst.size <= src_off + src.size:
+            return src
+        key = src.varid, dst_off, dst.size
+        if (placeholder := self._stack_phi_placeholders.get(key)) is None:
+            varid = self._engine_ail.current_vvar_id
+            self._engine_ail.current_vvar_id += 1
+            placeholder = VirtualVariable(
+                self._ail_manager.next_atom(), varid, dst.bits, VirtualVariableCategory.STACK, dst_off
+            )
+            self._stack_phi_placeholders[key] = placeholder
+        return placeholder.deep_copy(self._ail_manager)
 
     @staticmethod
     def _follow_one_path_backward(
