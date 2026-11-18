@@ -1,7 +1,9 @@
 use clarirs_vsa::StridedInterval;
+use clarirs_vsa::multi_value::MultiValue;
 use clarirs_vsa::reduce::Reduce;
 use clarirs_vsa::strided_interval::ComparisonResult;
 use num_bigint::{BigInt, BigUint};
+use pyo3::types::PyTuple;
 
 use crate::claripy::prelude::*;
 
@@ -176,6 +178,29 @@ pub fn simplify<'py>(
     reduce(py, expr)
 }
 
+/// The alternatives of a value, or `None` for a value made of several
+/// independently tracked pieces or with too many alternatives to enumerate.
+#[pyfunction]
+pub fn mv_eval<'py>(
+    py: Python<'py>,
+    value: Bound<'py, BV>,
+) -> Result<Option<Bound<'py, PyTuple>>, ClaripyError> {
+    value
+        .get()
+        .inner
+        .mv_eval()?
+        .map(|values| {
+            Ok(PyTuple::new(
+                py,
+                values
+                    .iter()
+                    .map(|v| BV::new(py, v))
+                    .collect::<Result<Vec<_>, _>>()?,
+            )?)
+        })
+        .transpose()
+}
+
 pub(crate) fn import(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     add_pyfunctions!(
         m,
@@ -190,6 +215,7 @@ pub(crate) fn import(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
         eval,
         cardinality,
         identical,
+        mv_eval,
     );
     Ok(())
 }

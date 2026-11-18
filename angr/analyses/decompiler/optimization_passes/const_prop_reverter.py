@@ -194,19 +194,14 @@ class ConstPropOptReverter(OptimizationPass):
                     # target must be a Load of a memory location
                     target_atom = MemoryLocation(unwrapped_sym_arg.addr.value, unwrapped_sym_arg.size, "Iend_LE")
                     const_state = self.rd.get_reaching_definitions_by_node(blks[calls[const_arg]].addr, OP_BEFORE)
-                    state_load_vals = const_state.get_values(target_atom)
+                    # the symbolic variable MUST resolve to only a single value, whichever definitions it comes from
+                    state_val = const_state.get_one_value(target_atom, strip_annotations=True)
                 else:
                     continue
 
-                if not state_load_vals:
+                if state_val is None:
                     continue
 
-                state_vals = list(state_load_vals.values())
-                # the symbolic variable MUST resolve to only a single value
-                if len(state_vals) != 1:
-                    continue
-
-                state_val = next(iter(state_vals[0]))
                 if hasattr(state_val, "concrete") and state_val.concrete:
                     const_value = claripy.Solver().eval(state_val, 1)[0]
                 else:

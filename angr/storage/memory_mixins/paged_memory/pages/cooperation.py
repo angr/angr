@@ -6,8 +6,6 @@ from collections.abc import Generator
 from angr import claripy
 from angr.storage.memory_object import SimLabeledMemoryObject, SimMemoryObject
 
-from .multi_values import MultiValues
-
 
 class CooperationBase[T]:
     """
@@ -207,65 +205,37 @@ class MemoryObjectSetMixin(CooperationBase):
 
         if len(elements) == 0:
             # nothing is read out
-            return MultiValues(claripy.BVV(0, 0))
-
-        if len(elements) == 1:
-            if len(elements[0]) == 1:
-                return MultiValues(next(iter(elements[0])))
-            return MultiValues({0: elements[0]})
+            return claripy.BVV(0, 0)
 
         if endness == "Iend_LE":
             elements.reverse()
 
-        mv = MultiValues()
-        offset = 0
-        start_offset = 0
-        prev_value = ...
-        for value_set in elements:
-            if len(value_set) == 1:
-                if prev_value is ...:
-                    prev_value = next(iter(value_set))
-                    start_offset = offset
-                else:
-                    prev_value = prev_value.concat(next(iter(value_set)))
-            else:
-                if prev_value is not ...:
-                    mv.add_value(start_offset, prev_value)
-                    prev_value = ...
-
-                for value in value_set:
-                    mv.add_value(offset, value)
-
-            offset += next(iter(value_set)).size() // memory.state.arch.byte_width
-
-        if prev_value is not ...:
-            mv.add_value(start_offset, prev_value)
-            prev_value = ...
-
-        assert next(mv.values(), None) is not None, "MultiValues may not be empty"
-        return mv
+        return claripy.Concat(*(claripy.union(*value_set) for value_set in elements))
 
     @classmethod
     def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, label=None, **kwargs):
         # the generator model is definitely overengineered here but wouldn't be if we were working with raw BVs
         cur_addr = addr + page_addr
-        if isinstance(data, MultiValues):
-            # for MultiValues, we return sets of SimMemoryObjects
+        # a Union is always symbolic, so only symbolic values can have several alternatives: a Union, or a Concat of
+        # pieces some of which are Unions
+        if isinstance(data, claripy.ast.Base) and data.symbolic:
+            # for values with several alternatives, we return sets of SimMemoryObjects
             assert label is None  # TODO: Support labels
 
             size = yield
             offset_to_mos: dict[int, set[SimMemoryObject]] = {}
-            for offset, vs in data.items():
-                offset_to_mos[offset] = set()
-                for v in vs:
-                    offset_to_mos[offset].add(
-                        SimMemoryObject(
-                            v,
-                            cur_addr + offset,
-                            endness,
-                            byte_width=memory.state.arch.byte_width if memory is not None else 0,
-                        )
+            offset = 0
+            for piece in data.args if data.op == "Concat" else (data,):
+                offset_to_mos[offset] = {
+                    SimMemoryObject(
+                        v,
+                        cur_addr + offset,
+                        endness,
+                        byte_width=memory.state.arch.byte_width if memory is not None else 0,
                     )
+                    for v in (piece.args if piece.op == "Union" else (piece,))
+                }
+                offset += len(piece) // 8
 
             sorted_offsets = sorted(offset_to_mos.keys())
             pos = 0
