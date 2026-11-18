@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import unittest
 from collections import OrderedDict
+from unittest import mock
 
 import archinfo
 
@@ -15,7 +16,9 @@ from angr.ailment import Manager
 from angr.ailment.expression import (
     BinaryOp,
     Const,
+    Convert,
     DirtyExpression,
+    Extract,
     Register,
     UnaryOp,
     VirtualVariable,
@@ -109,6 +112,49 @@ class TestGoCodegenHandlers(unittest.TestCase):
 
         assert out == "rax"
         assert PLACEHOLDER not in out
+
+    def test_extract_from_unsigned_widening_zero_tail(self):
+        m = Manager()
+        base = Const(m.next_atom(), 1, 1280)
+
+        for endness, offset in ((archinfo.Endness.LE, 160), (archinfo.Endness.BE, 0)):
+            widened = Convert(m.next_atom(), 1280, 1408, False, base)
+            extract = Extract(
+                m.next_atom(),
+                64,
+                widened,
+                Const(m.next_atom(), offset, self.proj.arch.bits),
+                endness,
+                ins_addr=0x400100,
+            )
+
+            out = self.codegen._handle(extract, is_expr=True)  # pylint: disable=protected-access
+
+            assert _render(out) == "0"
+            assert out.type is not None and out.type.size == 64
+            assert out.type.signed is False
+            assert out.tags["ins_addr"] == 0x400100
+
+        base = Const(m.next_atom(), 1 << 1279, 1280)
+        for widened, offset in (
+            (Convert(m.next_atom(), 1280, 1408, True, base), 160),
+            (Convert(m.next_atom(), 1280, 1408, False, base), 156),
+            (Convert(m.next_atom(), 1280, 1408, False, base, vector_count=2), 160),
+        ):
+            extract = Extract(
+                m.next_atom(),
+                64,
+                widened,
+                Const(m.next_atom(), offset, self.proj.arch.bits),
+                archinfo.Endness.LE,
+            )
+
+            with (
+                mock.patch.object(self.codegen, "_handle", side_effect=RuntimeError("not zero-tail folded")) as handle,
+                self.assertRaisesRegex(RuntimeError, "not zero-tail folded"),
+            ):
+                self.codegen._handle_Expr_Extract(extract)  # pylint: disable=protected-access
+            handle.assert_called_once_with(widened)
 
     def test_statement_handlers(self):
         proj = self.proj
