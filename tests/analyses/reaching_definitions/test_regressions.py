@@ -6,6 +6,7 @@ import struct
 from unittest import TestCase, main
 
 from archinfo import ArchAArch64
+from cle import MetaELF
 
 import angr
 from angr.analyses import CFGFast, ReachingDefinitionsAnalysis
@@ -244,6 +245,27 @@ class TestRDARegressions(TestCase):
         assert len(dl_defs) == 1
         read_insns = {u.ins_addr for u in rda.all_uses.get_uses(dl_defs[0])}
         assert 0x7 in read_insns, f"PUT(dl) is not used by the `test dl, dl` at 0x7; uses at {read_insns}"
+
+    def test_ppc64_object_without_a_toc_puts_nothing_in_the_toc_register(self):
+        """
+        An ELFv1 object without an entry point gives cle nothing to read a TOC from.
+        """
+        binary = os.path.join(bin_location, "tests", "ppc64", "simple_object.o")
+        func_addr = 0x400000
+
+        proj = angr.Project(binary, auto_load_libs=False)
+        main_object = proj.loader.main_object
+        assert isinstance(main_object, MetaELF)
+        assert main_object.is_ppc64_abiv1
+        assert main_object.ppc64_initial_rtoc is None
+
+        cfg = proj.analyses[CFGFast].prep()(normalize=True)
+        entry_observation = ("node", func_addr, OP_BEFORE)
+        rda = proj.analyses[ReachingDefinitionsAnalysis].prep()(
+            cfg.functions[func_addr], observation_points=[entry_observation]
+        )
+
+        assert rda.observed_results[entry_observation].get_values(Atom.reg("rtoc", arch=proj.arch)) is None
 
 
 if __name__ == "__main__":
