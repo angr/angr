@@ -13,9 +13,11 @@ import angr_data
 from angr.calling_conventions import GO_REGISTER_CC, SimCCGoAMD64
 from angr.enums import Flavors
 from angr.go.analyses.dwarf_signatures import _goarch, read_go_dwarf_signatures
+from angr.go.analyses.func_value_uses import passed_func_types, static_funcvals
 from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoVariable
 from angr.go.sim_type import GoSimType, GoSimTypeFunc, GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple, go_type_repr
 from angr.go.type_parser import GoTypeParser
+from angr.go.utils.names import is_go_closure_name
 from angr.go.utils.version import go_minor_version, identify_go_version
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.sim_type import SimTypeBottom
@@ -282,6 +284,9 @@ class GoSignatures(KnowledgeBasePlugin):
         self._parser: GoTypeParser | None = None
         self._prototypes: dict[str, GoSimTypeFunction | None] = {}
         self._arg_sizes: dict[int, int] | None = None
+        # closure entry -> its prototype from where its func value is passed (None: unknown)
+        self._closure_prototypes: dict[int, GoSimTypeFunction | None] = {}
+        self._static_funcvals: dict[int, list[int]] | None = None
         self._inferred: dict[str, GoInferredSignature] = {}
         # call instruction address -> what the caller's reads say about the results of an indirect call there
         self._callsites: dict[int, GoInferredSignature] = {}
@@ -399,6 +404,7 @@ class GoSignatures(KnowledgeBasePlugin):
         else:
             self._sources.insert(priority, sigs)
         self._prototypes.clear()
+        self._closure_prototypes.clear()
         self._parser = None
 
     def load_sources(self, go_version: str | None = None) -> bool:
@@ -437,6 +443,7 @@ class GoSignatures(KnowledgeBasePlugin):
                 db = _layout_free_db(db, goarch)
             self._sources.append(db)
         self._prototypes.clear()
+        self._closure_prototypes.clear()
         self._parser = None
         return bool(self._sources)
 
@@ -719,9 +726,38 @@ class GoSignatures(KnowledgeBasePlugin):
 
     def prototype_at(self, addr: int) -> GoSimTypeFunction | None:
         """
-        The function type of the method whose code starts at ``addr``, from the runtime type descriptors' method
-        tables (receiver first). Covers methods of named types in stripped binaries, which no signature source names.
+        The function type of the function whose code starts at ``addr``, from the binary itself, for functions no
+        signature source names: a method of a named type from the runtime type descriptors' method tables (receiver
+        first), or a closure from the func-typed parameters its func value is passed to, found through the CFG's
+        cross-references, when they all agree. None when neither applies.
         """
+        return self._method_prototype(addr) or self._closure_prototype(addr)
+
+    def _closure_prototype(self, addr: int) -> GoSimTypeFunction | None:
+        if addr in self._closure_prototypes:
+            return self._closure_prototypes[addr]
+        project = self._kb._project
+        if project is None or not self._kb.functions.contains_addr(addr):
+            return None
+        # cache None first: the callee a closure is passed to can be a closure too, and its lookup can lead back here
+        self._closure_prototypes[addr] = None
+        if not is_go_closure_name(self._kb.functions.get_by_addr(addr).name):
+            return None
+        with self.untracked():
+            if self._static_funcvals is None:
+                self._static_funcvals = static_funcvals(project, self._kb)
+            types = {
+                go_type_repr(ty): ty
+                for ty in passed_func_types(project, self._kb, addr, self._static_funcvals.get(addr, []))
+            }
+        if len(types) != 1:
+            return None
+        (ty,) = types.values()
+        proto = ty.signature.with_arch(project.arch)
+        self._closure_prototypes[addr] = proto
+        return proto
+
+    def _method_prototype(self, addr: int) -> GoSimTypeFunction | None:
         method = self._kb.go_types.method_at(addr)
         if method is None:
             return None
