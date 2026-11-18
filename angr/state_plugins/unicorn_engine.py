@@ -1857,6 +1857,10 @@ class Unicorn(SimStatePlugin, SupportsMerge):
             setattr(state.regs, r, v)
 
         # some architecture-specific register fixups
+        if state.arch.qemu_name == "arm" and self.uc.reg_read(self._uc_const.UC_ARM_REG_CPSR) & 0x20:
+            # unicorn reports pc without the THUMB bit: the execution mode is only available in the T bit of CPSR
+            state.regs.pc = self.uc.reg_read(self._uc_regs["pc"]) | 1
+
         if state.arch.name in {"X86", "AMD64"}:
             # update the eflags
             state.regs.eflags = claripy.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), state.arch.bits)
