@@ -1430,8 +1430,8 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     if (seg_selector & ~0xFFFF != 0).is_true():
         return bad("invalid selector (" + str(seg_selector) + ")")
 
-    if virtual_addr.length == 16:
-        virtual_addr = virtual_addr.zero_extend(16)
+    if virtual_addr.length < 32:
+        virtual_addr = virtual_addr.zero_extend(32 - virtual_addr.length)
 
     # are we in real mode?
     if state.globals.get("x86_cr0", state.arch.vex_archinfo["x86_cr0"]) & 1 == 0:
