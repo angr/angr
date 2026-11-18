@@ -2158,6 +2158,7 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 	}
 	is_stmt_symbolic = false;
 	vex_stmt_details = compute_vex_stmt_details(vex_stmt_taint_entry);
+	auto ite_cond_taint_status = get_final_taint_status(vex_stmt_taint_entry.ite_cond_entity_list);
 	if (taint_sink.entity_type == TAINT_ENTITY_MEM) {
 		vex_stmt_details.has_memory_write = true;
 		auto addr_taint_status = get_final_taint_status(taint_sink.mem_ref_entity_list);
@@ -2172,6 +2173,9 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 			}
 		}
 		auto sink_taint_status = get_final_taint_status(taint_srcs);
+		if (sink_taint_status == TAINT_STATUS_CONCRETE) {
+			sink_taint_status = ite_cond_taint_status;
+		}
 		if (sink_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
 			if (handle_symbolic_addrs) {
 				is_stmt_symbolic = true;
@@ -2197,6 +2201,9 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 	}
 	else if ((taint_sink.entity_type != TAINT_ENTITY_NONE) || vex_stmt_taint_entry.is_exit) {
 		taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
+		if (final_taint_status == TAINT_STATUS_CONCRETE) {
+			final_taint_status = ite_cond_taint_status;
+		}
 		if (final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
 			if (handle_symbolic_addrs) {
 				is_stmt_symbolic = true;
@@ -2229,7 +2236,6 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 			mark_register_concrete(taint_sink.reg_offset, taint_sink.value_size);
 		}
 	}
-	auto ite_cond_taint_status = get_final_taint_status(vex_stmt_taint_entry.ite_cond_entity_list);
 	if (ite_cond_taint_status != TAINT_STATUS_CONCRETE) {
 		is_stmt_symbolic = true;
 	}
