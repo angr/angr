@@ -181,7 +181,6 @@ class TestTypeswitchAmd64Go127(TypeSwitches, BoxedValueIdioms, GoDecompilationTa
 
 
 class TestTypeSwitchesArm64(TypeSwitches, GoDecompilationTarget):
-    # the hash search's unsigned compares stay arm64g_calculate_condition calls
     BINARY = go_binary("go1.27.1", "typeswitch", arch="aarch64")
 
     def test_typeswitch(self):
