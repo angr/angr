@@ -547,7 +547,7 @@ class CFGFastSoot(CFGFast):
     def drop_bad_functions(self):
         pass
 
-    def make_functions(self):
+    def make_functions(self, additional_function_addrs=None):
         """
         Revisit the entire control flow graph, create Function instances accordingly, and correctly put blocks into
         each function.
@@ -563,6 +563,10 @@ class CFGFastSoot(CFGFast):
 
         :return: None
         """
+
+        # CFGFastSoot already seeds every Soot method during pre-analysis, so native authoritative starts do not
+        # participate in its function reconstruction.
+        del additional_function_addrs
 
         # There are some issues in support_jni environment(e.g. _graph_bfs_custom looping)
         # It handled as passing over for quick fix.
