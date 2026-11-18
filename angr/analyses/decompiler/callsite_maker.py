@@ -350,9 +350,7 @@ class CallSiteMaker:
         # simplification steps in the future, which may decide to remove statements that store arguments on the stack.
         if stack_arg_locs:
             assert self._stack_pointer_tracker is not None
-            sp_offset = self._stack_pointer_tracker.offset_before(
-                call_expr.tags["ins_addr"], self.project.arch.sp_offset
-            )
+            sp_offset = self._sp_offset_at_call(call_expr.tags)
             if sp_offset is None:
                 l.warning(
                     "Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store statements.",
@@ -515,7 +513,7 @@ class CallSiteMaker:
         locs = self._expand_arglocs([ret_loc]) if ret_loc is not None else []
         if not locs or not all(isinstance(loc, SimStackArg) for loc in locs):
             return None
-        sp_base = self._stack_pointer_tracker.offset_before(call_expr.tags["ins_addr"], self.project.arch.sp_offset)
+        sp_base = self._sp_offset_at_call(call_expr.tags)
         if sp_base is None:
             return None
         if sp_base >= (1 << (self.project.arch.bits - 1)):
@@ -609,6 +607,18 @@ class CallSiteMaker:
 
         return None
 
+    def _sp_offset_at_call(self, tags) -> int | None:
+        """
+        The stack pointer offset at a call. A tail call whose jump has a delay slot (MIPS `jr` with the epilogue's
+        `addiu $sp` in the slot) carries the delay-slot instruction in `sp_after_ins_addr`; the stack pointer after it is
+        the one the callee sees.
+        """
+        assert self._stack_pointer_tracker is not None
+        sp_after_ins_addr = tags.get("sp_after_ins_addr")
+        if sp_after_ins_addr is not None:
+            return self._stack_pointer_tracker.offset_after(sp_after_ins_addr, self.project.arch.sp_offset)
+        return self._stack_pointer_tracker.offset_before(tags["ins_addr"], self.project.arch.sp_offset)
+
     def _resolve_stack_argument(self, call_stmt: Expr.Call, arg_loc: SimStackArg, cc: SimCC | None) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
@@ -623,7 +633,7 @@ class CallSiteMaker:
 
         call_addr = call_stmt.tags.get("ins_addr", None)
         assert call_addr is not None
-        sp_base = self._stack_pointer_tracker.offset_before(call_addr, self.project.arch.sp_offset)
+        sp_base = self._sp_offset_at_call(call_stmt.tags)
         if sp_base is not None:
             sp_offset = sp_base + offset
             if sp_offset >= (1 << (self.project.arch.bits - 1)):

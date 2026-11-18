@@ -1,18 +1,36 @@
 from __future__ import annotations
 
+import contextlib
 import logging
-from collections.abc import Callable
+from bisect import bisect_right
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any
 
 import cle
+from archinfo import ArchARM
 from cle.backends.externs import ExternObject, KernelObject
 from cle.backends.ihex import Hex
 from cle.backends.tls.elf_tls import ELFTLSObject
-from sortedcontainers import SortedDict
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import Block
-from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from angr.errors import SimEngineError, SimMemoryError
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataDict, MemoryDataSort
+from angr.rustylib.cfb import (
+    CLASS_BLOCK,
+    CLASS_MD,
+    CLASS_OTHER,
+    CLASS_UNKNOWN,
+    F_THUMB,
+    KIND_BLOCK,
+    KIND_BLOCK_BYTES,
+    KIND_BLOCK_TRIM,
+    KIND_MD,
+    KIND_TRIM,
+    KIND_UNKNOWN,
+    CfbEvents,
+    CfbStore,
+)
 
 _l = logging.getLogger(name=__name__)
 
@@ -127,6 +145,155 @@ class Unknown:
         return f"<Unknown {self.addr:#x}-{self.addr + self.size:#x}>"
 
 
+def _class_mask(classes: Iterable[int] | None) -> int | None:
+    """
+    The bit mask of CLASS_* values that CfbStore.intervals filters by; None for all classes.
+    """
+    if classes is None:
+        return None
+    mask = 0
+    for cls in classes:
+        mask |= 1 << cls
+    return mask
+
+
+class CFBObjectBatch(Sequence):
+    """
+    The (addr, obj) pairs that one on_objects_added call reports, in order. Objects are created on access, in chunks;
+    an object that is still in the blanket is the blanket's object. intervals() reports (addr, size, cls, sort)
+    without creating objects, like CFBlanket.intervals().
+    """
+
+    CHUNK = 1024
+
+    __slots__ = ("_cfb", "_chunks", "_intervals", "_len", "_parts", "_starts")
+
+    def __init__(self, cfb: CFBlanket, parts: list[CfbEvents | list[tuple[int, Any]]]):
+        self._cfb = cfb
+        self._parts = parts
+        self._starts: list[int] = []
+        n = 0
+        for part in parts:
+            self._starts.append(n)
+            n += len(part)
+        self._len = n
+        # materialized chunks of CfbEvents parts, by (part, chunk)
+        self._chunks: dict[tuple[int, int], list[tuple[int, Any]]] = {}
+        # intervals() results by class mask (None: all classes)
+        self._intervals: dict[int | None, list[tuple[int, int | None, int, str | None]]] = {}
+
+    @staticmethod
+    def concat(batches: list[CFBObjectBatch]) -> CFBObjectBatch:
+        """
+        One batch of the events of `batches` (of the same blanket), in order, without creating objects.
+        """
+        assert batches
+        parts: list[CfbEvents | list[tuple[int, Any]]] = []
+        for batch in batches:
+            parts.extend(batch._parts)
+        return CFBObjectBatch(batches[0]._cfb, parts)
+
+    def __len__(self) -> int:
+        return self._len
+
+    def _chunk(self, part_idx: int, chunk_idx: int) -> list[tuple[int, Any]]:
+        key = (part_idx, chunk_idx)
+        pairs = self._chunks.get(key)
+        if pairs is None:
+            part = self._parts[part_idx]
+            assert isinstance(part, CfbEvents)
+            start = chunk_idx * self.CHUNK
+            pairs, specs = part.descs(start, start + self.CHUNK)
+            if specs:
+                self._cfb._materialize_pairs(pairs, specs)
+            self._chunks[key] = pairs
+        return pairs
+
+    def _item(self, i: int) -> tuple[int, Any]:
+        part_idx = bisect_right(self._starts, i) - 1
+        offset = i - self._starts[part_idx]
+        part = self._parts[part_idx]
+        if isinstance(part, list):
+            return part[offset]
+        return self._chunk(part_idx, offset // self.CHUNK)[offset % self.CHUNK]
+
+    def __getitem__(self, i):  # type: ignore[override]
+        if isinstance(i, slice):
+            return [self._item(j) for j in range(*i.indices(self._len))]
+        if i < 0:
+            i += self._len
+        if not 0 <= i < self._len:
+            raise IndexError(i)
+        return self._item(i)
+
+    def __iter__(self) -> Iterator[tuple[int, Any]]:
+        for part_idx, part in enumerate(self._parts):
+            if isinstance(part, list):
+                yield from part
+                continue
+            for chunk_idx in range((len(part) + self.CHUNK - 1) // self.CHUNK):
+                yield from self._chunk(part_idx, chunk_idx)
+
+    def intervals(self, classes: Iterable[int] | None = None) -> list[tuple[int, int | None, int, str | None]]:
+        """
+        (addr, size, cls, sort) of each event, in order, optionally of the given CFBlanket.CLASS_* only; computed once
+        per class selection.
+        """
+        mask = _class_mask(classes)
+        out = self._intervals.get(mask)
+        if out is None:
+            out = []
+            for part in self._parts:
+                if isinstance(part, list):
+                    rows = (CFBlanket._interval(addr, obj) for addr, obj in part)
+                    out.extend(r for r in rows if mask is None or mask & (1 << r[2]))
+                else:
+                    out.extend(part.intervals(mask))
+            self._intervals[mask] = out
+        return out
+
+
+class _BlanketView:
+    """
+    `CFBlanket._blanket`: a read-only mapping view of the blanket, for code written against the SortedDict of earlier
+    versions.
+    """
+
+    __slots__ = ("_cfb",)
+
+    def __init__(self, cfb: CFBlanket):
+        self._cfb = cfb
+
+    def __len__(self) -> int:
+        return len(self._cfb._store)
+
+    def __contains__(self, addr) -> bool:
+        return isinstance(addr, int) and addr in self._cfb._store
+
+    def __getitem__(self, addr):
+        return self._cfb[addr]
+
+    def __iter__(self) -> Iterator[int]:
+        return iter(self._cfb._store.keys())
+
+    def get(self, addr, default=None):
+        if addr not in self:
+            return default
+        return self._cfb[addr]
+
+    def keys(self) -> list[int]:
+        return self._cfb._store.keys()
+
+    def values(self) -> list[Any]:
+        return [obj for _, obj in self._cfb.items()]
+
+    def items(self) -> list[tuple[int, Any]]:
+        return self._cfb.items()
+
+    def irange(self, minimum=None, maximum=None, inclusive=(True, True), reverse=False) -> Iterator[int]:
+        return iter(self._cfb._store.irange(minimum, maximum, inclusive, reverse))
+
+
 class CFBlanket(Analysis):
     """
     A Control-Flow Blanket is a representation for storing all instructions, data entries, and bytes of a full program.
@@ -139,31 +306,95 @@ class CFBlanket(Analysis):
     - kernel
     """
 
+    # the classes intervals() reports
+    CLASS_BLOCK = CLASS_BLOCK
+    CLASS_MD = CLASS_MD
+    CLASS_UNKNOWN = CLASS_UNKNOWN
+    CLASS_OTHER = CLASS_OTHER
+
     def __init__(
         self,
         exclude_region_types: set[str] | None = None,
         on_object_added: Callable[[int, Any], None] | None = None,
         on_object_removed: Callable[[int, Any], None] | None = None,
+        on_objects_added: Callable[[CFBObjectBatch], None] | None = None,
     ):
         """
         :param on_object_added:   Callable with parameters (addr, obj) called after an object is added to the blanket.
         :param on_object_removed: Callable with parameters (addr, obj) called after an object is removed from the
                                   blanket.
+        :param on_objects_added:  Callable with a CFBObjectBatch (a lazy sequence of (addr, obj)) called after objects
+                                  are added to the blanket:
+                                  once per add_obj/remove_obj call that added objects, once per add_objs call, and
+                                  once for the initial build. A batch holds what on_object_added gets, in order.
         """
-        self._blanket = SortedDict()
+        self._store = CfbStore(Block, MemoryData, Unknown, isinstance(self.project.arch, ArchARM))
+        # (object, segment, section, loader) of the native Unknown records, by region id
+        self._unknown_regions: list[tuple[Any, Any, Any, Any]] = []
+        self._unknown_region_ids: dict[tuple[int, int, int, bool], int] = {}
+        # the memory data of the CFG model that MemoryData records refer to
+        self._md_dict: MemoryDataDict | None = None
+        # lift options of BLOCK records by profile id; 0 is factory.block's defaults
+        self._block_profiles: list[dict[str, Any] | None] = [None]
 
         self._on_object_added_callback = on_object_added
         self._on_object_removed_callback = on_object_removed
+        self._on_objects_added_callback = on_objects_added
+        # the events not yet delivered to on_objects_added, as CFBObjectBatch parts; None without that callback
+        self._pending_added: list[CfbEvents | list[tuple[int, Any]]] | None = None if on_objects_added is None else []
+        self._bulk_depth = 0
         self._regions = []
         self._exclude_region_types = exclude_region_types or set()
 
         self._init_regions()
 
         # initialize
-        for func in self.kb.functions.values():
-            self.add_function(func)
+        with self._bulk():
+            self._build()
+
+    def _build(self) -> None:
+        self._add_function_blocks()
         self._mark_memory_data()
         self._mark_unknowns()
+
+    def finalize(self, kb=None, exclude_region_types: set[str] | None = None) -> CFBlanket:
+        """
+        Rebuild this blanket in place as CFBlanket(kb=kb, exclude_region_types=exclude_region_types) would build it,
+        and drop its callbacks: e.g., turn the temporary blanket of a CFG recovery into the final one. Readers see the
+        old contents until the new ones replace them at once.
+
+        :return: self
+        """
+        fresh = CFBlanket.__new__(CFBlanket)
+        fresh.__dict__.update(self.__dict__)
+        if kb is not None:
+            fresh.kb = kb
+        if exclude_region_types is not None:
+            fresh._exclude_region_types = exclude_region_types
+        fresh._store = CfbStore(Block, MemoryData, Unknown, isinstance(self.project.arch, ArchARM))
+        # the tables grow from ours, so that our records still materialize while they are replaced
+        fresh._unknown_regions = list(self._unknown_regions)
+        fresh._unknown_region_ids = dict(self._unknown_region_ids)
+        fresh._block_profiles = list(self._block_profiles)
+        fresh._md_dict = None
+        fresh._on_object_added_callback = None
+        fresh._on_object_removed_callback = None
+        fresh._on_objects_added_callback = None
+        fresh._pending_added = None
+        fresh._bulk_depth = 0
+        fresh._regions = []
+        fresh._init_regions()
+        fresh._build()
+        for name in ("_unknown_regions", "_unknown_region_ids", "_block_profiles", "_md_dict", "_regions"):
+            setattr(self, name, getattr(fresh, name))
+        self._store = fresh._store
+        self.kb = fresh.kb
+        self._exclude_region_types = fresh._exclude_region_types
+        self._on_object_added_callback = None
+        self._on_object_removed_callback = None
+        self._on_objects_added_callback = None
+        self._pending_added = None
+        return self
 
     def _init_regions(self):
         for obj in self.project.loader.all_objects:
@@ -251,52 +482,172 @@ class CFBlanket(Analysis):
 
         return self._regions
 
+    @property
+    def _blanket(self) -> _BlanketView:
+        """
+        A read-only mapping view of the blanket (the SortedDict of earlier versions).
+        """
+        return _BlanketView(self)
+
     def floor_addr(self, addr: int) -> int:
-        try:
-            return next(self._blanket.irange(maximum=addr, reverse=True))
-        except StopIteration as err:
-            raise KeyError(addr) from err
+        key = self._store.floor_key(addr)
+        if key is None:
+            raise KeyError(addr)
+        return key
 
     def floor_item(self, addr: int) -> tuple[int, Any]:
         key = self.floor_addr(addr)
-        return key, self._blanket[key]
+        return key, self[key]
 
     def floor_items(self, addr=None, reverse=False):
+        """
+        The items from the greatest key <= `addr` (or `addr` if there is none; everything if `addr` is None) to the
+        end, ascending, or from the end down to there with `reverse`. Iteration resumes by key, so it survives
+        concurrent changes.
+        """
         if addr is None:
             start_addr = None
         else:
-            try:
-                start_addr = next(self._blanket.irange(maximum=addr, reverse=True))
-            except StopIteration:
-                start_addr = addr
-
-        for key in self._blanket.irange(minimum=start_addr, reverse=reverse):
-            yield key, self._blanket[key]
+            key = self._store.floor_key(addr)
+            start_addr = addr if key is None else key
+        yield from self._iter_range(start_addr, None, reverse)
 
     def ceiling_addr(self, addr: int) -> int:
-        try:
-            return next(self._blanket.irange(minimum=addr))
-        except StopIteration as err:
-            raise KeyError(addr) from err
+        key = self._store.ceiling_key(addr)
+        if key is None:
+            raise KeyError(addr)
+        return key
 
     def ceiling_item(self, addr: int) -> tuple[int, Any]:
         key = self.ceiling_addr(addr)
-        return key, self._blanket[key]
+        return key, self[key]
 
     def ceiling_items(self, addr=None, reverse=False, include_first=True):
+        """
+        The items from the start up to the smallest key >= `addr` (or `addr` if there is none; everything if `addr`
+        is None), excluding that key unless `include_first`, ascending or descending with `reverse`. Iteration
+        resumes by key, so it survives concurrent changes.
+        """
         if addr is None:
             start_addr = None
         else:
-            try:
-                start_addr = next(self._blanket.irange(minimum=addr))
-            except StopIteration:
-                start_addr = addr
+            key = self._store.ceiling_key(addr)
+            start_addr = addr if key is None else key
+        yield from self._iter_range(None, start_addr if include_first else start_addr - 1, reverse)
 
-        for key in self._blanket.irange(maximum=start_addr if include_first else start_addr - 1, reverse=reverse):
-            yield key, self._blanket[key]
+    def _iter_range(self, minimum: int | None, maximum: int | None, reverse: bool) -> Iterator[tuple[int, Any]]:
+        """
+        The items with keys in [minimum, maximum], fetched in growing chunks.
+        """
+        limit = 16
+        store = self._store
+        while True:
+            pairs, specs = store.scan(minimum, maximum, reverse, limit)
+            if specs:
+                self._materialize_pairs(pairs, specs)
+            yield from pairs
+            if len(pairs) < limit:
+                return
+            if reverse:
+                maximum = pairs[-1][0] - 1
+            else:
+                minimum = pairs[-1][0] + 1
+            limit = min(limit * 2, 4096)
+
+    def items(self) -> list[tuple[int, Any]]:
+        """
+        All (addr, obj) pairs, ascending.
+        """
+        pairs, specs = self._store.scan(None, None, False)
+        if specs:
+            self._materialize_pairs(pairs, specs)
+        return pairs
+
+    def intervals(
+        self, minimum: int | None = None, maximum: int | None = None, classes: Iterable[int] | None = None
+    ) -> list[tuple[int, int | None, int, str | None]]:
+        """
+        (addr, size, cls, sort) of every object with an address in [minimum, maximum], ascending, without creating
+        the objects. cls is one of CLASS_BLOCK, CLASS_MD, CLASS_UNKNOWN and CLASS_OTHER; sort is the MemoryData sort.
+        With `classes`, only objects of those classes (filtered before the tuples are built).
+        """
+        return self._store.intervals(minimum, maximum, _class_mask(classes))
 
     def __getitem__(self, addr):
-        return self._blanket[addr]
+        obj, spec = self._store.get(addr)
+        if spec is None:
+            return obj
+        obj = self._materialize(spec)
+        if spec[2] != KIND_MD:
+            self._store.cache_put([(spec[1], spec[6], obj)])
+        return obj
+
+    def _materialize(self, spec: tuple) -> Any:
+        """
+        The object of a native record, from its spec (index, key, kind, size, flags, payload, generation, sort, src).
+        """
+        _, key, kind, size, flags, payload, _, sort, src = spec
+        if kind == KIND_UNKNOWN:
+            object_, segment, section, loader = self._unknown_regions[payload]
+            # positional: about half the cost of keywords, and native Unknowns are the most common events
+            return Unknown(key, size, None, object_, segment, section, loader)
+        if kind == KIND_BLOCK:
+            if payload:
+                # a block of a CFG scan, keyed by its real address
+                lift_addr = key | 1 if flags & F_THUMB else key
+                return self.project.factory.block(lift_addr, size=size, **self._block_profiles[payload])
+            # as _add_function_blocks' eager path: key is the block address (odd for Thumb)
+            return self.project.factory.block(key, size=size)
+        if kind == KIND_BLOCK_BYTES:
+            return self.project.factory.block(key, size=size, byte_string=src)
+        if kind == KIND_BLOCK_TRIM:
+            return self.project.factory.block(key, size=size, thumb=bool(flags & F_THUMB))
+        if kind == KIND_MD:
+            md = self._md_dict.get(key) if self._md_dict is not None else None
+            return md if md is not None else MemoryData(key, size, self._store.sort_name(sort))
+        assert kind == KIND_TRIM
+        if isinstance(src, int):
+            base = self._md_dict.get(src) if self._md_dict is not None else None
+            if base is None:
+                return MemoryData(key, size, self._store.sort_name(sort))
+            src = base
+        return self._trim(src, key, key + size)
+
+    def _materialize_pairs(self, pairs: list, specs: list) -> None:
+        cache = []
+        for spec in specs:
+            obj = self._materialize(spec)
+            pairs[spec[0]] = (spec[1], obj)
+            if spec[2] != KIND_MD:
+                cache.append((spec[1], spec[6], obj))
+        if cache:
+            self._store.cache_put(cache)
+
+    @property
+    def _want_events(self) -> bool:
+        return self._on_object_added_callback is not None or self._pending_added is not None
+
+    def _deliver_events(self) -> None:
+        """
+        Hand the store's queued events to on_object_added and to the on_objects_added queue.
+        """
+        cb = self._on_object_added_callback
+        pending = self._pending_added
+        if cb is not None:
+            pairs, specs = self._store.take_events()
+            if specs:
+                self._materialize_pairs(pairs, specs)
+            for addr, obj in pairs:
+                cb(addr, obj)
+            if pending is not None and pairs:
+                pending.append(pairs)
+        elif pending is not None:
+            # objects are created when the batch is read
+            batch = self._store.take_event_batch()
+            if batch is not None:
+                pending.append(batch)
+        if pending is not None and self._bulk_depth == 0:
+            self._flush_added()
 
     @staticmethod
     def _obj_size(obj) -> int | None:
@@ -308,42 +659,92 @@ class CFBlanket(Analysis):
         Add an object `obj` to the blanket at the specified address `addr`, keeping the blanket non-overlapping:
         existing objects that overlap [addr, addr + obj.size) are removed or trimmed, and the trimmed-off remainders
         are re-inserted. Objects without an integer size are stored as zero-span entries and never cause trimming.
-        """
-        size = self._obj_size(obj)
-        if size is not None and size > 0:
-            self._carve(addr, addr + size)
-        self._blanket[addr] = obj
-        if self._on_object_added_callback:
-            self._on_object_added_callback(addr, obj)
 
-    def _carve(self, start: int, end: int) -> None:
+        on_object_added is called once the blanket holds `obj`: first for each re-inserted remainder, then for `obj`.
         """
-        Remove or trim existing objects so that no object in the blanket overlaps [start, end).
-        """
-        overlapping: list[int] = []
-        # the closest entry that starts before `start` may extend into the carved range
-        floor_key = next(self._blanket.irange(maximum=start - 1, reverse=True), None)
-        if floor_key is not None:
-            floor_size = self._obj_size(self._blanket[floor_key])
-            if floor_key + max(floor_size or 1, 1) > start:
-                overlapping.append(floor_key)
-        overlapping.extend(self._blanket.irange(minimum=start, maximum=end - 1))
+        want = self._want_events
+        self._store.add_obj(addr, obj, want)
+        if want:
+            self._deliver_events()
 
-        for key in overlapping:
-            obj = self._blanket.pop(key)
-            obj_end = key + max(self._obj_size(obj) or 1, 1)
-            if key < start:
-                left = self._trim(obj, key, start)
-                if left is not None:
-                    self._blanket[key] = left
-                    if self._on_object_added_callback:
-                        self._on_object_added_callback(key, left)
-            if obj_end > end:
-                right = self._trim(obj, end, obj_end)
-                if right is not None:
-                    self._blanket[end] = right
-                    if self._on_object_added_callback:
-                        self._on_object_added_callback(end, right)
+    def register_block_profile(self, kwargs: dict[str, Any]) -> int:
+        """
+        Register factory.block() keyword arguments for add_scan_block.
+
+        :return: The profile id.
+        """
+        self._block_profiles.append(kwargs)
+        return len(self._block_profiles) - 1
+
+    def add_scan_block(self, addr: int, lift_addr: int, size: int, profile: int) -> None:
+        """
+        add_obj(addr, factory.block(lift_addr, size=size, **profile kwargs)), without creating the Block until it is
+        accessed.
+        """
+        want = self._want_events
+        self._store.add_scan_block(addr, lift_addr, size, profile, want)
+        if want:
+            self._deliver_events()
+
+    @staticmethod
+    def _interval(addr: int, obj) -> tuple[int, int | None, int, str | None]:
+        """
+        What intervals() reports for an object.
+        """
+        size = CFBlanket._obj_size(obj)
+        if isinstance(obj, Block):
+            return addr, size, CLASS_BLOCK, None
+        if isinstance(obj, MemoryData):
+            return addr, size, CLASS_MD, obj.sort
+        if isinstance(obj, Unknown):
+            return addr, size, CLASS_UNKNOWN, None
+        return addr, size, CLASS_OTHER, None
+
+    def add_objs(self, objs: Iterable[tuple[int, Any]]) -> None:
+        """
+        add_obj() each (addr, obj) in order; on_objects_added gets all of their events in one call.
+        """
+        with self._bulk():
+            if self._on_object_added_callback is not None:
+                # on_object_added sees the blanket after each object
+                for addr, obj in objs:
+                    self.add_obj(addr, obj)
+                return
+            items = objs if isinstance(objs, list) else list(objs)
+            want = self._pending_added is not None
+            try:
+                self._store.add_objs(items, want)
+            except TypeError:
+                # not (addr, obj) tuples; nothing was added
+                self._store.add_objs([(addr, obj) for addr, obj in items], want)
+            if want:
+                self._deliver_events()
+
+    @contextlib.contextmanager
+    def _bulk(self) -> Iterator[None]:
+        """
+        Defer on_objects_added until the outermost bulk operation ends.
+        """
+        self._bulk_enter()
+        try:
+            yield
+        finally:
+            self._bulk_exit()
+
+    def _bulk_enter(self) -> None:
+        self._bulk_depth += 1
+
+    def _bulk_exit(self) -> None:
+        self._bulk_depth -= 1
+        if self._bulk_depth == 0:
+            self._flush_added()
+
+    def _flush_added(self) -> None:
+        pending = self._pending_added
+        if pending:
+            self._pending_added = []
+            assert self._on_objects_added_callback is not None
+            self._on_objects_added_callback(CFBObjectBatch(self, pending))
 
     def _trim(self, obj, new_start: int, new_end: int):
         """
@@ -367,6 +768,18 @@ class CFBlanket(Analysis):
             return trimmed
         return None
 
+    def _unknown_region(self, object_, segment, section, loader) -> int:
+        """
+        The region id of Unknown records with these attributes.
+        """
+        key = (id(object_), id(segment), id(section), loader is not None)
+        region = self._unknown_region_ids.get(key)
+        if region is None:
+            region = len(self._unknown_regions)
+            self._unknown_regions.append((object_, segment, section, loader))
+            self._unknown_region_ids[key] = region
+        return region
+
     def remove_obj(self, addr, fill: bool = True):
         """
         Remove the object at `addr` from the blanket. When `fill` is set (the default), the removed object's span is
@@ -375,7 +788,12 @@ class CFBlanket(Analysis):
 
         :return: The removed object, or None if no object exists at `addr`.
         """
-        obj = self._blanket.pop(addr, None)
+        popped = self._store.pop(addr)
+        if popped is None:
+            return None
+        obj, spec = popped
+        if spec is not None:
+            obj = self._materialize(spec)
         if obj is None:
             return None
         if self._on_object_removed_callback:
@@ -386,11 +804,38 @@ class CFBlanket(Analysis):
             cle_obj = self.project.loader.find_object_containing(addr, membership_check=False)
             loader = None if cle_obj is None or isinstance(cle_obj, ExternObject) else self.project.loader
             section = cle_obj.find_section_containing(addr) if cle_obj is not None else None
-            filler = Unknown(addr, size, object_=cle_obj, section=section, loader=loader)
-            self._blanket[addr] = filler
-            if self._on_object_added_callback:
-                self._on_object_added_callback(addr, filler)
+            want = self._want_events
+            self._store.set_unknown(addr, size, self._unknown_region(cle_obj, None, section, loader), want)
+            if want:
+                self._deliver_events()
         return obj
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["_store"] = self._store.state()
+        del state["_unknown_region_ids"]
+        return state
+
+    def __setstate__(self, state):
+        state = dict(state)
+        store = CfbStore(Block, MemoryData, Unknown, isinstance(state["project"].arch, ArchARM))
+        old_blanket = state.pop("_blanket", None)
+        if old_blanket is None:
+            store.load_state(*state.pop("_store"))
+        else:
+            # pickled by the SortedDict implementation
+            store.put_objs(list(old_blanket.items()))
+        self.__dict__.update(state)
+        self._store = store
+        self.__dict__.setdefault("_unknown_regions", [])
+        self.__dict__.setdefault("_md_dict", None)
+        self.__dict__.setdefault("_block_profiles", [None])
+        self.__dict__.setdefault("_on_objects_added_callback", None)
+        self.__dict__.setdefault("_pending_added", None)
+        self.__dict__.setdefault("_bulk_depth", 0)
+        self._unknown_region_ids = {
+            (id(o), id(seg), id(sec), ldr is not None): i for i, (o, seg, sec, ldr) in enumerate(self._unknown_regions)
+        }
 
     def add_function(self, func):
         """
@@ -398,6 +843,43 @@ class CFBlanket(Analysis):
         """
         for block in func.blocks:
             self.add_obj(block.addr, block)
+
+    # functions per CfbStore.add_function_blocks call, bounding the serialized graphs held at once
+    FUNCTION_BLOCKS_CHUNK = 4096
+
+    def _add_function_blocks(self) -> None:
+        """
+        add_function() for every function of the knowledge base, without loading spilled functions. Blocks are
+        native records materialized on access; with patches, Blocks load their bytes when created, so they are
+        created now.
+        """
+        if self.project.kb.patches.has_patches():
+            self._add_function_blocks_eager()
+            return
+        want = self._want_events
+        chunk = []
+        for source in self.kb.functions.iter_local_block_sources():
+            chunk.append(source)
+            if len(chunk) >= self.FUNCTION_BLOCKS_CHUNK:
+                self._store.add_function_blocks(chunk, want)
+                chunk = []
+        if chunk:
+            self._store.add_function_blocks(chunk, want)
+        if want:
+            self._deliver_events()
+
+    def _add_function_blocks_eager(self) -> None:
+        factory_block = self.project.factory.block
+        blocks = []
+        for _, specs in self.kb.functions.iter_local_block_specs():
+            for addr, size, byte_string in specs:
+                # Function.blocks skips blocks it cannot create
+                try:
+                    block = factory_block(addr, size=size, byte_string=byte_string)
+                except (SimEngineError, SimMemoryError):
+                    continue
+                blocks.append((block.addr, block))
+        self.add_objs(blocks)
 
     def dbg_repr(self):
         """
@@ -443,13 +925,16 @@ class CFBlanket(Analysis):
         if "CFGFast" not in self.kb.cfgs:
             return
         cfg_model = self.kb.cfgs["CFGFast"]
-
-        for addr, memory_data in cfg_model.memory_data.items():
-            memory_data: MemoryData
-            if memory_data.sort == MemoryDataSort.CodeReference:
-                # skip Code Reference
-                continue
-            self.add_obj(addr, memory_data)
+        memory_data = cfg_model.memory_data
+        if not isinstance(memory_data, MemoryDataDict):
+            self.add_objs([(addr, md) for addr, md in memory_data.items() if md.sort != MemoryDataSort.CodeReference])
+            return
+        # MemoryData records refer to the model's records, minus code references
+        self._md_dict = memory_data
+        want = self._want_events
+        self._store.mark_memory_data(memory_data.store, want)
+        if want:
+            self._deliver_events()
 
     def _mark_unknowns(self):
         """
@@ -521,52 +1006,14 @@ class CFBlanket(Analysis):
                 self._mark_unknowns_core(min_addr, max_addr + 1, obj=obj)
 
     def _mark_unknowns_core(self, min_addr, max_addr, obj=None, segment=None, section=None):
-        # The region should be [min_addr, max_addr)
-
-        try:
-            addr = self.floor_addr(min_addr)
-            if addr < min_addr:
-                raise KeyError
-        except KeyError:
-            # there is no other lower address
-            try:
-                next_addr = self.ceiling_addr(min_addr)
-                if next_addr >= max_addr:
-                    raise KeyError
-            except KeyError:
-                next_addr = max_addr
-
-            size = next_addr - min_addr
-            loader = None if obj is None or isinstance(obj, cle.ExternObject) else self.project.loader
-            self.add_obj(
-                min_addr, Unknown(min_addr, size, object_=obj, segment=segment, section=section, loader=loader)
-            )
-
-        addr = min_addr
-        while addr < max_addr:
-            last_addr, last_item = self.floor_item(addr)
-            if last_addr < min_addr:
-                # impossible
-                raise Exception("Impossible")
-
-            # Make sure everything has a non-zero size
-            last_item_size = 1 if last_item.size == 0 or last_item.size is None else last_item.size
-            end_addr = last_addr + last_item_size
-            if end_addr < max_addr:
-                try:
-                    next_addr = self.ceiling_addr(end_addr)
-                except KeyError:
-                    next_addr = max_addr
-                if next_addr > end_addr:
-                    # there is a gap
-                    size = next_addr - end_addr
-                    loader = None if obj is None or isinstance(obj, cle.ExternObject) else self.project.loader
-                    self.add_obj(
-                        end_addr, Unknown(end_addr, size, object_=obj, segment=segment, section=section, loader=loader)
-                    )
-                addr = next_addr
-            else:
-                addr = max_addr
+        """
+        Fill the gaps in [min_addr, max_addr) with Unknown regions.
+        """
+        loader = None if obj is None or isinstance(obj, cle.ExternObject) else self.project.loader
+        want = self._want_events
+        self._store.mark_unknowns([(min_addr, max_addr, self._unknown_region(obj, segment, section, loader))], want)
+        if want:
+            self._deliver_events()
 
 
 AnalysesHub.register_default("CFB", CFBlanket)

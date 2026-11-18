@@ -97,6 +97,39 @@ class TestCfgGraph(unittest.TestCase):
         assert g2.add_node(2, -1)[1]
         assert g2.node_keys() == [(1, 1), (3, 1), (2, -1)]
 
+    def test_hub_edge_lookups(self):
+        # 5k fan-out hub and 5k fan-in sink: lookups, merges, removals and list order
+        g = CfgGraph()
+        hub, _ = g.add_node(0x100000, 4)
+        sink, _ = g.add_node(0x200000, 4)
+        ts = [g.add_node(0x1000 + i * 4, 4)[0] for i in range(5000)]
+        for t in ts:
+            assert g.add_edge(hub, t, PRESENT_JUMPKIND, "Ijk_Boring")
+            assert g.add_edge(t, sink, PRESENT_JUMPKIND, "Ijk_Boring")
+        assert g.add_edge(hub, hub, PRESENT_JUMPKIND, "Ijk_Boring")
+        assert all(g.has_edge(hub, t) and g.has_edge(t, sink) and not g.has_edge(t, hub) for t in ts)
+        assert g.has_edge(hub, hub) and not g.has_edge(sink, sink) and not g.has_edge(hub, sink)
+        # merge on re-add keeps position
+        assert not g.add_edge(hub, ts[10], PRESENT_JUMPKIND | PRESENT_INS_ADDR, "Ijk_Call", 0x55)
+        assert g.edge_data(hub, ts[10]) == {"jumpkind": "Ijk_Call", "ins_addr": 0x55}
+        removed = ts[::3]
+        for t in removed:
+            assert g.remove_edge(hub, t) and not g.remove_edge(hub, t)
+            assert g.remove_edge(t, sink)
+        for t in removed[::2]:
+            assert g.add_edge(hub, t, PRESENT_JUMPKIND, "Ijk_Boring")
+            assert g.add_edge(t, sink, PRESENT_JUMPKIND, "Ijk_Boring")
+        gone = set(removed)
+        kept = [t for t in ts if t not in gone]
+        succ = [*kept, hub, *removed[::2]]
+        assert g.successors(hub) == succ
+        assert g.predecessors(sink) == kept + removed[::2]
+        assert g.number_of_edges() == 2 * len(succ) - 1
+        g2 = CfgGraph.from_bytes(g.to_bytes())
+        assert g2.successors(hub) == succ and g2.predecessors(sink) == g.predecessors(sink)
+        assert g2.edges_with_data() == g.edges_with_data()
+        assert g2.has_edge(hub, ts[1]) and not g2.has_edge(hub, ts[3])
+
 
 def _node(addr, size=4, name=None):
     return CFGNode(addr, size, None, block_id=addr, name=name)
@@ -223,10 +256,10 @@ class TestSpillingCFG(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             db_file = os.path.join(td, "fauxware.adb")
             AngrDB(proj, nullpool=True).dump(db_file)
-            with mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5):
+            with mock.patch.object(angr.Project, "get_cfg_segment_budget", return_value=1):
                 loaded = AngrDB(nullpool=True).load(db_file)
         loaded_model = loaded.kb.cfgs["CFGFast"]
-        assert loaded_model.graph.spilled_count > 0
+        assert loaded_model.graph.paged
         assert edge_recs(loaded_model) == expected
         assert loaded_model.graph.call_destination_keys == model.graph.call_destination_keys
 
@@ -249,6 +282,10 @@ class _DictBackend:
     def put(self, window, data):
         self.blobs[window] = bytes(data)
         self.puts += 1
+
+    def put_many(self, items):
+        for window, data in items:
+            self.put(window, data)
 
     def delete(self, window):
         self.blobs.pop(window, None)
@@ -392,6 +429,67 @@ class TestPagedCfgGraph(unittest.TestCase):
             store.put(0, b"x")
         assert grow.call_count == 1
 
+    def test_eviction_round_is_one_backend_write(self):
+        class _BatchBackend(_DictBackend):
+            def __init__(self):
+                super().__init__()
+                self.batches: list[int] = []
+
+            def put_many(self, items):
+                self.batches.append(len(items))
+                super().put_many(items)
+
+        ref = CfgGraph(window_shift=4)
+        self._populate(ref)
+        backend = _BatchBackend()
+        g = CfgGraph(window_shift=4)
+        g.attach_backend(backend, 1 << 20)
+        self._populate(g)
+        assert g.stats()["resident_segments"] == 3 and not backend.blobs
+        g.budget_bytes = 1
+        st = g.stats()
+        assert backend.batches == [3] and backend.puts == 3
+        assert st["put_batches"] == 1 and st["writebacks"] == 3 and st["evictions"] == 3
+        assert st["resident_segments"] == 0 and st["encode_ns"] > 0
+        assert self._snapshot(g) == self._snapshot(ref)
+        assert g.stats()["loads"] > 0 and g.stats()["decode_ns"] > 0
+
+    def test_segment_store_put_many_is_all_or_nothing(self):
+        binary = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(binary, auto_load_libs=False)
+        store = CFGSegmentStore(proj.kb.rtdb)
+        store.put_many([(1, b"a"), (2, b"b")])
+        assert store.get(1) == b"a" and store.get(2) == b"b"
+        real_begin = proj.kb.rtdb.begin_txn
+
+        class _FailSecondPut:
+            def __init__(self, txn):
+                self._txn = txn
+                self._puts = 0
+
+            def __enter__(self):
+                self._txn.__enter__()
+                return self
+
+            def __exit__(self, *exc):
+                return self._txn.__exit__(*exc)
+
+            def put(self, key, value):
+                self._puts += 1
+                if self._puts == 2:
+                    raise lmdb.MapFullError
+                return self._txn.put(key, value)
+
+        with (
+            mock.patch.object(
+                proj.kb.rtdb, "begin_txn", side_effect=lambda db, write=False: _FailSecondPut(real_begin(db, write))
+            ),
+            mock.patch.object(proj.kb.rtdb, "increase_lmdb_map_size", return_value=False),
+            self.assertRaises(lmdb.MapFullError),
+        ):
+            store.put_many([(1, b"c"), (3, b"d")])
+        assert store.get(1) == b"a" and store.get(3) is None
+
     def test_concurrent_reader_during_backend_call(self):
         # py-lmdb releases the GIL inside put/get; a reader on another thread must wait, not raise
 
@@ -470,20 +568,18 @@ class TestPagedCfgGraph(unittest.TestCase):
         back = CFGModel.parse_from_cmessage(cmsg)
         assert _edge_recs(back) == _edge_recs(ref) and not back.graph.paged
 
-        # angrdb round trip, loaded resident and loaded paged (spilled node fast path)
+        # angrdb round trip, loaded resident and loaded paged
         with tempfile.TemporaryDirectory() as td:
             db_file = os.path.join(td, "fauxware.adb")
             AngrDB(proj, nullpool=True).dump(db_file)
             loaded = AngrDB(nullpool=True).load(db_file)
             assert _edge_recs(loaded.kb.cfgs["CFGFast"]) == _edge_recs(ref)
-            with (
-                mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
-                mock.patch.object(angr.Project, "get_cfg_segment_budget", return_value=1),
-            ):
+            with mock.patch.object(angr.Project, "get_cfg_segment_budget", return_value=1):
                 loaded = AngrDB(nullpool=True).load(db_file)
             lm = loaded.kb.cfgs["CFGFast"]
-            assert lm.graph.paged and lm.graph.spilled_count > 0
+            assert lm.graph.paged and lm.graph.segment_stats()["loads"] == 0  # segments stay cold until touched
             assert _edge_recs(lm) == _edge_recs(ref) and _node_recs(lm) == _node_recs(ref)
+            assert lm.graph.segment_stats()["evictions"] > 0
 
         # pickle round trip of the paged model
         pickled = pickle.loads(pickle.dumps(model))

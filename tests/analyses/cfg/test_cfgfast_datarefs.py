@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
+import io
 import logging
 import os
 import struct
@@ -257,6 +258,209 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert 0x140001000 in cfg.memory_data
         assert cfg.memory_data[0x140001000].sort == MemoryDataSort.String
         assert len(cfg.memory_data[0x140001000].content) == 683666
+
+
+BLOB_BASE = 0x400000
+
+
+def _amd64_data_blob() -> bytes:
+    """Code with RIP-relative references to strings, a wide string, a pointer array and raw bytes."""
+    data_off = 0x100
+    code = bytearray()
+    data = bytearray()
+    targets = {}
+
+    def put(name, blob):
+        targets[name] = data_off + len(data)
+        data.extend(blob)
+
+    put("s1", b"Hello, ")  # not null-terminated, merged with s2
+    put("s2", b"world!\x00")
+    put("w", "Wide string!".encode("utf-16-le") + b"\x00\x00")
+    data.extend(b"\x00" * (-len(data) % 8))
+    put("parr", b"\x00" * 24)
+    put("q", struct.pack("<Q", 0x1122334455667788))
+    put("t1", b"pointed-to text\x00")
+    put("t2", b"another one\x00")
+    put("raw", bytes(range(0x80, 0xC0)))
+    put("tail", b"zz")
+    struct.pack_into(
+        "<QQQ",
+        data,
+        targets["parr"] - data_off,
+        BLOB_BASE + targets["t1"],
+        BLOB_BASE + targets["t2"],
+        BLOB_BASE + targets["raw"],
+    )
+    for i, name in enumerate(("s1", "s2", "w", "parr", "q", "raw")):
+        # lea r64, [rip + disp32]
+        disp = targets[name] - (len(code) + 7)
+        code += bytes([0x48, 0x8D, 0x05 | (i << 3)]) + struct.pack("<i", disp)
+    code += b"\xc3"
+    code += b"\x90" * (data_off - len(code))
+    return bytes(code + data)
+
+
+def _armel_data_blob() -> bytes:
+    """ldr rN, [pc, #imm] loads of data addresses from a literal pool."""
+    code = bytearray(b"\x00" * 16 + b"\x1e\xff\x2f\xe1")  # four ldr, then bx lr
+    pool_off = len(code)
+    data_off = 0x80
+    data = bytearray()
+    targets = []
+    for blob in (
+        b"ARM text\x00",
+        b"no-null",
+        b"-tail\x00",
+        struct.pack("<II", BLOB_BASE + 0x80, BLOB_BASE + 0x89),
+    ):
+        targets.append(data_off + len(data))
+        data += blob
+    for i in range(4):
+        imm = pool_off + 4 * i - (4 * i + 8)
+        struct.pack_into("<I", code, 4 * i, 0xE59F0000 | (i << 12) | imm)
+    code += b"".join(struct.pack("<I", BLOB_BASE + t) for t in targets)
+    code += b"\x00" * (data_off - len(code))
+    return bytes(code + data)
+
+
+def _guess_custom_sort(model, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint:disable=unused-argument
+    if data_addr % 16 == 0:
+        return "custom-sort", 4
+    return None, None
+
+
+# (addr, size, sort, reference_size, max_size, pointer_addr, content), recorded with the Python implementation of
+# CFGModel.tidy_data_references and CFGFast._post_process_string_references (angr 4efdbc573)
+FAUXWARE_X86_64_MEMORY_DATA = [
+    (0x400238, 28, "string", None, 28, None, b"/lib64/ld-linux-x86-64.so.2"),
+    (0x400254, 32, "unknown", None, 32, None, None),
+    (0x400274, 36, "unknown", None, 36, None, None),
+    (0x400298, 28, "unknown", None, 28, None, None),
+    (0x4002B8, 216, "unknown", None, 216, None, None),
+    (0x400390, 90, "unknown", None, 90, None, None),
+    (0x4003EA, 18, "unknown", None, 18, None, None),
+    (0x400400, 32, "unknown", None, 32, None, None),
+    (0x400420, 8, "pointer-array", None, 24, None, None),
+    (0x400428, 16, None, None, 16, None, None),
+    (0x400438, 8, "pointer-array", None, 168, None, None),
+    (0x400440, 160, None, None, 160, None, None),
+    (0x40071D, 0, "code reference", None, 195, None, None),
+    (0x4007E0, 0, "code reference", None, 144, None, None),
+    (0x400870, 0, "code reference", None, 72, None, None),
+    (0x4008C8, 8, "unknown", None, 8, None, None),
+    (0x4008D0, 9, "string", None, 16, 0x601048, b"SOSNEAKY"),
+    (0x4008D9, 7, None, None, 7, None, None),
+    (0x4008E0, 44, "string", None, 44, None, b"Welcome to the admin console, trusted user!"),
+    (0x40090C, 9, "string", None, 9, None, b"Go away!"),
+    (0x400915, 11, "string", None, 11, None, b"Username: "),
+    (0x400920, 11, "string", None, 11, None, b"Password: "),
+    (0x40092C, 68, "unknown", None, 68, None, None),
+    (0x400970, 260, "unknown", None, 260, None, None),
+    (0x600E28, 16, "integer", None, 16, None, None),
+    (0x600E38, 8, "unknown", None, 8, None, None),
+    (0x600E40, 8, "unknown", None, 8, None, None),
+    (0x600E48, 8, "integer", None, 8, None, None),
+    (0x600E50, 400, "unknown", None, 400, None, None),
+    (0x600FE0, 8, "integer", None, 8, None, None),
+    (0x600FE8, 8, "pointer-array", None, 8, None, None),
+    (0x600FF0, 8, "integer", None, 8, None, None),
+    (0x600FF8, 8, "integer", None, 8, None, None),
+    (0x601000, 8, "GOT PLT Entry", None, 8, None, None),
+    (0x601008, 8, "GOT PLT Entry", None, 8, None, None),
+    (0x601010, 8, "GOT PLT Entry", None, 8, None, None),
+    (0x601018, 8, "GOT PLT Entry", None, 8, None, None),
+    (0x601020, 2, "string", None, 8, None, b" "),
+    (0x601028, 2, "string", None, 8, None, b"("),
+    (0x601030, 2, "string", None, 8, None, b"0"),
+    (0x601038, 16, "unknown", None, 16, None, None),
+    (0x601048, 8, "pointer-array", None, 8, None, None),
+    (0x601050, 1, "integer", None, 8, None, None),
+    (0x601051, 7, None, None, 7, None, None),
+    (0x601058, 8, "integer", None, 8, None, None),
+]
+
+BLOB_MEMORY_DATA = {
+    "AMD64": [
+        (43, 212, "unknown", None, None, None, None),
+        (256, 7, "string", 13, 7, None, b"Hello, world!"),
+        (263, 7, "string", None, 7, None, b"world!"),
+        (270, 24, "unicode", None, 26, None, b"W\x00i\x00d\x00e\x00 \x00s\x00t\x00r\x00i\x00n\x00g\x00!\x00"),
+        (294, 2, "alignment", None, None, None, None),
+        (296, 24, "pointer-array", None, None, None, None),
+        (320, 0, "unknown", None, 8, None, None),
+        (328, 16, "string", None, 28, None, b"pointed-to text"),
+        (344, 12, "string", None, 78, 304, b"another one"),
+        (356, 64, "unknown", None, None, None, None),
+    ],
+    "AMD64-handler": [
+        (43, 212, "unknown", None, None, None, None),
+        (256, 7, "string", 13, 7, None, b"Hello, world!"),
+        (263, 7, "string", None, 7, None, b"world!"),
+        (270, 24, "unicode", None, 26, None, b"W\x00i\x00d\x00e\x00 \x00s\x00t\x00r\x00i\x00n\x00g\x00!\x00"),
+        (294, 2, "alignment", None, None, None, None),
+        (296, 24, "pointer-array", None, None, None, None),
+        (320, 4, "custom-sort", None, 8, None, None),
+        (328, 16, "string", None, 28, None, b"pointed-to text"),
+        (344, 12, "string", None, 78, 304, b"another one"),
+        (356, 64, "unknown", None, None, None, None),
+    ],
+    "ARMEL": [
+        (20, 4, "pointer-array", None, 4, None, None),
+        (24, 4, "pointer-array", None, 4, None, None),
+        (28, 4, "pointer-array", None, 4, None, None),
+        (32, 4, "pointer-array", None, 96, None, None),
+        (36, 92, "alignment", None, None, None, None),
+        (128, 9, "string", None, None, None, b"ARM text"),
+        (137, 13, "string", None, None, None, b"no-null-tail"),
+        (144, 6, "string", None, 6, None, b"-tail"),
+        (150, 8, "pointer-array", None, 8, None, None),
+    ],
+}
+
+
+class TestDataTidyRecorded(unittest.TestCase):
+    @staticmethod
+    def _memory_data(cfg, base: int = 0) -> list[tuple]:
+        return [
+            (
+                addr - base,
+                md.size,
+                md.sort,
+                md.reference_size,
+                md.max_size,
+                None if md.pointer_addr is None else md.pointer_addr - base,
+                md.content,
+            )
+            for addr, md in cfg.model.memory_data.items()
+        ]
+
+    @staticmethod
+    def _blob_cfg(data: bytes, arch: str, **kwargs):
+        proj = angr.Project(
+            io.BytesIO(data),
+            main_opts={"backend": "blob", "arch": arch, "base_addr": BLOB_BASE, "entry_point": BLOB_BASE},
+            auto_load_libs=False,
+        )
+        return proj.analyses.CFGFast(normalize=False, **kwargs)
+
+    def test_fauxware_x86_64(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=False)
+        assert self._memory_data(cfg) == FAUXWARE_X86_64_MEMORY_DATA
+
+    def test_amd64_blob(self):
+        cfg = self._blob_cfg(_amd64_data_blob(), "AMD64")
+        assert self._memory_data(cfg, BLOB_BASE) == BLOB_MEMORY_DATA["AMD64"]
+
+    def test_amd64_blob_with_guessing_handler(self):
+        cfg = self._blob_cfg(_amd64_data_blob(), "AMD64", data_type_guessing_handlers=[_guess_custom_sort])
+        assert self._memory_data(cfg, BLOB_BASE) == BLOB_MEMORY_DATA["AMD64-handler"]
+        assert cfg._seg_list.occupied_by_sort(BLOB_BASE + 320) == "custom-sort"
+
+    def test_armel_blob(self):
+        cfg = self._blob_cfg(_armel_data_blob(), "ARMEL")
+        assert self._memory_data(cfg, BLOB_BASE) == BLOB_MEMORY_DATA["ARMEL"]
 
 
 if __name__ == "__main__":
