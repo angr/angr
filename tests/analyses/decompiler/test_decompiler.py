@@ -2384,7 +2384,7 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen is not None and isinstance(d.codegen.text, str)
 
         print_decompilation_result(d)
-        assert re.search(r"\([av]\d \* 48271\) % 0x7fffffff;", d.codegen.text) is not None
+        assert re.search(r"[av]\d \* 48271 % 0x7fffffff;", d.codegen.text) is not None
 
     # @for_all_structuring_algos
     def _setup_decompiling_dirname_quotearg_n_options(self):
