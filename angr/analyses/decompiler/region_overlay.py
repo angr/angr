@@ -779,17 +779,22 @@ class RegionOverlay[T: RegionBound]:
 
         self._mgr._record(inverse)
 
-    def complete_graph_entry_count(self, node: Tx[T]) -> int:
+    def complete_graph_entry_count(self, node: Tx[T], excluding: Iterable[Tx[T]] = ()) -> int:
         """
         The number of edges entering a node in the complete graph, counted over every region. For a region object,
-        the entries of its head from outside the region (its own back edges do not count).
+        the entries of its head from outside the region (its own back edges do not count). Entries from the nodes in
+        ``excluding``, or from under the region objects in it, are not counted.
         """
+        excluded: set[T] = set()
+        for src in excluding:
+            excluded |= self._underlying(src)
         if isinstance(node, RegionOverlay):
             entry = self._resolve_entry(node)
             if entry is None or entry not in self._mgr.graph:
                 return 0
-            return sum(1 for pred in self._mgr.graph.predecessors(entry) if pred not in node._under)
-        return self._mgr.graph.in_degree[node]
+            excluded |= node._under
+            node = entry
+        return sum(1 for pred in self._mgr.graph.predecessors(node) if pred not in excluded)
 
     def external_entry_count(self, node: Tx[T]) -> int:
         """
