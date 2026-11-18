@@ -191,7 +191,13 @@ class TestUnicorn(unittest.TestCase):
         self._run_longinit("x86_64")
 
     def test_fauxware_arm(self):
-        p = angr.Project(os.path.join(test_location, "armel", "fauxware"), auto_load_libs=False)
+        self._run_fauxware_arm("armel")
+
+    def test_fauxware_armhf(self):
+        self._run_fauxware_arm("armhf")
+
+    def _run_fauxware_arm(self, arch):
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
         s_unicorn = p.factory.entry_state(add_options=so.unicorn)  # unicorn
         pg = p.factory.simulation_manager(s_unicorn)
         pg.explore()
