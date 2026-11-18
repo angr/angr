@@ -2304,12 +2304,14 @@ class AILSimplifier(Analysis):
             # Instead of discarding the reaching-definitions cache and recomputing it from scratch on every iteration,
             # incrementally update it: removed statements were replaced in place by NoOp placeholders, so statement
             # indices are stable and we only need to drop the removed vvar definitions and their now-eliminated uses.
+            # When the update cannot keep the model exact, it declines, and the model is rebuilt instead.
             if self._reaching_definitions is not None and changed_block_keys:
                 edited_blocks = [
                     block for block in self.func_graph.nodes() if (block.addr, block.idx) in changed_block_keys
                 ]
-                self._reaching_definitions.update_after_block_edits(edited_blocks)
-                if _VERIFY_INCREMENTAL_RD:
+                if not self._reaching_definitions.update_after_block_edits(edited_blocks):
+                    self._clear_reaching_definitions_cache()
+                elif _VERIFY_INCREMENTAL_RD:
                     self._verify_incremental_reaching_definitions()
             # propagation results are no longer reliable after removing statements
             self._propagator = None
