@@ -133,7 +133,9 @@ class SimEngineFCPVEX(
         return self._load_callback(addr, size)
 
     def _process_block_end(self, stmt_result: list, whitelist: set[int] | None) -> None:
-        if self.block.vex.jumpkind == "Ijk_Call":
+        jumpkind = self.block.vex.jumpkind
+        # a syscall returns its result in the same register as a call
+        if jumpkind is not None and (jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys")):
             self.state.register_written(self.arch.ret_offset, self.arch.bytes, None)
 
     def _top(self, bits: int):
@@ -303,6 +305,8 @@ class FastConstantPropagation(Analysis):
         self._load_callback = load_callback
 
         self.replacements = {}
+        # block address -> register offset -> the register's value on entry to that block
+        self.block_entry_regs: dict[int, dict[int, SV]] = {}
 
         self._analyze()
 
@@ -354,6 +358,7 @@ class FastConstantPropagation(Analysis):
                 continue
 
             block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self._vex_cross_insn_opt)
+            self.block_entry_regs[node.addr] = state.regs.copy()
             engine.process(state, block=block)
 
             # if the node ends with a function call, call _handle_function
