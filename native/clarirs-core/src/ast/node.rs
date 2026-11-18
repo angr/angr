@@ -252,8 +252,21 @@ impl Drop for AstNode<'_> {
         // verifies liveness, so a throwaway duplicate built by a racing
         // thread leaves the live entry untouched. This body runs
         // before `op`'s child references drop, so the cache lock is never held
-        // across the recursive child drops.
+        // across the child drops.
         self.ctx.ast_cache.remove_if_expired(self.hash);
+
+        // Deep terms drop from a work list; the drop glue recurses once per level.
+        if self.depth < 1024 {
+            return;
+        }
+        let mut pending: Vec<AstRef> = self.op.child_iter().collect();
+        self.op = AstOp::BoolV(false);
+        while let Some(child) = pending.pop() {
+            if let Some(mut node) = Arc::into_inner(child) {
+                pending.extend(node.op.child_iter());
+                node.op = AstOp::BoolV(false);
+            }
+        }
     }
 }
 
@@ -319,5 +332,28 @@ mod tests {
         )?;
         assert!(k.variables().is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn test_deep_chain_drops_without_recursion() {
+        std::thread::Builder::new()
+            .stack_size(256 << 10)
+            .spawn(|| -> Result<(), ClarirsError> {
+                let ctx = Context::new();
+                let y = ctx.bvs("y", 32)?;
+                let inner = ctx.add(ctx.bvs("x", 32)?, y.clone())?;
+                let mut chain = inner.clone();
+                for _ in 0..200_000 {
+                    chain = ctx.add(chain, y.clone())?;
+                }
+                drop(chain);
+                // x, y and inner are left
+                assert_eq!(ctx.ast_cache.len(), 3);
+                Ok(())
+            })
+            .unwrap()
+            .join()
+            .unwrap()
+            .unwrap();
     }
 }
