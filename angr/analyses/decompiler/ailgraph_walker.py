@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import networkx
+
 if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any
-
-    import networkx
 
     from angr import ailment
 
@@ -81,13 +81,29 @@ def traverse_in_order(
     entry_blocks: Sequence[ailment.Block],
     visitor: Callable[[ailment.Block], Any],
 ):
+    def sort_key(block: ailment.Block) -> tuple[int, int]:
+        return block.addr, -1 if block.idx is None else block.idx
+
     seen = set()
     pending = list(entry_blocks)
     last_pending = set(pending)
     forcing = set()
 
     # walk this graph in a special order to make sure we see defs of variables before their uses when possible
-    while pending:
+    while len(seen) < len(ail_graph):
+        if not pending:
+            unseen = set(ail_graph) - seen
+            unseen_graph = ail_graph.subgraph(unseen)
+            components = list(networkx.strongly_connected_components(unseen_graph))
+            source_components = [
+                component
+                for component in components
+                if not any(pred not in component for node in component for pred in unseen_graph.pred[node])
+            ]
+            pending = sorted((min(component, key=sort_key) for component in source_components), key=sort_key)
+            last_pending = set(pending)
+            forcing = set()
+
         stack = pending
         pending = set()
 
@@ -102,7 +118,7 @@ def traverse_in_order(
 
                 news = set(ail_graph.succ[block])
                 news -= seen
-                stack.extend(sorted(news))
+                stack.extend(sorted(news, key=sort_key))
             else:
                 pending.add(block)
 
@@ -126,4 +142,4 @@ def traverse_in_order(
             forcing = set(ready)
 
         last_pending = set(pending)
-        pending = sorted(pending)
+        pending = sorted(pending, key=sort_key)
