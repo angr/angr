@@ -218,7 +218,7 @@ class OptimizationPass(BaseOptimizationPass):
         seen = set()
 
         if start_node is None:
-            start_node = self._get_block(self._func.addr)
+            start_node = self._get_block(self.entry_node_addr[0], idx=self.entry_node_addr[1])
         if start_node is None:
             return
 
