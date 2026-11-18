@@ -1888,7 +1888,8 @@ class PhoenixStructurer(StructurerBase):
         if graph.in_degree[node] == 1:
             node_pred = next(iter(graph.predecessors(node)))
 
-        case_nodes = list(graph.successors(node_a))
+        # cases targeting the region head or the switch head become gotos (see _switch_build_cases)
+        case_nodes = [nn for nn in graph.successors(node_a) if nn is not self._region.head and nn is not node]
 
         # case 1: the common successor happens to be directly reachable from node_a (usually as a result of compiler
         # optimization)
@@ -2312,6 +2313,10 @@ class PhoenixStructurer(StructurerBase):
         full_graph = full_graph_raw.filtered()
 
         successors = list(graph.successors(node))
+        if self._region.head in successors:
+            # never absorb the region head as a case: it is also entered from outside the region, which the in-degree
+            # check below cannot see
+            return False
 
         jump_table = self.jump_tables[node.addr]
         assert jump_table.jumptable_entries is not None
