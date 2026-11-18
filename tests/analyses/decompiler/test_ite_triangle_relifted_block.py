@@ -4,12 +4,19 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
 
+import archinfo
+
+import angr
 from angr.ailment import Block
 from angr.ailment.expression import Const, Register
-from angr.ailment.statement import Assignment, Jump
+from angr.ailment.statement import Assignment, Jump, Return, Store
 from angr.analyses.decompiler.clinic import Clinic
+from tests.common import bin_location
+
+test_location = os.path.join(bin_location, "tests")
 
 
 def _jump(target, ins_addr=0x400100):
@@ -43,6 +50,50 @@ class TestITETriangleRelistedBlock(unittest.TestCase):
 
         assert Clinic._remove_redundant_jump_blocks_repatch_relifted_block(patched, relifted) is True
         assert relifted.statements[-1].likes(_jump(0x400104))
+
+
+class TestPcodeITEIsNotSplit(unittest.TestCase):
+    """
+    A p-code ITE stands for ops that a relative branch skips. Splitting its instruction into a diamond whose arms are
+    relifts of the whole instruction would run those ops again in each arm.
+    """
+
+    @staticmethod
+    def _graph(func_addr):
+        proj = angr.Project(
+            os.path.join(test_location, "hppa", "test-instr_hppa"),
+            auto_load_libs=False,
+            main_opts={"backend": "elf", "arch": archinfo.ArchPcode("pa-risc:BE:32:default")},
+        )
+        cfg = proj.analyses.CFGFast(
+            normalize=True, function_starts=[func_addr], start_at_entry=False, force_complete_scan=False
+        )
+        graph = proj.analyses.Clinic(cfg.functions[func_addr], cfg=cfg.model).graph
+        assert graph is not None
+        return graph
+
+    def test_an_instruction_that_returns_is_not_split(self):
+        # In raise, the load at 0x1657c sits in the delay slot of the return, so its p-code ends in that return, and a
+        # branch inside the instruction chooses between two register writes.
+        graph = self._graph(0x16508)
+
+        returning = [block for block in graph if any(isinstance(stmt, Return) for stmt in block.statements)]
+        assert returning
+        for block in returning:
+            assert graph.out_degree(block) == 0, f"block {block.addr:#x} returns but has successors"
+
+    def test_a_predicated_store_is_made_once(self):
+        # `CMPICLR,= 0x0,r8,r0` nullifies the next instruction when r8 is 0, so `STW r22,0x0(r8)` at 0x177c0 stores
+        # only when r8 is not 0.
+        graph = self._graph(0x177BC)
+
+        stores = [
+            stmt
+            for block in graph
+            for stmt in block.statements
+            if isinstance(stmt, Store) and stmt.tags.get("ins_addr") == 0x177C0
+        ]
+        assert len(stores) == 1
 
 
 if __name__ == "__main__":
