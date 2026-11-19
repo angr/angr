@@ -17,16 +17,18 @@ from .pe_rebuilder import RecoveredImport, rebuild_pe
 _l = logging.getLogger(__name__)
 
 PAGE = 0x1000
+_MIN_CODE_CALLS = 20
 _SKIPPED_SECTIONS = {".rsrc", ".reloc", ".tls", ".idata", ".edata", ".pdata", ".taggant"}
 
 
 @dataclass
 class UnpackedLayer:
     """
-    A snapshot taken when execution first entered memory that was written at run time.
+    A snapshot of the image. Normally taken when execution first entered memory that was written at run time; `oep`
+    is None for a snapshot taken at the end of a run that never showed such a transfer.
     """
 
-    oep: int
+    oep: int | None
     section: str
     blocks: int
     seconds: float
@@ -39,10 +41,11 @@ class UnpackedLayer:
         """
         A loadable PE whose entry point is this layer's OEP and whose import table is rebuilt.
         """
+        entry_rva = None if self.oep is None else self.oep - image_base
         try:
-            return rebuild_pe(self.image, entry_rva=self.oep - image_base, imports=self.imports)
+            return rebuild_pe(self.image, entry_rva=entry_rva, imports=self.imports)
         except ValueError:
-            return rebuild_pe(self.image, entry_rva=self.oep - image_base)
+            return rebuild_pe(self.image, entry_rva=entry_rva)
 
 
 class GenericUnpackerCore:
@@ -98,6 +101,24 @@ class GenericUnpackerCore:
             region = emu.unwatch_exec(stop.addr)
             if region is not None and self._was_written(stop.addr, region[0]):
                 self.layers.append(self._snapshot(stop.addr, region[0]))
+        if not self.layers:
+            self._snapshot_unpacked_code()
+
+    def _snapshot_unpacked_code(self) -> None:
+        """
+        Fallback for runs that never jumped into a watched section (for example when the entry point is virtualized
+        or the protector quit first): if a watched section was filled with code anyway, keep that image.
+        """
+        emu = self.emu
+        best: UnpackedLayer | None = None
+        for start in self._sections:
+            if emu.read(start, len(self._initial[start])) == self._initial[start]:
+                continue
+            layer = self._snapshot(None, start)
+            if layer.calls >= _MIN_CODE_CALLS and (best is None or layer.calls > best.calls):
+                best = layer
+        if best is not None:
+            self.layers.append(best)
 
     def _was_written(self, addr: int, start: int) -> bool:
         initial = self._initial[start]
@@ -108,7 +129,7 @@ class GenericUnpackerCore:
         md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64 if self.emu.is_64bit else capstone.CS_MODE_32)
         return len(list(md.disasm(self.emu.read(addr, 64), addr, count=6))) >= 4
 
-    def _snapshot(self, addr: int, start: int) -> UnpackedLayer:
+    def _snapshot(self, addr: int | None, start: int) -> UnpackedLayer:
         emu = self.emu
         section = self._sections[start]
         image = bytearray(emu.read(emu.image_base, emu.image_size))
@@ -125,7 +146,7 @@ class GenericUnpackerCore:
             image=bytes(image),
             imports=self._recover_imports(image),
         )
-        _l.info("Layer %d: OEP candidate %#x in %s after %d blocks", len(self.layers), addr, layer.section, emu.blocks)
+        _l.info("Layer %d: OEP %s in %s after %d blocks", len(self.layers), addr, layer.section, emu.blocks)
         return layer
 
     def _recover_imports(self, image: bytearray) -> list[RecoveredImport]:
@@ -159,7 +180,7 @@ class GenericUnpackerCore:
         primary_name = section_name(primary) if primary is not None else None
         for candidates in (
             [layer for layer in self.layers if layer.section == primary_name],
-            [layer for layer in self.layers if layer.calls >= 20],
+            [layer for layer in self.layers if layer.calls >= _MIN_CODE_CALLS],
         ):
             if candidates:
                 return candidates[-1]

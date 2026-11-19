@@ -81,6 +81,21 @@ class TestGenericUnpacker(unittest.TestCase):
         assert pe.OPTIONAL_HEADER.AddressOfEntryPoint == OEP_RVA
         assert pe.sections[0].get_data()[: len(code)] == code
 
+    def test_snapshot_without_transfer(self):
+        # the stub decrypts .text but returns instead of jumping to the OEP
+        packed, code = build_xor_packed()
+        packed = packed.replace(b"\xe2\xfa\xe9", b"\xe2\xfa\xc3")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "packed.exe")
+            with open(path, "wb") as f:
+                f.write(packed)
+            unpacker = angr.Project(path, auto_load_libs=False).analyses.GenericUnpacker(timeout=30)
+        assert unpacker.oep is None
+        assert unpacker.unpacked is not None
+        pe = pefile.PE(data=unpacker.unpacked)
+        assert pe.OPTIONAL_HEADER.AddressOfEntryPoint == STUB_RVA
+        assert pe.sections[0].get_data()[: len(code)] == code
+
 
 class TestUnpackerFacade(unittest.TestCase):
     def _project(self, tmpdir: str, data: bytes) -> angr.Project:
