@@ -5449,7 +5449,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             ):
                 continue
 
-            if self.kb.functions.get_func_block_count(func_addr) >= BAD_FUNC_MAX_BLOCKS:
+            if self.kb.functions.get_func_block_count(func_addr) > BAD_FUNC_MAX_BLOCKS:
                 continue
 
             func = self.kb.functions.get_by_addr(func_addr)
