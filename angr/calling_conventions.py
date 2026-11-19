@@ -3982,6 +3982,8 @@ def call_clobbered_regs(cc: SimCC, target: Function | None, arch: archinfo.Arch)
     This function is aware of special behaviors of functions, such as stack-probe callees (``__chkstk`` /
     ``__alloca_probe``). Future logic for other special functions may be added to this function as needed.
     """
+    if target is not None and target.name == "_security_check_cookie" and arch.name in {"X86", "AMD64"}:
+        return []
     if target is not None and is_stack_probe(target):
         return ["rax"] if arch.name == "AMD64" else ["eax"] if arch.name == "X86" else []
     return list(cc.CALLER_SAVED_REGS)
