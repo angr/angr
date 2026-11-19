@@ -252,7 +252,9 @@ def identify_packer(data: bytes) -> PackerInfo:
 
     code = secs[code_idx]
     code_in_outer = next((packer for pattern, packer in _OUTER_PACKERS if pattern.match(code.name)), None)
-    if info.outer_packer is not None:
+    if info.outer_packer is not None and epi is not None and secs[epi].calls >= 20:
+        info.packed, info.reason = False, f"code in the {info.outer_packer}-named entry section is readable"
+    elif info.outer_packer is not None:
         info.packed, info.reason = True, f"{info.outer_packer} is the outermost layer"
     elif info.protector is None:
         packed, reason = _code_verdict(code, None)
