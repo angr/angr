@@ -88,7 +88,8 @@ class GenericUnpackerCore:
             if self.layers:
                 budget = min(budget, self._started + self.layers[-1].seconds + settle_timeout - now)
             if budget <= 0:
-                self.stop = EmulationStop(StopReason.BUDGET, emu.pc)
+                if not self.layers or self.stop is None:
+                    self.stop = EmulationStop(StopReason.BUDGET, emu.pc)
                 break
             stop = emu.run(timeout=budget)
             self.stop = stop
@@ -148,28 +149,68 @@ class GenericUnpackerCore:
 
     @property
     def final_layer(self) -> UnpackedLayer | None:
-        return self.layers[-1] if self.layers else None
+        """
+        The layer to report. Later transfers into written memory are often a protector's own runtime (for example a
+        VM section called from the program), so the primary code section wins, then the deepest code-like layer.
+        """
+        if not self.layers:
+            return None
+        primary = next((s for s in self.emu.pe.sections if s.Characteristics & 0x20000000), None)
+        primary_name = section_name(primary) if primary is not None else None
+        for candidates in (
+            [layer for layer in self.layers if layer.section == primary_name],
+            [layer for layer in self.layers if layer.calls >= 20],
+        ):
+            if candidates:
+                return candidates[-1]
+        return self.layers[-1]
 
 
-class GenericUnpacker(Analysis):
+class EmulatingUnpacker(Analysis):
     """
-    Unpack the main PE object by emulating it until it jumps into code it wrote at run time.
+    Base class of the unpackers that emulate the main PE object until it jumps into code it wrote at run time.
 
-    `unpacked` is a rebuilt PE for the deepest layer found (None if the binary never ran written code), `oep` is its
-    entry point, and `layers` lists every intermediate layer.
+    `unpacked` is a rebuilt PE for the reported layer (None if the binary never ran written code), `oep` is its
+    entry point, and `layers` lists every layer seen.
     """
 
     def __init__(self, timeout: float = 300.0, settle_timeout: float = 20.0):
         binary = self.project.loader.main_object.binary
         if binary is None:
-            raise ValueError("GenericUnpacker requires a file-backed main object")
-        self.core = GenericUnpackerCore(binary)
-        self.core.run(timeout=timeout, settle_timeout=settle_timeout)
-        self.layers = self.core.layers
-        self.stop = self.core.stop
-        final = self.core.final_layer
-        self.oep: int | None = final.oep if final is not None else None
-        self.unpacked: bytes | None = final.rebuild(self.core.emu.image_base) if final is not None else None
+            raise ValueError("Unpacking requires a file-backed main object")
+        self.binary: str = binary
+        with open(binary, "rb") as f:
+            self.data: bytes = f.read()
+        self.layers: list[UnpackedLayer] = []
+        self.stop: EmulationStop | None = None
+        self.oep: int | None = None
+        self.unpacked: bytes | None = None
+        self.core: GenericUnpackerCore | None = None
+        self._emulate(self._sections_to_watch(), timeout, settle_timeout)
+
+    def _sections_to_watch(self) -> set[int] | None:
+        """
+        Indices of the sections that hold the original program, or None to watch every plausible section.
+        """
+        return None
+
+    def _emulate(self, watch_sections: set[int] | None, timeout: float, settle_timeout: float) -> None:
+        core = GenericUnpackerCore(self.binary, watch_sections)
+        core.run(timeout=timeout, settle_timeout=settle_timeout)
+        self.core = core
+        self.layers = core.layers
+        self.stop = core.stop
+        final = core.final_layer
+        if final is not None:
+            self.oep = final.oep
+            self.unpacked = final.rebuild(core.emu.image_base)
+
+
+class GenericUnpacker(EmulatingUnpacker):
+    """
+    Packer-agnostic unpacking: every section except the entry section is watched, and after a layer is found the
+    program keeps running for settle_timeout seconds in case a deeper layer follows.
+    """
 
 
 AnalysesHub.register_default("GenericUnpacker", GenericUnpacker)

@@ -75,6 +75,9 @@ class ExceptionDispatcher:
             return
         ptr = emu.ptr_size
         frame = (emu.sp - 0x1000) & ~0xF
+        if emu.space.find(frame - 0x1000) is None or emu.space.find(frame + 0x800) is None:
+            emu.stop(StopReason.ERROR, f"exception {code:#x} at {pc:#x} with an unusable stack ({emu.sp:#x})")
+            return
         context = frame + 0x100
         record = frame + 0x10
         self.write_context(context, pc)

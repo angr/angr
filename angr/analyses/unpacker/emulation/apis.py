@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .stops import StopReason
+from .threads import EventObject, Thread
 
 if TYPE_CHECKING:
     from .environment import WindowsEmulator
@@ -15,6 +16,8 @@ ApiFunc = Callable[["WindowsEmulator", list[int]], "int | None"]
 
 INVALID_HANDLE = -1
 STATUS_SUCCESS = 0
+STATUS_INFO_LENGTH_MISMATCH = 0xC0000004
+STATUS_INVALID_HANDLE = 0xC0000008
 STATUS_NOT_IMPLEMENTED = 0xC0000002
 STATUS_PORT_NOT_SET = 0xC0000353
 STATUS_INVALID_INFO_CLASS = 0xC0000003
@@ -375,7 +378,18 @@ _const(("GetCurrentThread",), 0, -2)
 _const(("IsDebuggerPresent", "GetLastActivePopup", "GetACP"), 0, 0)
 _const(("GetOEMCP",), 0, 437)
 _const(("IsProcessorFeaturePresent",), 1, 1)
-_const(("CloseHandle", "NtClose", "ZwClose"), 1, 1)
+
+
+@api("CloseHandle", nargs=1)
+def close_handle(emu: WindowsEmulator, args: list[int]) -> int:
+    return int(emu.handles.pop(args[0], None) is not None)
+
+
+@api("NtClose", "ZwClose", nargs=1)
+def nt_close(emu: WindowsEmulator, args: list[int]) -> int:
+    return STATUS_SUCCESS if emu.handles.pop(args[0], None) is not None else STATUS_INVALID_HANDLE
+
+
 _const(("SetErrorMode", "OutputDebugStringA", "OutputDebugStringW"), 1, 0)
 _const(("InitializeCriticalSection", "DeleteCriticalSection", "EnterCriticalSection", "LeaveCriticalSection",
         "RtlInitializeCriticalSection", "RtlEnterCriticalSection", "RtlLeaveCriticalSection",
@@ -422,7 +436,6 @@ def nt_continue(emu: WindowsEmulator, args: list[int]) -> None:
 
 
 _const(("GetSystemMetrics",), 1, 0)
-_const(("WaitForSingleObject",), 2, 0)
 _const(("FindWindowA", "FindWindowW"), 2, 0)
 _const(("GetEnvironmentVariableA", "GetEnvironmentVariableW"), 3, 0)
 _const(("SetThreadAffinityMask", "SetProcessAffinityMask"), 2, 1)
@@ -435,7 +448,7 @@ def get_current_process_id(emu: WindowsEmulator, args: list[int]) -> int:  # pyl
 
 @api("GetCurrentThreadId", nargs=0)
 def get_current_thread_id(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    return emu.TID
+    return emu.thread.tid
 
 
 @api("GetLastError", "RtlGetLastWin32Error", nargs=0)
@@ -458,22 +471,27 @@ def check_remote_debugger_present(emu: WindowsEmulator, args: list[int]) -> int:
 @api("NtQueryInformationProcess", "ZwQueryInformationProcess", nargs=5)
 def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
     info_class, buf, length = args[1], args[2], args[3]
+    status = STATUS_SUCCESS
     if info_class == 7:  # ProcessDebugPort
         emu.write_ptr(buf, 0)
+        length = emu.ptr_size
     elif info_class == 0x1E:  # ProcessDebugObjectHandle
         emu.write_ptr(buf, 0)
-        return STATUS_PORT_NOT_SET
+        length = emu.ptr_size
+        status = STATUS_PORT_NOT_SET
     elif info_class == 0x1F:  # ProcessDebugFlags
         emu.write_u32(buf, 1)
+        length = 4
     elif info_class == 0:  # ProcessBasicInformation
         emu.write(buf, bytes(length))
         emu.write_ptr(buf + emu.ptr_size, emu.peb)
         emu.write_ptr(buf + 4 * emu.ptr_size, emu.PID)
     else:
         return STATUS_INVALID_INFO_CLASS
+    # the kernel stores the length after the data even on failure; protectors overlap the two to catch fakes
     if args[4]:
         emu.write_u32(args[4], length)
-    return STATUS_SUCCESS
+    return status
 
 
 @api("GetTickCount", nargs=0)
@@ -489,9 +507,102 @@ def get_tick_count64(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:di
 
 
 @api("Sleep", nargs=1)
-def sleep(emu: WindowsEmulator, args: list[int]) -> int:
-    emu.tick += min(args[0], 60000)
-    return 0
+def sleep(emu: WindowsEmulator, args: list[int]) -> None:
+    emu.tick += min(max(args[0], 1), 60000)
+    emu.yield_thread(0)
+
+
+@api("SleepEx", nargs=2)
+def sleep_ex(emu: WindowsEmulator, args: list[int]) -> None:
+    emu.tick += min(max(args[0], 1), 60000)
+    emu.yield_thread(0)
+
+
+WAIT_TIMEOUT = 0x102
+_MAX_WAITS = 4096
+
+
+def _wait(emu: WindowsEmulator, handle: int, timeout: int) -> int | None:
+    """
+    Wait on a handle. Unsatisfied waits make the thread retry the call after other threads ran.
+    """
+    obj = emu.handles.get(handle)
+    thread = emu.thread
+    emu.tick += 1
+    if isinstance(obj, EventObject):
+        ready = obj.signaled
+        if ready and not obj.manual:
+            obj.signaled = False
+    elif isinstance(obj, Thread):
+        ready = not obj.alive
+    else:
+        ready = True
+    infinite = timeout & 0xFFFFFFFF == 0xFFFFFFFF
+    if ready or (infinite and thread.waits > _MAX_WAITS):
+        thread.waits = 0
+        return 0
+    if timeout == 0 or (not infinite and thread.waits >= 2):
+        thread.waits = 0
+        return WAIT_TIMEOUT
+    thread.waits += 1
+    if emu.block_thread():
+        return None
+    thread.waits = 0
+    return 0 if infinite else WAIT_TIMEOUT
+
+
+@api("WaitForSingleObject", nargs=2)
+def wait_for_single_object(emu: WindowsEmulator, args: list[int]) -> int | None:
+    return _wait(emu, args[0], args[1])
+
+
+@api("WaitForSingleObjectEx", nargs=3)
+def wait_for_single_object_ex(emu: WindowsEmulator, args: list[int]) -> int | None:
+    return _wait(emu, args[0], args[1])
+
+
+@api("WaitForMultipleObjects", nargs=4)
+def wait_for_multiple_objects(emu: WindowsEmulator, args: list[int]) -> int | None:
+    return _wait(emu, emu.read_ptr(args[1]) if args[0] else 0, args[3])
+
+
+@api("SetEvent", nargs=1)
+def set_event(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    if isinstance(obj, EventObject):
+        obj.signaled = True
+    return 1
+
+
+@api("ResetEvent", nargs=1)
+def reset_event(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    if isinstance(obj, EventObject):
+        obj.signaled = False
+    return 1
+
+
+@api("CreateEventA", "CreateEventW", nargs=4)
+def create_event(emu: WindowsEmulator, args: list[int]) -> int:
+    return emu.new_handle(EventObject(bool(args[1]), bool(args[2])))
+
+
+@api("SwitchToThread", "NtYieldExecution", "ZwYieldExecution", nargs=0)
+def switch_to_thread(emu: WindowsEmulator, args: list[int]) -> None:  # pylint:disable=unused-argument
+    emu.yield_thread(1)
+
+
+@api("ExitThread", nargs=1)
+def exit_thread(emu: WindowsEmulator, args: list[int]) -> None:  # pylint:disable=unused-argument
+    emu.exit_thread()
+
+
+@api("TerminateThread", nargs=2)
+def terminate_thread(emu: WindowsEmulator, args: list[int]) -> int:
+    target = emu.handles.get(args[0])
+    if isinstance(target, Thread) and target is not emu.thread:
+        target.alive = False
+    return 1
 
 
 @api("QueryPerformanceCounter", nargs=1)
@@ -726,3 +837,195 @@ def lstrcpy_a(emu: WindowsEmulator, args: list[int]) -> int:
 def lstrcmpi_a(emu: WindowsEmulator, args: list[int]) -> int:
     left, right = emu.read_cstr(args[0]).lower(), emu.read_cstr(args[1]).lower()
     return 0 if left == right else (1 if left > right else -1)
+
+
+#
+# Time, synchronization, registry and CRT startup helpers
+#
+
+
+@api("timeGetTime", nargs=0)
+def time_get_time(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    emu.tick += 16
+    return emu.tick & 0xFFFFFFFF
+
+
+@api("GetLocalTime", "GetSystemTime", nargs=1)
+def get_local_time(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.tick += 16
+    seconds = emu.tick // 1000
+    emu.write(args[0], struct.pack("<8H", 2024, 11, 2, 19, 10, (seconds // 60) % 60, seconds % 60, emu.tick % 1000))
+    return 0
+
+
+@api("NtDelayExecution", "ZwDelayExecution", nargs=2)
+def nt_delay_execution(emu: WindowsEmulator, args: list[int]) -> None:  # pylint:disable=unused-argument
+    emu.tick += 50
+    emu.yield_thread(STATUS_SUCCESS)
+
+
+@api("NtQuerySystemInformation", "ZwQuerySystemInformation", "RtlGetNativeSystemInformation", nargs=4)
+def nt_query_system_information(emu: WindowsEmulator, args: list[int]) -> int:
+    info_class, buf, length, ret_length = args
+    if info_class == 0:  # SystemBasicInformation
+        top = 0x7FFFFFFEFFFF if emu.is_64bit else 0x7FFEFFFF
+        ptr_fmt = "Q" if emu.is_64bit else "I"
+        data = struct.pack(
+            "<7I3" + ptr_fmt + "B", 0, 156250, 0x1000, 0x100000, 1, 0x100000, 0x10000, 0x10000, top, 0xF, 4
+        )
+        data = data.ljust(0x40 if emu.is_64bit else 0x2C, b"\0")
+    elif info_class == 0x23:  # SystemKernelDebuggerInformation: not enabled, not present
+        data = b"\x00\x01"
+    elif info_class == 0xB:  # SystemModuleInformation: no drivers
+        data = bytes(16)
+    else:
+        data = bytes(min(length, 0x1000))
+    if ret_length:
+        emu.write_u32(ret_length, len(data))
+    if length < len(data):
+        return STATUS_INFO_LENGTH_MISMATCH
+    emu.write(buf, data)
+    return STATUS_SUCCESS
+
+
+_const(("NtSetInformationProcess", "ZwSetInformationProcess"), 4, STATUS_SUCCESS)
+_const(("NtQueryInformationThread", "ZwQueryInformationThread"), 5, STATUS_INVALID_INFO_CLASS)
+_const(("NtQueryPerformanceCounter",), 2, STATUS_SUCCESS)
+
+# registry: nothing exists
+_const(("RegOpenKeyA", "RegOpenKeyW"), 3, 2)
+_const(("RegOpenKeyExA", "RegOpenKeyExW"), 5, 2)
+_const(("RegQueryValueExA", "RegQueryValueExW"), 6, 2)
+_const(("RegCloseKey",), 1, 0)
+_const(("RegCreateKeyExA", "RegCreateKeyExW"), 9, 5)
+
+
+def _new_object(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    return emu.new_handle("object")
+
+
+for _name, _nargs in (("CreateMutexA", 3), ("CreateMutexW", 3),
+                      ("CreateSemaphoreA", 4), ("CreateSemaphoreW", 4), ("OpenMutexA", 3), ("OpenEventA", 3)):  # fmt: skip
+    API_HANDLERS[_name] = ApiHandler(_new_object, _nargs)
+
+_const(("ReleaseMutex",), 1, 1)
+_const(("GetStdHandle",), 1, 0x30)
+_const(("GetFileType",), 1, 2)
+_const(("InitializeSListHead", "FreeEnvironmentStringsW", "FreeEnvironmentStringsA"), 1, 1)
+_const(("GetThreadLocale", "GetUserDefaultLCID", "GetSystemDefaultLCID"), 0, 0x409)
+_const(("SetConsoleCtrlHandler", "SetThreadPriority"), 2, 1)
+
+
+@api("CreateThread", nargs=6)
+def create_thread(emu: WindowsEmulator, args: list[int]) -> int:
+    thread = emu.spawn_thread(args[2], args[3])
+    if args[4] & 4:  # CREATE_SUSPENDED
+        thread.alive = False
+    if args[5]:
+        emu.write_u32(args[5], thread.tid)
+    return emu.new_handle(thread)
+
+
+@api("ResumeThread", nargs=1)
+def resume_thread(emu: WindowsEmulator, args: list[int]) -> int:
+    target = emu.handles.get(args[0])
+    if isinstance(target, Thread) and not target.started:
+        target.alive = True
+    return 1
+
+
+@api("EncodePointer", "DecodePointer", "RtlEncodePointer", "RtlDecodePointer", nargs=1)
+def encode_pointer(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    return args[0]
+
+
+@api("GetEnvironmentStringsW", nargs=0)
+def get_environment_strings_w(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    return emu.alloc_cstr("SystemRoot=C:\\Windows\0", wide=True)
+
+
+@api("GetEnvironmentStrings", "GetEnvironmentStringsA", nargs=0)
+def get_environment_strings_a(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    return emu.alloc_cstr("SystemRoot=C:\\Windows\0")
+
+
+@api("SystemFunction036", "RtlGenRandom", nargs=2)
+def rtl_gen_random(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.write(args[0], bytes((0x5A + 37 * i) & 0xFF for i in range(min(args[1], 0x10000))))
+    return 1
+
+
+@api("GetCPInfo", nargs=2)
+def get_cp_info(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.write(args[1], struct.pack("<I2s12s", 1, b"?\0", bytes(12)))
+    return 1
+
+
+@api("MultiByteToWideChar", nargs=6)
+def multi_byte_to_wide_char(emu: WindowsEmulator, args: list[int]) -> int:
+    length = args[3] if args[3] < 0x80000000 else len(emu.read_cstr(args[2], limit=1 << 16)) + 1
+    if args[5] == 0:
+        return length
+    data = emu.read(args[2], min(length, args[5]))
+    emu.write(args[4], data.decode("latin-1").encode("utf-16-le"))
+    return len(data)
+
+
+@api("WideCharToMultiByte", nargs=8)
+def wide_char_to_multi_byte(emu: WindowsEmulator, args: list[int]) -> int:
+    length = args[3] if args[3] < 0x80000000 else len(emu.read_wstr(args[2], limit=1 << 16)) + 1
+    if args[5] == 0:
+        return length
+    data = emu.read(args[2], 2 * min(length, args[5]))
+    emu.write(args[4], data.decode("utf-16-le", "replace").encode("latin-1", "replace"))
+    return len(data) // 2
+
+
+@api("memset", nargs=3, cdecl=True)
+def c_memset(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.write(args[0], bytes([args[1] & 0xFF]) * min(args[2], 1 << 26))
+    return args[0]
+
+
+@api("memcpy", "memmove", nargs=3, cdecl=True)
+def c_memcpy(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.write(args[0], emu.read(args[1], min(args[2], 1 << 26)))
+    return args[0]
+
+
+@api("RtlMoveMemory", "RtlCopyMemory", nargs=3)
+def rtl_move_memory(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.write(args[0], emu.read(args[1], min(args[2], 1 << 26)))
+    return 0
+
+
+@api("RtlZeroMemory", nargs=2)
+def rtl_zero_memory(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.write(args[0], bytes(min(args[1], 1 << 26)))
+    return 0
+
+
+@api("GetThreadContext", nargs=2)
+def get_thread_context(emu: WindowsEmulator, args: list[int]) -> int:
+    # debug registers read back as zero
+    emu.exceptions.write_context(args[1], emu.pc)
+    return 1
+
+
+_const(("SetThreadContext",), 2, 1)
+
+
+@api("NtGetContextThread", "ZwGetContextThread", nargs=2)
+def nt_get_context_thread(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.exceptions.write_context(args[1], emu.pc)
+    return STATUS_SUCCESS
+
+
+@api("IsWow64Process", nargs=2)
+def is_wow64_process(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.write_u32(args[1], 0)
+    return 1
+
+
+_const(("NtRaiseHardError", "ZwRaiseHardError"), 6, STATUS_SUCCESS)
+_const(("GetProcessWindowStation", "GetDesktopWindow", "GetForegroundWindow", "GetActiveWindow"), 0, 0)

@@ -42,6 +42,7 @@ from .exceptions import (
 from .modules import SLOT_SIZE, FakeModule
 from .stops import EmulationStop, StopReason
 from .syscalls import WIN7_X64_SYSCALLS
+from .threads import Thread
 
 if TYPE_CHECKING:
     from angr.project import Project
@@ -182,7 +183,9 @@ class WindowsEmulator:
         self.messages: list[str] = []
         self.allocations: dict[int, int] = {}
         self.handles: dict[int, object] = {}
-        self.tls_slots: list[int] = [0]
+        self.threads: list[Thread] = []
+        self.current_thread = 0
+        self._api_frame = (0, 0)
         self.exit_code: int | None = None
         self.blocks = 0
         self.tick = 0x493E0
@@ -210,9 +213,25 @@ class WindowsEmulator:
     #
 
     def read(self, addr: int, size: int) -> bytes:
+        """
+        Read guest memory. Unmapped or unwritten bytes read as zero.
+        """
         if size <= 0:
             return b""
-        return self.state.solver.eval(self.state.memory.load(addr, size, priv=True), cast_to=bytes)
+        memory = self.state.memory
+        out = bytearray(size)
+        pos = 0
+        while pos < size:
+            chunk = min(size - pos, PAGE - ((addr + pos) & (PAGE - 1)))
+            data = memory.concrete_load(addr + pos, chunk, priv=True)
+            if len(data) == chunk:
+                out[pos : pos + chunk] = data
+            elif self._is_mapped(addr + pos):
+                # partially symbolic or unwritten page: take the slow path
+                bits = memory.load(addr + pos, chunk, priv=True)
+                out[pos : pos + chunk] = self.state.solver.eval(bits, cast_to=bytes)
+            pos += chunk
+        return bytes(out)
 
     def write(self, addr: int, data: bytes) -> None:
         if data:
@@ -366,17 +385,16 @@ class WindowsEmulator:
     def _setup_process(self) -> None:
         lay = self._layout
         self._zero_fill_image()
-        self.stack_limit = self.space.reserve(self.STACK_SIZE, 0x30000)
-        self.stack_base = self.stack_limit + self.STACK_SIZE
-        self.map(self.stack_limit, self.STACK_SIZE)
-        self.teb = self.space.reserve(0x10000, 0x7FFD0000)
         self.peb = self.space.reserve(0x10000, 0x7FFB0000)
-        self.map(self.teb, 0x10000)
         self.map(self.peb, 0x10000)
+        self.threads.append(self._create_thread(0, 0, stack_hint=0x30000, teb_hint=0x7FFD0000))
         self._ldr = self.peb + 0x1000
         self._arena = self.alloc(0x40000)
         self._arena_next = self._arena
-        self.process_heap = self.new_handle("heap")
+        # a heap header whose Flags/ForceFlags look like an undebugged process (HEAP_GROWABLE only)
+        self.process_heap = self.alloc(PAGE)
+        for offset in (0x0C, 0x40, 0x70):
+            self.write_u32(self.process_heap + offset, 2)
 
         kusd = 0x7FFE0000
         if self.space.is_free(kusd, PAGE):
@@ -389,13 +407,6 @@ class WindowsEmulator:
         self._sentinels = self.alloc(PAGE, 5)
         self._next_sentinel = self._sentinels
 
-        self.write_ptr(self.teb, (1 << (8 * self.ptr_size)) - 1)
-        self.write_ptr(self.teb + lay.teb_stack_base, self.stack_base)
-        self.write_ptr(self.teb + lay.teb_stack_limit, self.stack_limit)
-        self.write_ptr(self.teb + lay.teb_self, self.teb)
-        self.write_ptr(self.teb + lay.teb_pid, self.PID)
-        self.write_ptr(self.teb + lay.teb_tid, self.TID)
-        self.write_ptr(self.teb + lay.teb_peb, self.peb)
         self.write_ptr(self.peb + lay.peb_image_base, self.image_base)
         self.write_ptr(self.peb + lay.peb_ldr, self._ldr)
         self.write_ptr(self.peb + lay.peb_heap, self.process_heap)
@@ -405,10 +416,7 @@ class WindowsEmulator:
         self.cmdline = f'"{self.image_path}"'
         self._write_unicode_string(params + lay.params_image_path, self.image_path)
         self._write_unicode_string(params + lay.params_cmdline, self.cmdline)
-        if self.is_64bit:
-            self.state.regs.gs = self.teb
-        else:
-            self.state.regs.fs = self.teb >> 16
+        self._set_thread_register(self.thread)
 
         self._add_ldr_entry(ntpath.basename(self.image_path), self.image_path, self.image_base, self.image_size,
                             self.project.entry)  # fmt: skip
@@ -416,6 +424,110 @@ class WindowsEmulator:
             self.load_module(name)
         self._bind_imports()
         self._setup_tls()
+
+    @property
+    def thread(self) -> Thread:
+        return self.threads[self.current_thread]
+
+    @property
+    def teb(self) -> int:
+        return self.thread.teb
+
+    @property
+    def tls_slots(self) -> list[int]:
+        return self.thread.tls_slots
+
+    def _create_thread(self, start: int, param: int, stack_hint: int = 0x1000000, teb_hint: int = 0x7F000000) -> Thread:
+        lay = self._layout
+        stack_limit = self.space.reserve(self.STACK_SIZE, stack_hint)
+        self.map(stack_limit, self.STACK_SIZE)
+        teb = self.space.reserve(0x10000, teb_hint)
+        self.map(teb, 0x10000)
+        tid = self.TID + 4 * len(self.threads)
+        self.write_ptr(teb, (1 << (8 * self.ptr_size)) - 1)
+        self.write_ptr(teb + lay.teb_stack_base, stack_limit + self.STACK_SIZE)
+        self.write_ptr(teb + lay.teb_stack_limit, stack_limit)
+        self.write_ptr(teb + lay.teb_self, teb)
+        self.write_ptr(teb + lay.teb_pid, self.PID)
+        self.write_ptr(teb + lay.teb_tid, tid)
+        self.write_ptr(teb + lay.teb_peb, self.peb)
+        self.write_ptr(teb + lay.teb_tls, teb + 0x2000)
+        return Thread(tid, teb, stack_limit + self.STACK_SIZE, start, param, started=start == 0)
+
+    def spawn_thread(self, start: int, param: int) -> Thread:
+        """
+        Register a new thread; it first runs when the current thread yields or its time slice ends.
+        """
+        thread = self._create_thread(start, param)
+        self.threads.append(thread)
+        return thread
+
+    def _set_thread_register(self, thread: Thread) -> None:
+        if self.is_64bit:
+            self.state.regs.gs = thread.teb
+        else:
+            self.state.regs.fs = thread.teb >> 16
+
+    def switch_thread(self) -> bool:
+        """
+        Hand the CPU to the next runnable thread. Returns False if there is no other thread.
+        """
+        count = len(self.threads)
+        target = next(
+            (
+                (self.current_thread + step) % count
+                for step in range(1, count)
+                if self.threads[(self.current_thread + step) % count].alive
+            ),
+            None,
+        )
+        if target is None:
+            return False
+        size = max(offset + length for offset, length in self.project.arch.registers.values())
+        current = self.thread
+        if current.alive:
+            current.registers = self.state.registers.load(0, size)
+        self.current_thread = target
+        thread = self.thread
+        if thread.started:
+            self.state.registers.store(0, thread.registers)
+            return True
+        thread.started = True
+        self._set_thread_register(thread)
+        self._set_sp(thread.stack_base - 0x2000)
+
+        def exited(_: int) -> None:
+            self.exit_thread()
+
+        self.call_guest(thread.start, (thread.param,), exited)
+        return True
+
+    def exit_thread(self) -> None:
+        self.thread.alive = False
+        if not self.switch_thread():
+            self.stop(StopReason.RETURNED, "last thread exited")
+
+    def block_thread(self) -> bool:
+        """
+        For API handlers that must wait: run another thread and make the current one repeat the call when it is next
+        scheduled. Returns False (nothing changed) if no other thread can run.
+        """
+        slot, sp = self._api_frame
+        ret_sp, ret_pc = self.sp, self.pc
+        self._set_sp(sp)
+        self._set_pc(slot)
+        if self.switch_thread():
+            return True
+        self._set_sp(ret_sp)
+        self._set_pc(ret_pc)
+        return False
+
+    def yield_thread(self, result: int) -> None:
+        """
+        For blocking API handlers: finish the call with the given result, then let another thread run.
+        """
+        self.set_reg("rax" if self.is_64bit else "eax", result)
+        self.switch_thread()
 
     def _arena_alloc(self, size: int) -> int:
         addr = self._arena_next
@@ -550,8 +662,7 @@ class WindowsEmulator:
     def _setup_tls(self) -> None:
         self.tls_callbacks: list[int] = []
         tls = getattr(self.pe, "DIRECTORY_ENTRY_TLS", None)
-        slots = self._arena_alloc(64 * self.ptr_size)
-        self.write_ptr(self.teb + self._layout.teb_tls, slots)
+        slots = self.teb + 0x2000
         if tls is None:
             return
         delta = self.main.mapped_base - self.main.linked_base
@@ -636,7 +747,7 @@ class WindowsEmulator:
         """
         Queue the TLS callbacks and the entry point.
         """
-        self._set_sp(self.stack_base - 0x2000)
+        self._set_sp(self.thread.stack_base - 0x2000)
         pending = list(self.tls_callbacks)
         is_dll = self.pe.is_dll()
 
@@ -718,6 +829,7 @@ class WindowsEmulator:
             args = [self.read_ptr(sp + 4 + 4 * i) for i in range(count)]
         self.api_counts[name] += 1
         self.api_trace.append((name, ret_addr, tuple(args)))
+        self._api_frame = (addr, sp)
         new_sp = sp + self.ptr_size
         if not self.is_64bit and not cdecl:
             new_sp += 4 * (nargs or 0)
@@ -866,6 +978,16 @@ class WindowsEmulator:
             fault = self._take_unmapped_fault(new_state) if successors.sort == "Unicorn" else None
             new_state.history.trim()
             self.state = new_state
+            if (
+                len(self.threads) > 1
+                and successors.sort == "Unicorn"
+                and new_state.unicorn.stop_reason == STOP.STOP_NORMAL
+                and new_state.addr not in self.api_slots
+                and new_state.addr not in self._continuations
+            ):
+                # time slice used up
+                self.switch_thread()
+                continue
             if new_state.history.jumpkind.startswith("Ijk_Sys"):
                 new_state.history.jumpkind = "Ijk_Boring"
                 self._dispatch_syscall()

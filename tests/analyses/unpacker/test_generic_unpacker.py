@@ -12,9 +12,11 @@ import unittest
 import pefile
 
 import angr
+from angr.analyses.unpacker import VMProtectUnpacker
 from angr.analyses.unpacker.emulation import StopReason
 
 from .pe_builder import IMAGE_BASE, build_pe, fake_code
+from .test_vmprotect_static import CODE, build_vmprotect_like
 
 TEXT_RVA, STUB_RVA = 0x1000, 0x3000
 OEP_RVA = TEXT_RVA + 0x800
@@ -78,6 +80,41 @@ class TestGenericUnpacker(unittest.TestCase):
         pe = pefile.PE(data=unpacker.unpacked)
         assert pe.OPTIONAL_HEADER.AddressOfEntryPoint == OEP_RVA
         assert pe.sections[0].get_data()[: len(code)] == code
+
+
+class TestUnpackerFacade(unittest.TestCase):
+    def _project(self, tmpdir: str, data: bytes) -> angr.Project:
+        path = os.path.join(tmpdir, "sample.exe")
+        with open(path, "wb") as f:
+            f.write(data)
+        return angr.Project(path, auto_load_libs=False)
+
+    def test_generic(self):
+        packed, _ = build_xor_packed()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            unpacker = self._project(tmpdir, packed).analyses.Unpacker(timeout=30)
+        assert unpacker.info is not None
+        assert unpacker.info.protector is None
+        assert unpacker.oep == IMAGE_BASE + OEP_RVA
+
+    def test_vmprotect_falls_back_to_static(self):
+        # the synthetic loader stub cannot run, so only the static unpacker can succeed
+        packed = build_vmprotect_like(encrypted_table=False)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            unpacker = self._project(tmpdir, packed).analyses.Unpacker(timeout=30)
+        assert unpacker.info is not None
+        assert unpacker.info.protector == "VMProtect"
+        assert isinstance(unpacker.unpacker, VMProtectUnpacker)
+        assert unpacker.unpacker.method == "static"
+        assert unpacker.unpacked is not None
+        assert pefile.PE(data=unpacker.unpacked).sections[0].get_data()[: len(CODE)] == CODE
+
+    def test_not_packed(self):
+        plain = build_pe([(b".text", TEXT_RVA, len(CODE), CODE, 0x60000020)], entry_rva=TEXT_RVA)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            unpacker = self._project(tmpdir, plain).analyses.Unpacker()
+        assert unpacker.unpacker is None
+        assert unpacker.unpacked is None
 
 
 if __name__ == "__main__":
