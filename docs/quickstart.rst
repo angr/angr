@@ -77,6 +77,10 @@ better understanding on what's going on under the hood.
 
 If you enjoy playing CTFs and would like to learn angr in a similar fashion,
 `angr_ctf <https://github.com/jakespringer/angr_ctf>`_ will be a fun way for you
-to get familiar with much of the symbolic execution capability of angr. `The
-angr_ctf repo <https://github.com/jakespringer/angr_ctf>`_ is maintained by
-`@jakespringer <https://github.com/jakespringer>`_.
+to get familiar with much of the symbolic execution capability of angr. The
+original `angr_ctf <https://github.com/jakespringer/angr_ctf>`_ was written and
+is maintained by `@jakespringer <https://github.com/jakespringer>`_. As it
+targets an older version of angr, `angr_ctf, rebuilt
+<https://github.com/itwaseasy/angr_ctf_rebuilt>`_ is a maintained port of the
+same challenges brought up to angr 10, with binaries for both x86-64 and the
+original i386.
