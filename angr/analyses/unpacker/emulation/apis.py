@@ -506,16 +506,23 @@ def get_tick_count64(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:di
     return emu.tick
 
 
+def _sleep(emu: WindowsEmulator, milliseconds: int) -> None:
+    thread = emu.thread
+    thread.wake_tick = emu.tick + min(max(milliseconds, 1), 60000)
+    emu.set_reg("rax" if emu.is_64bit else "eax", 0)
+    if not emu.switch_thread():
+        # nothing else to run: the sleep simply elapses
+        emu.tick = thread.wake_tick
+
+
 @api("Sleep", nargs=1)
 def sleep(emu: WindowsEmulator, args: list[int]) -> None:
-    emu.tick += min(max(args[0], 1), 60000)
-    emu.yield_thread(0)
+    _sleep(emu, args[0])
 
 
 @api("SleepEx", nargs=2)
 def sleep_ex(emu: WindowsEmulator, args: list[int]) -> None:
-    emu.tick += min(max(args[0], 1), 60000)
-    emu.yield_thread(0)
+    _sleep(emu, args[0])
 
 
 WAIT_TIMEOUT = 0x102
@@ -538,6 +545,7 @@ def _wait(emu: WindowsEmulator, handle: int, timeout: int) -> int | None:
     else:
         ready = True
     infinite = timeout & 0xFFFFFFFF == 0xFFFFFFFF
+    thread.wait_handle = None
     if ready or (infinite and thread.waits > _MAX_WAITS):
         thread.waits = 0
         return 0
@@ -545,9 +553,13 @@ def _wait(emu: WindowsEmulator, handle: int, timeout: int) -> int | None:
         thread.waits = 0
         return WAIT_TIMEOUT
     thread.waits += 1
+    if infinite:
+        # not scheduled again until the object is signaled
+        thread.wait_handle = handle
     if emu.block_thread():
         return None
     thread.waits = 0
+    thread.wait_handle = None
     return 0 if infinite else WAIT_TIMEOUT
 
 

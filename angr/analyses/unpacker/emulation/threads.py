@@ -19,6 +19,8 @@ class Thread:
     alive: bool = True
     tls_slots: list[int] = field(default_factory=lambda: [0])
     waits: int = 0
+    wake_tick: int = 0
+    wait_handle: int | None = None
 
 
 @dataclass

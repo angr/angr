@@ -19,6 +19,7 @@ import cle
 import pefile
 
 from angr import sim_options as o
+from angr.engines.unicorn import SimEngineUnicorn
 from angr.errors import (
     AngrError,
     SimError,
@@ -42,7 +43,7 @@ from .exceptions import (
 from .modules import SLOT_SIZE, FakeModule
 from .stops import EmulationStop, StopReason
 from .syscalls import WIN7_X64_SYSCALLS
-from .threads import Thread
+from .threads import EventObject, Thread
 
 if TYPE_CHECKING:
     from angr.project import Project
@@ -474,14 +475,14 @@ class WindowsEmulator:
         Hand the CPU to the next runnable thread. Returns False if there is no other thread.
         """
         count = len(self.threads)
-        target = next(
-            (
-                (self.current_thread + step) % count
-                for step in range(1, count)
-                if self.threads[(self.current_thread + step) % count].alive
-            ),
-            None,
-        )
+        order = [(self.current_thread + step) % count for step in range(1, count)]
+        target = next((idx for idx in order if self._runnable(self.threads[idx])), None)
+        if target is None and not self._runnable(self.thread):
+            # everything is waiting: skip ahead to the next timed wake-up
+            sleepers = [idx for idx in order if self.threads[idx].alive and self.threads[idx].wait_handle is None]
+            if sleepers:
+                target = min(sleepers, key=lambda idx: self.threads[idx].wake_tick)
+                self.tick = max(self.tick, self.threads[target].wake_tick)
         if target is None:
             return False
         size = max(offset + length for offset, length in self.project.arch.registers.values())
@@ -501,6 +502,18 @@ class WindowsEmulator:
             self.exit_thread()
 
         self.call_guest(thread.start, (thread.param,), exited)
+        return True
+
+    def _runnable(self, thread: Thread) -> bool:
+        if not thread.alive or thread.wake_tick > self.tick:
+            return False
+        if thread.wait_handle is None:
+            return True
+        obj = self.handles.get(thread.wait_handle)
+        if isinstance(obj, EventObject):
+            return obj.signaled
+        if isinstance(obj, Thread):
+            return not obj.alive
         return True
 
     def exit_thread(self) -> None:
@@ -870,6 +883,7 @@ class WindowsEmulator:
         self.exceptions.dispatch(code, self.state.addr, info)
 
     def _on_fault(self, ex: SimSegfaultException) -> None:
+        self._forget_native_failures()
         if self._commit(ex.addr, PAGE):
             return
         if self.space.find(ex.addr) is not None and ex.reason not in ("unmapped", "non-writable", "non-readable"):
@@ -897,6 +911,11 @@ class WindowsEmulator:
             self.exceptions.dispatch(EXCEPTION_ILLEGAL_INSTRUCTION, pc)
         else:
             self.exceptions.dispatch(EXCEPTION_ACCESS_VIOLATION, pc, (0, 0))
+
+    def _forget_native_failures(self) -> None:
+        engine = self.project.factory.default_engine
+        if isinstance(engine, SimEngineUnicorn):
+            engine._stop_block_addrs_cache.clear()
 
     @staticmethod
     def _take_unmapped_fault(state: SimState) -> int | None:
@@ -987,7 +1006,13 @@ class WindowsEmulator:
                 return EmulationStop(StopReason.ERROR, addr, f"no successors ({successors.description})")
             new_state = successors.flat_successors[0]
             self.blocks += new_state.unicorn.steps if successors.sort == "Unicorn" else 1
-            fault = self._take_unmapped_fault(new_state) if successors.sort == "Unicorn" else None
+            fault = None
+            if successors.sort == "Unicorn":
+                fault = self._take_unmapped_fault(new_state)
+                if new_state.unicorn.stop_reason in (STOP.STOP_ERROR, STOP.STOP_SEGFAULT):
+                    # the engine never retries a block natively once it faulted there; our faults (lazy commits,
+                    # execution traps) are transient, so forget them
+                    self._forget_native_failures()
             new_state.history.trim()
             self.state = new_state
             if (
@@ -998,6 +1023,7 @@ class WindowsEmulator:
                 and new_state.addr not in self._continuations
             ):
                 # time slice used up
+                self.tick += 16
                 self.switch_thread()
                 continue
             if new_state.history.jumpkind.startswith("Ijk_Sys"):
