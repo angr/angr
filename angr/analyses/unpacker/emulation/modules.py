@@ -25,7 +25,15 @@ class FakeModule:
     GetProcAddress-style lookups and manual export-table walks resolve to trap addresses.
     """
 
-    def __init__(self, name: str, base: int, export_names: list[str], is_64bit: bool, ordinal_base: int = 1):
+    def __init__(
+        self,
+        name: str,
+        base: int,
+        export_names: list[str],
+        is_64bit: bool,
+        ordinal_base: int = 1,
+        syscalls: dict[str, int] | None = None,
+    ):
         self.name = name.lower()
         self.base = base
         self.is_64bit = is_64bit
@@ -44,10 +52,16 @@ class FakeModule:
         export_data = self._build_export_directory(names)
         self.size = _align(self._export_rva + len(export_data), 0x10000)
         slot = _SLOT_AMD64 if is_64bit else _SLOT_X86
+        code = bytearray(slot * (code_size // SLOT_SIZE))
+        if is_64bit and syscalls:
+            # system-call stubs must look real: protectors read the number out of them or reject foreign bytes
+            for idx, export in enumerate(names):
+                number = syscalls.get(export)
+                if number is not None:
+                    stub = b"\x4c\x8b\xd1\xb8" + struct.pack("<I", number) + b"\x0f\x05\xc3"
+                    code[idx * SLOT_SIZE : (idx + 1) * SLOT_SIZE] = stub.ljust(SLOT_SIZE, b"\xcc")
         self.image = (
-            self._build_header(code_size, len(export_data)).ljust(_HEADER_SIZE, b"\0")
-            + (slot * (code_size // SLOT_SIZE))
-            + export_data
+            self._build_header(code_size, len(export_data)).ljust(_HEADER_SIZE, b"\0") + bytes(code) + export_data
         ).ljust(self.size, b"\0")
 
     def _register(self, name: str, idx: int) -> int:

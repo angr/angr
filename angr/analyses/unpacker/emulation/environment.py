@@ -186,6 +186,7 @@ class WindowsEmulator:
         self.threads: list[Thread] = []
         self.current_thread = 0
         self._api_frame = (0, 0)
+        self._syscall_names: dict[int, str] = dict(WIN7_X64_SYSCALLS)
         self.exit_code: int | None = None
         self.blocks = 0
         self.tick = 0x493E0
@@ -613,10 +614,21 @@ class WindowsEmulator:
             is_nt = api_name.startswith(_NTDLL_PREFIXES) or api_name[0].islower() or api_name[0] == "_"
             if (name == "ntdll.dll" and is_nt) or (name in ("kernel32.dll", "kernelbase.dll") and not is_nt):
                 exports.add(api_name)
+        syscalls: dict[str, int] | None = None
+        if name == "ntdll.dll":
+            syscalls = {}
+            known = {nt_name: number for number, nt_name in WIN7_X64_SYSCALLS.items()}
+            for export in sorted(e for e in exports if e.startswith(("Nt", "Zw")) and e[2:3].isupper()):
+                nt_name = "Nt" + export[2:]
+                number = known.get(nt_name)
+                if number is None:
+                    number = known[nt_name] = 0x1000 + len(known)
+                syscalls[export] = number
+                self._syscall_names[number] = nt_name
         probe = FakeModule(name, 0, sorted(exports), self.is_64bit)
         base = self.space.reserve(probe.size, self._next_dll_base)
         self._next_dll_base = base + probe.size
-        module = FakeModule(name, base, sorted(exports), self.is_64bit)
+        module = FakeModule(name, base, sorted(exports), self.is_64bit, syscalls=syscalls)
         self.map(base, module.size, 5)
         self.write(base, module.image)
         self.modules[name] = module
@@ -896,8 +908,8 @@ class WindowsEmulator:
 
     def _dispatch_syscall(self) -> None:
         number = self.reg("rax" if self.is_64bit else "eax") & 0xFFFF
-        name = WIN7_X64_SYSCALLS.get(number) if self.is_64bit else None
-        handler = API_HANDLERS.get(name) if name is not None else None
+        name = self._syscall_names.get(number) if self.is_64bit else None
+        handler = API_HANDLERS.get(name) or API_HANDLERS.get("Zw" + name[2:]) if name is not None else None
         label = name or f"syscall_{number:#x}"
         self.api_counts[label] += 1
         if handler is None or not self.is_64bit:

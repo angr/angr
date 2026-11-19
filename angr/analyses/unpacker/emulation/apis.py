@@ -1028,4 +1028,7 @@ def is_wow64_process(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 _const(("NtRaiseHardError", "ZwRaiseHardError"), 6, STATUS_SUCCESS)
+_const(("UnhandledExceptionFilter",), 1, 0)
+_const(("InterlockedIncrement", "InterlockedDecrement"), 1, 1)
+_const(("IsBadReadPtr", "IsBadWritePtr"), 2, 0)
 _const(("GetProcessWindowStation", "GetDesktopWindow", "GetForegroundWindow", "GetActiveWindow"), 0, 0)
