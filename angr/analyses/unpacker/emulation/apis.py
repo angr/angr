@@ -901,7 +901,30 @@ def nt_query_system_information(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 _const(("NtSetInformationProcess", "ZwSetInformationProcess"), 4, STATUS_SUCCESS)
-_const(("NtQueryInformationThread", "ZwQueryInformationThread"), 5, STATUS_INVALID_INFO_CLASS)
+
+
+@api("NtQueryInformationThread", "ZwQueryInformationThread", nargs=5)
+def nt_query_information_thread(emu: WindowsEmulator, args: list[int]) -> int:
+    info_class, buf, length = args[1], args[2], args[3]
+    if info_class == 0x11:  # ThreadHideFromDebugger: report that hiding took effect
+        data = b"\x01"
+    elif info_class == 0:  # ThreadBasicInformation
+        ptr = emu.ptr_size
+        data = bytearray(6 * ptr)
+        data[ptr : 2 * ptr] = emu.teb.to_bytes(ptr, "little")
+        data[2 * ptr : 3 * ptr] = emu.PID.to_bytes(ptr, "little")
+        data[3 * ptr : 4 * ptr] = emu.thread.tid.to_bytes(ptr, "little")
+        data = bytes(data)
+    else:
+        data = bytes(min(length, 0x100))
+    if length < len(data):
+        return STATUS_INFO_LENGTH_MISMATCH
+    emu.write(buf, data)
+    if args[4]:
+        emu.write_u32(args[4], len(data))
+    return STATUS_SUCCESS
+
+
 _const(("NtQueryPerformanceCounter",), 2, STATUS_SUCCESS)
 
 # registry: nothing exists
