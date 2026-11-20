@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ntpath
+import re
 import struct
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -855,6 +856,136 @@ def lstrcpy_a(emu: WindowsEmulator, args: list[int]) -> int:
 def lstrcmpi_a(emu: WindowsEmulator, args: list[int]) -> int:
     left, right = emu.read_cstr(args[0]).lower(), emu.read_cstr(args[1]).lower()
     return 0 if left == right else (1 if left > right else -1)
+
+
+_FORMAT_RE = re.compile(r"%([-+ #0]*)(\*|\d+)?(?:\.(\*|\d+))?(hh|h|ll|l|I64|I32|w|L)?([diuxXcCsSpn%])")
+
+
+def _call_arg(emu: WindowsEmulator, index: int) -> int:
+    """
+    The index-th argument of the API call being handled, for variadic calls.
+    """
+    if emu.is_64bit:
+        if index < 4:
+            return emu.reg(("rcx", "rdx", "r8", "r9")[index])
+        return emu.read_ptr(emu.sp + 0x20 + 8 * (index - 4))
+    return emu.read_ptr(emu.sp + 4 * index)
+
+
+def _format(emu: WindowsEmulator, fmt: str, next_arg: Callable[[], int], wide: bool) -> str:
+    """
+    printf-style formatting with arguments pulled from the guest.
+    """
+    bits = 8 * emu.ptr_size
+
+    def convert(match: re.Match[str]) -> str:
+        flags, width, precision, size, conv = match.groups()
+        if conv == "%":
+            return "%"
+        pad = next_arg() if width == "*" else int(width or 0)
+        limit = next_arg() if precision == "*" else (int(precision) if precision is not None else None)
+        value = next_arg()
+        if conv == "n":
+            return ""
+        if conv in "sS":
+            is_wide = size in ("l", "w") or (size != "h" and wide != (conv == "S"))
+            if value == 0:
+                text = "(null)"
+            else:
+                text = emu.read_wstr(value, limit=1 << 16) if is_wide else emu.read_cstr(value, limit=1 << 16)
+            text = text if limit is None else text[:limit]
+        elif conv in "cC":
+            text = chr(value & (0xFFFF if wide else 0xFF))
+        else:
+            if size in ("ll", "I64"):
+                if not emu.is_64bit:
+                    value |= next_arg() << 32
+                int_bits = 64
+            else:
+                int_bits = bits if conv == "p" else 32
+            value &= (1 << int_bits) - 1
+            if conv in "di" and value >> (int_bits - 1):
+                value -= 1 << int_bits
+            if conv == "p":
+                text = f"{value:0{bits // 4}X}"
+            elif conv in "xX":
+                text = ("0x" if "#" in flags and value else "") + format(value, conv)
+            else:
+                text = ("+" if "+" in flags and value >= 0 and conv != "u" else "") + str(value)
+            if limit is not None:
+                text = text.rjust(limit, "0")
+            elif "0" in flags and "-" not in flags:
+                return text.rjust(pad, "0")
+        return text.ljust(pad) if "-" in flags else text.rjust(pad)
+
+    return _FORMAT_RE.sub(convert, fmt)
+
+
+def _sprintf(
+    emu: WindowsEmulator, buf: int, fmt_ptr: int, first: int, wide: bool, va_list: int | None = None,
+    capacity: int | None = None,
+) -> int:  # fmt: skip
+    """
+    Format into buf. Arguments come from the call (starting at index `first`) or from a va_list.
+    """
+    position = [0]
+
+    def next_arg() -> int:
+        idx = position[0]
+        position[0] += 1
+        return emu.read_ptr(va_list + emu.ptr_size * idx) if va_list is not None else _call_arg(emu, first + idx)
+
+    fmt = emu.read_wstr(fmt_ptr, limit=1 << 16) if wide else emu.read_cstr(fmt_ptr, limit=1 << 16)
+    text = _format(emu, fmt, next_arg, wide)
+    if capacity is not None:
+        text = text[: max(capacity - 1, 0)]
+    emu.write(buf, text.encode("utf-16-le") + b"\0\0" if wide else text.encode("latin-1", "replace") + b"\0")
+    return len(text)
+
+
+@api("wsprintfA", "sprintf", nargs=2, cdecl=True)
+def sprintf_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _sprintf(emu, args[0], args[1], 2, False)
+
+
+@api("wsprintfW", "swprintf", nargs=2, cdecl=True)
+def sprintf_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _sprintf(emu, args[0], args[1], 2, True)
+
+
+@api("wvsprintfA", nargs=3)
+def wvsprintf_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _sprintf(emu, args[0], args[1], 0, False, va_list=args[2])
+
+
+@api("wvsprintfW", nargs=3)
+def wvsprintf_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _sprintf(emu, args[0], args[1], 0, True, va_list=args[2])
+
+
+@api("vsprintf", nargs=3, cdecl=True)
+def vsprintf(emu: WindowsEmulator, args: list[int]) -> int:
+    return _sprintf(emu, args[0], args[1], 0, False, va_list=args[2])
+
+
+@api("_snprintf", "sprintf_s", nargs=3, cdecl=True)
+def snprintf(emu: WindowsEmulator, args: list[int]) -> int:
+    return _sprintf(emu, args[0], args[2], 3, False, capacity=args[1])
+
+
+@api("_snwprintf", "swprintf_s", nargs=3, cdecl=True)
+def snwprintf(emu: WindowsEmulator, args: list[int]) -> int:
+    return _sprintf(emu, args[0], args[2], 3, True, capacity=args[1])
+
+
+@api("_vsnprintf", "vsprintf_s", nargs=4, cdecl=True)
+def vsnprintf(emu: WindowsEmulator, args: list[int]) -> int:
+    return _sprintf(emu, args[0], args[2], 0, False, va_list=args[3], capacity=args[1])
+
+
+@api("_vsnwprintf", "vswprintf_s", nargs=4, cdecl=True)
+def vsnwprintf(emu: WindowsEmulator, args: list[int]) -> int:
+    return _sprintf(emu, args[0], args[2], 0, True, va_list=args[3], capacity=args[1])
 
 
 #

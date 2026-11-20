@@ -56,6 +56,7 @@ _LAZY_THRESHOLD = 0x100000
 _LAZY_CHUNK = 0x10000
 _UNMAPPED_RE = re.compile(r"(0x[0-9a-fA-F]+) is not mapped")
 _NTDLL_PREFIXES = ("Nt", "Zw", "Rtl", "Ldr", "Dbg", "Ki", "Csr", "Etw")
+_WIN32_LOWERCASE_PREFIXES = ("lstr", "wsprintf", "wvsprintf")
 _CDECL_MODULE_PREFIXES = ("msvcr", "msvcp", "ucrtbase", "vcruntime", "crtdll", "api-ms-win-crt")
 _PRELOADED = ("ntdll.dll", "kernel32.dll", "kernelbase.dll")
 _KUSER_SHARED_DATA = 0x7FFE0000
@@ -625,7 +626,9 @@ class WindowsEmulator:
             exports.update(lib.prototypes_json)
             exports.update(lib.prototypes)
         for api_name in API_HANDLERS:
-            is_nt = api_name.startswith(_NTDLL_PREFIXES) or api_name[0].islower() or api_name[0] == "_"
+            is_nt = api_name.startswith(_NTDLL_PREFIXES) or (
+                (api_name[0].islower() or api_name[0] == "_") and not api_name.startswith(_WIN32_LOWERCASE_PREFIXES)
+            )
             if (name == "ntdll.dll" and is_nt) or (name in ("kernel32.dll", "kernelbase.dll") and not is_nt):
                 exports.add(api_name)
         syscalls: dict[str, int] | None = None
