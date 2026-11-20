@@ -61,6 +61,45 @@ class TestImportWrappers(unittest.TestCase):
         assert emu.pc == pc
 
 
+class TestImportRecovery(unittest.TestCase):
+    def test_wrapped_imports_and_rewritten_calls(self):
+        sections = [
+            (b".text", CODE_RVA, 0x1000, bytes(0x1000), 0xE0000020),
+            (b".stub", 0x3000, 0x10, b"\xc3", 0x60000020),
+        ]
+        packed = build_pe(sections, entry_rva=0x3000)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "sample.exe")
+            with open(path, "wb") as f:
+                f.write(packed)
+            core = GenericUnpackerCore(path)
+        emu = core.emu
+        emu.start()
+        kernel32 = emu.load_module("kernel32.dll")
+        sleep, close = emu.resolve_export(kernel32, "Sleep"), emu.resolve_export(kernel32, "CloseHandle")
+        assert sleep is not None and close is not None
+        wrapper = emu.alloc(0x1000)
+        emu.write(wrapper, emu.read(close, 12))
+        text = IMAGE_BASE + CODE_RVA
+        iat = text + 0x800
+        emu.write(iat, struct.pack("<II", sleep, wrapper))
+        # call Sleep; nop   /   nop; jmp wrapper   /   an ordinary call inside the section
+        emu.write(text, b"\xe8" + struct.pack("<i", sleep - (text + 5)) + b"\x90")
+        emu.write(text + 0x10, b"\x90\xe9" + struct.pack("<i", wrapper - (text + 0x16)))
+        emu.write(text + 0x20, b"\xe8" + struct.pack("<i", 0x100) + b"\x90")
+
+        layer = core._snapshot(None, text)  # pylint:disable=protected-access
+        assert [(imp.iat_rva, imp.dll, imp.name) for imp in layer.imports] == [
+            (CODE_RVA + 0x800, "kernel32.dll", "Sleep"),
+            (CODE_RVA + 0x804, "kernel32.dll", "CloseHandle"),
+        ]
+        assert layer.restored_calls == 2
+        code = layer.image[CODE_RVA : CODE_RVA + 0x30]
+        assert code[:6] == b"\xff\x15" + struct.pack("<I", iat)
+        assert code[0x10:0x16] == b"\xff\x25" + struct.pack("<I", iat + 4)
+        assert code[0x20] == 0xE8
+
+
 class TestSystemCallStubs(unittest.TestCase):
     def test_x86_stub_called_past_its_first_instruction(self):
         # entry: mov eax, [ZwClose + 1]; push HANDLE; call rest; ret

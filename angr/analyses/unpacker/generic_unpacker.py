@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import bisect
 import logging
+import re
+import struct
 import time
 from dataclasses import dataclass, field
 
@@ -21,6 +23,7 @@ PAGE = 0x1000
 _MIN_CODE_CALLS = 20
 _MAX_WRAPPERS = 4096
 _WRAPPER_BUDGET = 120.0
+_DIRECT_BRANCH_RE = re.compile(rb"[\xe8\xe9]", re.DOTALL)
 _SKIPPED_SECTIONS = {".rsrc", ".reloc", ".tls", ".idata", ".edata", ".pdata", ".taggant"}
 
 
@@ -39,6 +42,7 @@ class UnpackedLayer:
     entropy: float
     image: bytes
     imports: list[RecoveredImport] = field(default_factory=list)
+    restored_calls: int = 0
 
     def rebuild(self, image_base: int) -> bytes:
         """
@@ -65,6 +69,7 @@ class GenericUnpackerCore:
         self._initial: dict[int, bytes] = {}
         self._sections: dict[int, pefile.SectionStructure] = {}
         self._wrappers: dict[int, int] = {}
+        self._cell_of_target: dict[int, int] = {}
         self._started = 0.0
         emu = self.emu
         ep_rva = emu.pe.OPTIONAL_HEADER.AddressOfEntryPoint
@@ -140,6 +145,8 @@ class GenericUnpackerCore:
         header_size = emu.pe.OPTIONAL_HEADER.SizeOfHeaders
         image[:header_size] = emu.image_file[:header_size]
         body = bytes(image[section.VirtualAddress : section.VirtualAddress + section.Misc_VirtualSize])
+        imports = self._recover_imports(image)
+        restored = self._restore_calls(image)
         layer = UnpackedLayer(
             oep=addr,
             section=section_name(section),
@@ -148,7 +155,8 @@ class GenericUnpackerCore:
             calls=call_target_score(body, start, emu.image_base, emu.image_base + emu.image_size),
             entropy=entropy(body),
             image=bytes(image),
-            imports=self._recover_imports(image),
+            imports=imports,
+            restored_calls=restored,
         )
         _l.info("Layer %d: OEP %s in %s after %d blocks", len(self.layers), addr, layer.section, emu.blocks)
         return layer
@@ -197,7 +205,44 @@ class GenericUnpackerCore:
             found.append(RecoveredImport(idx * size, module.name, name))
         # isolated hits are usually coincidental constants; real IATs come in runs
         rvas = {imp.iat_rva for imp in found}
-        return [imp for imp in found if imp.iat_rva - size in rvas or imp.iat_rva + size in rvas]
+        found = [imp for imp in found if imp.iat_rva - size in rvas or imp.iat_rva + size in rvas]
+        self._cell_of_target = {}
+        for imp in found:
+            self._cell_of_target.setdefault(view[imp.iat_rva // size], imp.iat_rva)
+        return found
+
+    def _restore_calls(self, image: bytearray) -> int:
+        """
+        Undo the rewriting of `call/jmp [import slot]` into a direct call or jump to the slot's target padded with a
+        nop. Returns the number of sites restored.
+        """
+        emu = self.emu
+        if not self._cell_of_target:
+            return 0
+        restored = 0
+        for start, section in self._sections.items():
+            rva = section.VirtualAddress
+            end = min(rva + max(section.Misc_VirtualSize, section.SizeOfRawData), len(image))
+            for match in _DIRECT_BRANCH_RE.finditer(bytes(image[rva:end])):
+                site = rva + match.start()
+                if site + 6 > end:
+                    break
+                target = (start - rva + site + 5 + struct.unpack_from("<i", image, site + 1)[0]) & (
+                    (1 << (8 * emu.ptr_size)) - 1
+                )
+                cell = self._cell_of_target.get(target)
+                if cell is None:
+                    continue
+                # the nop follows or precedes the branch; starting at the branch is right when both are there
+                if image[site + 5] != 0x90:
+                    if site == rva or image[site - 1] != 0x90:
+                        continue
+                    site -= 1
+                operand = cell - (site + 6) if emu.is_64bit else emu.image_base + cell
+                opcode = b"\xff\x15" if match.group() == b"\xe8" else b"\xff\x25"
+                image[site : site + 6] = opcode + struct.pack("<I", operand & 0xFFFFFFFF)
+                restored += 1
+        return restored
 
     @property
     def final_layer(self) -> UnpackedLayer | None:
