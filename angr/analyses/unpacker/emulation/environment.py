@@ -58,6 +58,7 @@ _UNMAPPED_RE = re.compile(r"(0x[0-9a-fA-F]+) is not mapped")
 _NTDLL_PREFIXES = ("Nt", "Zw", "Rtl", "Ldr", "Dbg", "Ki", "Csr", "Etw")
 _CDECL_MODULE_PREFIXES = ("msvcr", "msvcp", "ucrtbase", "vcruntime", "crtdll", "api-ms-win-crt")
 _PRELOADED = ("ntdll.dll", "kernel32.dll", "kernelbase.dll")
+_KUSER_SHARED_DATA = 0x7FFE0000
 
 
 class AddressSpace:
@@ -398,7 +399,7 @@ class WindowsEmulator:
         for offset in (0x0C, 0x40, 0x70):
             self.write_u32(self.process_heap + offset, 2)
 
-        kusd = 0x7FFE0000
+        kusd = _KUSER_SHARED_DATA
         if self.space.is_free(kusd, PAGE):
             self.space.mark(kusd, 0x10000)
             self.map(kusd, PAGE, 1)
@@ -641,7 +642,14 @@ class WindowsEmulator:
         probe = FakeModule(name, 0, sorted(exports), self.is_64bit)
         base = self.space.reserve(probe.size, self._next_dll_base)
         self._next_dll_base = base + probe.size
-        module = FakeModule(name, base, sorted(exports), self.is_64bit, syscalls=syscalls)
+        stack_bytes: dict[str, int] = {}
+        if syscalls and not self.is_64bit:
+            known_nargs = self._known_exports(name)
+            for export in syscalls:
+                handler = API_HANDLERS.get(export)
+                nargs = handler.nargs if handler is not None else known_nargs.get(export)
+                stack_bytes[export] = 4 * (nargs or 0)
+        module = FakeModule(name, base, sorted(exports), self.is_64bit, syscalls=syscalls, stack_bytes=stack_bytes)
         self.map(base, module.size, 5)
         self.write(base, module.image)
         self.modules[name] = module
@@ -650,6 +658,12 @@ class WindowsEmulator:
             self.api_slots[addr] = (module, export)
         self._stop_points.update(module.slot_names)
         self._add_ldr_entry(name, "C:\\Windows\\System32\\" + name, base, module.size, 0)
+        if name == "ntdll.dll" and not self.is_64bit and self._is_mapped(_KUSER_SHARED_DATA):
+            # KUSER_SHARED_DATA.SystemCall / SystemCallReturn, which the 32-bit stubs call through
+            for offset, export in ((0x300, "KiFastSystemCall"), (0x304, "KiFastSystemCallRet")):
+                target = module.resolve(export)
+                if target is not None:
+                    self.write_ptr(_KUSER_SHARED_DATA + offset, target)
         return module
 
     def module_by_base(self, base: int) -> FakeModule | None:
@@ -925,23 +939,43 @@ class WindowsEmulator:
         state.unicorn.error = None
         return int(match.group(1), 16) if match is not None else None
 
-    def _dispatch_syscall(self) -> None:
+    def system_call(self, arg_base: int | None = None) -> None:
+        """
+        Dispatch the system call selected by eax/rax. 32-bit arguments are read from arg_base.
+        """
         number = self.reg("rax" if self.is_64bit else "eax") & 0xFFFF
-        name = self._syscall_names.get(number) if self.is_64bit else None
+        name = self._syscall_names.get(number)
         handler = API_HANDLERS.get(name) or API_HANDLERS.get("Zw" + name[2:]) if name is not None else None
         label = name or f"syscall_{number:#x}"
         self.api_counts[label] += 1
-        if handler is None or not self.is_64bit:
+        if handler is None or (arg_base is None and not self.is_64bit):
             self.unhandled_apis[f"syscall!{label}"] += 1
             result: int | None = STATUS_NOT_IMPLEMENTED
         else:
-            sp = self.sp
-            args = [self.reg(r) for r in ("r10", "rdx", "r8", "r9")][: handler.nargs]
-            args += [self.read_ptr(sp + 0x28 + 8 * i) for i in range(handler.nargs - 4)]
+            if arg_base is None:
+                sp = self.sp
+                args = [self.reg(r) for r in ("r10", "rdx", "r8", "r9")][: handler.nargs]
+                args += [self.read_ptr(sp + 0x28 + 8 * i) for i in range(handler.nargs - 4)]
+            else:
+                args = [self.read_ptr(arg_base + 4 * i) for i in range(handler.nargs)]
             self.api_trace.append((label, self.pc, tuple(args)))
             result = handler.func(self, args)
         if result is not None:
             self.set_reg("rax" if self.is_64bit else "eax", result)
+
+    def _on_syscall_instruction(self) -> None:
+        if self.is_64bit:
+            self.system_call()
+            return
+        edx = self.reg("edx")
+        if self.read(self.pc - 2, 2) == b"\x0f\x34":
+            # sysenter: arguments sit above two return addresses; the kernel resumes at KiFastSystemCallRet, a ret
+            sp = self.sp
+            self._set_pc(self.read_ptr(sp))
+            self._set_sp(sp + 4)
+            self.system_call(edx + 8)
+        else:
+            self.system_call(edx)
 
     def run(self, max_blocks: int | None = None, timeout: float | None = None) -> EmulationStop:
         """
@@ -1028,7 +1062,7 @@ class WindowsEmulator:
                 continue
             if new_state.history.jumpkind.startswith("Ijk_Sys"):
                 new_state.history.jumpkind = "Ijk_Boring"
-                self._dispatch_syscall()
+                self._on_syscall_instruction()
             elif fault is not None:
                 self._commit(fault, 1)
             elif new_state.history.jumpkind.startswith("Ijk_Sig") or new_state.history.jumpkind == "Ijk_NoDecode":

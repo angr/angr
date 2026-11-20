@@ -167,6 +167,12 @@ _const(("VirtualFreeEx",), 4, 1)
 _const(("NtFreeVirtualMemory", "ZwFreeVirtualMemory"), 4, STATUS_SUCCESS)
 
 
+@api("KiFastSystemCall", "KiIntSystemCall", nargs=0)
+def ki_system_call(emu: WindowsEmulator, args: list[int]) -> None:  # pylint:disable=unused-argument
+    # reached from a 32-bit ntdll stub: the stub's caller pushed the arguments above its own return address
+    emu.system_call(emu.sp + 4)
+
+
 @api("HeapAlloc", "RtlAllocateHeap", nargs=3)
 def heap_alloc(emu: WindowsEmulator, args: list[int]) -> int:
     return emu.alloc(max(args[2], 1))

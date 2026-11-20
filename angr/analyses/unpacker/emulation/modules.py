@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import struct
 
 IMAGE_FILE_MACHINE_I386 = 0x14C
@@ -10,6 +11,12 @@ IMAGE_FILE_MACHINE_AMD64 = 0x8664
 SLOT_SIZE = 16
 _SLOT_X86 = bytes.fromhex("8bff 558bec 5d ebf8").ljust(SLOT_SIZE, b"\xcc")
 _SLOT_AMD64 = bytes.fromhex("48895c2408 488b5c2408 ebf4").ljust(SLOT_SIZE, b"\xcc")
+# 32-bit ntdll routines whose bodies protectors read or call through KUSER_SHARED_DATA.SystemCall
+_X86_NTDLL_BODIES = {
+    "KiFastSystemCall": bytes.fromhex("8bd4 0f34 c3"),
+    "KiFastSystemCallRet": bytes.fromhex("c3"),
+    "KiIntSystemCall": bytes.fromhex("8d542408 cd2e c3"),
+}
 
 _HEADER_SIZE = 0x1000
 _SPARE_SLOTS = 512
@@ -33,6 +40,7 @@ class FakeModule:
         is_64bit: bool,
         ordinal_base: int = 1,
         syscalls: dict[str, int] | None = None,
+        stack_bytes: dict[str, int] | None = None,
     ):
         self.name = name.lower()
         self.base = base
@@ -53,16 +61,31 @@ class FakeModule:
         self.size = _align(self._export_rva + len(export_data), 0x10000)
         slot = _SLOT_AMD64 if is_64bit else _SLOT_X86
         code = bytearray(slot * (code_size // SLOT_SIZE))
-        if is_64bit and syscalls:
-            # system-call stubs must look real: protectors read the number out of them or reject foreign bytes
+        if syscalls:
+            # system-call stubs must look real: protectors read the number out of them, compare neighbouring stubs,
+            # or reject foreign bytes
             for idx, export in enumerate(names):
                 number = syscalls.get(export)
                 if number is not None:
-                    stub = b"\x4c\x8b\xd1\xb8" + struct.pack("<I", number) + b"\x0f\x05\xc3"
-                    code[idx * SLOT_SIZE : (idx + 1) * SLOT_SIZE] = stub.ljust(SLOT_SIZE, b"\xcc")
+                    code[idx * SLOT_SIZE : (idx + 1) * SLOT_SIZE] = self._syscall_stub(
+                        number, (stack_bytes or {}).get(export, 0)
+                    )
+            if not is_64bit:
+                for export, body in _X86_NTDLL_BODIES.items():
+                    idx = bisect.bisect_left(names, export)
+                    if idx < len(names) and names[idx] == export:
+                        code[idx * SLOT_SIZE : (idx + 1) * SLOT_SIZE] = body.ljust(SLOT_SIZE, b"\x90")
         self.image = (
             self._build_header(code_size, len(export_data)).ljust(_HEADER_SIZE, b"\0") + bytes(code) + export_data
         ).ljust(self.size, b"\0")
+
+    def _syscall_stub(self, number: int, stack_bytes: int) -> bytes:
+        if self.is_64bit:
+            stub = b"\x4c\x8b\xd1\xb8" + struct.pack("<I", number) + b"\x0f\x05\xc3"
+            return stub.ljust(SLOT_SIZE, b"\xcc")
+        # mov eax, number; mov edx, 0x7ffe0300; call [edx]; ret n
+        ret = b"\xc2" + struct.pack("<H", stack_bytes) if stack_bytes else b"\xc3"
+        return (b"\xb8" + struct.pack("<I", number) + b"\xba\x00\x03\xfe\x7f\xff\x12" + ret).ljust(SLOT_SIZE, b"\x90")
 
     def _register(self, name: str, idx: int) -> int:
         addr = self.base + self._code_rva + idx * SLOT_SIZE
