@@ -1257,7 +1257,7 @@ class Function(Serializable):
         return False
 
     def __str__(self):
-        return (
+        summary = (
             f"Function {self.name} [{self.addr:#x}]\n"
             f"  Syscall: {self.is_syscall}\n"
             f"  SP difference: {self.sp_delta}\n"
@@ -1269,6 +1269,9 @@ class Function(Serializable):
             f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
             f"  Calling convention: {self.calling_convention}"
         )
+        if (prototype := self.prototype) is not None:
+            summary += f"\n  Prototype: {prototype.c_repr(self.name, name_parens=False)}"
+        return summary
 
     def __repr__(self):
         if self.is_syscall:
