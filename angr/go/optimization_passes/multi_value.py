@@ -145,7 +145,16 @@ class GoCallResultBinder(OptimizationPass):
         self._index = {off: i for i, off in enumerate(self._regs)}
         self._index.update({off: -1 - i for i, off in enumerate(self._fp_regs)})
         sigs = self.kb.go_signatures
-        own_results_known = not sigs.results_guessed(self._func)
+        if sigs.results_guessed(self._func):
+            own_results: frozenset[int] | None = frozenset()
+            proto = self._func.get_prototype(Flavors.GO_FLAVOR)
+            if proto is not None:
+                have_ints, have_floats = _result_registers(proto.returnty, arch)
+                # A guessed integer result can be a phantom, but a pure FP guess identifies a disjoint ABI lane.
+                if have_ints == 0:
+                    own_results = frozenset(-1 - i for i in range(have_floats))
+        else:
+            own_results = None
         self._widths = {}
 
         # backward liveness of result registers; a call kills all of them
@@ -155,7 +164,7 @@ class GoCallResultBinder(OptimizationPass):
         while worklist and rounds < 50 * len(live_in):
             rounds += 1
             block = worklist.pop()
-            state = self._transfer(block, self._live_out(block, live_in), own_results_known)
+            state = self._transfer(block, self._live_out(block, live_in), own_results)
             if state != live_in[block]:
                 live_in[block] = state
                 worklist.extend(self._graph.predecessors(block))
@@ -164,7 +173,7 @@ class GoCallResultBinder(OptimizationPass):
         changed = False
         for block in list(self._graph.nodes):
             sites = []
-            self._transfer(block, self._live_out(block, live_in), own_results_known, sites=sites)
+            self._transfer(block, self._live_out(block, live_in), own_results, sites=sites)
             for idx, live in sites:
                 stmt = block.statements[idx]
                 new = self._bind(stmt, live, applier)
@@ -198,7 +207,9 @@ class GoCallResultBinder(OptimizationPass):
             widths = self._widths[key] = v.widths
         return widths
 
-    def _transfer(self, block: Block, live: _Live, own_results_known: bool, sites: list | None = None) -> _Live:
+    def _transfer(
+        self, block: Block, live: _Live, own_results: frozenset[int] | None, sites: list | None = None
+    ) -> _Live:
         for idx in range(len(block.statements) - 1, -1, -1):
             stmt = block.statements[idx]
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
@@ -228,9 +239,11 @@ class GoCallResultBinder(OptimizationPass):
                     live = _union(live, self._reads(stmt.dst))
                 live = _union(live, self._reads(stmt.src))
             elif isinstance(stmt, Return):
-                if own_results_known:
-                    for e in stmt.ret_exprs or ():
-                        live = _union(live, self._reads(e))
+                for e in stmt.ret_exprs or ():
+                    reads = self._reads(e)
+                    if own_results is not None:
+                        reads = {w: sizes for w, sizes in reads.items() if w in own_results}
+                    live = _union(live, reads)
             else:
                 v = _RegReads(self._word_of)
                 v.walk_statement(stmt)
@@ -313,13 +326,13 @@ class GoCallResultBinder(OptimizationPass):
             )
             # GoRetExprRewriter builds the combo from the widened prototype
             return None
-        if isinstance(call.target, str) or count == 0:
+        if isinstance(call.target, str) or (count == 0 and not floats):
             return None
-        return self._bind_indirect(stmt, count, bools)
+        return self._bind_indirect(stmt, count, bools, floats)
 
-    def _bind_indirect(self, stmt: SideEffectStatement, count: int, bools: dict):
+    def _bind_indirect(self, stmt: SideEffectStatement, count: int, bools: dict, floats: dict):
         arch = self.project.arch
-        if count == 1:
+        if count == 1 and not floats:
             if stmt.ret_expr is not None:
                 return None
             reg = Register(self.manager.next_atom(), self._regs[0], arch.bits, reg_name=self._names[0])
@@ -329,17 +342,32 @@ class GoCallResultBinder(OptimizationPass):
         site = stmt.tags.get("ins_addr")
         if not isinstance(site, int):
             return None
-        rec = sigs.set_callsite_inferred(site, caller_results=bools, result_words=count)
+        rec = sigs.set_callsite_inferred(site, caller_results=bools, result_words=count, fp_results=floats)
         try:
-            types = [sigs.type(t) for t in rec.result_types(count)]
+            int_types = rec.result_types(count)
+            fp_types = rec.fp_result_types(0)
+            types = [sigs.type(t) for t in int_types + fp_types]
         except Exception:  # pylint:disable=broad-exception-caught
+            return None
+        if count > len(self._regs) or len(fp_types) > len(self._fp_regs):
             return None
         regs: list[Expression] = [
             Register(self.manager.next_atom(), self._regs[w], arch.bits, reg_name=self._names[w]) for w in range(count)
         ]
+        regs.extend(
+            Register(
+                self.manager.next_atom(),
+                self._fp_regs[w],
+                arch.registers[self._fp_names[w]][1] * arch.byte_width,
+                reg_name=self._fp_names[w],
+            )
+            for w in range(len(fp_types))
+        )
         # call sites are made after this stage; CallSiteMaker puts this result type on the site prototype
         returnty = types[0] if len(types) == 1 else GoSimTypeTuple(types)
         variable_map_of(self.manager).set_returnty(stmt.expr, returnty.with_arch(arch))
+        if len(regs) == 1:
+            return SideEffectStatement(stmt.idx, stmt.expr, stmt.ret_expr, stmt.fp_ret_expr or regs[0], **stmt.tags)
         return SideEffectStatement(
             stmt.idx, stmt.expr, ComboRegister(self.manager.next_atom(), regs), stmt.fp_ret_expr, **stmt.tags
         )
