@@ -141,6 +141,17 @@ class TestFunction(TestCase):
         function.prototype = None
         assert function.prototype is None
 
+    def test_str_includes_known_prototype(self):
+        function = makeFunction(self.function_manager, 0x42, "report")
+        original = str(function)
+        self.assertNotIn("Prototype:", original)
+
+        function.prototype = parse_defns("int report(char *, ...);")["report"]
+        self.assertIn("  Prototype: int report(char *, ...)", str(function).splitlines())
+
+        function.prototype = None
+        self.assertEqual(str(function), original)
+
 
 if __name__ == "__main__":
     main()
