@@ -9,6 +9,8 @@ import logging
 import os
 import random
 import unittest
+from types import SimpleNamespace
+from typing import Any
 
 import archinfo
 
@@ -1060,6 +1062,98 @@ class TestCfgfast(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, nodecode_threshold=0.3)
 
         assert len(cfg.kb.functions) < 150, f"32 KB of random data produced {len(cfg.kb.functions)} functions"
+
+    def test_drop_bad_functions_checks_four_block_candidates(self):
+        func_addr = 0x1000
+        block_addrs = {func_addr + i for i in range(4)}
+
+        class Node:
+            def __init__(self, addr):
+                self.addr = addr
+                self.size = 1
+
+        nodes = {addr: Node(addr) for addr in block_addrs}
+        function = SimpleNamespace(block_addrs=block_addrs, block_addrs_set=block_addrs)
+
+        class Functions:
+            def __init__(self):
+                self.removed = set()
+
+            def __iter__(self):
+                return iter((func_addr,))
+
+            @staticmethod
+            def is_func_nonreturning(addr):
+                return addr == func_addr
+
+            @staticmethod
+            def is_func_returning_unknown(_addr):
+                return False
+
+            @staticmethod
+            def get_func_block_count(addr):
+                assert addr == func_addr
+                return len(block_addrs)
+
+            @staticmethod
+            def get_by_addr(addr, **_kwargs):
+                assert addr == func_addr
+                return function
+
+            def __delitem__(self, addr):
+                self.removed.add(addr)
+
+        class Model:
+            def __init__(self):
+                self.graph = SimpleNamespace(out_degree={node: 0 for node in nodes.values()})
+                self.memory_data = {}
+                self.removed = set()
+
+            @staticmethod
+            def floor_addr(_addr):
+                return None
+
+            @staticmethod
+            def get_any_node(addr):
+                return nodes.get(addr)
+
+            def remove_node_and_graph_node(self, node):
+                self.removed.add(node.addr)
+
+        class SegmentList:
+            def __init__(self):
+                self.occupied = set()
+
+            @staticmethod
+            def occupied_by_sort(_addr):
+                return None
+
+            def occupy(self, addr, _size, _sort):
+                self.occupied.add(addr)
+
+        functions = Functions()
+        model = Model()
+        segment_list = SegmentList()
+        cfg: Any = SimpleNamespace(
+            kb=SimpleNamespace(functions=functions),
+            _model=model,
+            model=model,
+            memory_data=model.memory_data,
+            _seg_list=segment_list,
+            project=SimpleNamespace(entry=0),
+            _start_at_entry=False,
+            _used_function_prologue_addrs=set(),
+            _function_addresses_from_symbols=set(),
+            _function_addresses_from_macho_starts=set(),
+            _unlifted_instruction_addrs=set(),
+            _lift=lambda addr: SimpleNamespace(addr=addr, vex=SimpleNamespace(jumpkind="Ijk_NoDecode")),
+        )
+
+        angr.analyses.cfg.cfg_fast.CFGFast.drop_bad_functions(cfg)
+
+        assert functions.removed == {func_addr}
+        assert model.removed == block_addrs
+        assert segment_list.occupied == block_addrs
 
     def test_smart_scan_does_not_miss_functions_armel_blob(self):
         binary_path = os.path.join(test_location, "armel", "chall.bin")
