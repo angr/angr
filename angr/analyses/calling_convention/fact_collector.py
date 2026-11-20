@@ -995,6 +995,10 @@ class FactCollector(Analysis):
         if isinstance(cc.FP_RETURN_VAL, SimRegArg) and cc.FP_RETURN_VAL.reg_name in self.project.arch.registers:
             fp_retreg_offset = cc.FP_RETURN_VAL.check_offset(self.project.arch)
 
+        overflow_retreg_consumer_offset: int | None = None
+        if isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
+            overflow_retreg_consumer_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
+
         # Get the overflow return register offset (rdx on x64 System V, rbx under Go's ABIInternal).
         # This is only used to detect 128-bit return values on Rust and Go binaries, whose ABIs really
         # do return a second word there; elsewhere the overflow register is typically a scratch
@@ -1003,8 +1007,8 @@ class FactCollector(Analysis):
         # CallingConventionAnalysis._guess_retval_type which only maps 9..16 sizes to a type for those
         # binaries).
         overflow_retreg_offset: int | None = None
-        if (self.project.is_rust_binary or self.project.is_go_binary) and isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
-            overflow_retreg_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
+        if self.project.is_rust_binary or self.project.is_go_binary:
+            overflow_retreg_offset = overflow_retreg_consumer_offset
 
         retval_sizes = []
         propagated_retval_sizes = []
@@ -1164,7 +1168,12 @@ class FactCollector(Analysis):
                     incidental_flags.append(
                         bool(func_succs)
                         or self._retval_write_is_incidental(
-                            block, retval_stmt_idx, retreg_offset, block_retval_size, fp_retreg_offset
+                            block,
+                            retval_stmt_idx,
+                            retreg_offset,
+                            block_retval_size,
+                            fp_retreg_offset,
+                            overflow_retreg_consumer_offset,
                         )
                     )
                     l.debug(
@@ -1430,7 +1439,13 @@ class FactCollector(Analysis):
         return False
 
     def _retval_write_is_incidental(
-        self, block: Block, put_idx: int, retreg_offset: int, retreg_size: int, fp_retreg_offset: int | None
+        self,
+        block: Block,
+        put_idx: int,
+        retreg_offset: int,
+        retreg_size: int,
+        fp_retreg_offset: int | None,
+        overflow_retreg_consumer_offset: int | None,
     ) -> bool:
         """Is the write to the return register at ``put_idx`` of ``block.vex`` a leftover rather than a return value?
 
@@ -1442,8 +1457,9 @@ class FactCollector(Analysis):
         re-lifted unoptimized: there, only an explicit re-read of the register counts, plus whatever derives from
         the written tmp within the writing instruction.
 
-        One consumer is exempt: the floating-point return register. ``fabs`` masks the sign bit in rax and moves
-        the result back to xmm0; that value is the return value, it just travelled through rax.
+        Two consumers are exempt: the floating-point and overflow return registers. ``fabs`` masks the sign bit in
+        rax and moves the result back to xmm0; similarly, ``cdq`` sign-extends eax into edx. In both cases the
+        consumed value is still part of the ABI return value.
         """
         ins_addr = None
         for stmt in reversed(block.vex.statements[:put_idx]):
@@ -1490,7 +1506,10 @@ class FactCollector(Analysis):
             # a Put of the next instruction address is a constant and reads nothing; a Put of a derived tmp into the
             # instruction pointer is `jmp rax`, and consumes the value like any other use
             if reads_retval(stmt):
-                return not (isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == fp_retreg_offset)
+                return not (
+                    isinstance(stmt, pyvex.IRStmt.Put)
+                    and stmt.offset in (fp_retreg_offset, overflow_retreg_consumer_offset)
+                )
         return False
 
     def _analyze_endpoints_for_restored_regs(self):
