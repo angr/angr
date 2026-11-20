@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import logging
 import time
 from dataclasses import dataclass, field
@@ -18,6 +19,8 @@ _l = logging.getLogger(__name__)
 
 PAGE = 0x1000
 _MIN_CODE_CALLS = 20
+_MAX_WRAPPERS = 4096
+_WRAPPER_BUDGET = 120.0
 _SKIPPED_SECTIONS = {".rsrc", ".reloc", ".tls", ".idata", ".edata", ".pdata", ".taggant"}
 
 
@@ -61,6 +64,7 @@ class GenericUnpackerCore:
         self.stop: EmulationStop | None = None
         self._initial: dict[int, bytes] = {}
         self._sections: dict[int, pefile.SectionStructure] = {}
+        self._wrappers: dict[int, int] = {}
         self._started = 0.0
         emu = self.emu
         ep_rva = emu.pe.OPTIONAL_HEADER.AddressOfEntryPoint
@@ -151,19 +155,46 @@ class GenericUnpackerCore:
 
     def _recover_imports(self, image: bytearray) -> list[RecoveredImport]:
         """
-        Find import-address-table slots: pointer-aligned values in the image that are API trap addresses.
+        Find import-address-table slots: pointer-aligned values in the image that are API trap addresses, or that
+        point at a wrapper outside the image which ends up in an API.
         """
         emu = self.emu
         size = emu.ptr_size
         lo = min(m.base for m in emu.module_order)
         hi = max(m.base + m.size for m in emu.module_order)
-        found: list[RecoveredImport] = []
+        allocations = sorted(emu.allocations.items())
+        starts = [start for start, _ in allocations]
         view = memoryview(image).cast("Q" if size == 8 else "I")
+        direct: dict[int, int] = {}
+        wrapped: dict[int, int] = {}
         for idx, value in enumerate(view):
             if lo <= value < hi:
-                slot = emu.api_slots.get(value)
-                if slot is not None:
-                    found.append(RecoveredImport(idx * size, slot[0].name, slot[1]))
+                if value in emu.api_slots:
+                    direct[idx] = value
+            elif starts and value >= starts[0]:
+                pos = bisect.bisect_right(starts, value) - 1
+                if value < starts[pos] + allocations[pos][1]:
+                    wrapped[idx] = value
+        # wrappers sit in the table among other imports; anything else that points into an allocation is data
+        cells = dict(direct)
+        resolved: dict[int, int | None] = {}
+        deadline = time.monotonic() + _WRAPPER_BUDGET
+        for idx in sorted(wrapped):
+            if not any(idx + delta in direct or idx + delta in wrapped for delta in (-2, -1, 1, 2)):
+                continue
+            target = wrapped[idx]
+            if target not in resolved:
+                if len(resolved) >= _MAX_WRAPPERS or time.monotonic() > deadline:
+                    break
+                resolved[target] = emu.trace_to_api(target)
+            api = resolved[target]
+            if api is not None:
+                cells[idx] = api
+        self._wrappers = {target: api for target, api in resolved.items() if api is not None}
+        found = []
+        for idx, api in sorted(cells.items()):
+            module, name = emu.api_slots[api]
+            found.append(RecoveredImport(idx * size, module.name, name))
         # isolated hits are usually coincidental constants; real IATs come in runs
         rvas = {imp.iat_rva for imp in found}
         return [imp for imp in found if imp.iat_rva - size in rvas or imp.iat_rva + size in rvas]

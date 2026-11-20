@@ -42,6 +42,25 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read_cstr(buf + 0x400) == expected
 
 
+class TestImportWrappers(unittest.TestCase):
+    def test_trace_to_api(self):
+        emu = emulator(b"\xc3")
+        emu.start()
+        sleep = emu.resolve_export(emu.load_module("kernel32.dll"), "Sleep")
+        assert sleep is not None
+        wrapper = emu.alloc(0x1000)
+        # a relocated copy of the API's first instructions, as import wrappers carry
+        emu.write(wrapper, b"\x50\x58" + emu.read(sleep, 12))
+        # junk, then a jump past the API's first instruction
+        emu.write(wrapper + 0x100, b"\x8b\xff\x90\xe9" + struct.pack("<i", sleep + 2 - (wrapper + 0x108)))
+        emu.write(wrapper + 0x200, b"\x31\xc0\xc3")
+        pc = emu.pc
+        assert emu.trace_to_api(wrapper) == sleep
+        assert emu.trace_to_api(wrapper + 0x100) == sleep
+        assert emu.trace_to_api(wrapper + 0x200) is None
+        assert emu.pc == pc
+
+
 class TestSystemCallStubs(unittest.TestCase):
     def test_x86_stub_called_past_its_first_instruction(self):
         # entry: mov eax, [ZwClose + 1]; push HANDLE; call rest; ret

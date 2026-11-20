@@ -6,11 +6,10 @@ import struct
 IMAGE_FILE_MACHINE_I386 = 0x14C
 IMAGE_FILE_MACHINE_AMD64 = 0x8664
 
-# Each export gets a 16-byte slot: a hot-patchable prologue followed by a jump back to the slot start. Only the slot
-# start is trapped, so code that runs a stolen copy of the prologue and jumps into the middle still reaches the trap.
+# Each export gets a 16-byte slot: a short prologue, then an absolute jump back to the slot start. Only the slot start
+# is trapped. Protectors run stolen copies of an API's first instructions from their own memory; because the jump
+# is absolute, a copy of any length, and a jump into the middle of the slot, still end at the trap.
 SLOT_SIZE = 16
-_SLOT_X86 = bytes.fromhex("8bff 558bec 5d ebf8").ljust(SLOT_SIZE, b"\xcc")
-_SLOT_AMD64 = bytes.fromhex("48895c2408 488b5c2408 ebf4").ljust(SLOT_SIZE, b"\xcc")
 # 32-bit ntdll routines whose bodies protectors read or call through KUSER_SHARED_DATA.SystemCall
 _X86_NTDLL_BODIES = {
     "KiFastSystemCall": bytes.fromhex("8bd4 0f34 c3"),
@@ -59,8 +58,9 @@ class FakeModule:
         self._export_rva = self._code_rva + code_size
         export_data = self._build_export_directory(names)
         self.size = _align(self._export_rva + len(export_data), 0x10000)
-        slot = _SLOT_AMD64 if is_64bit else _SLOT_X86
-        code = bytearray(slot * (code_size // SLOT_SIZE))
+        code = bytearray()
+        for addr in range(base + self._code_rva, base + self._code_rva + code_size, SLOT_SIZE):
+            code += self._slot(addr)
         if syscalls:
             # system-call stubs must look real: protectors read the number out of them, compare neighbouring stubs,
             # or reject foreign bytes
@@ -78,6 +78,13 @@ class FakeModule:
         self.image = (
             self._build_header(code_size, len(export_data)).ljust(_HEADER_SIZE, b"\0") + bytes(code) + export_data
         ).ljust(self.size, b"\0")
+
+    def _slot(self, addr: int) -> bytes:
+        if self.is_64bit:
+            # mov r11, rsp; nop; mov rax, addr; jmp rax
+            return b"\x4c\x8b\xdc\x90\x48\xb8" + struct.pack("<Q", addr) + b"\xff\xe0"
+        # mov edi, edi; push ebp; mov ebp, esp; pop ebp; push addr; ret
+        return (b"\x8b\xff\x55\x8b\xec\x5d\x68" + struct.pack("<I", addr) + b"\xc3").ljust(SLOT_SIZE, b"\x90")
 
     def _syscall_stub(self, number: int, stack_bytes: int) -> bytes:
         if self.is_64bit:

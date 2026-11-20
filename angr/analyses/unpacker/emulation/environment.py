@@ -814,6 +814,47 @@ class WindowsEmulator:
 
         next_step(0)
 
+    def trace_to_api(self, addr: int, max_blocks: int = 20000) -> int | None:
+        """
+        Run the code at addr on a throw-away copy of the process until it reaches an API. Returns the API's trap
+        address, or None if it gets anywhere else. Used to see through import wrappers; the process is not changed.
+        """
+        state = self.state.copy()
+        state.unicorn.max_steps = max_blocks
+        sp = self.sp - 0x400
+        state.memory.store(sp, bytes(self.ptr_size), priv=True)
+        state.registers.store(self.project.arch.sp_offset, sp, size=self.ptr_size)
+        state.registers.store(self.project.arch.ip_offset, addr, size=self.ptr_size)
+        for _ in range(16):
+            pc = state.addr
+            slot = self.api_slots.get(pc)
+            if slot is not None:
+                if slot[1] != "KiFastSystemCall":
+                    return pc
+                # entered through a copied system-call stub: the number names the API
+                number = state.solver.eval(state.registers.load(self.project.arch.registers["eax"][0], 4)) & 0xFFFF
+                name = self._syscall_names.get(number)
+                return slot[0].resolve(name, create=False) if name is not None else None
+            if self.space.find(pc) is None:
+                return None
+            try:
+                successors = self.project.factory.successors(state, extra_stop_points=self._stop_points)
+            except (SimError, AngrError, KeyError):
+                return None
+            finally:
+                self._forget_native_failures()
+            if not successors.flat_successors:
+                return None
+            if successors.sort == "Unicorn" and successors.flat_successors[0].unicorn.steps >= max_blocks:
+                return None
+            state = successors.flat_successors[0]
+            if state.history.jumpkind != "Ijk_Boring" and not state.history.jumpkind.startswith(
+                ("Ijk_Call", "Ijk_Ret")
+            ):
+                return None
+            state.history.trim()
+        return None
+
     def watch_exec(self, start: int, size: int) -> None:
         """
         Make a range non-executable so that the first jump into it stops run() with EXEC_TRAP.
