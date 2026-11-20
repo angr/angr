@@ -117,6 +117,15 @@ class TestFortifyChk(unittest.TestCase):
         st = self._call("__strncat_chk", DST, SRC, 2, 64, state=state)
         assert self._load_str(st, DST, 5) == b"abcd\x00"
 
+    def test_strncat_terminates_when_truncated(self):
+        # the limit cuts the source short; the destination must still be NUL-terminated, even over non-zero memory
+        for name, extra in (("strncat", ()), ("__strncat_chk", (64,))):
+            state = self.proj.factory.blank_state()
+            state.memory.store(DST, b"ab\x00XXXXX")
+            state.memory.store(SRC, b"cdef\x00")
+            st = self._call(name, DST, SRC, 2, *extra, state=state)
+            assert self._load_str(st, DST, 8) == b"abcd\x00XXX", name
+
 
 if __name__ == "__main__":
     unittest.main()
