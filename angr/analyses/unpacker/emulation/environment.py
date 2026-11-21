@@ -241,7 +241,16 @@ class WindowsEmulator:
         if data:
             if self._lazy:
                 self._commit(addr, len(data))
-            self.state.memory.store(addr, data, priv=True)
+            self._store(addr, data)
+
+    def _store(self, addr: int, data: bytes) -> None:
+        # one store per page: the cost of a store that spans many pages grows much faster than its size
+        memory = self.state.memory
+        pos = 0
+        while pos < len(data):
+            chunk = PAGE - ((addr + pos) & (PAGE - 1))
+            memory.store(addr + pos, data[pos : pos + chunk], priv=True)
+            pos += chunk
 
     def _commit(self, addr: int, size: int) -> bool:
         """
@@ -296,7 +305,7 @@ class WindowsEmulator:
     def map(self, addr: int, size: int, perms: int = 3) -> None:
         # unwritten bytes would be symbolic, which the native Unicorn bridge cannot run at speed
         self.state.memory.map_region(addr, size, perms)
-        self.state.memory.store(addr, bytes(size), priv=True)
+        self._store(addr, bytes(size))
 
     def _is_mapped(self, addr: int) -> bool:
         try:
@@ -371,7 +380,6 @@ class WindowsEmulator:
             addr=self.project.entry,
             add_options={
                 o.UNICORN,
-                o.UNICORN_SYM_REGS_SUPPORT,
                 o.ZERO_FILL_UNCONSTRAINED_MEMORY,
                 o.ZERO_FILL_UNCONSTRAINED_REGISTERS,
                 o.ENABLE_NX,
