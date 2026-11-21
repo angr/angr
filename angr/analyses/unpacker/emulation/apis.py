@@ -22,6 +22,8 @@ STATUS_INFO_LENGTH_MISMATCH = 0xC0000004
 STATUS_ACCESS_VIOLATION = 0xC0000005
 STATUS_INVALID_HANDLE = 0xC0000008
 STATUS_INVALID_PARAMETER = 0xC000000D
+STATUS_END_OF_FILE = 0xC0000011
+STATUS_OBJECT_NAME_NOT_FOUND = 0xC0000034
 STATUS_NOT_IMPLEMENTED = 0xC0000002
 STATUS_PORT_NOT_SET = 0xC0000353
 STATUS_INVALID_INFO_CLASS = 0xC0000003
@@ -1000,6 +1002,103 @@ def map_view_of_file(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 _const(("UnmapViewOfFile",), 1, 1)
+
+
+def _object_name(emu: WindowsEmulator, attributes: int) -> str:
+    """
+    The name in an OBJECT_ATTRIBUTES structure.
+    """
+    name = emu.read_ptr(attributes + 2 * emu.ptr_size) if attributes else 0
+    if not name:
+        return ""
+    length = struct.unpack("<H", emu.read(name, 2))[0]
+    return emu.read(emu.read_ptr(name + emu.ptr_size), length).decode("utf-16-le", "replace")
+
+
+def _nt_open_file(emu: WindowsEmulator, handle_ptr: int, attributes: int, io_status: int) -> int:
+    handle = _open_file(emu, _object_name(emu, attributes))
+    if handle == INVALID_HANDLE:
+        return STATUS_OBJECT_NAME_NOT_FOUND
+    emu.write_ptr(handle_ptr, handle)
+    if io_status:
+        emu.write_ptr(io_status, STATUS_SUCCESS)
+        emu.write_ptr(io_status + emu.ptr_size, 1)  # FILE_OPENED
+    return STATUS_SUCCESS
+
+
+@api("NtOpenFile", "ZwOpenFile", nargs=6)
+def nt_open_file(emu: WindowsEmulator, args: list[int]) -> int:
+    return _nt_open_file(emu, args[0], args[2], args[3])
+
+
+@api("NtCreateFile", "ZwCreateFile", nargs=11)
+def nt_create_file(emu: WindowsEmulator, args: list[int]) -> int:
+    return _nt_open_file(emu, args[0], args[2], args[3])
+
+
+@api("NtQueryInformationFile", "ZwQueryInformationFile", nargs=5)
+def nt_query_information_file(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    if not isinstance(obj, FileObject):
+        return STATUS_INVALID_HANDLE
+    if args[4] != 5:  # only FileStandardInformation
+        return STATUS_INVALID_INFO_CLASS
+    if args[3] < 24:
+        return STATUS_INFO_LENGTH_MISMATCH
+    size = len(obj.data)
+    emu.write(args[2], struct.pack("<QQIBBH", (size + 0xFFF) & ~0xFFF, size, 1, 0, 0, 0))
+    emu.write_ptr(args[1], STATUS_SUCCESS)
+    emu.write_ptr(args[1] + emu.ptr_size, 24)
+    return STATUS_SUCCESS
+
+
+@api("NtReadFile", "ZwReadFile", nargs=9)
+def nt_read_file(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    if not isinstance(obj, FileObject):
+        return STATUS_INVALID_HANDLE
+    if args[7]:
+        obj.pos = struct.unpack("<Q", emu.read(args[7], 8))[0]
+    data = obj.data[obj.pos : obj.pos + args[6]]
+    if not data and args[6]:
+        return STATUS_END_OF_FILE
+    obj.pos += len(data)
+    emu.write(args[5], data)
+    if args[4]:
+        emu.write_ptr(args[4], STATUS_SUCCESS)
+        emu.write_ptr(args[4] + emu.ptr_size, len(data))
+    return STATUS_SUCCESS
+
+
+@api("NtCreateSection", "ZwCreateSection", nargs=7)
+def nt_create_section(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[6])
+    if not isinstance(obj, FileObject):
+        return STATUS_INVALID_HANDLE
+    # SEC_IMAGE: the view is the file laid out as a loaded image
+    data = emu.pe.get_memory_mapped_image() if args[5] & 0x1000000 else obj.data
+    emu.write_ptr(args[0], emu.new_handle(MappingObject(data)))
+    return STATUS_SUCCESS
+
+
+@api("NtMapViewOfSection", "ZwMapViewOfSection", nargs=10)
+def nt_map_view_of_section(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    if not isinstance(obj, MappingObject):
+        return STATUS_INVALID_HANDLE
+    offset = struct.unpack("<Q", emu.read(args[5], 8))[0] if args[5] else 0
+    size = emu.read_ptr(args[6]) if args[6] else 0
+    data = obj.data[offset : offset + size] if size else obj.data[offset:]
+    addr = emu.alloc(max(len(data), 1))
+    emu.write(addr, data)
+    emu.file_views.add(addr)
+    emu.write_ptr(args[2], addr)
+    if args[6]:
+        emu.write_ptr(args[6], (len(data) + 0xFFF) & ~0xFFF)
+    return STATUS_SUCCESS
+
+
+_const(("NtUnmapViewOfSection", "ZwUnmapViewOfSection"), 2, STATUS_SUCCESS)
 
 #
 # Strings

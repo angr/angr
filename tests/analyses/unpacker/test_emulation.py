@@ -68,6 +68,26 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read(target, 3) == b"\xe9\x11\x22"
         assert emu.read_u32(buf + 0x10) == 3
 
+    def test_native_file_mapping(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        path = ("\\??\\" + emu.image_path).encode("utf-16-le")
+        emu.write(buf + 0x100, path)
+        # UNICODE_STRING, then OBJECT_ATTRIBUTES pointing at it
+        emu.write(buf + 0x40, struct.pack("<HHI", len(path), len(path), buf + 0x100))
+        emu.write(buf + 0x60, struct.pack("<III", 24, 0, buf + 0x40))
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        assert call("NtOpenFile", buf, 0x80100080, buf + 0x60, buf + 0x10, 3, 0x60) == 0
+        file_handle = emu.read_u32(buf)
+        assert call("NtCreateSection", buf + 4, 4, 0, 0, 2, 0x8000000, file_handle) == 0
+        assert call("NtMapViewOfSection", emu.read_u32(buf + 4), 0xFFFFFFFF, buf + 8, 0, 0, 0, 0, 1, 0, 2) == 0
+        view = emu.read_u32(buf + 8)
+        assert emu.read(view, len(emu.image_file)) == emu.image_file
+        assert API_HANDLERS["VirtualQuery"].func(emu, [view, buf + 0x200, 28]) == 28
+        assert emu.read_u32(buf + 0x200 + 24) == 0x40000  # MEM_MAPPED
+        emu.write(buf + 0x60, struct.pack("<III", 24, 0, 0))
+        assert call("NtOpenFile", buf, 0x80100080, buf + 0x60, buf + 0x10, 3, 0x60) == 0xC0000034
+
 
 class TestImportWrappers(unittest.TestCase):
     def test_trace_to_api(self):
