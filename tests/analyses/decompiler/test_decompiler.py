@@ -7045,6 +7045,29 @@ class TestDecompiler(unittest.TestCase):
         assert the_line is not None
         assert the_line.count(",") == 2
 
+    def test_decompiling_security_cookie_preserves_return_value(self):
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "48460c9633d06cad3e3b41c87de04177d129906610c5bbdebc7507a211100e98_altered"
+        )
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x4113F0,
+            extra_func_addrs=(0x411DB8,),
+            window=0x100,
+            expand_call_tree=False,
+            project_kwargs={"auto_load_libs": False},
+            cfg_kwargs={"data_references": True},
+        )
+        func = proj.kb.functions[0x4113F0]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        assert not dec.errors
+        assert "security_check_cookie" not in dec.codegen.text
+        return_expressions = set(re.findall(r"\breturn\s+([^;]+);", dec.codegen.text))
+        assert return_expressions == {"0", "1"}
+
     def test_regs_preserved_across_syscalls(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "regs_preserved_across_syscalls")
         proj = angr.Project(bin_path, auto_load_libs=False)
