@@ -16,6 +16,7 @@ EXCEPTION_PRIV_INSTRUCTION = 0xC0000096
 EXCEPTION_INT_DIVIDE_BY_ZERO = 0xC0000094
 
 _CONTINUE_EXECUTION = 0xFFFFFFFF
+_TRAP_FLAG = 0x100
 _X86_CONTEXT_SIZE = 0x2CC
 _X64_CONTEXT_SIZE = 0x4D0
 _X86_REGS = (("edi", 0x9C), ("esi", 0xA0), ("ebx", 0xA4), ("edx", 0xA8), ("ecx", 0xAC), ("eax", 0xB0), ("ebp", 0xB4),
@@ -59,10 +60,13 @@ class ExceptionDispatcher:
         if emu.is_64bit:
             for name, off in _X64_REGS:
                 emu.set_reg(name, struct.unpack("<Q", emu.read(addr + off, 8))[0])
-            emu.set_reg("rflags", emu.read_u32(addr + 0x44))
+            flags = emu.read_u32(addr + 0x44)
+            emu.set_reg("rflags", flags)
         else:
             for name, off in _X86_REGS:
                 emu.set_reg(name, emu.read_u32(addr + off))
+            flags = emu.read_u32(addr + 0xC0)
+        emu.trap_pending = bool(flags & _TRAP_FLAG)
 
     def dispatch(self, code: int, pc: int, info: tuple[int, ...] = (), flags: int = 0) -> None:
         """

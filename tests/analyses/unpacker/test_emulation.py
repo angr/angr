@@ -23,7 +23,7 @@ HANDLE = 0x1234
 
 
 def emulator(code: bytes):
-    packed = build_pe([(b".text", CODE_RVA, 0x1000, code, 0x60000020)], entry_rva=CODE_RVA)
+    packed = build_pe([(b".text", CODE_RVA, 0x1000, code, 0xE0000020)], entry_rva=CODE_RVA)
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "sample.exe")
         with open(path, "wb") as f:
@@ -119,6 +119,41 @@ class TestFakeModule(unittest.TestCase):
             (105, None, unnamed),
             (106, b"Alpha", module.exports["Alpha"]),
         }
+
+
+class TestExceptions(unittest.TestCase):
+    def _single_step(self, stepped: str):
+        code = bytearray(0x200)
+        main = bytes.fromhex(
+            "b9 e8 03 00 00 49 75 fd"  # spin, so the rest runs natively
+            "9c 81 0c 24 00 01 00 00 9d" + stepped + "90 c3"  # pushfd; or dword [esp], 0x100; popfd
+        )
+        code[: len(main)] = main
+        cell = IMAGE_BASE + CODE_RVA + 0x100
+        # vectored handler: store the exception code and address, continue execution
+        code[0x80:0x9E] = (
+            bytes.fromhex("8b 44 24 04 8b 08 8b 11 89 15")
+            + struct.pack("<I", cell)
+            + bytes.fromhex("8b 51 0c 89 15")
+            + struct.pack("<I", cell + 4)
+            + bytes.fromhex("83 c8 ff c2 04 00")
+        ).ljust(0x1E, b"\x90")
+        emu = emulator(bytes(code))
+        emu.exceptions.vectored.append(IMAGE_BASE + CODE_RVA + 0x80)
+        emu.start()
+        stop = emu.run(max_blocks=100000)
+        assert stop.reason is StopReason.RETURNED
+        assert emu.exceptions.count == 1
+        assert emu.read_u32(cell) == 0x80000004
+        # the trap is taken after the instruction that follows popfd
+        assert emu.read_u32(cell + 4) == IMAGE_BASE + CODE_RVA + len(main) - 2
+
+    def test_trap_flag_single_step(self):
+        self._single_step("90")
+
+    def test_trap_flag_single_step_over_cpuid(self):
+        # protectors time the trap against cpuid, which the native engine does not execute itself
+        self._single_step("0f a2")
 
 
 class TestSystemCallStubs(unittest.TestCase):

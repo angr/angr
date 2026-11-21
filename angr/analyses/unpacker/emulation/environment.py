@@ -38,6 +38,7 @@ from .exceptions import (
     EXCEPTION_ILLEGAL_INSTRUCTION,
     EXCEPTION_INT_DIVIDE_BY_ZERO,
     EXCEPTION_PRIV_INSTRUCTION,
+    EXCEPTION_SINGLE_STEP,
     ExceptionDispatcher,
 )
 from .modules import SLOT_SIZE, FakeModule
@@ -202,6 +203,7 @@ class WindowsEmulator:
         self._lazy: dict[int, tuple[int, int]] = {}
         self._committed: set[int] = set()
         self._stop: EmulationStop | None = None
+        self.trap_pending = False
         self._nargs_cache: dict[tuple[str, str], int | None] = {}
         self._next_dll_base = 0x7FF800000000 if self.is_64bit else 0x70000000
         self._next_alloc = 0x20000000 if not self.is_64bit else 0x200000000
@@ -1067,6 +1069,11 @@ class WindowsEmulator:
                 self._set_sp(self._saved_sp.pop(addr))
                 continuation(self.reg("rax" if self.is_64bit else "eax"))
                 continue
+            if self.trap_pending:
+                # a context with the trap flag set was resumed
+                self.trap_pending = False
+                self._raise_at_instruction(1, EXCEPTION_SINGLE_STEP)
+                continue
             if self._watched and self._is_watched(addr):
                 return EmulationStop(StopReason.EXEC_TRAP, addr)
             if (block_limit is not None and self.blocks >= block_limit) or (
@@ -1120,6 +1127,10 @@ class WindowsEmulator:
                     self._forget_native_failures()
             new_state.history.trim()
             self.state = new_state
+            if successors.sort == "Unicorn" and new_state.unicorn.trap_flag:
+                # the trap flag is set: the engine stopped in front of the instruction that gets single-stepped
+                self._raise_at_instruction(1, EXCEPTION_SINGLE_STEP)
+                continue
             if (
                 len(self.threads) > 1
                 and successors.sort == "Unicorn"

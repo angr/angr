@@ -669,6 +669,8 @@ class Unicorn(SimStatePlugin, SupportsMerge):
         self.error = None
         self.errno = 0
         self.trap_ip = None
+        # x86: whether the last native run ended with the trap flag set. The flag is not part of the VEX state.
+        self.trap_flag = False
 
         self.cache_key = hash(self) if cache_key is None else cache_key
 
@@ -982,6 +984,9 @@ class Unicorn(SimStatePlugin, SupportsMerge):
                 self._hook_syscall_i386(uc, user_data)
             else:
                 self._hook_syscall_x86_64(uc, user_data)
+        elif intno == 1:
+            # debug exception (single step): left to whoever drives the emulation, see trap_flag
+            _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
         else:
             l.warning("unhandled interrupt %d", intno)
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
@@ -1874,7 +1879,9 @@ class Unicorn(SimStatePlugin, SupportsMerge):
 
         if state.arch.name in {"X86", "AMD64"}:
             # update the eflags
-            state.regs.eflags = claripy.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), state.arch.bits)
+            eflags = self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS)
+            state.regs.eflags = claripy.BVV(eflags, state.arch.bits)
+            state.unicorn.trap_flag = bool(eflags & 0x100)
 
             # sync the fp clerical data
             status = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_FPSW)
