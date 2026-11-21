@@ -98,6 +98,17 @@ class AddressSpace:
         self.mark(addr, size)
         return addr
 
+    @property
+    def limit(self) -> int:
+        return self._limit
+
+    def next_start(self, addr: int) -> int:
+        """
+        Where the first region above addr starts (the end of the address space if there is none).
+        """
+        idx = bisect.bisect_right(self._starts, addr)
+        return self._starts[idx] if idx < len(self._starts) else self._limit
+
     def find(self, addr: int) -> tuple[int, int] | None:
         idx = bisect.bisect_right(self._starts, addr)
         if idx and self._ranges[idx - 1][1] > addr:
@@ -187,6 +198,7 @@ class WindowsEmulator:
         self.unhandled_apis: collections.Counter[str] = collections.Counter()
         self.messages: list[str] = []
         self.allocations: dict[int, int] = {}
+        self.file_views: set[int] = set()
         self.handles: dict[int, object] = {}
         self.threads: list[Thread] = []
         self.current_thread = 0
@@ -233,7 +245,7 @@ class WindowsEmulator:
             data = memory.concrete_load(addr + pos, chunk, priv=True)
             if len(data) == chunk:
                 out[pos : pos + chunk] = data
-            elif self._is_mapped(addr + pos):
+            elif self.is_mapped(addr + pos):
                 # partially symbolic or unwritten page: take the slow path
                 bits = memory.load(addr + pos, chunk, priv=True)
                 out[pos : pos + chunk] = self.state.solver.eval(bits, cast_to=bytes)
@@ -254,6 +266,13 @@ class WindowsEmulator:
             chunk = PAGE - ((addr + pos) & (PAGE - 1))
             memory.store(addr + pos, data[pos : pos + chunk], priv=True)
             pos += chunk
+
+    def patch(self, addr: int, data: bytes) -> None:
+        """
+        Write memory that may hold code which has already run.
+        """
+        self.write(addr, data)
+        self.state.unicorn.uncache_region(addr, len(data))
 
     def _commit(self, addr: int, size: int) -> bool:
         """
@@ -310,7 +329,7 @@ class WindowsEmulator:
         self.state.memory.map_region(addr, size, perms)
         self._store(addr, bytes(size))
 
-    def _is_mapped(self, addr: int) -> bool:
+    def is_mapped(self, addr: int) -> bool:
         try:
             self.state.memory.permissions(addr, priv=True)
         except SimMemoryError:
@@ -331,11 +350,11 @@ class WindowsEmulator:
                 PAGE - 1
             )
             for page in range(self.image_base + (section.VirtualAddress & ~(PAGE - 1)), self.image_base + end, PAGE):
-                if not self._is_mapped(page):
+                if not self.is_mapped(page):
                     self.state.memory.map_region(page, PAGE, perms | 1)
             if section.VirtualAddress > cursor:
                 gap_start = self.image_base + cursor
-                if self._is_mapped(gap_start):
+                if self.is_mapped(gap_start):
                     self.write(gap_start, bytes(min(section.VirtualAddress - cursor, PAGE - (cursor & (PAGE - 1)))))
             backed = min(section.SizeOfRawData, section.Misc_VirtualSize or section.SizeOfRawData)
             cursor = section.VirtualAddress + backed
@@ -683,13 +702,19 @@ class WindowsEmulator:
             self.api_slots[addr] = (module, export)
         self._stop_points.update(module.slot_names)
         self._add_ldr_entry(name, "C:\\Windows\\System32\\" + name, base, module.size, 0)
-        if name == "ntdll.dll" and not self.is_64bit and self._is_mapped(_KUSER_SHARED_DATA):
+        if name == "ntdll.dll" and not self.is_64bit and self.is_mapped(_KUSER_SHARED_DATA):
             # KUSER_SHARED_DATA.SystemCall / SystemCallReturn, which the 32-bit stubs call through
             for offset, export in ((0x300, "KiFastSystemCall"), (0x304, "KiFastSystemCallRet")):
                 target = module.resolve(export)
                 if target is not None:
                     self.write_ptr(_KUSER_SHARED_DATA + offset, target)
         return module
+
+    def is_image(self, base: int) -> bool:
+        """
+        Whether the region that starts at base is a mapped image (the program or a DLL).
+        """
+        return base == self.image_base & ~0xFFFF or self.module_by_base(base) is not None
 
     def module_by_base(self, base: int) -> FakeModule | None:
         for module in self.module_order:

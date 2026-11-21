@@ -21,6 +21,7 @@ STATUS_DATATYPE_MISALIGNMENT = 0x80000002
 STATUS_INFO_LENGTH_MISMATCH = 0xC0000004
 STATUS_ACCESS_VIOLATION = 0xC0000005
 STATUS_INVALID_HANDLE = 0xC0000008
+STATUS_INVALID_PARAMETER = 0xC000000D
 STATUS_NOT_IMPLEMENTED = 0xC0000002
 STATUS_PORT_NOT_SET = 0xC0000353
 STATUS_INVALID_INFO_CLASS = 0xC0000003
@@ -97,6 +98,9 @@ def _virtual_alloc(emu: WindowsEmulator, addr: int, size: int, protect: int) -> 
         span = ((addr + size + 0xFFF) & ~0xFFF) - base
         region = emu.space.find(base)
         if region is not None:
+            if emu.module_by_base(region[0]) is not None:
+                # a loaded DLL is not free memory
+                return 0
             if region[0] not in emu.lazy_regions:
                 emu.protect(base, span, perms)
             return base
@@ -149,20 +153,80 @@ def nt_protect_virtual_memory(emu: WindowsEmulator, args: list[int]) -> int:
     return STATUS_SUCCESS
 
 
+def _query_memory(emu: WindowsEmulator, addr: int, buf: int) -> int:
+    """
+    Write the MEMORY_BASIC_INFORMATION of the region around addr. Returns its size, or 0 for an invalid address.
+    """
+    addr &= ~0xFFF
+    if addr >= emu.space.limit:
+        return 0
+    region = emu.space.find(addr)
+    if region is not None and region[0] <= emu.image_base and addr >= emu.image_base + emu.image_size:
+        # the address space is reserved in 64K steps, but the image ends at SizeOfImage
+        region = None
+    if region is None:
+        # MEM_FREE up to the next region
+        fields = (addr, 0, 0, emu.space.next_start(addr) - addr, 0x10000, 1, 0)
+    else:
+        if emu.is_mapped(addr):
+            perms = emu.state.solver.eval(emu.state.memory.permissions(addr, priv=True))
+        else:
+            perms = emu.lazy_regions.get(region[0], (3, 0))[0]
+        protect = _PERMS_PAGE.get(perms, 0x04)
+        # MEM_IMAGE, MEM_MAPPED or MEM_PRIVATE
+        kind = 0x1000000 if emu.is_image(region[0]) else 0x40000 if region[0] in emu.file_views else 0x20000
+        fields = (addr, region[0], protect, region[1] - addr, 0x1000, protect, kind)
+    if emu.is_64bit:
+        emu.write(buf, struct.pack("<QQIIQIII", fields[0], fields[1], fields[2], 0, fields[3], *fields[4:]))
+        return 48
+    emu.write(buf, struct.pack("<IIIIIII", *fields))
+    return 28
+
+
 @api("VirtualQuery", nargs=3)
 def virtual_query(emu: WindowsEmulator, args: list[int]) -> int:
-    addr = args[0] & ~0xFFF
-    region = emu.space.find(addr)
-    if region is None:
+    return _query_memory(emu, args[0], args[1])
+
+
+@api("VirtualQueryEx", nargs=4)
+def virtual_query_ex(emu: WindowsEmulator, args: list[int]) -> int:
+    return _query_memory(emu, args[1], args[2])
+
+
+@api("NtQueryVirtualMemory", "ZwQueryVirtualMemory", nargs=6)
+def nt_query_virtual_memory(emu: WindowsEmulator, args: list[int]) -> int:
+    if args[2] != 0:  # only MemoryBasicInformation
+        return STATUS_INVALID_INFO_CLASS
+    size = 48 if emu.is_64bit else 28
+    if args[4] < size:
+        return STATUS_INFO_LENGTH_MISMATCH
+    if not _query_memory(emu, args[1], args[3]):
+        return STATUS_INVALID_PARAMETER
+    if args[5]:
+        emu.write_ptr(args[5], size)
+    return STATUS_SUCCESS
+
+
+@api("ReadProcessMemory", nargs=5)
+def read_process_memory(emu: WindowsEmulator, args: list[int]) -> int:
+    size = min(args[3], 1 << 26)
+    if emu.space.find(args[1]) is None:
         return 0
-    perms = emu.state.solver.eval(emu.state.memory.permissions(addr, priv=True))
-    protect = _PERMS_PAGE.get(perms, 0x04)
-    fields = (addr, region[0], protect, region[1] - addr, 0x1000, protect, 0x20000)
-    if emu.is_64bit:
-        emu.write(args[1], struct.pack("<QQIIQIII", fields[0], fields[1], fields[2], 0, fields[3], *fields[4:]))
-        return 48
-    emu.write(args[1], struct.pack("<IIIIIII", *fields))
-    return 28
+    emu.write(args[2], emu.read(args[1], size))
+    if args[4]:
+        emu.write_ptr(args[4], size)
+    return 1
+
+
+@api("WriteProcessMemory", nargs=5)
+def write_process_memory(emu: WindowsEmulator, args: list[int]) -> int:
+    size = min(args[3], 1 << 26)
+    if emu.space.find(args[1]) is None:
+        return 0
+    emu.patch(args[1], emu.read(args[2], size))
+    if args[4]:
+        emu.write_ptr(args[4], size)
+    return 1
 
 
 _const(("VirtualFree", "VirtualLock", "VirtualUnlock", "FlushInstructionCache"), 3, 1)
@@ -931,6 +995,7 @@ def map_view_of_file(emu: WindowsEmulator, args: list[int]) -> int:
     data = obj.data[offset : offset + args[4]] if args[4] else obj.data[offset:]
     addr = emu.alloc(max(len(data), 1))
     emu.write(addr, data)
+    emu.file_views.add(addr)
     return addr
 
 

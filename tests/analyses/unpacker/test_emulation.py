@@ -45,6 +45,29 @@ class TestApiHandlers(unittest.TestCase):
         assert length == len(expected)
         assert emu.read_cstr(buf + 0x400) == expected
 
+    def test_memory_queries(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        ntdll = emu.load_module("ntdll.dll")
+        query = API_HANDLERS["VirtualQuery"].func
+        assert query(emu, [ntdll.base + 0x1234, buf, 28]) == 28
+        base, allocation_base, _, _, state, _, kind = struct.unpack("<7I", emu.read(buf, 28))
+        assert (base, allocation_base, state, kind) == (ntdll.base + 0x1000, ntdll.base, 0x1000, 0x1000000)
+        # free memory is reported up to the next region
+        free = buf + 0x1000
+        assert query(emu, [free, buf, 28]) == 28
+        base, _, _, size, state, _, _ = struct.unpack("<7I", emu.read(buf, 28))
+        assert (base, state) == (free, 0x10000)
+        assert base + size == emu.space.next_start(free)
+        # a loaded DLL is not free memory
+        assert API_HANDLERS["VirtualAlloc"].func(emu, [ntdll.base + 0x2000, 0x1000, 0x3000, 0x40]) == 0
+        # patching code in a DLL, as hook installers do
+        target = ntdll.exports["NtClose"]
+        emu.write(buf, b"\xe9\x11\x22")
+        assert API_HANDLERS["WriteProcessMemory"].func(emu, [0xFFFFFFFF, target, buf, 3, buf + 0x10]) == 1
+        assert emu.read(target, 3) == b"\xe9\x11\x22"
+        assert emu.read_u32(buf + 0x10) == 3
+
 
 class TestImportWrappers(unittest.TestCase):
     def test_trace_to_api(self):
