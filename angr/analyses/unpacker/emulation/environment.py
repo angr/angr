@@ -31,7 +31,7 @@ from angr.errors import (
 from angr.procedures.definitions import SIM_LIBRARIES, load_win32api_definitions
 from angr.state_plugins.unicorn_engine import STOP
 
-from .apis import API_HANDLERS, STATUS_NOT_IMPLEMENTED, ApiHandler
+from .apis import API_HANDLERS, STATUS_ACCESS_VIOLATION, STATUS_NOT_IMPLEMENTED, ApiHandler
 from .exceptions import (
     EXCEPTION_ACCESS_VIOLATION,
     EXCEPTION_BREAKPOINT,
@@ -159,7 +159,6 @@ class WindowsEmulator:
         self._ptr_fmt = "<Q" if self.is_64bit else "<I"
         self._layout = _LAYOUT64 if self.is_64bit else _LAYOUT32
         self.image_base: int = main.mapped_base
-        self.image_size: int = main.max_addr - main.min_addr + 1
         name = ntpath.basename(project.filename or "sample.exe")
         self.image_path = image_path or ("C:\\Users\\admin\\Desktop\\" + (name if "." in name else "sample.exe"))
         with open(main.binary, "rb") as f:
@@ -171,6 +170,8 @@ class WindowsEmulator:
                 pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_TLS"],
             ]
         )
+        size = max(main.max_addr - main.min_addr + 1, self.pe.OPTIONAL_HEADER.SizeOfImage)
+        self.image_size: int = (size + PAGE - 1) & ~(PAGE - 1)
 
         self.space = AddressSpace(1 << 47 if self.is_64bit else 0x7FFF0000)
         for obj in project.loader.all_objects:
@@ -932,7 +933,11 @@ class WindowsEmulator:
                 _l.warning("Unknown argument count for %s!%s; the stack may be unbalanced", module.name, name)
             result = 0
         else:
-            result = handler.func(self, args)
+            try:
+                result = handler.func(self, args)
+            except SimSegfaultException:
+                # the handler followed a bad pointer argument
+                result = STATUS_ACCESS_VIOLATION if name.startswith(("Nt", "Zw")) else 0
         if result is not None:
             self.set_reg("rax" if self.is_64bit else "eax", result)
 
@@ -1011,7 +1016,10 @@ class WindowsEmulator:
             else:
                 args = [self.read_ptr(arg_base + 4 * i) for i in range(handler.nargs)]
             self.api_trace.append((label, self.pc, tuple(args)))
-            result = handler.func(self, args)
+            try:
+                result = handler.func(self, args)
+            except SimSegfaultException:
+                result = STATUS_ACCESS_VIOLATION
         if result is not None:
             self.set_reg("rax" if self.is_64bit else "eax", result)
 

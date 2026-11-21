@@ -17,7 +17,9 @@ ApiFunc = Callable[["WindowsEmulator", list[int]], "int | None"]
 
 INVALID_HANDLE = -1
 STATUS_SUCCESS = 0
+STATUS_DATATYPE_MISALIGNMENT = 0x80000002
 STATUS_INFO_LENGTH_MISMATCH = 0xC0000004
+STATUS_ACCESS_VIOLATION = 0xC0000005
 STATUS_INVALID_HANDLE = 0xC0000008
 STATUS_NOT_IMPLEMENTED = 0xC0000002
 STATUS_PORT_NOT_SET = 0xC0000353
@@ -478,6 +480,9 @@ def check_remote_debugger_present(emu: WindowsEmulator, args: list[int]) -> int:
 @api("NtQueryInformationProcess", "ZwQueryInformationProcess", nargs=5)
 def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
     info_class, buf, length = args[1], args[2], args[3]
+    if args[4] & 3:
+        # the kernel probes the pointers first; protectors pass an odd one to catch faked answers
+        return STATUS_DATATYPE_MISALIGNMENT
     status = STATUS_SUCCESS
     if info_class == 7:  # ProcessDebugPort
         emu.write_ptr(buf, 0)
