@@ -43,7 +43,7 @@ from .exceptions import (
 )
 from .modules import SLOT_SIZE, FakeModule
 from .stops import EmulationStop, StopReason
-from .syscalls import WIN7_X64_SYSCALLS
+from .syscalls import WIN7_X64_SYSCALLS, WIN7_X86_SYSCALLS
 from .threads import EventObject, Thread
 
 if TYPE_CHECKING:
@@ -203,7 +203,7 @@ class WindowsEmulator:
         self.threads: list[Thread] = []
         self.current_thread = 0
         self._api_frame = (0, 0)
-        self._syscall_names: dict[int, str] = dict(WIN7_X64_SYSCALLS)
+        self._syscall_names: dict[int, str] = dict(WIN7_X64_SYSCALLS if self.is_64bit else WIN7_X86_SYSCALLS)
         self.exit_code: int | None = None
         self.blocks = 0
         self.tick = 0x493E0
@@ -674,7 +674,7 @@ class WindowsEmulator:
         syscalls: dict[str, int] | None = None
         if name == "ntdll.dll":
             syscalls = {}
-            known = {nt_name: number for number, nt_name in WIN7_X64_SYSCALLS.items()}
+            known = {nt_name: number for number, nt_name in self._syscall_names.items()}
             for export in sorted(e for e in exports if e.startswith(("Nt", "Zw")) and e[2:3].isupper()):
                 nt_name = "Nt" + export[2:]
                 number = known.get(nt_name)
