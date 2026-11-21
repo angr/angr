@@ -172,6 +172,27 @@ class TestFactCollector(unittest.TestCase):
         assert not func.endpoints_with_type["return"]
         self.assertEqual(project.analyses.FunctionFactCollector(func).extra_pop, 8)
 
+    def test_x86_overflow_return_register_use_is_not_incidental(self):
+        binary_path = os.path.join(test_location, "i386", "libc.so.6")
+        project = angr.Project(binary_path, auto_load_libs=False)
+        symbol = project.loader.find_symbol("_IO_str_seekoff")
+        assert symbol is not None
+        block_addr = symbol.rebased_addr + 0x10C
+        block = project.factory.block(block_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(block_addr, block_addr + block.size)],
+            function_starts=[block_addr],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+
+        facts = project.analyses.FunctionFactCollector(cfg.functions[block_addr])
+
+        self.assertEqual(facts.retval_size, 4)
+        self.assertFalse(facts.retval_incidental)
+
     def test_stack_canary_comparison_is_not_a_return_value(self):
         prefix = bytes.fromhex(
             "4883ec18"  # sub rsp, 0x18
