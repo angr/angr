@@ -202,7 +202,11 @@ class GenericUnpackerCore:
         found = []
         for idx, api in sorted(cells.items()):
             module, name = emu.api_slots[api]
-            found.append(RecoveredImport(idx * size, module.name, name))
+            ordinal = module.unnamed_ordinal(api)
+            if ordinal is None:
+                found.append(RecoveredImport(idx * size, module.name, name))
+            else:
+                found.append(RecoveredImport(idx * size, module.name, None, ordinal))
         # isolated hits are usually coincidental constants; real IATs come in runs
         rvas = {imp.iat_rva for imp in found}
         found = [imp for imp in found if imp.iat_rva - size in rvas or imp.iat_rva + size in rvas]

@@ -37,24 +37,48 @@ class FakeModule:
         base: int,
         export_names: list[str],
         is_64bit: bool,
-        ordinal_base: int = 1,
+        ordinals: dict[int, str | None] | None = None,
         syscalls: dict[str, int] | None = None,
         stack_bytes: dict[str, int] | None = None,
     ):
+        """
+        :param ordinals:    Known export ordinals: the export's name, or None for an export without a name. Other
+                            exports get the ordinals that follow.
+        """
         self.name = name.lower()
         self.base = base
         self.is_64bit = is_64bit
-        self.ordinal_base = ordinal_base
         self.exports: dict[str, int] = {}
         self.slot_names: dict[int, str] = {}
         self._code_rva = _HEADER_SIZE
         self._next_spare = 0
 
-        names = sorted(set(export_names))
-        self._static_count = len(names)
-        for idx, export in enumerate(names):
+        ordinals = ordinals or {}
+        names = sorted(set(export_names) | {export for export in ordinals.values() if export is not None})
+        # slots: the named exports in name order, then the exports that only have an ordinal
+        slot_of = {export: idx for idx, export in enumerate(names)}
+        self._ordinal_slots: dict[int, int] = {}
+        self._slot_ordinals: dict[int, int] = {}
+        slot_count = len(names)
+        for ordinal, export in sorted(ordinals.items()):
+            if export is None:
+                self._ordinal_slots[ordinal] = slot_count
+                self._register(f"ordinal_{ordinal}", slot_count)
+                slot_count += 1
+            else:
+                self._ordinal_slots[ordinal] = slot_of[export]
+        for ordinal, idx in self._ordinal_slots.items():
+            self._slot_ordinals.setdefault(idx, ordinal)
+        self.ordinal_base = min(ordinals, default=1)
+        next_ordinal = max(ordinals, default=0) + 1
+        for export, idx in slot_of.items():
             self._register(export, idx)
-        code_size = _align((len(names) + _SPARE_SLOTS) * SLOT_SIZE, 0x1000)
+            if idx not in self._slot_ordinals:
+                self._ordinal_slots[next_ordinal] = idx
+                self._slot_ordinals[idx] = next_ordinal
+                next_ordinal += 1
+        self._static_count = slot_count
+        code_size = _align((slot_count + _SPARE_SLOTS) * SLOT_SIZE, 0x1000)
         self._export_rva = self._code_rva + code_size
         export_data = self._build_export_directory(names)
         self.size = _align(self._export_rva + len(export_data), 0x10000)
@@ -115,16 +139,24 @@ class FakeModule:
         return addr
 
     def resolve_ordinal(self, ordinal: int) -> int | None:
-        idx = ordinal - self.ordinal_base
-        if 0 <= idx < self._static_count:
+        idx = self._ordinal_slots.get(ordinal)
+        if idx is not None:
             return self.base + self._code_rva + idx * SLOT_SIZE
         return self.resolve(f"ordinal_{ordinal}")
 
+    def unnamed_ordinal(self, addr: int) -> int | None:
+        """
+        The ordinal of the export at a trap address if that export has no name.
+        """
+        name = self.slot_names.get(addr, "")
+        return int(name[8:]) if name.startswith("ordinal_") and name[8:].isdigit() else None
+
     def _build_export_directory(self, names: list[str]) -> bytes:
         count = len(names)
+        functions = max(self._ordinal_slots, default=self.ordinal_base - 1) - self.ordinal_base + 1
         dir_size = 40
         eat_off = dir_size
-        npt_off = eat_off + 4 * count
+        npt_off = eat_off + 4 * functions
         ord_off = npt_off + 4 * count
         strings_off = ord_off + 2 * count
         # system DLLs conventionally export an upper-case module name
@@ -143,16 +175,20 @@ class FakeModule:
             0,
             self._export_rva + strings_off,
             self.ordinal_base,
-            count,
+            functions,
             count,
             self._export_rva + eat_off,
             self._export_rva + npt_off,
             self._export_rva + ord_off,
         )
-        eat = b"".join(struct.pack("<I", self._code_rva + i * SLOT_SIZE) for i in range(count))
+        eat = bytearray(4 * functions)
+        for ordinal, idx in self._ordinal_slots.items():
+            struct.pack_into("<I", eat, 4 * (ordinal - self.ordinal_base), self._code_rva + idx * SLOT_SIZE)
         npt = b"".join(struct.pack("<I", rva) for rva in name_rvas)
-        ordinals = b"".join(struct.pack("<H", i) for i in range(count))
-        return directory + eat + npt + ordinals + bytes(strings)
+        name_ordinals = b"".join(
+            struct.pack("<H", self._slot_ordinals[idx] - self.ordinal_base) for idx in range(count)
+        )
+        return directory + bytes(eat) + npt + name_ordinals + bytes(strings)
 
     def _build_header(self, code_size: int, export_size: int) -> bytes:
         e_lfanew = 0x80

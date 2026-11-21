@@ -9,8 +9,11 @@ import struct
 import tempfile
 import unittest
 
+import pefile
+
 from angr.analyses.unpacker.emulation import StopReason
 from angr.analyses.unpacker.emulation.apis import API_HANDLERS
+from angr.analyses.unpacker.emulation.modules import FakeModule
 from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
 
 from .pe_builder import IMAGE_BASE, build_pe
@@ -98,6 +101,24 @@ class TestImportRecovery(unittest.TestCase):
         assert code[:6] == b"\xff\x15" + struct.pack("<I", iat)
         assert code[0x10:0x16] == b"\xff\x25" + struct.pack("<I", iat + 4)
         assert code[0x20] == 0xE8
+
+
+class TestFakeModule(unittest.TestCase):
+    def test_export_ordinals(self):
+        base = 0x10000000
+        module = FakeModule("demo.dll", base, ["Alpha", "Beta"], False, {100: "Beta", 105: None})
+        assert module.resolve_ordinal(100) == module.exports["Beta"]
+        unnamed = module.resolve_ordinal(105)
+        assert unnamed is not None and module.unnamed_ordinal(unnamed) == 105
+        assert module.unnamed_ordinal(module.exports["Alpha"]) is None
+        # the export directory says the same to code that walks it
+        pe = pefile.PE(data=module.image)
+        exports = {(sym.ordinal, sym.name, base + sym.address) for sym in pe.DIRECTORY_ENTRY_EXPORT.symbols}
+        assert exports == {
+            (100, b"Beta", module.exports["Beta"]),
+            (105, None, unnamed),
+            (106, b"Alpha", module.exports["Alpha"]),
+        }
 
 
 class TestSystemCallStubs(unittest.TestCase):

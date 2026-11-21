@@ -625,6 +625,16 @@ class WindowsEmulator:
             self._export_db[name] = known
         return known
 
+    def _known_ordinals(self, name: str) -> dict[int, str | None]:
+        """
+        Export ordinals of a real DLL, for those DLLs whose exports are imported by ordinal.
+        """
+        path = os.path.join(self._export_db_dir, os.path.splitext(name)[0] + ".ordinals.json")
+        if not os.path.isfile(path):
+            return {}
+        with open(path, "rb") as f:
+            return {int(ordinal): export for ordinal, export in json.load(f).items()}
+
     def load_module(self, name: str) -> FakeModule:
         name = self.normalize_module_name(name)
         module = self.modules.get(name)
@@ -651,7 +661,8 @@ class WindowsEmulator:
                     number = known[nt_name] = 0x1000 + len(known)
                 syscalls[export] = number
                 self._syscall_names[number] = nt_name
-        probe = FakeModule(name, 0, sorted(exports), self.is_64bit)
+        ordinals = self._known_ordinals(name)
+        probe = FakeModule(name, 0, sorted(exports), self.is_64bit, ordinals)
         base = self.space.reserve(probe.size, self._next_dll_base)
         self._next_dll_base = base + probe.size
         stack_bytes: dict[str, int] = {}
@@ -661,7 +672,7 @@ class WindowsEmulator:
                 handler = API_HANDLERS.get(export)
                 nargs = handler.nargs if handler is not None else known_nargs.get(export)
                 stack_bytes[export] = 4 * (nargs or 0)
-        module = FakeModule(name, base, sorted(exports), self.is_64bit, syscalls=syscalls, stack_bytes=stack_bytes)
+        module = FakeModule(name, base, sorted(exports), self.is_64bit, ordinals, syscalls, stack_bytes)
         self.map(base, module.size, 5)
         self.write(base, module.image)
         self.modules[name] = module
