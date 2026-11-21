@@ -444,6 +444,106 @@ def nt_continue(emu: WindowsEmulator, args: list[int]) -> None:
     emu.exceptions.restore_context(args[0])
 
 
+@api("RtlAddFunctionTable", nargs=3)
+def rtl_add_function_table(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.exceptions.add_function_table(args[0], args[1] & 0xFFFFFFFF, args[2])
+    return 1
+
+
+@api("RtlDeleteFunctionTable", nargs=1)
+def rtl_delete_function_table(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.exceptions.remove_function_table(args[0])
+    return 1
+
+
+@api("RtlLookupFunctionEntry", nargs=3)
+def rtl_lookup_function_entry(emu: WindowsEmulator, args: list[int]) -> int:
+    found = emu.exceptions.lookup_function(args[0])
+    if found is None:
+        return 0
+    if args[1]:
+        emu.write_ptr(args[1], found[0])
+    return found[1]
+
+
+@api("RtlVirtualUnwind", nargs=8)
+def rtl_virtual_unwind(emu: WindowsEmulator, args: list[int]) -> int:
+    _, base, pc, entry, context, handler_data, establisher = args[:7]
+    regs = emu.exceptions.read_registers(context)
+    regs["rip"] = pc
+    handler, data, frame = emu.exceptions.virtual_unwind(base, entry, regs)
+    emu.exceptions.write_registers(context, regs)
+    if handler_data:
+        emu.write_ptr(handler_data, data)
+    if establisher:
+        emu.write_ptr(establisher, frame)
+    return handler or 0
+
+
+@api("RtlCaptureContext", nargs=1)
+def rtl_capture_context(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.exceptions.write_context(args[0], emu.pc)
+    return 0
+
+
+@api("RtlRestoreContext", nargs=2)
+def rtl_restore_context(emu: WindowsEmulator, args: list[int]) -> None:
+    emu.exceptions.restore_context(args[0])
+
+
+@api("RtlUnwindEx", nargs=6)
+def rtl_unwind_ex(emu: WindowsEmulator, args: list[int]) -> None:
+    emu.exceptions.unwind_to(args[0], args[1], args[3])
+
+
+@api("__C_specific_handler", nargs=4)
+def c_specific_handler(emu: WindowsEmulator, args: list[int]) -> int | None:
+    """
+    The language handler behind __try/__except on x64: run the filters of the scopes around the faulting address
+    and unwind to the first __except block that accepts the exception. __finally blocks are not run.
+    """
+    record, establisher, _, dispatcher = args
+    if emu.read_u32(record + 4) & 6:  # being unwound
+        return 1
+    control_pc, base = emu.read_ptr(dispatcher), emu.read_ptr(dispatcher + 8)
+    table = emu.read_ptr(dispatcher + 0x38)
+    count = min(emu.read_u32(table), 4096)
+    scopes = [struct.unpack("<4I", emu.read(table + 4 + 16 * i, 16)) for i in range(count)]
+    code = emu.read_u32(record)
+    ret_pc = emu.pc
+    pointers = emu.exceptions.pointers
+
+    def next_scope(idx: int) -> int | None:
+        while idx < count:
+            begin, end, handler, target = scopes[idx]
+            idx += 1
+            if not begin <= control_pc - base < end or target == 0:
+                continue
+            if handler == 1:
+                emu.exceptions.unwind_to(establisher, base + target, code)
+                return None
+
+            def after_filter(result: int, idx: int = idx, target: int = target) -> None:
+                result &= 0xFFFFFFFF
+                if result == 0:
+                    disposition = next_scope(idx)
+                    if disposition is None:
+                        return
+                elif result < 0x80000000:
+                    emu.exceptions.unwind_to(establisher, base + target, code)
+                    return
+                else:
+                    disposition = 0
+                emu.set_reg("rax", disposition)
+                emu.state.regs.ip = ret_pc
+
+            emu.call_guest(base + handler, (pointers, establisher), after_filter)
+            return None
+        return 1
+
+    return next_scope(0)
+
+
 _const(("GetSystemMetrics",), 1, 0)
 _const(("FindWindowA", "FindWindowW"), 2, 0)
 _const(("GetEnvironmentVariableA", "GetEnvironmentVariableW"), 3, 0)

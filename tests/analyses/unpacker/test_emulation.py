@@ -16,14 +16,15 @@ from angr.analyses.unpacker.emulation.apis import API_HANDLERS
 from angr.analyses.unpacker.emulation.modules import FakeModule
 from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
 
-from .pe_builder import IMAGE_BASE, build_pe
+from .pe_builder import IMAGE_BASE, IMAGE_BASE_64, build_pe
 
 CODE_RVA = 0x1000
 HANDLE = 0x1234
 
 
-def emulator(code: bytes):
-    packed = build_pe([(b".text", CODE_RVA, 0x1000, code, 0xE0000020)], entry_rva=CODE_RVA)
+def emulator(code: bytes, is_64bit: bool = False, directories: dict[int, tuple[int, int]] | None = None):
+    sections = [(b".text", CODE_RVA, 0x1000, code, 0xE0000020)]
+    packed = build_pe(sections, entry_rva=CODE_RVA, is_64bit=is_64bit, directories=directories)
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "sample.exe")
         with open(path, "wb") as f:
@@ -154,6 +155,39 @@ class TestExceptions(unittest.TestCase):
     def test_trap_flag_single_step_over_cpuid(self):
         # protectors time the trap against cpuid, which the native engine does not execute itself
         self._single_step("0f a2")
+
+    def test_x64_try_except(self):
+        code = bytearray(0x400)
+
+        def put(offset: int, data: str | bytes) -> None:
+            data = bytes.fromhex(data) if isinstance(data, str) else data
+            code[offset : offset + len(data)] = data
+
+        # main: sub rsp, 0x28; mov rbx, 0x7777; call faulting; nop; xor eax, eax; add rsp, 0x28; ret
+        put(0x00, "48 83 ec 28 48 c7 c3 77 77 00 00 e8 20 00 00 00 90 31 c0 48 83 c4 28 c3")
+        # __except block: mov [code], eax; mov [saved_rbx], rbx; add rsp, 0x28; ret
+        put(0x18, "89 05 ea 00 00 00 48 89 1d eb 00 00 00 48 83 c4 28 c3")
+        # faulting: push rbx; sub rsp, 0x20; mov rbx, 0x1111; xor eax, eax; mov [rax], eax; add rsp, 0x20; pop rbx; ret
+        put(0x30, "53 48 83 ec 20 48 c7 c3 11 11 00 00 31 c0 89 00 48 83 c4 20 5b c3")
+        put(0x50, "b8 01 00 00 00 c3")  # filter: EXCEPTION_EXECUTE_HANDLER
+        put(0x60, "ff 25 9a 00 00 00")  # jmp [__imp___C_specific_handler]
+        rva = CODE_RVA
+        put(0x200, struct.pack("<6I", rva, rva + 0x2A, rva + 0x300, rva + 0x30, rva + 0x46, rva + 0x340))
+        # main: handler flag, sub rsp 0x28; one scope around the call, with a filter
+        put(0x300, bytes.fromhex("09 04 01 00 04 42 00 00"))
+        put(0x308, struct.pack("<6I", rva + 0x60, 1, rva + 0x0B, rva + 0x11, rva + 0x50, rva + 0x18))
+        # faulting: sub rsp 0x20, push rbx
+        put(0x340, bytes.fromhex("01 05 02 00 05 32 01 30"))
+        emu = emulator(bytes(code), is_64bit=True, directories={3: (rva + 0x200, 24)})
+        handler = emu.resolve_export(emu.load_module("ntdll.dll"), "__C_specific_handler")
+        assert handler is not None
+        base = IMAGE_BASE_64 + rva
+        emu.write_ptr(base + 0x100, handler)
+        emu.start()
+        stop = emu.run(max_blocks=100000)
+        assert stop.reason is StopReason.RETURNED
+        assert emu.read_u32(base + 0x108) == 0xC0000005
+        assert emu.read_ptr(base + 0x110) == 0x7777
 
 
 class TestSystemCallStubs(unittest.TestCase):
