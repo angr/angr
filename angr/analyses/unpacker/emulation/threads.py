@@ -21,6 +21,8 @@ class Thread:
     waits: int = 0
     wake_tick: int = 0
     wait_handle: int | None = None
+    # the wait on wait_handle ends at wake_tick
+    timed_wait: bool = False
 
 
 @dataclass

@@ -389,6 +389,47 @@ class TestThreads(unittest.TestCase):
         assert emu.read_u32(cell) == 1
         assert emu.tick - start == 150 + 16 + 60000
 
+    def test_timed_wait_takes_its_timeout(self):
+        # main: CreateThread(worker); cell[0] = WaitForSingleObject(event, 5000); cell[1] = GetTickCount(); ret
+        base = IMAGE_BASE + CODE_RVA
+        iat, cell, worker = base + 0x200, base + 0x300, base + 0x80
+        p32 = lambda value: struct.pack("<I", value)
+        call = lambda idx: b"\xff\x15" + p32(iat + 4 * idx)
+        # the worker sleeps past the timeout, or signals the event after 100 ms
+        for signals, result, low, high in ((False, 0x102, 5000, 5100), (True, 0, 100, 200)):
+            emu = emulator(bytes(0x400))
+            event = API_HANDLERS["CreateEventA"].func(emu, [0, 0, 0, 0])
+            assert event is not None
+            main = (
+                b"\x6a\x00\x6a\x00\x6a\x00\x68" + p32(worker) + b"\x6a\x00\x6a\x00" + call(1)
+                + b"\x68" + p32(5000) + b"\x68" + p32(event) + call(3) + b"\xa3" + p32(cell)
+                + call(2) + b"\xa3" + p32(cell + 4) + b"\xc3"
+            )  # fmt: skip
+            if signals:
+                body = b"\x6a\x64" + call(0) + b"\x68" + p32(event) + call(4) + b"\xc2\x04\x00"
+            else:
+                body = b"\x68" + p32(60000) + call(0) + b"\xc2\x04\x00"
+            emu.write(base, main)
+            emu.write(worker, body)
+            kernel32 = emu.load_module("kernel32.dll")
+            for idx, name in enumerate(("Sleep", "CreateThread", "GetTickCount", "WaitForSingleObject", "SetEvent")):
+                addr = emu.resolve_export(kernel32, name)
+                assert addr is not None
+                emu.write_u32(iat + 4 * idx, addr)
+            start = emu.tick
+            emu.start()
+            assert emu.run(max_blocks=100000).reason is StopReason.RETURNED
+            assert emu.read_u32(cell) == result
+            assert low <= emu.read_u32(cell + 4) - start < high
+        # alone: the wait elapses at once, and the clock shows it
+        emu = emulator(b"\xc3")
+        event = API_HANDLERS["CreateEventA"].func(emu, [0, 0, 0, 0])
+        start = emu.tick
+        assert API_HANDLERS["WaitForSingleObject"].func(emu, [event, 3000]) == 0x102
+        assert 3000 <= emu.tick - start < 3010
+        assert API_HANDLERS["WaitForSingleObject"].func(emu, [event, 0]) == 0x102
+        assert emu.tick - start < 3010
+
     def test_shared_data_time_follows_the_clock(self):
         # 2 x GetTickCount, then copy KUSER_SHARED_DATA's TickCount, InterruptTime and SystemTime (low parts)
         base = IMAGE_BASE + CODE_RVA

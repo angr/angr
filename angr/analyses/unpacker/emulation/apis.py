@@ -972,23 +972,35 @@ def _wait(emu: WindowsEmulator, handle: int, timeout: int) -> int | None:
         ready = not obj.alive
     else:
         ready = True
-    infinite = timeout & 0xFFFFFFFF == 0xFFFFFFFF
+    timeout &= 0xFFFFFFFF
+    infinite = timeout == 0xFFFFFFFF
+    retried = thread.waits > 0
     thread.wait_handle = None
+    thread.timed_wait = False
     if ready or (infinite and thread.waits > _MAX_WAITS):
         thread.waits = 0
         return 0
-    if timeout == 0 or (not infinite and thread.waits >= 2):
-        thread.waits = 0
-        return WAIT_TIMEOUT
+    if not infinite:
+        if not retried:
+            # like Sleep, at most a minute
+            thread.wake_tick = emu.tick + min(timeout, 60000)
+        if emu.tick >= thread.wake_tick:
+            thread.waits = 0
+            return WAIT_TIMEOUT
+        thread.timed_wait = True
     thread.waits += 1
-    if infinite:
-        # not scheduled again until the object is signaled
-        thread.wait_handle = handle
+    # not scheduled again until the object is signaled or the timeout has passed
+    thread.wait_handle = handle
     if emu.block_thread():
         return None
     thread.waits = 0
     thread.wait_handle = None
-    return 0 if infinite else WAIT_TIMEOUT
+    thread.timed_wait = False
+    if infinite:
+        return 0
+    # nothing can signal the object before the timeout: the wait simply elapses
+    emu.tick = max(emu.tick, thread.wake_tick)
+    return WAIT_TIMEOUT
 
 
 @api("WaitForSingleObject", nargs=2)

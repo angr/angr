@@ -599,7 +599,7 @@ class WindowsEmulator:
         if target is None and not self._runnable(self.thread):
             # everything is waiting: skip ahead to the next timed wake-up, which may be the current thread's own
             candidates = (*order, self.current_thread)
-            sleepers = [idx for idx in candidates if self.threads[idx].alive and self.threads[idx].wait_handle is None]
+            sleepers = [idx for idx in candidates if self._wakes_by_time(self.threads[idx])]
             if sleepers:
                 earliest = min(sleepers, key=lambda idx: self.threads[idx].wake_tick)
                 self.tick = max(self.tick, self.threads[earliest].wake_tick)
@@ -632,10 +632,19 @@ class WindowsEmulator:
     def _load_registers(self, thread: Thread) -> None:
         self.state.registers.store(0, thread.registers)
 
+    @staticmethod
+    def _wakes_by_time(thread: Thread) -> bool:
+        """
+        Whether the passing of time alone makes the thread runnable: it sleeps, or its wait has a timeout.
+        """
+        return thread.alive and (thread.wait_handle is None or thread.timed_wait)
+
     def _runnable(self, thread: Thread) -> bool:
-        if not thread.alive or thread.wake_tick > self.tick:
+        if not thread.alive:
             return False
         if thread.wait_handle is None:
+            return thread.wake_tick <= self.tick
+        if thread.timed_wait and thread.wake_tick <= self.tick:
             return True
         obj = self.handles.get(thread.wait_handle)
         if isinstance(obj, EventObject):
