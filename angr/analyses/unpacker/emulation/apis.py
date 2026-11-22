@@ -23,7 +23,9 @@ STATUS_ACCESS_VIOLATION = 0xC0000005
 STATUS_INVALID_HANDLE = 0xC0000008
 STATUS_INVALID_PARAMETER = 0xC000000D
 STATUS_END_OF_FILE = 0xC0000011
+STATUS_ACCESS_DENIED = 0xC0000022
 STATUS_OBJECT_NAME_NOT_FOUND = 0xC0000034
+STATUS_OBJECT_NAME_COLLISION = 0xC0000035
 STATUS_NOT_IMPLEMENTED = 0xC0000002
 STATUS_PORT_NOT_SET = 0xC0000353
 STATUS_INVALID_INFO_CLASS = 0xC0000003
@@ -71,12 +73,21 @@ def page_perms(protect: int) -> int:
 
 class FileObject:
     """
-    An open handle on the emulated copy of the sample's own file.
+    An open file: the emulated copy of the sample's own file (read-only bytes), or a file the program created.
     """
 
-    def __init__(self, data: bytes):
+    def __init__(self, data: bytes | bytearray):
         self.data = data
         self.pos = 0
+
+    def write(self, data: bytes) -> bool:
+        if not isinstance(self.data, bytearray):
+            return False
+        if self.pos > len(self.data):
+            self.data.extend(bytes(self.pos - len(self.data)))
+        self.data[self.pos : self.pos + len(data)] = data
+        self.pos += len(data)
+        return True
 
 
 class MappingObject:
@@ -1016,19 +1027,26 @@ def get_startup_info(emu: WindowsEmulator, args: list[int]) -> int:
     return 0
 
 
+SYSTEM_DIRECTORY = "C:\\Windows\\System32"
+
+
 @api("GetSystemDirectoryA", "GetWindowsDirectoryA", nargs=2)
 def get_system_directory_a(emu: WindowsEmulator, args: list[int]) -> int:
-    return _write_text(emu, args[0], args[1], "C:\\Windows\\System32", False)
+    return _write_text(emu, args[0], args[1], SYSTEM_DIRECTORY, False)
 
 
 @api("GetSystemDirectoryW", "GetWindowsDirectoryW", nargs=2)
 def get_system_directory_w(emu: WindowsEmulator, args: list[int]) -> int:
-    return _write_text(emu, args[0], args[1], "C:\\Windows\\System32", True)
+    return _write_text(emu, args[0], args[1], SYSTEM_DIRECTORY, True)
 
 
 TEMP_DIRECTORY = "C:\\Users\\admin\\AppData\\Local\\Temp"
 ERROR_FILE_NOT_FOUND = 2
+ERROR_ACCESS_DENIED = 5
+ERROR_INVALID_HANDLE = 6
+ERROR_FILE_EXISTS = 80
 ERROR_INVALID_NAME = 123
+ERROR_ALREADY_EXISTS = 183
 
 
 def _set_last_error(emu: WindowsEmulator, code: int) -> None:
@@ -1137,24 +1155,196 @@ def tls_set_value(emu: WindowsEmulator, args: list[int]) -> int:
 _const(("TlsFree", "FlsFree"), 1, 1)
 
 #
-# Files: only the sample's own image can be opened
+# Files: the sample's own image, and the files the program creates (kept in memory)
 #
+
+CREATE_NEW, CREATE_ALWAYS, OPEN_EXISTING, OPEN_ALWAYS, TRUNCATE_EXISTING = 1, 2, 3, 4, 5
+FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_ARCHIVE = 0x10, 0x20
+INVALID_FILE_ATTRIBUTES = -1
+_STD_HANDLE = 0x30
+_FILE_TIME = 0x01DB3A0000000000
+
+
+def _file_data(emu: WindowsEmulator, path: str) -> bytes | bytearray | None:
+    """
+    The contents of an existing file.
+    """
+    if ntpath.basename(path).lower() == ntpath.basename(emu.image_path).lower():
+        return emu.image_file
+    stored = emu.files.get(full_path(emu, path).lower())
+    return stored[1] if stored is not None else None
+
+
+def _is_directory(emu: WindowsEmulator, path: str) -> bool:
+    key = full_path(emu, path).lower()
+    if key in emu.directories or key == emu.current_directory.lower():
+        return True
+    # system directories and the ancestors of everything known to exist
+    known = (emu.image_path, SYSTEM_DIRECTORY + "\\", TEMP_DIRECTORY + "\\", *(name for name, _ in emu.files.values()))
+    return any(name.lower().startswith(key.rstrip("\\") + "\\") for name in known)
 
 
 def _open_file(emu: WindowsEmulator, path: str) -> int:
-    if ntpath.basename(path).lower() != ntpath.basename(emu.image_path).lower():
-        return INVALID_HANDLE
-    return emu.new_handle(FileObject(emu.image_file))
+    data = _file_data(emu, path)
+    return INVALID_HANDLE if data is None else emu.new_handle(FileObject(data))
+
+
+def _create_file(emu: WindowsEmulator, path: str, disposition: int) -> tuple[int, int]:
+    """
+    CreateFile on the in-memory files. Returns the handle (or INVALID_HANDLE) and the Win32 error code.
+    """
+    data = _file_data(emu, path)
+    if data is None:
+        # devices (\\.\name) and directories cannot be created as files
+        creatable = bool(path.strip()) and not path.startswith("\\\\.\\") and not _is_directory(emu, path)
+        if disposition in (OPEN_EXISTING, TRUNCATE_EXISTING) or not creatable:
+            return INVALID_HANDLE, ERROR_FILE_NOT_FOUND
+        name = full_path(emu, path)
+        data = bytearray()
+        emu.files[name.lower()] = (name, data)
+        return emu.new_handle(FileObject(data)), 0
+    if disposition == CREATE_NEW:
+        return INVALID_HANDLE, ERROR_FILE_EXISTS
+    if disposition in (CREATE_ALWAYS, TRUNCATE_EXISTING) and isinstance(data, bytearray):
+        del data[:]
+    error = ERROR_ALREADY_EXISTS if disposition in (CREATE_ALWAYS, OPEN_ALWAYS) else 0
+    return emu.new_handle(FileObject(data)), error
+
+
+def _create_file_win32(emu: WindowsEmulator, path: str, disposition: int) -> int:
+    handle, error = _create_file(emu, path, disposition)
+    if error or disposition in (CREATE_ALWAYS, OPEN_ALWAYS):
+        _set_last_error(emu, error)
+    return handle
 
 
 @api("CreateFileA", nargs=7)
 def create_file_a(emu: WindowsEmulator, args: list[int]) -> int:
-    return _open_file(emu, emu.read_cstr(args[0]))
+    return _create_file_win32(emu, emu.read_cstr(args[0]), args[4])
 
 
 @api("CreateFileW", nargs=7)
 def create_file_w(emu: WindowsEmulator, args: list[int]) -> int:
-    return _open_file(emu, emu.read_wstr(args[0]))
+    return _create_file_win32(emu, emu.read_wstr(args[0]), args[4])
+
+
+@api("WriteFile", nargs=5)
+def write_file(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    size = min(args[2], 1 << 26)
+    if isinstance(obj, FileObject):
+        if not obj.write(emu.read(args[1], size)):
+            _set_last_error(emu, ERROR_ACCESS_DENIED)
+            return 0
+    elif args[0] != _STD_HANDLE:
+        _set_last_error(emu, ERROR_INVALID_HANDLE)
+        return 0
+    # console output is dropped
+    if args[3]:
+        emu.write_u32(args[3], size)
+    return 1
+
+
+@api("SetEndOfFile", nargs=1)
+def set_end_of_file(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    if not isinstance(obj, FileObject) or not isinstance(obj.data, bytearray):
+        return 0
+    del obj.data[obj.pos :]
+    obj.data.extend(bytes(obj.pos - len(obj.data)))
+    return 1
+
+
+@api("FlushFileBuffers", nargs=1)
+def flush_file_buffers(emu: WindowsEmulator, args: list[int]) -> int:
+    return int(isinstance(emu.handles.get(args[0]), FileObject))
+
+
+def _delete_file(emu: WindowsEmulator, path: str) -> int:
+    if emu.files.pop(full_path(emu, path).lower(), None) is not None:
+        return 1
+    # the running image cannot be deleted
+    _set_last_error(emu, ERROR_FILE_NOT_FOUND if _file_data(emu, path) is None else ERROR_ACCESS_DENIED)
+    return 0
+
+
+@api("DeleteFileA", nargs=1)
+def delete_file_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _delete_file(emu, emu.read_cstr(args[0]))
+
+
+@api("DeleteFileW", nargs=1)
+def delete_file_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _delete_file(emu, emu.read_wstr(args[0]))
+
+
+def _create_directory(emu: WindowsEmulator, path: str) -> int:
+    if not path.strip():
+        _set_last_error(emu, ERROR_INVALID_NAME)
+        return 0
+    if _is_directory(emu, path) or _file_data(emu, path) is not None:
+        _set_last_error(emu, ERROR_ALREADY_EXISTS)
+        return 0
+    name = full_path(emu, path)
+    emu.directories[name.lower()] = name
+    return 1
+
+
+@api("CreateDirectoryA", nargs=2)
+def create_directory_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _create_directory(emu, emu.read_cstr(args[0]))
+
+
+@api("CreateDirectoryW", nargs=2)
+def create_directory_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _create_directory(emu, emu.read_wstr(args[0]))
+
+
+def _file_attributes(emu: WindowsEmulator, path: str) -> tuple[int, int] | None:
+    """
+    The attributes and size of an existing file or directory.
+    """
+    data = _file_data(emu, path)
+    if data is not None:
+        return FILE_ATTRIBUTE_ARCHIVE, len(data)
+    if path.strip() and _is_directory(emu, path):
+        return FILE_ATTRIBUTE_DIRECTORY, 0
+    _set_last_error(emu, ERROR_FILE_NOT_FOUND)
+    return None
+
+
+def _get_file_attributes(emu: WindowsEmulator, path: str) -> int:
+    found = _file_attributes(emu, path)
+    return INVALID_FILE_ATTRIBUTES if found is None else found[0]
+
+
+@api("GetFileAttributesA", nargs=1)
+def get_file_attributes_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _get_file_attributes(emu, emu.read_cstr(args[0]))
+
+
+@api("GetFileAttributesW", nargs=1)
+def get_file_attributes_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _get_file_attributes(emu, emu.read_wstr(args[0]))
+
+
+def _get_file_attributes_ex(emu: WindowsEmulator, path: str, buf: int) -> int:
+    found = _file_attributes(emu, path)
+    if found is None:
+        return 0
+    # WIN32_FILE_ATTRIBUTE_DATA
+    emu.write(buf, struct.pack("<IQQQII", found[0], _FILE_TIME, _FILE_TIME, _FILE_TIME, 0, found[1]))
+    return 1
+
+
+@api("GetFileAttributesExA", nargs=3)
+def get_file_attributes_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _get_file_attributes_ex(emu, emu.read_cstr(args[0]), args[2])
+
+
+@api("GetFileAttributesExW", nargs=3)
+def get_file_attributes_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _get_file_attributes_ex(emu, emu.read_wstr(args[0]), args[2])
 
 
 @api("GetFileSize", nargs=2)
@@ -1192,7 +1382,7 @@ def read_file(emu: WindowsEmulator, args: list[int]) -> int:
     obj = emu.handles.get(args[0])
     if not isinstance(obj, FileObject):
         return 0
-    data = obj.data[obj.pos : obj.pos + args[2]]
+    data = bytes(obj.data[obj.pos : obj.pos + args[2]])
     obj.pos += len(data)
     emu.write(args[1], data)
     if args[3]:
@@ -1205,7 +1395,7 @@ def create_file_mapping(emu: WindowsEmulator, args: list[int]) -> int:
     obj = emu.handles.get(args[0])
     if not isinstance(obj, FileObject):
         return 0
-    return emu.new_handle(MappingObject(obj.data))
+    return emu.new_handle(MappingObject(bytes(obj.data)))
 
 
 @api("MapViewOfFile", nargs=5)
@@ -1235,25 +1425,52 @@ def _object_name(emu: WindowsEmulator, attributes: int) -> str:
     return emu.read(emu.read_ptr(name + emu.ptr_size), length).decode("utf-16-le", "replace")
 
 
-def _nt_open_file(emu: WindowsEmulator, handle_ptr: int, attributes: int, io_status: int) -> int:
-    handle = _open_file(emu, _object_name(emu, attributes))
+# NtCreateFile dispositions (FILE_SUPERSEDE ... FILE_OVERWRITE_IF) as CreateFile ones
+_NT_DISPOSITIONS = (CREATE_ALWAYS, OPEN_EXISTING, CREATE_NEW, OPEN_ALWAYS, TRUNCATE_EXISTING, CREATE_ALWAYS)
+FILE_DIRECTORY_FILE = 1
+
+
+def _nt_open_file(emu: WindowsEmulator, handle_ptr: int, attributes: int, io_status: int, disposition: int) -> int:
+    name = _object_name(emu, attributes)
+    existed = _file_data(emu, name) is not None
+    handle, error = _create_file(emu, name, disposition)
     if handle == INVALID_HANDLE:
-        return STATUS_OBJECT_NAME_NOT_FOUND
+        return STATUS_OBJECT_NAME_COLLISION if error == ERROR_FILE_EXISTS else STATUS_OBJECT_NAME_NOT_FOUND
     emu.write_ptr(handle_ptr, handle)
     if io_status:
         emu.write_ptr(io_status, STATUS_SUCCESS)
-        emu.write_ptr(io_status + emu.ptr_size, 1)  # FILE_OPENED
+        # FILE_CREATED, FILE_OVERWRITTEN or FILE_OPENED
+        information = 2 if not existed else 3 if disposition in (CREATE_ALWAYS, TRUNCATE_EXISTING) else 1
+        emu.write_ptr(io_status + emu.ptr_size, information)
     return STATUS_SUCCESS
 
 
 @api("NtOpenFile", "ZwOpenFile", nargs=6)
 def nt_open_file(emu: WindowsEmulator, args: list[int]) -> int:
-    return _nt_open_file(emu, args[0], args[2], args[3])
+    return _nt_open_file(emu, args[0], args[2], args[3], OPEN_EXISTING)
 
 
 @api("NtCreateFile", "ZwCreateFile", nargs=11)
 def nt_create_file(emu: WindowsEmulator, args: list[int]) -> int:
-    return _nt_open_file(emu, args[0], args[2], args[3])
+    # directories are not created through here
+    creating = args[7] < len(_NT_DISPOSITIONS) and not args[8] & FILE_DIRECTORY_FILE
+    return _nt_open_file(emu, args[0], args[2], args[3], _NT_DISPOSITIONS[args[7]] if creating else OPEN_EXISTING)
+
+
+@api("NtWriteFile", "ZwWriteFile", nargs=9)
+def nt_write_file(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    if not isinstance(obj, FileObject):
+        return STATUS_INVALID_HANDLE
+    if args[7]:
+        obj.pos = struct.unpack("<Q", emu.read(args[7], 8))[0]
+    size = min(args[6], 1 << 26)
+    if not obj.write(emu.read(args[5], size)):
+        return STATUS_ACCESS_DENIED
+    if args[4]:
+        emu.write_ptr(args[4], STATUS_SUCCESS)
+        emu.write_ptr(args[4] + emu.ptr_size, size)
+    return STATUS_SUCCESS
 
 
 @api("NtQueryInformationFile", "ZwQueryInformationFile", nargs=5)
@@ -1279,7 +1496,7 @@ def nt_read_file(emu: WindowsEmulator, args: list[int]) -> int:
         return STATUS_INVALID_HANDLE
     if args[7]:
         obj.pos = struct.unpack("<Q", emu.read(args[7], 8))[0]
-    data = obj.data[obj.pos : obj.pos + args[6]]
+    data = bytes(obj.data[obj.pos : obj.pos + args[6]])
     if not data and args[6]:
         return STATUS_END_OF_FILE
     obj.pos += len(data)
@@ -1296,7 +1513,7 @@ def nt_create_section(emu: WindowsEmulator, args: list[int]) -> int:
     if not isinstance(obj, FileObject):
         return STATUS_INVALID_HANDLE
     # SEC_IMAGE: the view is the file laid out as a loaded image
-    data = emu.pe.get_memory_mapped_image() if args[5] & 0x1000000 else obj.data
+    data = emu.pe.get_memory_mapped_image() if args[5] & 0x1000000 else bytes(obj.data)
     emu.write_ptr(args[0], emu.new_handle(MappingObject(data)))
     return STATUS_SUCCESS
 
@@ -1570,7 +1787,7 @@ for _name, _nargs in (("CreateMutexA", 3), ("CreateMutexW", 3),
     API_HANDLERS[_name] = ApiHandler(_new_object, _nargs)
 
 _const(("ReleaseMutex",), 1, 1)
-_const(("GetStdHandle",), 1, 0x30)
+_const(("GetStdHandle",), 1, _STD_HANDLE)
 _const(("GetFileType",), 1, 2)
 _const(("InitializeSListHead", "FreeEnvironmentStringsW", "FreeEnvironmentStringsA"), 1, 1)
 _const(("GetThreadLocale", "GetUserDefaultLCID", "GetSystemDefaultLCID"), 0, 0x409)

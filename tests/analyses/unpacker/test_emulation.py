@@ -65,6 +65,72 @@ class TestApiHandlers(unittest.TestCase):
         length = call("GetTempPathA", 0x100, buf)
         assert length == len(emu.read_cstr(buf)) and emu.read_cstr(buf).endswith("\\Temp\\")
 
+    def test_created_files_read_back(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        invalid = -1
+        create_new, create_always, open_existing = 1, 2, 3
+        path = emu.alloc_cstr("C:\\Users\\admin\\AppData\\Local\\Temp\\drop\\Payload.bin")
+        assert call("GetFileAttributesA", path) == invalid
+        assert call("CreateFileA", path, 0x80000000, 0, 0, open_existing, 0, 0) == invalid
+        assert call("GetLastError") == 2  # ERROR_FILE_NOT_FOUND
+        assert call("CreateDirectoryA", emu.alloc_cstr("C:\\Users\\admin\\AppData\\Local\\Temp\\drop"), 0) == 1
+        assert call("CreateDirectoryA", emu.alloc_cstr("C:\\Users\\admin\\AppData\\Local\\Temp\\drop"), 0) == 0
+        assert call("GetLastError") == 183  # ERROR_ALREADY_EXISTS
+        handle = call("CreateFileA", path, 0x40000000, 0, 0, create_always, 0, 0)
+        assert handle != invalid
+        emu.write(buf, b"hello, world")
+        assert call("WriteFile", handle, buf, 12, buf + 0x100, 0) == 1
+        assert emu.read_u32(buf + 0x100) == 12
+        assert call("CloseHandle", handle) == 1
+        assert call("CreateFileA", path, 0x40000000, 0, 0, create_new, 0, 0) == invalid
+        assert call("GetLastError") == 80  # ERROR_FILE_EXISTS
+        # reopened through a relative, differently-cased name
+        assert call("SetCurrentDirectoryA", emu.alloc_cstr("C:\\Users\\admin\\AppData\\Local\\Temp")) == 1
+        handle = call(
+            "CreateFileW", emu.alloc_cstr("drop\\payload.BIN", wide=True), 0x80000000, 0, 0, open_existing, 0, 0
+        )
+        assert handle != invalid
+        assert call("GetFileSize", handle, 0) == 12
+        assert call("SetFilePointer", handle, 7, 0, 0) == 7
+        assert call("ReadFile", handle, buf + 0x200, 0x100, buf + 0x100, 0) == 1
+        assert emu.read(buf + 0x200, emu.read_u32(buf + 0x100)) == b"world"
+        assert call("GetFileAttributesA", path) == 0x20
+        assert call("GetFileAttributesA", emu.alloc_cstr("drop")) == 0x10
+        assert call("GetFileAttributesExA", path, 0, buf) == 1
+        assert emu.read_u32(buf + 32) == 12
+        # the image itself stays read-only; devices do not appear by being opened
+        image = call("CreateFileA", emu.alloc_cstr(emu.image_path), 0xC0000000, 0, 0, open_existing, 0, 0)
+        assert call("WriteFile", image, buf, 4, buf + 0x100, 0) == 0
+        assert call("CreateFileA", emu.alloc_cstr("\\\\.\\SICE"), 0xC0000000, 0, 0, create_always, 0, 0) == invalid
+        # console output succeeds
+        assert call("WriteFile", call("GetStdHandle", 0xFFFFFFF5), buf, 5, buf + 0x100, 0) == 1
+        assert call("DeleteFileA", path) == 1
+        assert call("DeleteFileA", path) == 0
+        assert call("GetFileAttributesA", path) == invalid
+
+    def test_native_created_files(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        name = "\\??\\C:\\Windows\\Temp\\a.tmp".encode("utf-16-le")
+        emu.write(buf + 0x100, name)
+        emu.write(buf + 0x40, struct.pack("<HHI", len(name), len(name), buf + 0x100))  # UNICODE_STRING
+        emu.write(buf, struct.pack("<IIII", 24, 0, buf + 0x40, 0x40))  # OBJECT_ATTRIBUTES
+        handle_ptr, io_status, data = buf + 0x80, buf + 0x88, buf + 0x200
+        open_args = (handle_ptr, 0x120116, buf, io_status, 0, 0x80, 0, 1, 0x20, 0, 0)  # FILE_OPEN
+        assert call("NtCreateFile", *open_args) == 0xC0000034  # STATUS_OBJECT_NAME_NOT_FOUND
+        assert call("NtCreateFile", *open_args[:7], 2, *open_args[8:]) == 0  # FILE_CREATE
+        assert emu.read_u32(io_status + 4) == 2  # FILE_CREATED
+        emu.write(data, b"abcd")
+        assert call("NtWriteFile", emu.read_u32(handle_ptr), 0, 0, 0, io_status, data, 4, 0, 0) == 0
+        assert call("NtCreateFile", *open_args[:7], 2, *open_args[8:]) == 0xC0000035  # STATUS_OBJECT_NAME_COLLISION
+        assert call("NtCreateFile", *open_args) == 0
+        assert emu.read_u32(io_status + 4) == 1  # FILE_OPENED
+        assert call("NtReadFile", emu.read_u32(handle_ptr), 0, 0, 0, io_status, data + 0x10, 4, 0, 0) == 0
+        assert emu.read(data + 0x10, 4) == b"abcd"
+
     def test_global_memory_handles(self):
         # GlobalAlloc/LocalAlloc hand out the block's address as its handle; locking it yields the same address
         emu = emulator(b"\xc3")

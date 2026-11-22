@@ -224,6 +224,9 @@ class WindowsEmulator:
         self.file_views: set[int] = set()
         # as when started from Explorer: the directory of the image
         self.current_directory = ntpath.dirname(self.image_path)
+        # files and directories the program created, by lower-case full path: (path, contents) and path
+        self.files: dict[str, tuple[str, bytearray]] = {}
+        self.directories: dict[str, str] = {}
         self.handles: dict[int, object] = {}
         self.threads: list[Thread] = []
         self.current_thread = 0
