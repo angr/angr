@@ -2501,3 +2501,135 @@ def is_wow64_process(emu: WindowsEmulator, args: list[int]) -> int:
 _const(("InterlockedIncrement", "InterlockedDecrement"), 1, 1)
 _const(("IsBadReadPtr", "IsBadWritePtr"), 2, 0)
 _const(("GetProcessWindowStation", "GetDesktopWindow", "GetForegroundWindow", "GetActiveWindow"), 0, 0)
+
+
+#
+# Windows and GDI: enough for a splash screen (a window, a DIB section to draw into)
+#
+
+
+@dataclass
+class WindowClass:
+    name: str
+    wndproc: int
+
+
+@dataclass
+class WindowObject:
+    wndclass: WindowClass | None
+    parent: int
+
+
+class GdiObject:
+    """
+    A device context, bitmap, cursor or icon handle.
+    """
+
+    def __init__(self, kind: str, bits: int = 0):
+        self.kind = kind
+        self.bits = bits
+
+
+def _class_name(emu: WindowsEmulator, ptr: int, wide: bool) -> str:
+    if ptr < 0x10000:
+        return f"#{ptr}"
+    return emu.read_wstr(ptr) if wide else emu.read_cstr(ptr)
+
+
+def _register_class(emu: WindowsEmulator, wndclass: int, extended: bool, wide: bool) -> int:
+    # x86 WNDCLASSEX is WNDCLASS behind cbSize; on x64 cbSize fills the padding after style
+    if emu.is_64bit:
+        wndproc, name = emu.read_ptr(wndclass + 8), emu.read_ptr(wndclass + 64)
+    else:
+        base = wndclass + (4 if extended else 0)
+        wndproc, name = emu.read_ptr(base + 4), emu.read_ptr(base + 36)
+    classes = emu.window_classes
+    wc = WindowClass(_class_name(emu, name, wide), wndproc)
+    classes[wc.name.lower()] = wc
+    return 0xC000 + len(classes)
+
+
+@api("RegisterClassExA", nargs=1)
+def register_class_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _register_class(emu, args[0], True, False)
+
+
+@api("RegisterClassExW", nargs=1)
+def register_class_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _register_class(emu, args[0], True, True)
+
+
+@api("RegisterClassA", nargs=1)
+def register_class_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _register_class(emu, args[0], False, False)
+
+
+@api("RegisterClassW", nargs=1)
+def register_class_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _register_class(emu, args[0], False, True)
+
+
+def _create_window(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+    name = _class_name(emu, args[1], wide).lower()
+    return emu.new_handle(WindowObject(emu.window_classes.get(name), args[8]))
+
+
+@api("CreateWindowExA", nargs=12)
+def create_window_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _create_window(emu, args, False)
+
+
+@api("CreateWindowExW", nargs=12)
+def create_window_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _create_window(emu, args, True)
+
+
+@api("LoadCursorA", "LoadCursorW", "LoadIconA", "LoadIconW", nargs=2)
+def load_cursor(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    return emu.new_handle(GdiObject("cursor"))
+
+
+@api("GetDC", "GetWindowDC", nargs=1)
+def get_dc(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    return emu.new_handle(GdiObject("dc"))
+
+
+@api("CreateCompatibleDC", nargs=1)
+def create_compatible_dc(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    return emu.new_handle(GdiObject("dc"))
+
+
+@api("CreateDIBSection", nargs=6)
+def create_dib_section(emu: WindowsEmulator, args: list[int]) -> int:
+    # BITMAPINFOHEADER: biSize, biWidth, biHeight, biPlanes, biBitCount
+    _, width, height, _, bpp = struct.unpack("<IiiHH", emu.read(args[1], 16))
+    if width <= 0 or height == 0 or bpp not in (1, 4, 8, 16, 24, 32):
+        return 0
+    stride = (width * bpp + 31) // 32 * 4
+    bits = emu.alloc(stride * abs(height))
+    if args[3]:
+        emu.write_ptr(args[3], bits)
+    return emu.new_handle(GdiObject("bitmap", bits))
+
+
+@api("SelectObject", nargs=2)
+def select_object(emu: WindowsEmulator, args: list[int]) -> int:
+    dc = emu.handles.get(args[0])
+    if not isinstance(dc, GdiObject) or dc.kind != "dc":
+        return 0
+    # the previously selected object: a fresh DC holds a stock 1x1 bitmap
+    previous = dc.bits or emu.new_handle(GdiObject("bitmap"))
+    dc.bits = args[1]
+    return previous
+
+
+@api("SetDIBColorTable", nargs=4)
+def set_dib_color_table(emu: WindowsEmulator, args: list[int]) -> int:
+    return args[2] if isinstance(emu.handles.get(args[0]), GdiObject) else 0
+
+
+_const(("ReleaseDC",), 2, 1)
+_const(("DeleteDC", "DeleteObject", "UpdateWindow", "DestroyWindow"), 1, 1)
+_const(("ShowWindow",), 2, 0)
+_const(("BitBlt",), 9, 1)
+_const(("StretchBlt",), 11, 1)

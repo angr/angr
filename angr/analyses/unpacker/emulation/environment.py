@@ -39,6 +39,7 @@ from .apis import (
     STATUS_NOT_IMPLEMENTED,
     ApiHandler,
     MappingObject,
+    WindowClass,
 )
 from .com import ComRuntime
 from .exceptions import (
@@ -309,6 +310,7 @@ class WindowsEmulator:
         self.directories: dict[str, str] = {}
         self.named_mappings: dict[str, MappingObject] = {}
         self.handles: dict[int, object] = {}
+        self.window_classes: dict[str, WindowClass] = {}
         self.threads: list[Thread] = []
         self.current_thread = 0
         self._api_frame = (0, 0)

@@ -466,6 +466,28 @@ class TestApiHandlers(unittest.TestCase):
         assert API_HANDLERS["MessageBoxExW"].func(emu, [0, buf, buf + 0x100, 0x10, 0]) == 1
         assert emu.messages == ["title: text"]
 
+    def test_splash_window_and_dib_section(self):
+        # what Themida's splash screen does: a window, a DC and a DIB section whose bits it fills
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        emu.write(buf + 0x100, b"Splash\0")
+        emu.write(buf, struct.pack("<12I", 48, 0, 0x401000, 0, 0, IMAGE_BASE, 0, 0, 0, 0, buf + 0x100, 0))
+        assert call("RegisterClassExA", buf) >= 0xC000
+        assert emu.window_classes["splash"].wndproc == 0x401000
+        hwnd = call("CreateWindowExA", 8, buf + 0x100, 0, 0x80000000, 0, 0, 0x1AA, 0xE1, 0, 0, IMAGE_BASE, 0)
+        assert hwnd and call("GetDC", hwnd) and call("LoadCursorA", 0, 0x7F89)
+        # BITMAPINFOHEADER: 0x1AA x -0xE1 (top-down), 8 bits per pixel
+        emu.write(buf + 0x200, struct.pack("<IiiHH", 40, 0x1AA, -0xE1, 1, 8))
+        bitmap = call("CreateDIBSection", 0, buf + 0x200, 0, buf + 0x300, 0, 0)
+        bits = emu.read_u32(buf + 0x300)
+        assert bitmap and bits
+        stride = (0x1AA + 3) & ~3
+        emu.write(bits + stride * 0xE0, bytes(stride))  # the last row is writable
+        dc = call("CreateCompatibleDC", 0)
+        assert call("SelectObject", dc, bitmap) not in (0, bitmap)
+        assert call("SetDIBColorTable", dc, 0, 0xFF, buf + 0x400) == 0xFF
+
 
 class TestThreads(unittest.TestCase):
     def test_sleep_poll_next_to_a_long_sleeper(self):
