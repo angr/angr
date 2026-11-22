@@ -891,16 +891,16 @@ class TestWindowMessages(unittest.TestCase):
     APIS = ("RegisterClassExA", "CreateWindowExA", "GetMessageA", "DispatchMessageA", "SetTimer", "DestroyWindow",
             "PostQuitMessage", "ValidateRect")  # fmt: skip
 
-    def _run(self, style: int, wndproc: bytes):
+    def _run(self, style: int, wndproc: bytes, more_apis: tuple[tuple[str, str], ...] = ()):
         code = bytearray(0x1000)
         main = bytes.fromhex(self.MAIN.format(style=struct.pack("<I", style).hex()))
         code[: len(main)] = main
         code[0x200 : 0x200 + len(wndproc)] = wndproc
         emu = emulator(bytes(code))
         text = IMAGE_BASE + CODE_RVA
-        user32 = emu.load_module("user32.dll")
-        for idx, name in enumerate(self.APIS):
-            emu.write_u32(text + 0x800 + 4 * idx, emu.resolve_export(user32, name))
+        apis = (*(("user32.dll", name) for name in self.APIS), *more_apis)
+        for idx, (dll, name) in enumerate(apis):
+            emu.write_u32(text + 0x800 + 4 * idx, emu.resolve_export(emu.load_module(dll), name))
         # WNDCLASSEXA: cbSize, style, lpfnWndProc, ..., lpszClassName
         emu.write(text + 0x900, struct.pack("<12I", 48, 0, text + 0x200, 0, 0, IMAGE_BASE, 0, 0, 0, 0, text + 0xA00, 0))
         emu.write(text + 0xA00, b"Splash\0")
@@ -935,6 +935,84 @@ class TestWindowMessages(unittest.TestCase):
         emu, elapsed = self._run(0x90000000, wndproc)
         assert emu.reg("eax") == 7
         assert elapsed >= 3000
+
+    def test_quit_posted_for_another_threads_window(self):
+        # the procedure starts a thread on WM_CREATE; the thread sends WM_USER to the window, and the procedure
+        # answers it with PostQuitMessage(5), which must end the message loop of the window's thread
+        wndproc = bytearray(0x100)
+        body = bytes.fromhex(
+            "8b4424083d81000000741183f80174143d00040000742931c0c21000b801000000c210006a006a00ff74240c68801240006a00"
+            "6a00ff152018400031c0c210006a05ff151818400031c0c21000"
+        )
+        # the thread: SendMessageA(hwnd, WM_USER, 0, 0); return 0
+        worker = bytes.fromhex("6a006a006800040000ff742410ff152418400031c0c20400")
+        wndproc[: len(body)] = body
+        wndproc[0x80 : 0x80 + len(worker)] = worker
+        emu, _ = self._run(
+            0x80000000, bytes(wndproc), (("kernel32.dll", "CreateThread"), ("user32.dll", "SendMessageA"))
+        )
+        assert emu.reg("eax") == 5
+        assert len(emu.threads) == 2
+
+    def test_splash_message_loop(self):
+        # a splash window at a position the system picks, waiting for a click: WM_CREATE on creation, then
+        # GetMessage/DispatchMessage until the window procedure posts WM_QUIT on WM_LBUTTONDOWN
+        base = IMAGE_BASE + CODE_RVA
+        slots, cell, wc, msg = base + 0x300, base + 0x320, base + 0x340, base + 0x380
+        code = bytearray(0x400)
+
+        def put(offset: int, data: str | bytes) -> None:
+            data = bytes.fromhex(data) if isinstance(data, str) else data
+            code[offset : offset + len(data)] = data
+
+        call = lambda idx: "ff15" + struct.pack("<I", slots + 4 * idx).hex()  # call [slot]
+        imm = lambda value: struct.pack("<I", value).hex()
+        default = "68" + imm(0x80000000)  # push CW_USEDEFAULT
+        # RegisterClassExA(&wc); CreateWindowExA(0, "S", 0, WS_VISIBLE, CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, 0, 0, 0, 0)
+        main = "68" + imm(wc) + call(0) + "6a00" * 4 + "6a00" + default + "6a00" + default
+        main += "68" + imm(0x10000000) + "6a00" + "68" + imm(wc + 0x30) + "6a00" + call(1)
+        # loop: GetMessageA(&msg, 0, 0, 0); test eax, eax; jz done; DispatchMessageA(&msg); jmp loop; done: ret
+        main += "6a006a006a00" + "68" + imm(msg) + call(2) + "85c0740d" + "68" + imm(msg) + call(3) + "ebde" + "c3"
+        put(0, main)
+        # wndproc: count WM_CREATE; on WM_LBUTTONDOWN set the cell and PostQuitMessage(0); the rest: DefWindowProcA
+        wndproc = "8b442408" + "83f801750b" + "ff05" + imm(cell + 4) + "31c0c21000"
+        wndproc += "3d010200007517" + "c705" + imm(cell) + imm(1) + "6a00" + call(4) + "31c0c21000"
+        wndproc += "ff25" + imm(slots + 4 * 5)
+        put(0x100, wndproc)
+        emu = emulator(bytes(code))
+        user32 = emu.load_module("user32.dll")
+        for idx, name in enumerate(
+            ("RegisterClassExA", "CreateWindowExA", "GetMessageA", "DispatchMessageA", "PostQuitMessage",
+             "DefWindowProcA")
+        ):  # fmt: skip
+            address = emu.resolve_export(user32, name)
+            assert address is not None
+            emu.write_u32(slots + 4 * idx, address)
+        emu.write(wc, struct.pack("<12I", 48, 0, base + 0x100, 0, 0, IMAGE_BASE, 0, 0, 0, 0, wc + 0x30, 0))
+        emu.write(wc + 0x30, b"S\0")
+        emu.start()
+        stop = emu.run(max_blocks=100000)
+        assert stop.reason is StopReason.RETURNED, stop
+        assert emu.read_u32(cell) == 1 and emu.read_u32(cell + 4) == 1
+
+    def test_window_rectangles(self):
+        emu = emulator(b"\xc3")
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        buf = emu.alloc(0x1000)
+        emu.write(buf + 0x100, b"Plain\0")
+        emu.write(buf, struct.pack("<12I", 48, 0, 0, 0, 0, IMAGE_BASE, 0, 0, 0, 0, buf + 0x100, 0))
+        assert call("RegisterClassExA", buf)
+        # CW_USEDEFAULT for the position and the size
+        hwnd = call("CreateWindowExA", 0, buf + 0x100, 0, 0, 0x80000000, 0, 0x80000000, 0, 0, 0, 0, 0)
+        rect = lambda name, window: (call(name, window, buf + 0x200), struct.unpack("<4i", emu.read(buf + 0x200, 16)))
+        assert rect("GetWindowRect", hwnd) == (1, (0, 0, 640, 480))
+        assert call("MoveWindow", hwnd, 5, 0xFFFFFFFA, 100, 50, 1) == 1
+        assert rect("GetWindowRect", hwnd) == (1, (5, -6, 105, 44))
+        assert rect("GetClientRect", hwnd) == (1, (0, 0, 100, 50))
+        # the desktop window is the screen
+        desktop = call("GetDesktopWindow")
+        assert rect("GetWindowRect", desktop) == (1, (0, 0, call("GetSystemMetrics", 0), call("GetSystemMetrics", 1)))
+        assert call("GetWindowRect", 0x7777, buf + 0x200) == 0
 
 
 class TestTimers(unittest.TestCase):

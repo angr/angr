@@ -830,10 +830,13 @@ def c_specific_handler(emu: WindowsEmulator, args: list[int]) -> int | None:
     return next_scope(0)
 
 
+SCREEN_RECT = (0, 0, 1024, 768)
+
+
 @api("GetSystemMetrics", nargs=1)
 def get_system_metrics(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    # a 1024x768 screen; everything else (remote session, mouse buttons, ...) reads as zero
-    return {0: 1024, 1: 768}.get(args[0], 0)
+    # the screen's size; everything else (remote session, mouse buttons, ...) reads as zero
+    return {0: SCREEN_RECT[2], 1: SCREEN_RECT[3]}.get(args[0], 0)
 
 
 _const(("FindWindowA", "FindWindowW"), 2, 0)
@@ -2752,6 +2755,11 @@ def _create_window(emu: WindowsEmulator, args: list[int], wide: bool) -> int | N
     wndclass = emu.window_classes.get(name)
     window = WindowObject(wndclass, args[8], emu.thread, wndclass.wndproc if wndclass is not None else 0)
     x, y, width, height = (value - (1 << 32) if value & 0x80000000 else value for value in args[4:8])
+    # the system picks the position and the size
+    if x == CW_USEDEFAULT:
+        x = y = 0
+    if width == CW_USEDEFAULT:
+        width, height = 640, 480
     window.rect = [x, y, x + width, y + height]
     window.visible = window.needs_paint = bool(args[3] & WS_VISIBLE)
     hwnd = emu.new_handle(window)
@@ -2759,10 +2767,10 @@ def _create_window(emu: WindowsEmulator, args: list[int], wide: bool) -> int | N
         return hwnd
     # WM_NCCREATE and WM_CREATE get a CREATESTRUCT: the arguments in reverse order
     if emu.is_64bit:
-        create = struct.pack("<QQQQiiiiIIQQII", args[11], args[10], args[9], args[8], args[7], args[6], args[5],
-                             args[4], args[3], 0, args[2], args[1], args[0], 0)  # fmt: skip
+        create = struct.pack("<QQQQiiiiIIQQII", args[11], args[10], args[9], args[8], height, width, y, x,
+                             args[3], 0, args[2], args[1], args[0], 0)  # fmt: skip
     else:
-        create = struct.pack("<IIIIiiiiIIII", *(args[11 - i] for i in range(12)))
+        create = struct.pack("<IIIIiiiiIIII", args[11], args[10], args[9], args[8], height, width, y, x, *args[3::-1])
     buf = emu.alloc(len(create))
     emu.write(buf, create)
 
@@ -2778,6 +2786,7 @@ def _create_window(emu: WindowsEmulator, args: list[int], wide: bool) -> int | N
         [(window.wndproc, (hwnd, WM_NCCREATE, 0, buf)), (window.wndproc, (hwnd, WM_CREATE, 0, buf))],
         created,
         lambda results: results[-1] != 0,
+        window.thread,
     )
     return None
 
@@ -2850,6 +2859,7 @@ WM_CREATE = 0x1
 WM_DESTROY = 0x2
 WM_PAINT = 0xF
 WS_VISIBLE = 0x10000000
+CW_USEDEFAULT = -0x80000000
 WM_CLOSE = 0x10
 WM_QUIT = 0x12
 WM_NCCREATE = 0x81
@@ -2876,13 +2886,18 @@ def _guest_calls(
     calls: list[tuple[int, tuple[int, ...]]],
     finish: Callable[[list[int]], int],
     proceed: Callable[[list[int]], bool] = lambda _: True,
+    owner: Thread | None = None,
 ) -> None:
     """
     For API handlers that call guest code (window procedures): make the calls in order while proceed(results)
-    holds, then return finish(results) to the API's caller. The handler itself returns None.
+    holds, then return finish(results) to the API's caller. The handler itself returns None. The calls run on
+    behalf of owner, the thread of the window whose procedure is called.
     """
     ret_pc = emu.pc
     results: list[int] = []
+    caller = emu.thread
+    if owner is not None:
+        caller.window_owners.append(owner)
 
     def step(result: int | None = None) -> None:
         if result is not None:
@@ -2891,6 +2906,8 @@ def _guest_calls(
             addr, args = calls[len(results)]
             emu.call_guest(addr, args, step)
             return
+        if owner is not None:
+            caller.window_owners.pop()
         emu.set_reg("rax" if emu.is_64bit else "eax", finish(results))
         emu._set_pc(ret_pc)  # pylint:disable=protected-access
 
@@ -2994,15 +3011,16 @@ def peek_message(emu: WindowsEmulator, args: list[int]) -> int:
 @api("DispatchMessageA", "DispatchMessageW", nargs=1)
 def dispatch_message(emu: WindowsEmulator, args: list[int]) -> int | None:
     hwnd, msg, wparam, lparam = _read_message(emu, args[0])
+    window = _window(emu, hwnd)
     if msg == WM_TIMER and lparam:
         target = lparam
         call_args = (hwnd, msg, wparam, emu.tick & 0xFFFFFFFF)
     else:
-        window = _window(emu, hwnd)
         if window is None or not window.wndproc:
             return 0
         target, call_args = window.wndproc, (hwnd, msg, wparam, lparam)
-    _guest_calls(emu, [(target, call_args)], lambda results: results[0])
+    owner = window.thread if window is not None else None
+    _guest_calls(emu, [(target, call_args)], lambda results: results[0], owner=owner)
     return None
 
 
@@ -3010,7 +3028,8 @@ def _send(emu: WindowsEmulator, hwnd: int, msg: int, wparam: int, lparam: int) -
     window = _window(emu, hwnd)
     if window is None or not window.wndproc:
         return 0
-    _guest_calls(emu, [(window.wndproc, (hwnd, msg, wparam, lparam))], lambda results: results[0])
+    # the procedure runs for the window's thread, whichever thread sends
+    _guest_calls(emu, [(window.wndproc, (hwnd, msg, wparam, lparam))], lambda results: results[0], owner=window.thread)
     return None
 
 
@@ -3038,7 +3057,9 @@ def post_thread_message(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("PostQuitMessage", nargs=1)
 def post_quit_message(emu: WindowsEmulator, args: list[int]) -> int:
-    _post(emu, emu.thread, (0, WM_QUIT, args[0], 0))
+    # from a window procedure that another thread called (SendMessage, DestroyWindow): the window's thread quits
+    owners = emu.thread.window_owners
+    _post(emu, owners[-1] if owners else emu.thread, (0, WM_QUIT, args[0], 0))
     return 0
 
 
@@ -3057,7 +3078,7 @@ def destroy_window(emu: WindowsEmulator, args: list[int]) -> int | None:
     if not window.wndproc:
         return destroyed([])
     _guest_calls(emu, [(window.wndproc, (hwnd, WM_DESTROY, 0, 0)), (window.wndproc, (hwnd, WM_NCDESTROY, 0, 0))],
-                 destroyed)  # fmt: skip
+                 destroyed, owner=window.thread)  # fmt: skip
     return None
 
 
@@ -3090,7 +3111,7 @@ def update_window(emu: WindowsEmulator, args: list[int]) -> int | None:
     if not (window.visible and window.needs_paint and window.wndproc):
         return 1
     # sends WM_PAINT right away
-    _guest_calls(emu, [(window.wndproc, (args[0], WM_PAINT, 0, 0))], lambda _: 1)
+    _guest_calls(emu, [(window.wndproc, (args[0], WM_PAINT, 0, 0))], lambda _: 1, owner=window.thread)
     return None
 
 
@@ -3132,7 +3153,7 @@ _const(("EndPaint",), 2, 1)
 @api("GetDeviceCaps", nargs=2)
 def get_device_caps(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
     # HORZRES, VERTRES, BITSPIXEL, PLANES, LOGPIXELSX, LOGPIXELSY
-    return {8: 1024, 10: 768, 12: 32, 14: 1, 0x58: 96, 0x5A: 96}.get(args[1], 0)
+    return {8: SCREEN_RECT[2], 10: SCREEN_RECT[3], 12: 32, 14: 1, 0x58: 96, 0x5A: 96}.get(args[1], 0)
 
 
 @api("MulDiv", nargs=3)
@@ -3199,10 +3220,13 @@ def set_window_long(emu: WindowsEmulator, args: list[int]) -> int:
 
 def _window_rect(emu: WindowsEmulator, hwnd: int, rect: int, client: bool) -> int:
     window = _window(emu, hwnd)
-    if window is None:
+    if window is None and hwnd:
         return 0
-    left, top, right, bottom = window.rect
-    emu.write(rect, struct.pack("<iiii", *((0, 0, right - left, bottom - top) if client else window.rect)))
+    # 0 is the desktop window (GetDesktopWindow)
+    left, top, right, bottom = window.rect if window is not None else SCREEN_RECT
+    emu.write(
+        rect, struct.pack("<iiii", *((0, 0, right - left, bottom - top) if client else (left, top, right, bottom)))
+    )
     return 1
 
 
@@ -3228,6 +3252,16 @@ def set_window_pos(emu: WindowsEmulator, args: list[int]) -> int:
     if not args[6] & 1:  # SWP_NOSIZE
         right, bottom = left + width, top + height
     window.rect = [left, top, right, bottom]
+    return 1
+
+
+@api("MoveWindow", nargs=6)
+def move_window(emu: WindowsEmulator, args: list[int]) -> int:
+    window = _window(emu, args[0])
+    if window is None:
+        return 0
+    x, y, width, height = (value - (1 << 32) if value & 0x80000000 else value for value in args[1:5])
+    window.rect = [x, y, x + width, y + height]
     return 1
 
 
