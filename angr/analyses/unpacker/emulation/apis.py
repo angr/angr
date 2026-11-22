@@ -23,6 +23,7 @@ STATUS_SUCCESS = 0
 STATUS_DATATYPE_MISALIGNMENT = 0x80000002
 STATUS_INFO_LENGTH_MISMATCH = 0xC0000004
 STATUS_ACCESS_VIOLATION = 0xC0000005
+STATUS_NO_MEMORY = 0xC0000017
 STATUS_INVALID_HANDLE = 0xC0000008
 STATUS_INVALID_PARAMETER = 0xC000000D
 STATUS_END_OF_FILE = 0xC0000011
@@ -281,20 +282,17 @@ def ki_system_call(emu: WindowsEmulator, args: list[int]) -> None:  # pylint:dis
 
 @api("HeapAlloc", "RtlAllocateHeap", nargs=3)
 def heap_alloc(emu: WindowsEmulator, args: list[int]) -> int:
-    return emu.alloc(max(args[2], 1))
+    return emu.heap_alloc(args[2])
 
 
 @api("HeapReAlloc", "RtlReAllocateHeap", nargs=4)
 def heap_realloc(emu: WindowsEmulator, args: list[int]) -> int:
-    new = emu.alloc(max(args[3], 1))
-    old_size = emu.allocations.get(args[2], 0)
-    emu.write(new, emu.read(args[2], min(old_size, args[3])))
-    return new
+    return emu.heap_realloc(args[2], args[3])
 
 
 @api("LocalAlloc", "GlobalAlloc", nargs=2)
 def local_alloc(emu: WindowsEmulator, args: list[int]) -> int:
-    return emu.alloc(max(args[1], 1))
+    return emu.heap_alloc(args[1])
 
 
 @api("HeapSize", "RtlSizeHeap", nargs=3)
@@ -304,7 +302,7 @@ def heap_size(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("malloc", nargs=1, cdecl=True)
 def c_malloc(emu: WindowsEmulator, args: list[int]) -> int:
-    return emu.alloc(max(args[0], 1))
+    return emu.heap_alloc(args[0])
 
 
 @api("GetProcessHeap", nargs=0)
@@ -317,8 +315,16 @@ def heap_create(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable
     return emu.new_handle("heap")
 
 
-_const(("HeapFree", "RtlFreeHeap"), 3, 1)
-_const(("LocalFree", "GlobalFree"), 1, 0)
+@api("HeapFree", "RtlFreeHeap", nargs=3)
+def heap_free(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.heap_free(args[2])
+    return 1
+
+
+@api("LocalFree", "GlobalFree", nargs=1)
+def local_free(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.heap_free(args[0])
+    return 0
 
 
 @api("GlobalLock", "LocalLock", "GlobalHandle", "LocalHandle", nargs=1)
@@ -337,12 +343,7 @@ def global_size(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("GlobalReAlloc", "LocalReAlloc", nargs=3)
 def global_realloc(emu: WindowsEmulator, args: list[int]) -> int:
-    old_size = emu.allocations.get(args[0], 0)
-    if args[1] <= old_size:
-        return args[0]
-    new = emu.alloc(args[1])
-    emu.write(new, emu.read(args[0], old_size))
-    return new
+    return emu.heap_realloc(args[0], args[1])
 
 
 _const(("HeapSetInformation",), 4, 1)

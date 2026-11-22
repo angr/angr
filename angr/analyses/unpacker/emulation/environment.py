@@ -31,7 +31,14 @@ from angr.errors import (
 from angr.procedures.definitions import SIM_LIBRARIES, load_win32api_definitions
 from angr.state_plugins.unicorn_engine import STOP
 
-from .apis import API_HANDLERS, SLEEP_POLL_APIS, STATUS_ACCESS_VIOLATION, STATUS_NOT_IMPLEMENTED, ApiHandler
+from .apis import (
+    API_HANDLERS,
+    SLEEP_POLL_APIS,
+    STATUS_ACCESS_VIOLATION,
+    STATUS_NO_MEMORY,
+    STATUS_NOT_IMPLEMENTED,
+    ApiHandler,
+)
 from .com import ComRuntime
 from .exceptions import (
     EXCEPTION_ACCESS_VIOLATION,
@@ -88,6 +95,10 @@ _KUSER_SHARED_DATA = 0x7FFE0000
 # KUSER_SHARED_DATA.TickCountMultiplier of a 15.625 ms clock: milliseconds = TickCount * multiplier >> 24
 _TICK_MULTIPLIER = 0x0FA00000
 SYSTEM_TIME_BASE = 0x01DB3A0000000000
+_HEAP_GRANULARITY = 16
+_HEAP_SEGMENT = 0x100000
+# the NT heap hands blocks from this size on to VirtualAlloc
+_HEAP_LARGE_BLOCK = 0x7F000
 
 
 class UnlistedExport(NamedTuple):
@@ -101,6 +112,12 @@ class UnlistedExport(NamedTuple):
     name: str
     #: Asked for by the image's import directory (it got a slot anyway) rather than looked up at run time (not found)
     static: bool
+
+
+class AddressSpaceExhausted(MemoryError):
+    """
+    No free range of the requested size is left in the emulated address space.
+    """
 
 
 class AddressSpace:
@@ -134,7 +151,7 @@ class AddressSpace:
             nxt = self._ranges[idx - 1][1] if idx and self._ranges[idx - 1][1] > addr else self._ranges[idx][1]
             addr = (nxt + align - 1) & ~(align - 1)
             if addr + size > self._limit:
-                raise MemoryError("Emulated address space exhausted")
+                raise AddressSpaceExhausted("Emulated address space exhausted")
         self.mark(addr, size)
         return addr
 
@@ -257,6 +274,11 @@ class WindowsEmulator:
         self.unhandled_apis: collections.Counter[str] = collections.Counter()
         self.messages: list[str] = []
         self.allocations: dict[int, int] = {}
+        # heap blocks (address -> granted size), free blocks by size, and the segment being carved
+        self._heap_blocks: dict[int, int] = {}
+        self._heap_free: dict[int, list[int]] = collections.defaultdict(list)
+        self._heap_cursor = 0
+        self._heap_end = 0
         self.file_views: set[int] = set()
         # as when started from Explorer: the directory of the image
         self.current_directory = ntpath.dirname(self.image_path)
@@ -471,6 +493,48 @@ class WindowsEmulator:
             self.map(addr, size, perms)
         self.allocations[addr] = size
         return addr
+
+    def heap_alloc(self, size: int) -> int:
+        """
+        A zeroed heap block. Small blocks share segments, as on the NT heap (a region per block exhausts the address
+        space of programs that make tens of thousands of allocations); large ones get their own region.
+        """
+        size = max(size, 1)
+        granted = (size + _HEAP_GRANULARITY - 1) & ~(_HEAP_GRANULARITY - 1)
+        if granted >= _HEAP_LARGE_BLOCK:
+            addr = self.alloc(size)
+        else:
+            free = self._heap_free.get(granted)
+            if free:
+                addr = free.pop()
+                self.write(addr, bytes(granted))
+            else:
+                # each block follows a header, as a HEAP_ENTRY
+                if self._heap_cursor + _HEAP_GRANULARITY + granted > self._heap_end:
+                    self._heap_cursor = self.alloc(_HEAP_SEGMENT)
+                    self._heap_end = self._heap_cursor + _HEAP_SEGMENT
+                addr = self._heap_cursor + _HEAP_GRANULARITY
+                self._heap_cursor = addr + granted
+            self._heap_blocks[addr] = granted
+        self.allocations[addr] = size
+        return addr
+
+    def heap_free(self, addr: int) -> None:
+        granted = self._heap_blocks.pop(addr, None)
+        if granted is not None:
+            self._heap_free[granted].append(addr)
+            del self.allocations[addr]
+
+    def heap_realloc(self, addr: int, size: int) -> int:
+        old_size = self.allocations.get(addr, 0)
+        granted = self._heap_blocks.get(addr)
+        if granted is not None and max(size, 1) <= granted:
+            self.allocations[addr] = max(size, 1)
+            return addr
+        new = self.heap_alloc(size)
+        self.write(new, self.read(addr, min(old_size, size)))
+        self.heap_free(addr)
+        return new
 
     @property
     def lazy_regions(self) -> dict[int, tuple[int, int]]:
@@ -1310,6 +1374,9 @@ class WindowsEmulator:
             except SimSegfaultException:
                 # the handler followed a bad pointer argument
                 result = STATUS_ACCESS_VIOLATION if name.startswith(("Nt", "Zw")) else 0
+            except AddressSpaceExhausted:
+                # an allocation that cannot be satisfied fails, as it would on Windows
+                result = STATUS_NO_MEMORY if name.startswith(("Nt", "Zw")) else 0
         if result is not None:
             self.set_reg("rax" if self.is_64bit else "eax", result)
 

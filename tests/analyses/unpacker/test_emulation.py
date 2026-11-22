@@ -378,6 +378,25 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read(buf, 20) == "ntdll.dll\0".encode("utf-16-le")
         assert emu.read(buf + 24, 2) != b"\0\0"
 
+    def test_heap(self):
+        emu = emulator(b"\xc3")
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        # small blocks share a segment; a freed block is reused zeroed; HeapSize reports the requested size
+        blocks = [call("HeapAlloc", emu.process_heap, 0, 0x20) for _ in range(1000)]
+        assert max(blocks) - min(blocks) < 0x10000
+        emu.write(blocks[5], b"\xff" * 0x20)
+        assert call("HeapFree", emu.process_heap, 0, blocks[5]) == 1
+        assert call("HeapAlloc", emu.process_heap, 0, 0x18) == blocks[5]
+        assert emu.read(blocks[5], 0x20) == bytes(0x20)
+        assert call("HeapSize", emu.process_heap, 0, blocks[5]) == 0x18
+        grown = call("HeapReAlloc", emu.process_heap, 0, blocks[6], 0x1000)
+        assert grown != blocks[6]
+        # an allocation larger than the address space fails instead of stopping the emulation
+        emu.start()
+        emu.write(emu.sp + 4, struct.pack("<III", emu.process_heap, 0, 0x7FFF0000))
+        emu._dispatch_api(emu.resolve_export(emu.load_module("kernel32.dll"), "HeapAlloc"))  # pylint:disable=protected-access
+        assert emu.reg("eax") == 0
+
     def test_system_files(self):
         emu = emulator(b"\xc3")
         buf = emu.alloc(0x1000)
