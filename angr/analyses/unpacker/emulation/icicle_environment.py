@@ -289,13 +289,27 @@ class IcicleWindowsEmulator(WindowsEmulator):
                     return slot[0].resolve(name, create=False) if name is not None else None
                 if self.space.find(pc) is None:
                     return None
-                kind, _, _ = vm.run(max_blocks * 8)
+                kind = self._trace_run(max_blocks * 8)
                 if kind != winemu.EXIT_BREAKPOINT:
                     return None
             return None
         finally:
             vm.jit = jit
             vm.restore_snapshot()
+
+    def _trace_run(self, budget: int) -> int:
+        # values that point at zeroed data slide through `add [eax], al` until the budget ends; translating each
+        # new instruction is what costs here, so give up on such slides early
+        vm = self.vm
+        while budget > 0:
+            step = min(budget, 4096)
+            kind, _, _ = vm.run(step)
+            if kind != winemu.EXIT_LIMIT:
+                return kind
+            budget -= step
+            if vm.mem_read(vm.pc, 16) == bytes(16):
+                return winemu.EXIT_OTHER
+        return winemu.EXIT_LIMIT
 
     def run(self, max_blocks: int | None = None, timeout: float | None = None) -> EmulationStop:
         vm = self.vm
