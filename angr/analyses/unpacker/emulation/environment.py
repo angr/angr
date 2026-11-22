@@ -222,6 +222,8 @@ class WindowsEmulator:
         self.messages: list[str] = []
         self.allocations: dict[int, int] = {}
         self.file_views: set[int] = set()
+        # as when started from Explorer: the directory of the image
+        self.current_directory = ntpath.dirname(self.image_path)
         self.handles: dict[int, object] = {}
         self.threads: list[Thread] = []
         self.current_thread = 0

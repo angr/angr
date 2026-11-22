@@ -1026,6 +1026,75 @@ def get_system_directory_w(emu: WindowsEmulator, args: list[int]) -> int:
     return _write_text(emu, args[0], args[1], "C:\\Windows\\System32", True)
 
 
+TEMP_DIRECTORY = "C:\\Users\\admin\\AppData\\Local\\Temp"
+ERROR_FILE_NOT_FOUND = 2
+ERROR_INVALID_NAME = 123
+
+
+def _set_last_error(emu: WindowsEmulator, code: int) -> None:
+    emu.write_u32(emu.teb + (0x68 if emu.is_64bit else 0x34), code)
+
+
+def full_path(emu: WindowsEmulator, path: str) -> str:
+    """
+    The absolute form of a DOS or NT path; relative paths start at the current directory.
+    """
+    path = path.strip().strip('"').replace("/", "\\")
+    if path.startswith(("\\??\\", "\\\\?\\")):
+        path = path[4:]
+    if not ntpath.splitdrive(path)[0]:
+        path = ntpath.join(emu.current_directory, path)
+    return ntpath.normpath(path)
+
+
+def _copy_path(emu: WindowsEmulator, capacity: int, buf: int, text: str, wide: bool) -> int:
+    """
+    The convention of GetCurrentDirectory and GetTempPath: the length written, or the size needed if it does not fit.
+    """
+    if capacity <= len(text):
+        return len(text) + 1
+    return _write_text(emu, buf, capacity, text, wide)
+
+
+@api("GetCurrentDirectoryA", nargs=2)
+def get_current_directory_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _copy_path(emu, args[0], args[1], emu.current_directory, False)
+
+
+@api("GetCurrentDirectoryW", nargs=2)
+def get_current_directory_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _copy_path(emu, args[0], args[1], emu.current_directory, True)
+
+
+def _set_current_directory(emu: WindowsEmulator, path: str) -> int:
+    # every well-formed directory is taken to exist
+    if not path.strip():
+        _set_last_error(emu, ERROR_INVALID_NAME)
+        return 0
+    emu.current_directory = full_path(emu, path)
+    return 1
+
+
+@api("SetCurrentDirectoryA", nargs=1)
+def set_current_directory_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _set_current_directory(emu, emu.read_cstr(args[0]))
+
+
+@api("SetCurrentDirectoryW", nargs=1)
+def set_current_directory_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _set_current_directory(emu, emu.read_wstr(args[0]))
+
+
+@api("GetTempPathA", nargs=2)
+def get_temp_path_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _copy_path(emu, args[0], args[1], TEMP_DIRECTORY + "\\", False)
+
+
+@api("GetTempPathW", nargs=2)
+def get_temp_path_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _copy_path(emu, args[0], args[1], TEMP_DIRECTORY + "\\", True)
+
+
 @api("MessageBoxA", nargs=4)
 def message_box_a(emu: WindowsEmulator, args: list[int]) -> int:
     emu.messages.append(f"{emu.read_cstr(args[2])}: {emu.read_cstr(args[1])}")

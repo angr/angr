@@ -47,6 +47,24 @@ class TestApiHandlers(unittest.TestCase):
         assert length == len(expected)
         assert emu.read_cstr(buf + 0x400) == expected
 
+    def test_current_directory(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        desktop = "C:\\Users\\admin\\Desktop"
+        assert call("GetCurrentDirectoryA", 0x100, buf) == len(desktop)
+        assert emu.read_cstr(buf) == desktop
+        # too small: the size needed, terminator included
+        assert call("GetCurrentDirectoryW", 4, buf) == len(desktop) + 1
+        assert call("SetCurrentDirectoryA", emu.alloc_cstr("C:\\Windows\\Temp\\")) == 1
+        assert call("SetCurrentDirectoryW", emu.alloc_cstr("..\\System32", wide=True)) == 1
+        assert call("GetCurrentDirectoryW", 0x100, buf) == len("C:\\Windows\\System32")
+        assert emu.read_wstr(buf) == "C:\\Windows\\System32"
+        assert call("SetCurrentDirectoryA", emu.alloc_cstr("")) == 0
+        assert call("GetLastError") == 123  # ERROR_INVALID_NAME
+        length = call("GetTempPathA", 0x100, buf)
+        assert length == len(emu.read_cstr(buf)) and emu.read_cstr(buf).endswith("\\Temp\\")
+
     def test_global_memory_handles(self):
         # GlobalAlloc/LocalAlloc hand out the block's address as its handle; locking it yields the same address
         emu = emulator(b"\xc3")
