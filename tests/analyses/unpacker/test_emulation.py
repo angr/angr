@@ -295,6 +295,47 @@ class TestExceptions(unittest.TestCase):
         # protectors time the trap against cpuid, which the native engine does not execute itself
         self._single_step("0f a2")
 
+    def test_x86_rtl_unwind(self):
+        base = IMAGE_BASE + CODE_RVA
+        cell, slot, handler_a, handler_b = base + 0x300, base + 0x2F0, base + 0x100, base + 0x120
+        p32 = lambda value: struct.pack("<I", value)
+        push_frame = lambda handler: b"\x68" + p32(handler) + bytes.fromhex("64ff3500000000 64892500000000")
+        main = (
+            push_frame(handler_a)
+            + bytes.fromhex("89e3")  # mov ebx, esp: the target frame
+            + push_frame(handler_b)
+            + bytes.fromhex("6a55 6a00")  # ReturnValue, ExceptionRecord
+        )
+        after = base + len(main) + 1 + 4 + 1 + 6
+        main += b"\x68" + p32(after) + b"\x53" + b"\xff\x15" + p32(slot)  # TargetIp, TargetFrame; call [RtlUnwind]
+        main += (
+            b"\xa3" + p32(cell + 8)  # mov [cell+8], eax
+            + bytes.fromhex("64a100000000")  # mov eax, fs:[0]
+            + b"\xa3" + p32(cell + 4)
+            + b"\x89\x1d" + p32(cell + 16)  # mov [cell+16], ebx
+            + bytes.fromhex("8b03 64a300000000 8d6308 c3")  # pop frame A, restore esp, ret
+        )  # fmt: skip
+        code = bytearray(0x400)
+        code[: len(main)] = main
+        code[0x100:0x106] = bytes.fromhex("b801000000c3")
+        # handler B: record the ExceptionFlags and the call count, return ExceptionContinueSearch
+        code[0x120:0x13A] = (
+            bytes.fromhex("8b442404 8b4004") + b"\xa3" + p32(cell) + b"\xff\x05" + p32(cell + 12)
+            + bytes.fromhex("b801000000 c3")
+        )  # fmt: skip
+        emu = emulator(bytes(code))
+        unwind = emu.resolve_export(emu.load_module("ntdll.dll"), "RtlUnwind")
+        assert unwind is not None
+        emu.write_ptr(slot, unwind)
+        emu.start()
+        stop = emu.run(max_blocks=100000)
+        assert stop.reason is StopReason.RETURNED
+        assert emu.read_u32(cell) & 2  # EXCEPTION_UNWINDING
+        assert emu.read_u32(cell + 12) == 1  # only the frame above the target
+        assert emu.read_u32(cell + 8) == 0x55
+        # the chain now starts at the target frame
+        assert emu.read_u32(cell + 4) == emu.read_u32(cell + 16)
+
     def test_x64_try_except(self):
         code = bytearray(0x400)
 

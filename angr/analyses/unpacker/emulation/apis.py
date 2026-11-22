@@ -650,6 +650,50 @@ def rtl_unwind_ex(emu: WindowsEmulator, args: list[int]) -> None:
     emu.exceptions.unwind_to(args[0], args[1], args[3])
 
 
+@api("RtlUnwind", nargs=4)
+def rtl_unwind(emu: WindowsEmulator, args: list[int]) -> None:
+    """
+    x86: call each SEH handler above target_frame with EXCEPTION_UNWINDING and unlink it, then return to the caller
+    with eax = return_value. target_frame 0 unwinds the whole chain (exit unwind).
+    """
+    target, _, record, return_value = args
+    if emu.is_64bit:
+        emu.exceptions.unwind_to(target, args[1], return_value)
+        return
+    ret_pc, ret_sp = emu.pc, emu.sp
+    scratch = (ret_sp - 0x1000) & ~0xF
+    context, dispatcher = scratch + 0x100, scratch + 0x80
+    flags = 2 | (4 if target == 0 else 0)  # EXCEPTION_UNWINDING, EXCEPTION_EXIT_UNWIND
+    if record:
+        emu.write_u32(record + 4, emu.read_u32(record + 4) | flags)
+    else:
+        record = scratch + 0x10
+        emu.write(record, struct.pack("<IIIII", 0xC0000027, flags, 0, ret_pc, 0))  # STATUS_UNWIND
+    emu.exceptions.write_context(context, ret_pc)
+    emu.write_u32(context + 0xC4, ret_sp)
+    emu.write_u32(context + 0xB0, return_value)
+
+    def finish() -> None:
+        emu._set_sp(ret_sp)
+        emu._set_pc(ret_pc)
+        emu.set_reg("eax", return_value)
+
+    def next_frame(_: int = 0) -> None:
+        frame = emu.read_ptr(emu.teb)
+        if frame in (target, 0, 0xFFFFFFFF) or (target and frame > target) or emu.space.find(frame) is None:
+            finish()
+            return
+
+        def unlink(_: int) -> None:
+            emu.write_ptr(emu.teb, emu.read_ptr(frame))
+            next_frame()
+
+        emu._set_sp(scratch - 0x40)
+        emu.call_guest(emu.read_ptr(frame + 4), (record, frame, context, dispatcher), unlink)
+
+    next_frame()
+
+
 @api("__C_specific_handler", nargs=4)
 def c_specific_handler(emu: WindowsEmulator, args: list[int]) -> int | None:
     """
