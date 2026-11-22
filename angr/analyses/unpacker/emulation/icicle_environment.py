@@ -87,9 +87,53 @@ _STACK16 = tuple(
     )
     for n in (2, 4, 8)
 )
+
+
+def _checked(query: str, operand: str, assign: str) -> str:
+    # bit 32 of the query's result says whether the selector is visible; an invisible one leaves the destination
+    return f"tmp:8 = {query}({operand}); ZF = tmp[32,1]; if (ZF == 0) goto <done>; {assign} <done>"
+
+
+# lsl and lar: SegmentLimit / SegmentRights return the 32-bit limit or the access rights and the visibility bit;
+# verr / verw get their operand
+_LAR = ":LAR Reg{0},rm{3}     is {1}vexMode=0 & opsize={2} & byte=0xf; byte=0x2; rm{3} & Reg{0} ..."
+_DESCRIPTORS = (
+    (
+        _LAR.format(16, "", 0, 16) + "  { Reg16 = rm16 & 0xff00; ZF=1; }",
+        "define pcodeop SegmentRights;\n"
+        + _LAR.format(16, "", 0, 16)
+        + f" {{ {_checked('SegmentRights', 'rm16', 'Reg16 = tmp:2;')} }}",
+    ),
+    (
+        _LAR.format(32, "", 1, 32)
+        + " & check_Reg32_dest ... { Reg32 = rm32 & 0xffff00; build check_Reg32_dest; ZF=1; }",
+        _LAR.format(32, "", 1, 32)
+        + f" & check_Reg32_dest ... {{ {_checked('SegmentRights', 'rm32', 'Reg32 = tmp:4; build check_Reg32_dest;')} }}",
+    ),
+    (
+        _LAR.format(64, "$(LONGMODE_ON) & ", 2, 32) + " { Reg64 = zext( rm32 & 0xffff00 ); ZF=1; }",
+        _LAR.format(64, "$(LONGMODE_ON) & ", 2, 32)
+        + f" {{ {_checked('SegmentRights', 'rm32', 'Reg64 = zext(tmp:4);')} }}",
+    ),
+    ("{ ZF = verr(); }", "{ ZF = verr(rm16); }"),
+    ("{ ZF = verw(); }", "{ ZF = verw(rm16); }"),
+    (
+        "  tmp:3 = SegmentLimit(rm16);\n  Reg16 = tmp:2;\n  ZF = tmp[16,1];\n",
+        f"  {_checked('SegmentLimit', 'rm16', 'Reg16 = tmp:2;')}\n",
+    ),
+    (
+        "  tmp:3 = SegmentLimit(rm32);\n  Reg32 = zext(tmp:2);\n  build check_Reg32_dest;\n  ZF = tmp[16,1];\n",
+        f"  {_checked('SegmentLimit', 'rm32', 'Reg32 = tmp:4; build check_Reg32_dest;')}\n",
+    ),
+    (
+        "  tmp:3 = SegmentLimit(rm32);\n  Reg64 = zext(tmp:2);\n  ZF = tmp[16,1];\n",
+        f"  {_checked('SegmentLimit', 'rm32', 'Reg64 = zext(tmp:4);')}\n",
+    ),
+)
 _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _IA_PATCHES),
     *(("ia.sinc", old, new) for old, new in _STACK16),
+    *(("ia.sinc", old, new) for old, new in _DESCRIPTORS),
     ("lockable.sinc", *_XCHG_M32),
 )
 

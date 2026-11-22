@@ -127,6 +127,62 @@ fn segment(cpu: &mut Cpu, dst: pcode::VarNode, args: [pcode::Value; 2]) {
     write_trunc(cpu, dst, base.wrapping_add(offset) as u128);
 }
 
+/// (limit, access rights as lar reports them) of the descriptors a user-mode thread can see in a Windows 7 GDT;
+/// None for the null, kernel (DPL 0) and LDT selectors, which lsl, lar, verr and verw reject.
+fn user_descriptor(x64: bool, selector: u64) -> Option<(u32, u32)> {
+    if selector & 4 != 0 {
+        return None;
+    }
+    match (x64, selector & 0xFFF8) {
+        // user code and data; the TEB
+        (false, 0x18) => Some((u32::MAX, 0x00CF_FB00)),
+        (false, 0x20) => Some((u32::MAX, 0x00CF_F300)),
+        (false, 0x38) => Some((0xFFF, 0x0040_F300)),
+        // 32-bit code, data, 64-bit code; the WOW64 TEB (limit 0x3C00, processor 0 in bits 14+)
+        (true, 0x20) => Some((u32::MAX, 0x00CF_FB00)),
+        (true, 0x28) => Some((u32::MAX, 0x00CF_F300)),
+        (true, 0x30) => Some((0, 0x0020_FB00)),
+        (true, 0x50) => Some((0x3C00, 0x0040_F300)),
+        _ => None,
+    }
+}
+
+fn read_selector(cpu: &mut Cpu, arg: pcode::Value) -> Option<(u32, u32)> {
+    let selector: u64 = cpu.read_dynamic(arg).zxt();
+    user_descriptor(is_x64(cpu), selector & 0xFFFF)
+}
+
+/// SegmentLimit(selector), as patched in the SLEIGH spec: the limit in bits 0-31, bit 32 set when lsl succeeds.
+fn segment_limit(cpu: &mut Cpu, dst: pcode::VarNode, args: [pcode::Value; 2]) {
+    let value = read_selector(cpu, args[0]).map_or(0, |(limit, _)| limit as u128 | (1 << 32));
+    write_trunc(cpu, dst, value);
+}
+
+/// SegmentRights(selector), added to the SLEIGH spec for lar: like SegmentLimit with the access rights.
+fn segment_rights(cpu: &mut Cpu, dst: pcode::VarNode, args: [pcode::Value; 2]) {
+    let value = read_selector(cpu, args[0]).map_or(0, |(_, rights)| rights as u128 | (1 << 32));
+    write_trunc(cpu, dst, value);
+}
+
+/// verr(selector): readable code (type bit 1) or any data segment.
+fn verr(cpu: &mut Cpu, dst: pcode::VarNode, args: [pcode::Value; 2]) {
+    let ok = read_selector(cpu, args[0])
+        .is_some_and(|(_, rights)| rights & 0x800 == 0 || rights & 0x200 != 0);
+    write_trunc(cpu, dst, ok as u128);
+}
+
+/// verw(selector): writable data segments only.
+fn verw(cpu: &mut Cpu, dst: pcode::VarNode, args: [pcode::Value; 2]) {
+    let ok = read_selector(cpu, args[0])
+        .is_some_and(|(_, rights)| rights & 0x800 == 0 && rights & 0x200 != 0);
+    write_trunc(cpu, dst, ok as u128);
+}
+
+/// xinuse: XGETBV masks XCR0 with it; every enabled state counts as in use.
+fn xinuse(cpu: &mut Cpu, dst: pcode::VarNode, _: [pcode::Value; 2]) {
+    write_trunc(cpu, dst, u128::MAX);
+}
+
 fn privileged_op(cpu: &mut Cpu, _: pcode::VarNode, _: [pcode::Value; 2]) {
     cpu.exception = Exception::new(ExceptionCode::Environment, ENV_PRIVILEGED);
 }
@@ -782,9 +838,14 @@ impl WinVm {
         vm.lifter
             .patchers
             .push(Box::new(move |inst: &mut pcode::Block| patcher.patch(inst)));
-        let helpers: [(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper); 8] = [
+        let helpers: [(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper); 13] = [
             ("rdtsc", rdtsc),
             ("segment", segment),
+            ("SegmentLimit", segment_limit),
+            ("SegmentRights", segment_rights),
+            ("verr", verr),
+            ("verw", verw),
+            ("xinuse", xinuse),
             ("GlobalDescriptorTableRegister", gdtr),
             ("InterruptDescriptorTableRegister", idtr),
             ("LocalDescriptorTableRegister", ldtr),
@@ -800,6 +861,9 @@ impl WinVm {
         // what smsw shows on Windows 7: PE, MP, ET, NE, WP, PG
         let cr0 = get(&vm, "CR0")?;
         vm.cpu.write_reg(cr0, 0x8001_003B);
+        // x87, SSE and AVX state enabled, matching the OSXSAVE and AVX bits cpuid reports
+        let xcr0 = get(&vm, "XCR0")?;
+        vm.cpu.write_reg(xcr0, 7);
 
         Ok(Self {
             vm,

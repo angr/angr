@@ -114,6 +114,25 @@ class TestWinVm(unittest.TestCase):
         assert vm.reg_read("esp") == 0x500F00
         assert vm.mem_read(0x500040, 4) == struct.pack("<I", 0x11223344)
 
+    def test_descriptor_instructions(self):
+        vm = _vm()
+        # lsl / lar on the user data selector, then on the null selector, which leaves the destination alone
+        vm.reg_write("edi", 0x23)
+        _run(vm, bytes.fromhex("0f03df 0f02c7"))
+        assert (vm.reg_read("ebx"), vm.reg_read("eax"), vm.reg_read("ZF")) == (0xFFFFFFFF, 0x00CFF300, 1)
+        vm.reg_write("edi", 0)
+        _run(vm, bytes.fromhex("0f03df"))
+        assert (vm.reg_read("ebx"), vm.reg_read("ZF")) == (0xFFFFFFFF, 0)
+        # verr / verw: code is readable, not writable
+        for code, selector, zf in (("0f00e7", 0x1B, 1), ("0f00ef", 0x1B, 0), ("0f00ef", 0x3B, 1), ("0f00e7", 0x8, 0)):
+            vm.reg_write("edi", selector)
+            _run(vm, bytes.fromhex(code))
+            assert vm.reg_read("ZF") == zf, (code, selector)
+        # xgetbv: x87, SSE and AVX state enabled
+        vm.reg_write("ecx", 0)
+        _run(vm, bytes.fromhex("0f01d0"))
+        assert (vm.reg_read("eax"), vm.reg_read("edx")) == (7, 0)
+
     def test_cpuid_and_privileged(self):
         vm = _vm()
         assert _run(vm, bytes.fromhex("31c0 0fa2"))[1] == winemu.FAULT_SYSCALL
