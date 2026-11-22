@@ -1286,6 +1286,23 @@ def message_box_a(emu: WindowsEmulator, args: list[int]) -> int:
     return 1
 
 
+@api("NtRaiseHardError", "ZwRaiseHardError", nargs=6)
+def nt_raise_hard_error(emu: WindowsEmulator, args: list[int]) -> int:
+    # loaders report a missing DLL or export this way; parameters flagged in the mask are UNICODE_STRING pointers
+    count, mask, params = min(args[1], 4), args[2], args[3]
+    texts = []
+    for idx in range(count if params else 0):
+        if mask >> idx & 1:
+            string = emu.read_ptr(params + emu.ptr_size * idx)
+            length = min(emu.read_u32(string) & 0xFFFF, 2048)
+            texts.append(emu.read(emu.read_ptr(string + emu.ptr_size), length).decode("utf-16-le", "replace"))
+    if texts:
+        emu.messages.append(f"{texts[1]}: {texts[0]}" if len(texts) > 1 else texts[0])
+    if args[5]:
+        emu.write_u32(args[5], 6)  # ResponseOk
+    return STATUS_SUCCESS
+
+
 @api("MessageBoxW", nargs=4)
 def message_box_w(emu: WindowsEmulator, args: list[int]) -> int:
     emu.messages.append(f"{emu.read_wstr(args[2])}: {emu.read_wstr(args[1])}")
@@ -2282,7 +2299,6 @@ def is_wow64_process(emu: WindowsEmulator, args: list[int]) -> int:
     return 1
 
 
-_const(("NtRaiseHardError", "ZwRaiseHardError"), 6, STATUS_SUCCESS)
 _const(("InterlockedIncrement", "InterlockedDecrement"), 1, 1)
 _const(("IsBadReadPtr", "IsBadWritePtr"), 2, 0)
 _const(("GetProcessWindowStation", "GetDesktopWindow", "GetForegroundWindow", "GetActiveWindow"), 0, 0)

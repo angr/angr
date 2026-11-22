@@ -245,6 +245,20 @@ class TestApiHandlers(unittest.TestCase):
         bigger = API_HANDLERS["GlobalReAlloc"].func(emu, [handle, 0x3000, 2])
         assert emu.read(bigger, 4) == b"data"
 
+    def test_raise_hard_error_message(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        for idx, text in enumerate(("Entry point missing", "sample.exe")):
+            data = text.encode("utf-16-le")
+            emu.write(buf + 0x100 * (idx + 1), data)
+            emu.write(buf + 0x10 * idx, struct.pack("<HHI", len(data), len(data), buf + 0x100 * (idx + 1)))
+            emu.write_u32(buf + 0x40 + 4 * idx, buf + 0x10 * idx)
+        emu.write_u32(buf + 0x48, 0x10)
+        args = [0x50000018, 3, 3, buf + 0x40, 1, buf + 0x80]
+        assert API_HANDLERS["NtRaiseHardError"].func(emu, args) == 0
+        assert emu.messages == ["sample.exe: Entry point missing"]
+        assert emu.read_u32(buf + 0x80) == 6
+
     def test_memory_queries(self):
         emu = emulator(b"\xc3")
         buf = emu.alloc(0x1000)
