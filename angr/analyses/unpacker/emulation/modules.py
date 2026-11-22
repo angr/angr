@@ -47,7 +47,8 @@ class FakeModule:
     ):
         """
         :param ordinals:    Known export ordinals: the export's name, or None for an export without a name. Other
-                            exports get the ordinals that follow.
+                            exports get the ordinals that follow; those are made up (the export directory needs
+                            them) and are not found by resolve_ordinal.
         :param listed:      Whether export_names is the real DLL's export list (and not only the names somebody
                             asked for): lookups of other names should then fail.
         """
@@ -61,6 +62,7 @@ class FakeModule:
         self._next_spare = 0
 
         ordinals = ordinals or {}
+        self._known_ordinals = frozenset(ordinals)
         names = sorted(set(export_names) | {export for export in ordinals.values() if export is not None})
         # slots: the named exports in name order, then the exports that only have an ordinal
         slot_of = {export: idx for idx, export in enumerate(names)}
@@ -145,10 +147,19 @@ class FakeModule:
             self._next_spare += 1
         return addr
 
+    @property
+    def has_ordinals(self) -> bool:
+        """
+        Whether the real DLL's export ordinals are known.
+        """
+        return bool(self._known_ordinals)
+
     def resolve_ordinal(self, ordinal: int, create: bool = True) -> int | None:
-        idx = self._ordinal_slots.get(ordinal)
-        if idx is not None:
-            return self.base + self._code_rva + idx * SLOT_SIZE
+        """
+        Get the trap address of the export with a known ordinal. Any other ordinal gets a spare slot of its own.
+        """
+        if ordinal in self._known_ordinals:
+            return self.base + self._code_rva + self._ordinal_slots[ordinal] * SLOT_SIZE
         return self.resolve(f"ordinal_{ordinal}", create)
 
     def unnamed_ordinal(self, addr: int) -> int | None:

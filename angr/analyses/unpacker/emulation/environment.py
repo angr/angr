@@ -830,6 +830,16 @@ class WindowsEmulator:
         with open(path, "rb") as f:
             return {int(ordinal): export for ordinal, export in json.load(f).items()}
 
+    def _known_ordinal_nargs(self, name: str) -> dict[int, int]:
+        """
+        Stdcall argument counts of a real DLL's exports that have no name, by ordinal.
+        """
+        path = os.path.join(self._export_db_dir, os.path.splitext(name)[0] + ".ordinal_args.json")
+        if not os.path.isfile(path):
+            return {}
+        with open(path, "rb") as f:
+            return {int(ordinal): nargs for ordinal, nargs in json.load(f).items()}
+
     def load_module(self, name: str) -> FakeModule:
         name = self.normalize_module_name(name)
         module = self.modules.get(name)
@@ -872,6 +882,9 @@ class WindowsEmulator:
                 stack_bytes[export] = 4 * (nargs or 0)
         listed = bool(known_exports)
         module = FakeModule(name, base, sorted(exports), self.is_64bit, ordinals, syscalls, stack_bytes, listed)
+        for ordinal, nargs in self._known_ordinal_nargs(name).items():
+            if ordinals.get(ordinal, "") is None:
+                self._nargs_cache[(name, f"ordinal_{ordinal}")] = nargs
         if listed:
             # Windows would not have loaded the image; a gap in the list is the likelier reason, so they get slots
             for export in sorted(self._static_imports.get(name, set()) - known_exports.keys()):
@@ -925,18 +938,24 @@ class WindowsEmulator:
         :param required:    The process cannot run without it (a static import): it gets a slot in any case.
         """
         addr = module.resolve(name, create=required or not module.listed)
-        return self._resolved(module, name, addr)
+        return self._resolved(module, name, addr, module.listed)
 
     def resolve_ordinal(self, module: FakeModule, ordinal: int, required: bool = False) -> int | None:
-        addr = module.resolve_ordinal(ordinal, create=required or not module.listed)
-        return self._resolved(module, f"#{ordinal}", addr)
+        """
+        The trap address of an export by ordinal. Only ordinals from the DLL's ordinal list name an export; another
+        ordinal is not found if anything is known about the DLL's exports, and gets a slot of its own otherwise
+        or if it is required.
+        """
+        known = module.listed or module.has_ordinals
+        addr = module.resolve_ordinal(ordinal, create=required or not known)
+        return self._resolved(module, f"#{ordinal}", addr, known)
 
-    def _resolved(self, module: FakeModule, name: str, addr: int | None) -> int | None:
+    def _resolved(self, module: FakeModule, name: str, addr: int | None, known: bool) -> int | None:
         if addr is None:
             self._note_unlisted(module, name, False)
         elif addr not in self.api_slots:
             # a spare slot
-            if module.listed:
+            if known:
                 self._note_unlisted(module, name, True)
             self.api_slots[addr] = (module, module.slot_names[addr])
             self._stop_points.add(addr)

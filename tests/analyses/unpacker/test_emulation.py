@@ -761,6 +761,10 @@ class TestFakeModule(unittest.TestCase):
         unnamed = module.resolve_ordinal(105)
         assert unnamed is not None and module.unnamed_ordinal(unnamed) == 105
         assert module.unnamed_ordinal(module.exports["Alpha"]) is None
+        # the ordinal the export directory gives Alpha is made up: it is not Alpha's
+        made_up = module.resolve_ordinal(106)
+        assert module.resolve_ordinal(107, create=False) is None
+        assert made_up not in (None, module.exports["Alpha"]) and module.unnamed_ordinal(made_up) == 106
         # the export directory says the same to code that walks it
         pe = pefile.PE(data=module.image)
         exports = {(sym.ordinal, sym.name, base + sym.address) for sym in pe.DIRECTORY_ENTRY_EXPORT.symbols}
@@ -863,7 +867,8 @@ class TestFakeModule(unittest.TestCase):
             with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
                 emu = GenericUnpackerCore(path, watch_sections=set()).emu
                 for stem in lists:
-                    emu.load_module(stem + ".dll")
+                    if "." not in stem:
+                        emu.load_module(stem + ".dll")
         return emu
 
     def test_lookups_in_unknown_modules_and_of_empty_names(self):
@@ -918,6 +923,41 @@ class TestFakeModule(unittest.TestCase):
         assert emu.read_ptr(IMAGE_BASE + 0x2080) == module.exports["ThirdParty@@"]
         assert emu.api_slots[emu.read_ptr(IMAGE_BASE + 0x2084)] == (module, "ordinal_7")
         assert emu.unlisted_exports == [("thirdparty.dll", "ThirdParty@@", True), ("thirdparty.dll", "#7", True)]
+
+    def test_ordinals_without_an_ordinal_list(self):
+        call = lambda emu, name, *args: API_HANDLERS[name].func(emu, list(args))
+        names = dict.fromkeys(("A", "B", "C", "D", "E", "F", "G", "H"), 1)
+        # names only: the 7th name is not ordinal 7. The import gets a slot of its own and stays an ordinal import
+        emu = self._importing_emulator({"thirdparty": names})
+        module = emu.modules["thirdparty.dll"]
+        slot = emu.read_ptr(IMAGE_BASE + 0x2084)
+        assert emu.api_slots[slot] == (module, "ordinal_7") and module.unnamed_ordinal(slot) == 7
+        assert slot not in [module.exports[name] for name in names]
+        assert call(emu, "GetProcAddress", module.base, 7) == slot
+        assert call(emu, "GetProcAddress", module.base, 3) == 0
+        assert emu.unlisted_exports == [
+            ("thirdparty.dll", "ThirdParty@@", True),
+            ("thirdparty.dll", "#7", True),
+            ("thirdparty.dll", "#3", False),
+        ]
+        # no list at all: the name the image imports is not ordinal 1 either, but nothing is known, so no record
+        emu = self._importing_emulator({})
+        module = emu.load_module("thirdparty.dll")
+        assert module.unnamed_ordinal(emu.read_ptr(IMAGE_BASE + 0x2084)) == 7
+        by_ordinal = call(emu, "GetProcAddress", module.base, 1)
+        assert by_ordinal and by_ordinal != module.exports["ThirdParty@@"] and not emu.unlisted_exports
+        # an ordinal list: its ordinals are the exports', with the argument count of those without a name
+        lists = {"thirdparty.ordinals": {"7": None, "9": "B", "11": None}, "thirdparty.ordinal_args": {"7": 3}}
+        for with_names in (True, False):
+            emu = self._importing_emulator(lists | ({"thirdparty": names} if with_names else {}))
+            module = emu.load_module("thirdparty.dll")
+            slot = emu.read_ptr(IMAGE_BASE + 0x2084)
+            assert slot == module.exports["ordinal_7"] and module.unnamed_ordinal(slot) == 7
+            assert emu.api_nargs(module, "ordinal_7") == 3 and emu.api_nargs(module, "ordinal_11") is None
+            assert call(emu, "GetProcAddress", module.base, 9) == module.exports["B"]
+            assert call(emu, "GetProcAddress", module.base, 1) == 0
+            assert ("thirdparty.dll", "#1", False) in emu.unlisted_exports
+            assert ("thirdparty.dll", "#7", True) not in emu.unlisted_exports
 
     def test_lookups_of_unlisted_exports_fail(self):
         lists = {"kernel32": {"Sleep": 1, "GetProcAddress": 2}, "ntdll": {"NtClose": 1}}
