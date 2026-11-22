@@ -2260,6 +2260,10 @@ _const(("RegOpenKeyExA", "RegOpenKeyExW"), 5, 2)
 _const(("RegQueryValueExA", "RegQueryValueExW"), 6, 2)
 _const(("RegCloseKey",), 1, 0)
 _const(("RegCreateKeyExA", "RegCreateKeyExW"), 9, 5)
+# the registry is empty: ERROR_NO_MORE_ITEMS, ERROR_FILE_NOT_FOUND
+_const(("RegEnumValueA", "RegEnumValueW", "RegEnumKeyExA", "RegEnumKeyExW"), 8, 259)
+_const(("RegEnumKeyA", "RegEnumKeyW"), 4, 259)
+_const(("RegDeleteValueA", "RegDeleteValueW", "RegDeleteKeyA", "RegDeleteKeyW"), 2, 2)
 
 
 def _new_object(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
