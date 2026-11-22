@@ -232,6 +232,26 @@ class TestExceptions(unittest.TestCase):
         # the trap is taken after the instruction that follows popfd
         assert emu.read_u32(cell + 4) == IMAGE_BASE + CODE_RVA + len(main) - 2
 
+    def test_unhandled_exception_filter(self):
+        # entry: push 0x1234; call [UnhandledExceptionFilter]; ret
+        slot = IMAGE_BASE + CODE_RVA + 0x100
+        code = bytearray(0x200)
+        code[:12] = b"\x68" + struct.pack("<I", 0x1234) + b"\xff\x15" + struct.pack("<I", slot) + b"\xc3"
+        # top-level filter: mov [cell], arg; mov eax, -1 (EXCEPTION_CONTINUE_EXECUTION); ret 4
+        cell = slot + 4
+        code[0x80:0x92] = bytes.fromhex("8b442404 a3") + struct.pack("<I", cell) + bytes.fromhex("b8ffffffff c20400")
+        for top_level, expected in ((0, 1), (IMAGE_BASE + CODE_RVA + 0x80, 0xFFFFFFFF)):
+            emu = emulator(bytes(code))
+            api = emu.resolve_export(emu.load_module("kernel32.dll"), "UnhandledExceptionFilter")
+            assert api is not None
+            emu.write_u32(slot, api)
+            emu.exceptions.unhandled_filter = top_level
+            emu.start()
+            assert emu.run(max_blocks=10000).reason is StopReason.RETURNED
+            # without a top-level filter: EXCEPTION_EXECUTE_HANDLER; otherwise the filter's verdict
+            assert emu.reg("eax") == expected
+            assert emu.read_u32(cell) == (0x1234 if top_level else 0)
+
     def test_trap_flag_single_step(self):
         self._single_step("90")
 

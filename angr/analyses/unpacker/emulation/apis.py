@@ -567,6 +567,25 @@ def set_unhandled_exception_filter(emu: WindowsEmulator, args: list[int]) -> int
     return previous
 
 
+@api("UnhandledExceptionFilter", nargs=1)
+def unhandled_exception_filter(emu: WindowsEmulator, args: list[int]) -> int | None:
+    """
+    Run the top-level filter; without one, or when it declines, the default is EXCEPTION_EXECUTE_HANDLER (no
+    debugger attached), so the caller's __except block ends the process.
+    """
+    top_level = emu.exceptions.unhandled_filter
+    if not top_level:
+        return 1
+    ret_pc = emu.pc
+
+    def after_filter(result: int) -> None:
+        emu.set_reg("rax" if emu.is_64bit else "eax", result if result & 0xFFFFFFFF else 1)
+        emu._set_pc(ret_pc)
+
+    emu.call_guest(top_level, (args[0],), after_filter)
+    return None
+
+
 @api("RaiseException", nargs=4)
 def raise_exception(emu: WindowsEmulator, args: list[int]) -> None:
     count = min(args[2], 15) if args[3] else 0
@@ -1546,7 +1565,6 @@ def is_wow64_process(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 _const(("NtRaiseHardError", "ZwRaiseHardError"), 6, STATUS_SUCCESS)
-_const(("UnhandledExceptionFilter",), 1, 0)
 _const(("InterlockedIncrement", "InterlockedDecrement"), 1, 1)
 _const(("IsBadReadPtr", "IsBadWritePtr"), 2, 0)
 _const(("GetProcessWindowStation", "GetDesktopWindow", "GetForegroundWindow", "GetActiveWindow"), 0, 0)
