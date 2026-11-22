@@ -133,6 +133,18 @@ class TestWinVm(unittest.TestCase):
         _run(vm, bytes.fromhex("0f01d0"))
         assert (vm.reg_read("eax"), vm.reg_read("edx")) == (7, 0)
 
+    def test_user_ops_and_wide_registers(self):
+        vm = _vm()
+        handled = dict(vm.user_ops())
+        assert handled["segment"] == "helper" and handled["cpuid"] == "lifter"
+        # an op nobody implements raises "unimplemented" (0x100a) when reached
+        assert handled["xsavec"] == ""
+        value = bytes(range(16))
+        vm.reg_write_bytes("xmm3", value)
+        # movdqa xmm1, xmm3
+        _run(vm, bytes.fromhex("660f6fcb"))
+        assert vm.reg_read_bytes("xmm1") == value
+
     def test_cpuid_and_privileged(self):
         vm = _vm()
         assert _run(vm, bytes.fromhex("31c0 0fa2"))[1] == winemu.FAULT_SYSCALL

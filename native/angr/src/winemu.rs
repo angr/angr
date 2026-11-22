@@ -187,6 +187,28 @@ fn privileged_op(cpu: &mut Cpu, _: pcode::VarNode, _: [pcode::Value; 2]) {
     cpu.exception = Exception::new(ExceptionCode::Environment, ENV_PRIVILEGED);
 }
 
+/// User ops implemented here, on top of Icicle's own tables.
+const HELPERS: &[(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)] = &[
+    ("rdtsc", rdtsc),
+    ("segment", segment),
+    ("SegmentLimit", segment_limit),
+    ("SegmentRights", segment_rights),
+    ("verr", verr),
+    ("verw", verw),
+    ("xinuse", xinuse),
+    ("GlobalDescriptorTableRegister", gdtr),
+    ("InterruptDescriptorTableRegister", idtr),
+    ("LocalDescriptorTableRegister", ldtr),
+    ("TaskRegister", task_register),
+    ("rdmsr", privileged_op),
+    ("rdpmc", privileged_op),
+];
+
+fn helpers() -> impl Iterator<Item = &'static (&'static str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)> {
+    HELPERS
+        .iter()
+}
+
 struct FlagsHandler {
     eflags: pcode::VarNode,
 }
@@ -838,22 +860,7 @@ impl WinVm {
         vm.lifter
             .patchers
             .push(Box::new(move |inst: &mut pcode::Block| patcher.patch(inst)));
-        let helpers: [(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper); 13] = [
-            ("rdtsc", rdtsc),
-            ("segment", segment),
-            ("SegmentLimit", segment_limit),
-            ("SegmentRights", segment_rights),
-            ("verr", verr),
-            ("verw", verw),
-            ("xinuse", xinuse),
-            ("GlobalDescriptorTableRegister", gdtr),
-            ("InterruptDescriptorTableRegister", idtr),
-            ("LocalDescriptorTableRegister", ldtr),
-            ("TaskRegister", task_register),
-            ("rdmsr", privileged_op),
-            ("rdpmc", privileged_op),
-        ];
-        for (name, helper) in helpers {
+        for &(name, helper) in helpers() {
             if let Some(id) = vm.cpu.arch.sleigh.get_userop(name) {
                 vm.cpu.set_helper(id, helper);
             }
@@ -904,6 +911,29 @@ impl WinVm {
         // the current block may have folded in the old value
         let pc = self.vm.cpu.read_pc();
         self.vm.cpu.write_pc(pc);
+        Ok(())
+    }
+
+    /// The raw little-endian bytes of a register of any width (XMM, x87).
+    pub fn reg_read_bytes<'py>(&mut self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyBytes>> {
+        let var = self.var(name)?;
+        let bytes: Vec<u8> = (0..var.size)
+            .map(|i| self.vm.cpu.read_var::<u8>(var.slice(i, 1)))
+            .collect();
+        Ok(PyBytes::new(py, &bytes))
+    }
+
+    pub fn reg_write_bytes(&mut self, name: &str, data: Vec<u8>) -> PyResult<()> {
+        let var = self.var(name)?;
+        if data.len() != var.size as usize {
+            return Err(PyValueError::new_err(format!(
+                "{name} is {} bytes wide",
+                var.size
+            )));
+        }
+        for (i, byte) in data.into_iter().enumerate() {
+            self.vm.cpu.write_var::<u8>(var.slice(i as u8, 1), byte);
+        }
         Ok(())
     }
 
@@ -1218,6 +1248,33 @@ impl WinVm {
                     out.push((addr.as_u64(), len.as_u64()));
                 }
             }
+        }
+        out
+    }
+
+    /// (name, handling) of every SLEIGH user op: "helper", "lifter" (rewritten when lifted) or "" (unimplemented).
+    pub fn user_ops(&self) -> Vec<(String, &'static str)> {
+        use icicle_vm::cpu::exec::helpers as icicle_helpers;
+        let sleigh = &self.vm.cpu.arch.sleigh;
+        let mut out = Vec::new();
+        for (id, op) in sleigh.user_ops.iter().enumerate() {
+            let name = sleigh.get_str(*op);
+            let has_helper = icicle_helpers::HELPERS
+                .iter()
+                .chain(icicle_helpers::x86::HELPERS)
+                .chain(helpers())
+                .any(|(helper, _)| *helper == name);
+            let handling = if self.vm.lifter.op_injectors.contains_key(&(id as u16))
+                || name.starts_with("cpuid")
+                || name == "sysenter"
+            {
+                "lifter"
+            } else if has_helper {
+                "helper"
+            } else {
+                ""
+            };
+            out.push((name.to_string(), handling));
         }
         out
     }
