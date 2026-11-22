@@ -2298,13 +2298,156 @@ def nt_query_information_thread(emu: WindowsEmulator, args: list[int]) -> int:
 
 _const(("NtQueryPerformanceCounter",), 2, STATUS_SUCCESS)
 
-# registry: nothing exists
-_const(("RegOpenKeyA", "RegOpenKeyW"), 3, 2)
-_const(("RegOpenKeyExA", "RegOpenKeyExW"), 5, 2)
-_const(("RegQueryValueExA", "RegQueryValueExW"), 6, 2)
-_const(("RegCloseKey",), 1, 0)
-_const(("RegCreateKeyExA", "RegCreateKeyExW"), 9, 5)
-# the registry is empty: ERROR_NO_MORE_ITEMS, ERROR_FILE_NOT_FOUND
+# registry: empty, except for the keys and values the sample creates itself (trial bookkeeping reads them back)
+ERROR_MORE_DATA = 234
+
+
+class RegistryKey:
+    """
+    An open registry key: (predefined root, lower-case path).
+    """
+
+    def __init__(self, key: tuple[int, str]):
+        self.key = key
+
+
+def _registry_key(emu: WindowsEmulator, parent: int, subkey: int, wide: bool) -> tuple[int, str] | None:
+    path = (emu.read_wstr(subkey) if wide else emu.read_cstr(subkey)) if subkey else ""
+    opened = emu.handles.get(parent)
+    if isinstance(opened, RegistryKey):
+        root, base = opened.key
+        path = base + "\\" + path
+    elif parent & 0xFFFFFFFF in (0x80000000, 0x80000001, 0x80000002, 0x80000003, 0x80000005):
+        root = parent & 0xFFFFFFFF
+    else:
+        return None
+    return root, "\\".join(part for part in path.lower().split("\\") if part)
+
+
+def _reg_open(emu: WindowsEmulator, parent: int, subkey: int, result: int, wide: bool, create: bool) -> int:
+    key = _registry_key(emu, parent, subkey, wide)
+    if key is None:
+        return ERROR_INVALID_HANDLE
+    if key not in emu.registry:
+        if not create:
+            return ERROR_FILE_NOT_FOUND
+        emu.registry[key] = {}
+    emu.write_ptr(result, emu.new_handle(RegistryKey(key)))
+    return 0
+
+
+@api("RegOpenKeyA", nargs=3)
+def reg_open_key_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_open(emu, args[0], args[1], args[2], False, False)
+
+
+@api("RegOpenKeyW", nargs=3)
+def reg_open_key_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_open(emu, args[0], args[1], args[2], True, False)
+
+
+@api("RegOpenKeyExA", nargs=5)
+def reg_open_key_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_open(emu, args[0], args[1], args[4], False, False)
+
+
+@api("RegOpenKeyExW", nargs=5)
+def reg_open_key_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_open(emu, args[0], args[1], args[4], True, False)
+
+
+@api("RegCreateKeyA", nargs=3)
+def reg_create_key_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_open(emu, args[0], args[1], args[2], False, True)
+
+
+@api("RegCreateKeyW", nargs=3)
+def reg_create_key_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_open(emu, args[0], args[1], args[2], True, True)
+
+
+def _reg_create_ex(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+    key = _registry_key(emu, args[0], args[1], wide)
+    existed = key in emu.registry
+    status = _reg_open(emu, args[0], args[1], args[7], wide, True)
+    if status == 0 and args[8]:
+        emu.write_u32(args[8], 2 if existed else 1)  # REG_OPENED_EXISTING_KEY, REG_CREATED_NEW_KEY
+    return status
+
+
+@api("RegCreateKeyExA", nargs=9)
+def reg_create_key_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_create_ex(emu, args, False)
+
+
+@api("RegCreateKeyExW", nargs=9)
+def reg_create_key_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_create_ex(emu, args, True)
+
+
+def _reg_values(emu: WindowsEmulator, handle: int) -> dict[str, tuple[int, bytes]] | None:
+    opened = emu.handles.get(handle)
+    return emu.registry.get(opened.key) if isinstance(opened, RegistryKey) else None
+
+
+def _reg_set(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+    values = _reg_values(emu, args[0])
+    if values is None:
+        return ERROR_INVALID_HANDLE
+    name = (emu.read_wstr(args[1]) if wide else emu.read_cstr(args[1])) if args[1] else ""
+    values[name.lower()] = (args[3], emu.read(args[4], min(args[5], 1 << 20)))
+    return 0
+
+
+@api("RegSetValueExA", nargs=6)
+def reg_set_value_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_set(emu, args, False)
+
+
+@api("RegSetValueExW", nargs=6)
+def reg_set_value_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_set(emu, args, True)
+
+
+def _reg_query(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+    values = _reg_values(emu, args[0])
+    if values is None:
+        return ERROR_INVALID_HANDLE
+    name = (emu.read_wstr(args[1]) if wide else emu.read_cstr(args[1])) if args[1] else ""
+    value = values.get(name.lower())
+    if value is None:
+        return ERROR_FILE_NOT_FOUND
+    kind, data = value
+    if args[2]:
+        emu.write_u32(args[2], kind)
+    if not args[4]:
+        return 0
+    capacity = emu.read_u32(args[4])
+    emu.write_u32(args[4], len(data))
+    if args[3]:
+        if capacity < len(data):
+            return ERROR_MORE_DATA
+        emu.write(args[3], data)
+    return 0
+
+
+@api("RegQueryValueExA", nargs=6)
+def reg_query_value_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_query(emu, [args[0], args[1], args[3], args[4], args[5]], False)
+
+
+@api("RegQueryValueExW", nargs=6)
+def reg_query_value_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_query(emu, [args[0], args[1], args[3], args[4], args[5]], True)
+
+
+@api("RegCloseKey", nargs=1)
+def reg_close_key(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.handles.pop(args[0], None)
+    return 0
+
+
+# nothing can be enumerated or deleted: ERROR_NO_MORE_ITEMS, ERROR_FILE_NOT_FOUND
 _const(("RegEnumValueA", "RegEnumValueW", "RegEnumKeyExA", "RegEnumKeyExW"), 8, 259)
 _const(("RegEnumKeyA", "RegEnumKeyW"), 4, 259)
 _const(("RegDeleteValueA", "RegDeleteValueW", "RegDeleteKeyA", "RegDeleteKeyW"), 2, 2)

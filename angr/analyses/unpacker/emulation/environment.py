@@ -311,6 +311,8 @@ class WindowsEmulator:
         self.named_mappings: dict[str, MappingObject] = {}
         self.handles: dict[int, object] = {}
         self.window_classes: dict[str, WindowClass] = {}
+        # (predefined key, lower-case path) -> value name -> (type, data)
+        self.registry: dict[tuple[int, str], dict[str, tuple[int, bytes]]] = {}
         self.threads: list[Thread] = []
         self.current_thread = 0
         self._api_frame = (0, 0)

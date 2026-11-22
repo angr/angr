@@ -458,6 +458,32 @@ class TestApiHandlers(unittest.TestCase):
         self._process_list(False, 0x24, 0x22C)
         self._process_list(True, 0x2C, 0x238)
 
+    def test_registry_keeps_what_the_sample_writes(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        emu.write(buf, "Software\\Trial".encode("utf-16-le") + b"\0\0")
+        emu.write(buf + 0x40, "Stamp".encode("utf-16-le") + b"\0\0")
+        hkcu = 0x80000001
+        assert call("RegOpenKeyExW", hkcu, buf, 0, 0xF003F, buf + 0x100) == 2
+        assert call("RegCreateKeyExW", hkcu, buf, 0, 0, 0, 0xF003F, 0, buf + 0x100, buf + 0x108) == 0
+        assert emu.read_u32(buf + 0x108) == 1  # REG_CREATED_NEW_KEY
+        key = emu.read_u32(buf + 0x100)
+        emu.write(buf + 0x200, b"\x11\x22\x33\x44\x55\x66\x77\x88")
+        assert call("RegSetValueExW", key, buf + 0x40, 0, 3, buf + 0x200, 8) == 0
+        assert call("RegCloseKey", key) == 0
+        # the key now exists, whatever the case of its path
+        emu.write(buf, "SOFTWARE\\trial".encode("utf-16-le") + b"\0\0")
+        assert call("RegOpenKeyExW", hkcu, buf, 0, 0x20019, buf + 0x100) == 0
+        key = emu.read_u32(buf + 0x100)
+        emu.write_u32(buf + 0x300, 4)
+        assert call("RegQueryValueExW", key, buf + 0x40, 0, buf + 0x304, buf + 0x400, buf + 0x300) == 234
+        emu.write_u32(buf + 0x300, 0x100)
+        assert call("RegQueryValueExW", key, buf + 0x40, 0, buf + 0x304, buf + 0x400, buf + 0x300) == 0
+        assert emu.read(buf + 0x400, 8) == emu.read(buf + 0x200, 8)
+        assert (emu.read_u32(buf + 0x300), emu.read_u32(buf + 0x304)) == (8, 3)
+        assert call("RegOpenKeyExW", 0x80000002, buf, 0, 0x20019, buf + 0x100) == 2
+
     def test_message_box_ex(self):
         emu = emulator(b"\xc3")
         buf = emu.alloc(0x1000)
