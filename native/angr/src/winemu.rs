@@ -1137,10 +1137,9 @@ impl WinVm {
 
     /// Permission bits (1 r, 2 w, 4 x) of the page at addr, or None if it is not mapped.
     pub fn mem_perm(&self, addr: u64) -> Option<u8> {
+        // perm::MAP only appears once a page is backed: ask the mapping itself
+        self.vm.cpu.mem.mapping.get(addr)?;
         let p = self.vm.cpu.mem.get_perm(addr);
-        if p & perm::MAP == 0 {
-            return None;
-        }
         Some(
             (if p & perm::READ != 0 { 1 } else { 0 })
                 | (if p & perm::WRITE != 0 { 2 } else { 0 })

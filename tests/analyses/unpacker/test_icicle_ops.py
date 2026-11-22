@@ -308,6 +308,14 @@ class TestBitScans(unittest.TestCase):
 
 
 class TestMemory(unittest.TestCase):
+    def test_untouched_pages_are_mapped(self):
+        vm = WinVm(False, patched_processors(), False)
+        vm.mem_map(0x600000, 0x2000, 5)
+        assert vm.mem_perm(0x600000) == 5
+        assert vm.mem_perm(0x601FFF) == 5
+        assert vm.mem_perm(0x602000) is None
+        vm.mem_protect(0x601000, 0x1000, 0)
+        assert vm.mem_perm(0x601000) == 0
 
     def test_write_after_failed_lift(self):
         # an undecodable instruction leaves the page marked as code without a block; writes must still go through

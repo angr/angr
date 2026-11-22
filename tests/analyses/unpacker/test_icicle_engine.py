@@ -10,6 +10,7 @@ import unittest
 from unittest import mock
 
 from angr.analyses.unpacker.emulation import StopReason
+from angr.analyses.unpacker.emulation.apis import API_HANDLERS
 from angr.analyses.unpacker.emulation.icicle_environment import IcicleWindowsEmulator, patched_processors
 from angr.rustylib import winemu
 from angr.rustylib.winemu import WinVm
@@ -150,6 +151,28 @@ class TestWinVm(unittest.TestCase):
         assert _run(vm, bytes.fromhex("31c0 0fa2"))[1] == winemu.FAULT_SYSCALL
         assert struct.pack("<III", vm.reg_read("ebx"), vm.reg_read("edx"), vm.reg_read("ecx")) == b"GenuineIntel"
         assert _run(vm, bytes.fromhex("f4"))[0] == winemu.EXIT_PRIVILEGED
+
+
+class TestUntouchedPages(unittest.TestCase):
+    def test_protect_and_query(self):
+        # memory that was allocated but never touched answers like any other, on both engines
+        answers = []
+        for engine in ("unicorn", "rust"):
+            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": engine}):
+                emu = emulator(b"\xc3")
+            buf = emu.alloc(0x1000)
+            addr = API_HANDLERS["VirtualAlloc"].func(emu, [0, 0x3000, 0x3000, 0x40])
+            assert addr and emu.is_mapped(addr + 0x1000)
+            query = API_HANDLERS["VirtualQuery"].func
+            assert query(emu, [addr + 0x1000, buf, 28]) == 28
+            before = struct.unpack("<7I", emu.read(buf, 28))[5]
+            # PAGE_READONLY, with a place for the old protection
+            assert API_HANDLERS["VirtualProtect"].func(emu, [addr + 0x1000, 0x1000, 2, buf + 0x100]) == 1
+            old = struct.unpack("<I", emu.read(buf + 0x100, 4))[0]
+            assert query(emu, [addr + 0x1000, buf, 28]) == 28
+            after = struct.unpack("<7I", emu.read(buf, 28))[5]
+            answers.append((before, old, after, emu.perms(addr + 0x1000), emu.perms(addr)))
+        assert answers[0] == answers[1] == (0x40, 0x40, 2, 1, 7), answers
 
 
 @mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
