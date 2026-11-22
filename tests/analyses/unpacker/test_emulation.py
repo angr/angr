@@ -131,6 +131,53 @@ class TestApiHandlers(unittest.TestCase):
         assert call("NtReadFile", emu.read_u32(handle_ptr), 0, 0, 0, io_status, data + 0x10, 4, 0, 0) == 0
         assert emu.read(data + 0x10, 4) == b"abcd"
 
+    def test_find_files(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        # nothing found is INVALID_HANDLE_VALUE, not NULL
+        assert call("FindFirstFileA", emu.alloc_cstr("C:\\Windows\\System32\\drivers\\vm*.sys"), buf) == -1
+        assert call("GetLastError") == 2
+        for name in ("a.dat", "B.DAT", "c.txt"):
+            handle = call("CreateFileA", emu.alloc_cstr("C:\\Temp\\" + name), 0x40000000, 0, 0, 2, 0, 0)
+            assert call("WriteFile", handle, buf, len(name), 0, 0) == 1
+        find = call("FindFirstFileW", emu.alloc_cstr("c:\\temp\\*.dat", wide=True), buf)
+        assert find != -1
+        attributes, size = emu.read_u32(buf), emu.read_u32(buf + 32)
+        assert (attributes, size, emu.read_wstr(buf + 44)) == (0x20, 5, "a.dat")
+        assert call("FindNextFileW", find, buf) == 1
+        assert emu.read_wstr(buf + 44) == "B.DAT"
+        assert call("FindNextFileW", find, buf) == 0
+        assert call("GetLastError") == 0x12  # ERROR_NO_MORE_FILES
+        assert call("FindClose", find) == 1
+        # the sample finds itself
+        assert call("FindFirstFileA", emu.alloc_cstr(emu.image_path), buf) != -1
+        assert emu.read_cstr(buf + 44) == "sample.exe"
+
+    def test_values_that_are_not_zero(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        assert call("GetUserDefaultUILanguage") == 0x409
+        assert call("RtlGetCurrentPeb") == emu.peb
+        assert call("GetAdaptersInfo", buf, buf + 0x800) == 232  # ERROR_NO_DATA
+        assert call("SHGetSpecialFolderPathA", 0, buf, 0x1A, 0) == 1
+        assert emu.read_cstr(buf) == "C:\\Users\\admin\\AppData\\Roaming"
+        assert call("SHGetFolderPathW", 0, 0x8024, 0, 0, buf) == 0  # CSIDL_WINDOWS | CSIDL_FLAG_CREATE
+        assert emu.read_wstr(buf) == "C:\\Windows"
+        assert call("SHGetFolderPathW", 0, 0xEE, 0, 0, buf) == 0x80070057
+        # string functions return their destination
+        text = emu.alloc_cstr("abcdefgh")
+        assert call("lstrcpynA", buf, text, 4) == buf
+        assert emu.read(buf, 4) == b"abc\0"
+        assert call("lstrcatA", buf, text) == buf
+        assert emu.read_cstr(buf) == "abcabcdefgh"
+        wide = emu.alloc_cstr("xyz", wide=True)
+        assert call("lstrcpyW", buf, wide) == buf and call("lstrcatW", buf, wide) == buf
+        assert emu.read_wstr(buf) == "xyzxyz"
+        assert call("lstrcpynW", buf, wide, 3) == buf
+        assert emu.read_wstr(buf) == "xy"
+
     def test_global_memory_handles(self):
         # GlobalAlloc/LocalAlloc hand out the block's address as its handle; locking it yields the same address
         emu = emulator(b"\xc3")

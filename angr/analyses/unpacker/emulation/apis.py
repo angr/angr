@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fnmatch
 import ntpath
 import re
 import struct
@@ -97,6 +98,15 @@ class MappingObject:
 
     def __init__(self, data: bytes):
         self.data = data
+
+
+class FindObject:
+    """
+    A FindFirstFile handle: the remaining matches, as (name, attributes, size).
+    """
+
+    def __init__(self, entries: list[tuple[str, int, int]]):
+        self.entries = entries
 
 
 class ToolhelpSnapshot:
@@ -778,6 +788,11 @@ def get_process_affinity_mask(emu: WindowsEmulator, args: list[int]) -> int:
     return 1
 
 
+@api("RtlGetCurrentPeb", nargs=0)
+def rtl_get_current_peb(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    return emu.peb
+
+
 @api("GetCurrentProcessId", nargs=0)
 def get_current_process_id(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
     return emu.PID
@@ -1103,6 +1118,51 @@ def set_current_directory_w(emu: WindowsEmulator, args: list[int]) -> int:
     return _set_current_directory(emu, emu.read_wstr(args[0]))
 
 
+# CSIDL values to directories
+_SHELL_FOLDERS = {
+    0x00: "C:\\Users\\admin\\Desktop",
+    0x05: "C:\\Users\\admin\\Documents",
+    0x10: "C:\\Users\\admin\\Desktop",
+    0x1A: "C:\\Users\\admin\\AppData\\Roaming",
+    0x1C: "C:\\Users\\admin\\AppData\\Local",
+    0x23: "C:\\ProgramData",
+    0x24: "C:\\Windows",
+    0x25: "C:\\Windows\\System32",
+    0x26: "C:\\Program Files",
+    0x28: "C:\\Users\\admin",
+    0x2B: "C:\\Program Files\\Common Files",
+}
+E_INVALIDARG = 0x80070057
+
+
+def _shell_folder(emu: WindowsEmulator, csidl: int, buf: int, wide: bool) -> bool:
+    folder = _SHELL_FOLDERS.get(csidl & 0xFF)
+    if folder is None:
+        return False
+    _write_text(emu, buf, 260, folder, wide)
+    return True
+
+
+@api("SHGetSpecialFolderPathA", nargs=4)
+def sh_get_special_folder_path_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return int(_shell_folder(emu, args[2], args[1], False))
+
+
+@api("SHGetSpecialFolderPathW", nargs=4)
+def sh_get_special_folder_path_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return int(_shell_folder(emu, args[2], args[1], True))
+
+
+@api("SHGetFolderPathA", nargs=5)
+def sh_get_folder_path_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return 0 if _shell_folder(emu, args[1], args[4], False) else E_INVALIDARG
+
+
+@api("SHGetFolderPathW", nargs=5)
+def sh_get_folder_path_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return 0 if _shell_folder(emu, args[1], args[4], True) else E_INVALIDARG
+
+
 @api("GetTempPathA", nargs=2)
 def get_temp_path_a(emu: WindowsEmulator, args: list[int]) -> int:
     return _copy_path(emu, args[0], args[1], TEMP_DIRECTORY + "\\", False)
@@ -1414,6 +1474,92 @@ def map_view_of_file(emu: WindowsEmulator, args: list[int]) -> int:
 _const(("UnmapViewOfFile",), 1, 1)
 
 
+def _find_entries(emu: WindowsEmulator, pattern: str) -> list[tuple[str, int, int]]:
+    full = full_path(emu, pattern)
+    directory, mask = ntpath.split(full)
+    if not set(mask) & set("*?"):
+        found = _file_attributes(emu, pattern) if mask else None
+        return [] if found is None else [(mask, *found)]
+    known = [(emu.image_path, FILE_ATTRIBUTE_ARCHIVE, len(emu.image_file))]
+    known += [(name, FILE_ATTRIBUTE_ARCHIVE, len(data)) for name, data in emu.files.values()]
+    known += [(name, FILE_ATTRIBUTE_DIRECTORY, 0) for name in emu.directories.values()]
+    # "*.*" matches names without a dot too; brackets are ordinary characters
+    mask = "*" if mask == "*.*" else mask.lower().replace("[", "[[]")
+    return [
+        (ntpath.basename(name), attributes, size)
+        for name, attributes, size in known
+        if ntpath.dirname(name).lower() == directory.lower()
+        and fnmatch.fnmatchcase(ntpath.basename(name).lower(), mask)
+    ]
+
+
+def _write_find_data(emu: WindowsEmulator, buf: int, entry: tuple[str, int, int], wide: bool) -> None:
+    name, attributes, size = entry
+    # WIN32_FIND_DATA: attributes, three times, size, two reserved fields, cFileName[260], cAlternateFileName[14]
+    data = struct.pack("<IQQQIIII", attributes, _FILE_TIME, _FILE_TIME, _FILE_TIME, 0, size, 0, 0)
+    if wide:
+        data += name[:259].encode("utf-16-le").ljust(520, b"\0") + bytes(28)
+    else:
+        data += name[:259].encode("latin-1", "replace").ljust(260, b"\0") + bytes(14)
+    emu.write(buf, data)
+
+
+def _find_first_file(emu: WindowsEmulator, pattern: str, buf: int, wide: bool) -> int:
+    entries = _find_entries(emu, pattern)
+    if not entries:
+        _set_last_error(emu, ERROR_FILE_NOT_FOUND)
+        return INVALID_HANDLE
+    _write_find_data(emu, buf, entries.pop(0), wide)
+    return emu.new_handle(FindObject(entries))
+
+
+@api("FindFirstFileA", nargs=2)
+def find_first_file_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _find_first_file(emu, emu.read_cstr(args[0]), args[1], False)
+
+
+@api("FindFirstFileW", nargs=2)
+def find_first_file_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _find_first_file(emu, emu.read_wstr(args[0]), args[1], True)
+
+
+@api("FindFirstFileExA", nargs=6)
+def find_first_file_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _find_first_file(emu, emu.read_cstr(args[0]), args[2], False)
+
+
+@api("FindFirstFileExW", nargs=6)
+def find_first_file_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _find_first_file(emu, emu.read_wstr(args[0]), args[2], True)
+
+
+def _find_next_file(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+    obj = emu.handles.get(args[0])
+    if not isinstance(obj, FindObject):
+        _set_last_error(emu, ERROR_INVALID_HANDLE)
+        return 0
+    if not obj.entries:
+        _set_last_error(emu, ERROR_NO_MORE_FILES)
+        return 0
+    _write_find_data(emu, args[1], obj.entries.pop(0), wide)
+    return 1
+
+
+@api("FindNextFileA", nargs=2)
+def find_next_file_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _find_next_file(emu, args, False)
+
+
+@api("FindNextFileW", nargs=2)
+def find_next_file_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _find_next_file(emu, args, True)
+
+
+@api("FindClose", nargs=1)
+def find_close(emu: WindowsEmulator, args: list[int]) -> int:
+    return int(isinstance(emu.handles.pop(args[0], None), FindObject))
+
+
 def _object_name(emu: WindowsEmulator, attributes: int) -> str:
     """
     The name in an OBJECT_ATTRIBUTES structure.
@@ -1555,6 +1701,40 @@ def lstrlen_w(emu: WindowsEmulator, args: list[int]) -> int:
 @api("lstrcpyA", nargs=2)
 def lstrcpy_a(emu: WindowsEmulator, args: list[int]) -> int:
     emu.write(args[0], emu.read_cstr(args[1], limit=1 << 16).encode("latin-1") + b"\0")
+    return args[0]
+
+
+@api("lstrcpyW", nargs=2)
+def lstrcpy_w(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.write(args[0], emu.read_wstr(args[1], limit=1 << 16).encode("utf-16-le") + b"\0\0")
+    return args[0]
+
+
+@api("lstrcpynA", nargs=3)
+def lstrcpyn_a(emu: WindowsEmulator, args: list[int]) -> int:
+    if args[2]:
+        emu.write(args[0], emu.read_cstr(args[1], limit=args[2] - 1)[: args[2] - 1].encode("latin-1") + b"\0")
+    return args[0]
+
+
+@api("lstrcpynW", nargs=3)
+def lstrcpyn_w(emu: WindowsEmulator, args: list[int]) -> int:
+    if args[2]:
+        emu.write(args[0], emu.read_wstr(args[1], limit=args[2] - 1)[: args[2] - 1].encode("utf-16-le") + b"\0\0")
+    return args[0]
+
+
+@api("lstrcatA", nargs=2)
+def lstrcat_a(emu: WindowsEmulator, args: list[int]) -> int:
+    end = args[0] + len(emu.read_cstr(args[0], limit=1 << 16))
+    emu.write(end, emu.read_cstr(args[1], limit=1 << 16).encode("latin-1") + b"\0")
+    return args[0]
+
+
+@api("lstrcatW", nargs=2)
+def lstrcat_w(emu: WindowsEmulator, args: list[int]) -> int:
+    end = args[0] + 2 * len(emu.read_wstr(args[0], limit=1 << 16))
+    emu.write(end, emu.read_wstr(args[1], limit=1 << 16).encode("utf-16-le") + b"\0\0")
     return args[0]
 
 
@@ -1791,6 +1971,11 @@ _const(("GetStdHandle",), 1, _STD_HANDLE)
 _const(("GetFileType",), 1, 2)
 _const(("InitializeSListHead", "FreeEnvironmentStringsW", "FreeEnvironmentStringsA"), 1, 1)
 _const(("GetThreadLocale", "GetUserDefaultLCID", "GetSystemDefaultLCID"), 0, 0x409)
+_const(("GetUserDefaultUILanguage", "GetSystemDefaultUILanguage", "GetUserDefaultLangID", "GetSystemDefaultLangID"),
+       0, 0x409)  # fmt: skip
+# no network adapters: ERROR_NO_DATA, not success with an untouched buffer
+_const(("GetAdaptersInfo",), 2, 232)
+_const(("GetAdaptersAddresses",), 5, 232)
 _const(("SetConsoleCtrlHandler", "SetThreadPriority"), 2, 1)
 
 
