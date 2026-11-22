@@ -200,6 +200,36 @@ _BIT_SCANS = (
     ),
     ("    Reg64 = bitIndex;", "    Reg64 = bitIndex;\n<zero>"),
 )
+# mul / imul leave SF, ZF and PF undefined; Intel processors since the Pentium 4 (and QEMU) set them from the low
+# half of the product
+_MULTIPLY_FLAGS = (
+    (
+        "macro imultflags(low,total){\n  CF = sext(low) != total;\n  OF = CF;\n",
+        "macro imultflags(low,total){\n  CF = sext(low) != total;\n  OF = CF;\n  resultflags(low);\n",
+    ),
+    ("multflags(AH); }", "multflags(AH); resultflags(AL); }"),
+    ("multflags(DX); }", "multflags(DX); resultflags(AX); }"),
+    (
+        "multflags(EDX);  EAX=tmp(0); build check_EAX_dest;  }",
+        "multflags(EDX);  EAX=tmp(0); build check_EAX_dest; resultflags(EAX); }",
+    ),
+    ("multflags(RDX); }", "multflags(RDX); resultflags(RAX); }"),
+)
+# ASCII adjusts: aaa / aas carry into AH as "AX +- 0x106" does; aam / aad set SF, ZF and PF from AL
+_ASCII_ADJUST = (
+    (
+        "{ local car = ((AL & 0xf) > 9) | AF; AL = (AL+6*car)&0xf; AH=AH+car; CF=car; AF=car; }",
+        "{ local car = ((AL & 0xf) > 9) | AF; local wrap = car & (AL > 0xf9); AL = (AL+6*car)&0xf; AH=AH+car+wrap;"
+        " CF=car; AF=car; }",
+    ),
+    (
+        "{ local car = ((AL & 0xf) > 9) | AF; AL = (AL-6*car)&0xf; AH=AH-car; CF=car; AF=car; }",
+        "{ local car = ((AL & 0xf) > 9) | AF; local wrap = car & (AL < 6); AL = (AL-6*car)&0xf; AH=AH-car-wrap;"
+        " CF=car; AF=car; }",
+    ),
+    ("{ AL = AL + imm8*AH; AH=0; resultflags(AX); }", "{ AL = AL + imm8*AH; AH=0; resultflags(AL); }"),
+    ("{ AH = AL/imm8; AL = AL % imm8; resultflags(AX); }", "{ AH = AL/imm8; AL = AL % imm8; resultflags(AL); }"),
+)
 # regex substitutions inside every constructor of a mnemonic: these conversions round (MXCSR's default, to nearest
 # even) where the spec truncates
 _CONSTRUCTOR_PATCHES = tuple(
@@ -214,6 +244,8 @@ _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _SSE42),
     *(("ia.sinc", old, new) for old, new in _X87),
     *(("ia.sinc", old, new) for old, new in _BIT_SCANS),
+    *(("ia.sinc", old, new) for old, new in _MULTIPLY_FLAGS),
+    *(("ia.sinc", old, new) for old, new in _ASCII_ADJUST),
     ("lockable.sinc", *_XCHG_M32),
 )
 

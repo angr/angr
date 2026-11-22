@@ -108,6 +108,8 @@ class TestOpVectors(unittest.TestCase):
     def test_bit_scans(self):
         self._check(vectors.BITSCAN)
 
+    def test_multiply_flags(self):
+        self._check(vectors.MULTIPLY)
 
 
 class TestSse(unittest.TestCase):
