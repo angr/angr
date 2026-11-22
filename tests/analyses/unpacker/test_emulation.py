@@ -45,6 +45,18 @@ class TestApiHandlers(unittest.TestCase):
         assert length == len(expected)
         assert emu.read_cstr(buf + 0x400) == expected
 
+    def test_global_memory_handles(self):
+        # GlobalAlloc/LocalAlloc hand out the block's address as its handle; locking it yields the same address
+        emu = emulator(b"\xc3")
+        handle = API_HANDLERS["GlobalAlloc"].func(emu, [0x2002, 0x100])
+        assert handle
+        assert API_HANDLERS["GlobalLock"].func(emu, [handle]) == handle
+        assert API_HANDLERS["GlobalHandle"].func(emu, [handle]) == handle
+        assert API_HANDLERS["GlobalSize"].func(emu, [handle]) >= 0x100
+        emu.write(handle, b"data")
+        bigger = API_HANDLERS["GlobalReAlloc"].func(emu, [handle, 0x3000, 2])
+        assert emu.read(bigger, 4) == b"data"
+
     def test_memory_queries(self):
         emu = emulator(b"\xc3")
         buf = emu.alloc(0x1000)

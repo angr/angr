@@ -289,7 +289,32 @@ def heap_create(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable
 
 _const(("HeapFree", "RtlFreeHeap"), 3, 1)
 _const(("LocalFree", "GlobalFree"), 1, 0)
-_const(("GlobalLock",), 1, 0)
+
+
+@api("GlobalLock", "LocalLock", "GlobalHandle", "LocalHandle", nargs=1)
+def global_lock(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    # memory handles are the blocks' addresses
+    return args[0]
+
+
+_const(("GlobalUnlock", "LocalUnlock"), 1, 0)
+
+
+@api("GlobalSize", "LocalSize", nargs=1)
+def global_size(emu: WindowsEmulator, args: list[int]) -> int:
+    return emu.allocations.get(args[0], 0)
+
+
+@api("GlobalReAlloc", "LocalReAlloc", nargs=3)
+def global_realloc(emu: WindowsEmulator, args: list[int]) -> int:
+    old_size = emu.allocations.get(args[0], 0)
+    if args[1] <= old_size:
+        return args[0]
+    new = emu.alloc(args[1])
+    emu.write(new, emu.read(args[0], old_size))
+    return new
+
+
 _const(("HeapDestroy", "HeapSetInformation"), 4, 1)
 
 #
