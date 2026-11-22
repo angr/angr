@@ -56,6 +56,8 @@ PAGE = 0x1000
 _LAZY_THRESHOLD = 0x100000
 _LAZY_CHUNK = 0x10000
 _UNMAPPED_RE = re.compile(r"(0x[0-9a-fA-F]+) is not mapped")
+# export lists kept apart from a DLL's own list: ntdll's C runtime (mingw's libntdllcrt)
+_EXTRA_EXPORT_LISTS = {"ntdll": ("ntdllcrt",)}
 _NTDLL_PREFIXES = ("Nt", "Zw", "Rtl", "Ldr", "Dbg", "Ki", "Csr", "Etw")
 _WIN32_LOWERCASE_PREFIXES = ("lstr", "wsprintf", "wvsprintf")
 _CDECL_MODULE_PREFIXES = ("msvcr", "msvcp", "ucrtbase", "vcruntime", "crtdll", "api-ms-win-crt")
@@ -660,10 +662,13 @@ class WindowsEmulator:
         known = self._export_db.get(name)
         if known is None:
             known = {}
-            path = os.path.join(self._export_db_dir, os.path.splitext(name)[0] + ".json")
-            if os.path.isfile(path):
-                with open(path, "rb") as f:
-                    known = json.load(f)
+            stem = os.path.splitext(name)[0]
+            for list_name in (stem, *_EXTRA_EXPORT_LISTS.get(stem, ())):
+                path = os.path.join(self._export_db_dir, list_name + ".json")
+                if os.path.isfile(path):
+                    with open(path, "rb") as f:
+                        for export, nargs in json.load(f).items():
+                            known.setdefault(export, nargs)
             self._export_db[name] = known
         return known
 

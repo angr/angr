@@ -4,10 +4,12 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.unpacker"  # pylint:disable=redefined-builtin
 
+import json
 import os
 import struct
 import tempfile
 import unittest
+from unittest import mock
 
 import pefile
 
@@ -203,6 +205,19 @@ class TestFakeModule(unittest.TestCase):
             (105, None, unnamed),
             (106, b"Alpha", module.exports["Alpha"]),
         }
+
+    def test_ntdll_c_runtime_exports(self):
+        # ntdll's C runtime exports live in a list of their own
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for stem, names in (("ntdll", ["NtClose"]), ("ntdllcrt", ["strcspn"])):
+                with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
+                    json.dump(dict.fromkeys(names), f)
+            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
+                emu = emulator(b"\xc3")
+            ntdll = emu.load_module("ntdll.dll")
+        pe = pefile.PE(data=ntdll.image)
+        names = {sym.name for sym in pe.DIRECTORY_ENTRY_EXPORT.symbols}
+        assert {b"NtClose", b"strcspn"} <= names
 
     def test_static_imports_are_exported(self):
         # a third-party DLL without an export list still exports what the image's import directory names
