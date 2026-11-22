@@ -957,32 +957,53 @@ def check_remote_debugger_present(emu: WindowsEmulator, args: list[int]) -> int:
     return 1
 
 
+def _probe_for_write(emu: WindowsEmulator, addr: int, length: int, alignment: int) -> int | None:
+    """
+    The kernel's ProbeForWrite on a system call's output pointer: the status the call fails with, or None. Nothing
+    is checked for an empty range.
+    """
+    if not length:
+        return None
+    if addr & (alignment - 1):
+        return STATUS_DATATYPE_MISALIGNMENT
+    for page in range(addr & ~0xFFF, addr + length, 0x1000):
+        if not emu.is_mapped(page) or not emu.perms(page) & 2:
+            return STATUS_ACCESS_VIOLATION
+    return None
+
+
 @api("NtQueryInformationProcess", "ZwQueryInformationProcess", nargs=5)
 def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
-    info_class, buf, length = args[1], args[2], args[3]
-    if args[4] & 3:
-        # the kernel probes the pointers first; protectors pass an odd one to catch faked answers
-        return STATUS_DATATYPE_MISALIGNMENT
+    info_class, buf, length, return_length = args[1], args[2], args[3], args[4]
+    # the kernel first probes the buffer (aligned as a ULONG) and the length pointer (any address that can be
+    # written), then checks the length against the class; protectors pass each kind of bad argument and compare
+    # the status to catch faked answers
+    status = _probe_for_write(emu, buf, length, 4)
+    if status is None and return_length:
+        status = _probe_for_write(emu, return_length, 4, 1)
+    if status is not None:
+        return status
+    ptr = emu.ptr_size
+    sizes = {0: 6 * ptr, 7: ptr, 0x1E: ptr, 0x1F: 4}
+    if info_class not in sizes:
+        return STATUS_INVALID_INFO_CLASS
+    if length != sizes[info_class]:
+        return STATUS_INFO_LENGTH_MISMATCH
     status = STATUS_SUCCESS
     if info_class == 7:  # ProcessDebugPort
         emu.write_ptr(buf, 0)
-        length = emu.ptr_size
     elif info_class == 0x1E:  # ProcessDebugObjectHandle
         emu.write_ptr(buf, 0)
-        length = emu.ptr_size
         status = STATUS_PORT_NOT_SET
     elif info_class == 0x1F:  # ProcessDebugFlags
         emu.write_u32(buf, 1)
-        length = 4
-    elif info_class == 0:  # ProcessBasicInformation
+    else:  # ProcessBasicInformation
         emu.write(buf, bytes(length))
-        emu.write_ptr(buf + emu.ptr_size, emu.peb)
-        emu.write_ptr(buf + 4 * emu.ptr_size, emu.PID)
-    else:
-        return STATUS_INVALID_INFO_CLASS
+        emu.write_ptr(buf + ptr, emu.peb)
+        emu.write_ptr(buf + 4 * ptr, emu.PID)
     # the kernel stores the length after the data even on failure; protectors overlap the two to catch fakes
-    if args[4]:
-        emu.write_u32(args[4], length)
+    if return_length:
+        emu.write_u32(return_length, length)
     return status
 
 

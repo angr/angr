@@ -591,6 +591,32 @@ class TestApiHandlers(unittest.TestCase):
         prefix = pefile.PE(data=bytes(data[: len(data) - 0x104]), fast_load=True)
         assert emu.read_u32(out + 4) == prefix.generate_checksum()
 
+    def test_query_information_process_argument_checks(self):
+        # protectors pass bad arguments to the debug queries and compare the statuses with what the kernel answers
+        for is_64bit in (False, True):
+            emu = emulator(b"\xc3", is_64bit)
+            buf = emu.alloc(0x1000)
+            ptr = emu.ptr_size
+            query = lambda *args, emu=emu: API_HANDLERS["NtQueryInformationProcess"].func(emu, [0xFFFFFFFF, *args])
+            emu.write(buf, b"\xff" * 16)
+            # ProcessDebugObjectHandle: no debug object; the length is stored after the data, also on failure
+            assert query(0x1E, buf, ptr, buf) == 0xC0000353
+            assert emu.read_u32(buf) == ptr
+            assert query(0x1E, buf, ptr, 0) == 0xC0000353
+            assert emu.read_ptr(buf) == 0
+            # the buffer is probed first (ULONG alignment), then the length pointer (any writable address)
+            assert query(0x1E, buf + 1, ptr, 0) == 0x80000002
+            assert query(0x1E, buf, ptr, 1) == 0xC0000005
+            assert query(0x1E, buf, ptr, buf + 0x101) == 0xC0000353
+            assert emu.read_u32(buf + 0x101) == ptr
+            # an empty buffer is not probed; the length pointer still is, before the length is compared
+            assert query(0x1E, buf + 1, 0, 1) == 0xC0000005
+            assert query(0x1E, buf + 1, 0, 0) == 0xC0000004
+            assert query(7, buf, ptr + 4, 0) == 0xC0000004
+            assert query(7, buf, ptr, 0) == 0 and emu.read_ptr(buf) == 0
+            assert query(0x1F, buf, 4, 0) == 0 and emu.read_u32(buf) == 1
+            assert query(0x55, buf, 4, 0) == 0xC0000003
+
 
 class TestThreads(unittest.TestCase):
     def test_sleep_poll_next_to_a_long_sleeper(self):
