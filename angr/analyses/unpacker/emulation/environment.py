@@ -182,6 +182,11 @@ class WindowsEmulator:
                 pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_TLS"],
             ]
         )
+        # the image loaded, so every name its import directory asks for exists in the named DLL
+        self._static_imports: dict[str, set[str]] = {}
+        for entry in getattr(self.pe, "DIRECTORY_ENTRY_IMPORT", []):
+            names = self._static_imports.setdefault(self.normalize_module_name(entry.dll.decode("latin-1")), set())
+            names.update(imp.name.decode("latin-1") for imp in entry.imports if imp.name is not None)
         size = max(main.max_addr - main.min_addr + 1, self.pe.OPTIONAL_HEADER.SizeOfImage)
         self.image_size: int = (size + PAGE - 1) & ~(PAGE - 1)
 
@@ -677,7 +682,7 @@ class WindowsEmulator:
         module = self.modules.get(name)
         if module is not None:
             return module
-        exports: set[str] = set(self._known_exports(name))
+        exports: set[str] = set(self._known_exports(name)) | self._static_imports.get(name, set())
         for lib in SIM_LIBRARIES.get(name, []):
             exports.update(lib.prototypes_json)
             exports.update(lib.prototypes)

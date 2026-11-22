@@ -204,6 +204,27 @@ class TestFakeModule(unittest.TestCase):
             (106, b"Alpha", module.exports["Alpha"]),
         }
 
+    def test_static_imports_are_exported(self):
+        # a third-party DLL without an export list still exports what the image's import directory names
+        idata = bytearray(0x200)
+        struct.pack_into("<5I", idata, 0, 0x2080, 0, 0, 0x2100, 0x2080)  # descriptor: ILT = IAT, DLL name
+        struct.pack_into("<I", idata, 0x80, 0x20C0)  # ILT entry -> hint/name
+        idata[0xC2:0xCF] = b"ThirdParty@@\0"
+        idata[0x100:0x10F] = b"thirdparty.dll\0"
+        sections = [
+            (b".text", CODE_RVA, 0x1000, b"\xc3", 0x60000020),
+            (b".idata", 0x2000, 0x200, bytes(idata), 0xC0000040),
+        ]
+        packed = build_pe(sections, entry_rva=CODE_RVA, directories={1: (0x2000, 0x28)})
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "sample.exe")
+            with open(path, "wb") as f:
+                f.write(packed)
+            emu = GenericUnpackerCore(path, watch_sections=set()).emu
+        module = emu.load_module("thirdparty.dll")
+        names = {sym.name for sym in pefile.PE(data=module.image).DIRECTORY_ENTRY_EXPORT.symbols}
+        assert b"ThirdParty@@" in names
+
 
 class TestExceptions(unittest.TestCase):
     def _single_step(self, stepped: str):
