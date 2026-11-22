@@ -320,6 +320,30 @@ class TestFakeModule(unittest.TestCase):
         assert {b"NtClose", b"RtlAllocateHeap", b"memcpy"} <= export_names(ntdll)
         assert b"NtClose" not in export_names(kernel32)
 
+    def test_export_list_file_names(self):
+        # a DLL's list is <name without extension>.json, whatever the name looks like
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for stem, name in (("libwinpthread-1", "pthread_create"), ("pthread.dll", "unreachable")):
+                with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
+                    json.dump({name: None}, f)
+            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
+                emu = emulator(b"\xc3")
+            assert "pthread_create" in emu.load_module("LIBWINPTHREAD-1.DLL").exports
+            assert "unreachable" not in emu.load_module("pthread.dll").exports
+
+    def test_shipped_export_lists_are_reachable(self):
+        directory = emulator(b"\xc3")._export_db_dir  # pylint:disable=protected-access
+        if not os.path.isdir(directory):
+            self.skipTest("no export lists installed")
+        extensions = (".dll", ".exe", ".sys", ".drv", ".ocx", ".cpl")
+        for file_name in os.listdir(directory):
+            stem, ext = os.path.splitext(file_name)
+            assert ext == ".json", file_name
+            stem = stem.removesuffix(".ordinals")
+            # the stem is a lower-case module name without its extension, and not an API set (those are redirected)
+            assert stem == stem.lower() and not stem.endswith(extensions), file_name
+            assert not stem.startswith(("api-ms-", "ext-ms-")), file_name
+
     def test_static_imports_are_exported(self):
         # a third-party DLL without an export list still exports what the image's import directory names
         idata = bytearray(0x200)
