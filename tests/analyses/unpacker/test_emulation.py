@@ -1540,6 +1540,35 @@ class TestFakeModule(unittest.TestCase):
         assert (table[0x90], table[0x49]) == ("NtCreateDebugObject", "NtApphelpCacheControl")
 
 
+class TestBrokenImages(unittest.TestCase):
+    def test_tls_directory_outside_the_image(self):
+        # IMAGE_TLS_DIRECTORY32 at +0x100: raw data start and end, index, callbacks, zero fill, characteristics
+        base = IMAGE_BASE + CODE_RVA
+        for what, fields in (
+            ("raw data", (0x59190000, 0x59190100, base + 0x200, 0)),
+            ("index", (base + 0x300, base + 0x310, 0x30D26308, 0)),
+            ("callback list", (0, 0, base + 0x200, 0x7FFE0000)),
+        ):
+            code = bytearray(0x400)
+            code[0] = 0xC3
+            code[0x100:0x118] = struct.pack("<6I", *fields, 0, 0)
+            emu = emulator(bytes(code), directories={9: (CODE_RVA + 0x100, 0x18)})
+            emu.start()
+            stop = emu.run(max_blocks=1000)
+            # no Python exception while the process is set up: a clean stop that names the directory
+            assert stop.reason is StopReason.ERROR
+            assert "TLS directory" in stop.detail and what in stop.detail
+
+    def test_tls_directory_inside_the_image(self):
+        base = IMAGE_BASE + CODE_RVA
+        code = bytearray(0x400)
+        code[0] = 0xC3
+        code[0x100:0x118] = struct.pack("<6I", base + 0x300, base + 0x310, base + 0x200, 0, 0, 0)
+        emu = emulator(bytes(code), directories={9: (CODE_RVA + 0x100, 0x18)})
+        emu.start()
+        assert emu.run(max_blocks=1000).reason is StopReason.RETURNED
+
+
 class TestExceptions(unittest.TestCase):
     def _single_step(self, stepped: str):
         code = bytearray(0x200)

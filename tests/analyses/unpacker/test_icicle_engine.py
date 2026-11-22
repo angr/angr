@@ -268,6 +268,13 @@ class TestIcicleWindowMessages(test_emulation.TestWindowMessages):
 
 
 @mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+class TestIcicleBrokenImages(test_emulation.TestBrokenImages):
+    """
+    The broken image tests, on Icicle.
+    """
+
+
+@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
 class TestIcicleTimers(test_emulation.TestTimers):
     """
     The timer tests on Icicle.

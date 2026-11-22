@@ -338,6 +338,8 @@ class WindowsEmulator:
         self._sleep_polls = 0
         self._syscall_names: dict[int, str] = dict(WIN7_X64_SYSCALLS if self.is_64bit else WIN7_X86_SYSCALLS)
         self.exit_code: int | None = None
+        #: Why the Windows loader would not start this image; run() then stops with this error at once.
+        self.load_error: str | None = None
         self.blocks = 0
         self.tick = 0x493E0
         self._shared_tick: int | None = None
@@ -1137,6 +1139,20 @@ class WindowsEmulator:
         delta = self.main.mapped_base - self.main.linked_base
         raw_start = tls.struct.StartAddressOfRawData
         raw_end = tls.struct.EndAddressOfRawData
+        # the loader reads the template and the callback list and writes the index while it initializes the
+        # process: a directory that points outside the image makes it fault, and the process never starts
+        image_end = self.image_base + self.image_size
+        for what, start, size in (
+            ("raw data", raw_start, max(raw_end - raw_start, 0)),
+            ("index", tls.struct.AddressOfIndex, 4),
+            ("callback list", tls.struct.AddressOfCallBacks, self.ptr_size),
+        ):
+            if size and start and not self.image_base <= start + delta <= start + delta + size <= image_end:
+                self.load_error = (
+                    f"the TLS directory's {what} ({start + delta:#x}, {size:#x} bytes) is outside the image: "
+                    "the Windows loader faults on it and the process does not start"
+                )
+                return
         if raw_end > raw_start:
             size = raw_end - raw_start + tls.struct.SizeOfZeroFill
             block = self.alloc(size)
@@ -1520,6 +1536,8 @@ class WindowsEmulator:
         deadline = None if timeout is None else time.monotonic() + timeout
         block_limit = None if max_blocks is None else self.blocks + max_blocks
         self._stop = None
+        if self.load_error is not None:
+            return EmulationStop(StopReason.ERROR, self.pc, self.load_error)
         while True:
             if self._stop is not None:
                 return self._stop

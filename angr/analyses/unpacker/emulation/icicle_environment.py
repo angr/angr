@@ -612,6 +612,8 @@ class IcicleWindowsEmulator(WindowsEmulator):
         # blocks are not counted on this engine; a budget is taken as about 4 instructions per block
         limit = None if max_blocks is None else vm.icount + 4 * max_blocks
         self._stop = None
+        if self.load_error is not None:
+            return EmulationStop(StopReason.ERROR, self.pc, self.load_error)
         while True:
             if self._stop is not None:
                 return self._stop
