@@ -80,6 +80,16 @@ class TestWinVm(unittest.TestCase):
         _run(vm, bytes.fromhex("66d3ef 9c"))
         assert struct.unpack("<Q", vm.mem_read(vm.reg_read("rsp"), 8))[0] & 0x10
 
+    def test_divide_overflow(self):
+        vm = _vm()
+        vm.reg_write("eax", 0x80000000)
+        vm.reg_write("edx", 0xFFFFFFFF)
+        vm.reg_write("ecx", 0xFFFFFFFF)
+        # idiv ecx: the quotient 2**31 does not fit, so a divide error before any register changes
+        assert _run(vm, bytes.fromhex("f7f9"))[:2] == (winemu.EXIT_EXCEPTION, winemu.FAULT_DIVIDE)
+        assert vm.pc == CODE
+        assert vm.reg_read("eax") == 0x80000000
+
     def test_cpuid_and_privileged(self):
         vm = _vm()
         assert _run(vm, bytes.fromhex("31c0 0fa2"))[1] == winemu.FAULT_SYSCALL

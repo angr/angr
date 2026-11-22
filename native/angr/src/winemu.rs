@@ -139,6 +139,7 @@ struct WinPatcher {
     sysenter_op: Option<u16>,
     cpuid_hook: pcode::HookId,
     tf_hook: pcode::HookId,
+    div_hook: pcode::HookId,
     tf: pcode::VarNode,
     af: pcode::VarNode,
     of: pcode::VarNode,
@@ -232,8 +233,73 @@ impl WinPatcher {
         inst.instructions.extend(tail);
     }
 
+    /// SLEIGH's div/idiv truncate a quotient that does not fit; the CPU raises a divide error instead.
+    fn add_divide_overflow(&self, inst: &mut pcode::Block) {
+        let Some(at) = inst
+            .instructions
+            .iter()
+            .position(|stmt| matches!(stmt.op, pcode::Op::IntDiv | pcode::Op::IntSignedDiv))
+        else {
+            return;
+        };
+        let div = inst.instructions[at];
+        let q = div.output;
+        if q.is_invalid() || !matches!(q.size, 2 | 4 | 8 | 16) {
+            return;
+        }
+        let half = q.size / 2;
+        inst.recompute_next_tmp();
+        let ovf = inst.alloc_tmp(1);
+        let mut check: Vec<pcode::Instruction> = Vec::new();
+        if let pcode::Op::IntDiv = div.op {
+            let hi = inst.alloc_tmp(q.size);
+            check.push(
+                (
+                    hi,
+                    pcode::Op::IntRight,
+                    (
+                        pcode::Value::from(q),
+                        pcode::Value::Const(8 * half as u64, q.size),
+                    ),
+                )
+                    .into(),
+            );
+            check.push(
+                (
+                    ovf,
+                    pcode::Op::IntNotEqual,
+                    (pcode::Value::from(hi), pcode::Value::Const(0, q.size)),
+                )
+                    .into(),
+            );
+        } else {
+            let ext = inst.alloc_tmp(q.size);
+            check.push(
+                (
+                    ext,
+                    pcode::Op::SignExtend,
+                    pcode::Value::from(q.slice(0, half)),
+                )
+                    .into(),
+            );
+            check.push(
+                (
+                    ovf,
+                    pcode::Op::IntNotEqual,
+                    (pcode::Value::from(ext), pcode::Value::from(q)),
+                )
+                    .into(),
+            );
+        }
+        check.push((pcode::Op::HookIf(self.div_hook), pcode::Value::from(ovf)).into());
+        let tail: Vec<pcode::Instruction> = inst.instructions.drain(at + 1..).collect();
+        inst.instructions.extend(check);
+        inst.instructions.extend(tail);
+    }
+
     fn patch(&self, inst: &mut pcode::Block) {
         self.add_aux_carry(inst);
+        self.add_divide_overflow(inst);
         let Some(&marker) = inst.instructions.first() else {
             return;
         };
@@ -563,6 +629,9 @@ impl WinVm {
             cpu.write_reg(cr.ecx, c as u64);
             cpu.write_reg(cr.edx, d as u64);
         });
+        let div_hook = vm.cpu.add_hook(move |cpu: &mut Cpu, _addr: u64| {
+            cpu.exception = Exception::new(ExceptionCode::DivisionException, 0);
+        });
         let tf_hook = vm.cpu.add_hook(move |cpu: &mut Cpu, _addr: u64| {
             cpu.write_var::<u8>(tf, 0);
             cpu.exception = Exception::new(ExceptionCode::Environment, ENV_TRAP_FLAG);
@@ -585,6 +654,7 @@ impl WinVm {
             sysenter_op,
             cpuid_hook,
             tf_hook,
+            div_hook,
             tf,
             af: get(&vm, "AF")?,
             of: get(&vm, "OF")?,
