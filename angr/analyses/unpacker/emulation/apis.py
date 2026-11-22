@@ -750,6 +750,12 @@ def rtl_unwind(emu: WindowsEmulator, args: list[int]) -> None:
     next_frame()
 
 
+@api("__CxxFrameHandler", "__CxxFrameHandler2", "__CxxFrameHandler3", nargs=4, cdecl=True)
+def cxx_frame_handler(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    # catch blocks are not run: a C++ frame passes every exception on (ExceptionContinueSearch)
+    return 1
+
+
 @api("__C_specific_handler", nargs=4)
 def c_specific_handler(emu: WindowsEmulator, args: list[int]) -> int | None:
     """
