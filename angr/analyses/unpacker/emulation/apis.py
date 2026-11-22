@@ -1336,6 +1336,26 @@ def message_box_w(emu: WindowsEmulator, args: list[int]) -> int:
     return 1
 
 
+@api("MessageBoxExA", nargs=5)
+def message_box_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return message_box_a(emu, args)
+
+
+@api("MessageBoxExW", nargs=5)
+def message_box_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return message_box_w(emu, args)
+
+
+@api("MessageBoxTimeoutA", nargs=6)
+def message_box_timeout_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return message_box_a(emu, args)
+
+
+@api("MessageBoxTimeoutW", nargs=6)
+def message_box_timeout_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return message_box_w(emu, args)
+
+
 #
 # Thread-local storage
 #

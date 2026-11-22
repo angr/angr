@@ -435,6 +435,14 @@ class TestApiHandlers(unittest.TestCase):
             API_HANDLERS["VirtualProtect"].func(emu, [buf, 0x100000, 0x40, buf + 0x10])
         assert emu.perms(buf) == perms
 
+    def test_message_box_ex(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        emu.write(buf, "text".encode("utf-16-le") + b"\0\0")
+        emu.write(buf + 0x100, "title".encode("utf-16-le") + b"\0\0")
+        assert API_HANDLERS["MessageBoxExW"].func(emu, [0, buf, buf + 0x100, 0x10, 0]) == 1
+        assert emu.messages == ["title: text"]
+
 
 class TestThreads(unittest.TestCase):
     def test_sleep_poll_next_to_a_long_sleeper(self):
