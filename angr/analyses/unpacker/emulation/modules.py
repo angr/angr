@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import bisect
 import struct
 
 IMAGE_FILE_MACHINE_I386 = 0x14C
@@ -66,6 +65,15 @@ class FakeModule:
         names = sorted(set(export_names) | {export for export in ordinals.values() if export is not None})
         # slots: the named exports in name order, then the exports that only have an ordinal
         slot_of = {export: idx for idx, export in enumerate(names)}
+        if syscalls:
+            # in ntdll the system-call stubs follow each other in the order of their numbers: programs take a
+            # stub's rank among the Zw exports sorted by address for its number
+            for prefix in ("Nt", "Zw"):
+                stubs = [export for export in names if export in syscalls and export.startswith(prefix)]
+                slots = [slot_of[export] for export in stubs]
+                for export, idx in zip(sorted(stubs, key=lambda export: syscalls[export]), slots):
+                    slot_of[export] = idx
+        self._name_slots = slot_of
         self._ordinal_slots: dict[int, int] = {}
         self._slot_ordinals: dict[int, int] = {}
         slot_count = len(names)
@@ -97,7 +105,7 @@ class FakeModule:
         if syscalls:
             # system-call stubs must look real: protectors read the number out of them, compare neighbouring stubs,
             # or reject foreign bytes
-            for idx, export in enumerate(names):
+            for export, idx in slot_of.items():
                 number = syscalls.get(export)
                 if number is not None:
                     code[idx * SLOT_SIZE : (idx + 1) * SLOT_SIZE] = self._syscall_stub(
@@ -105,8 +113,8 @@ class FakeModule:
                     )
             if not is_64bit:
                 for export, body in _X86_NTDLL_BODIES.items():
-                    idx = bisect.bisect_left(names, export)
-                    if idx < len(names) and names[idx] == export:
+                    idx = slot_of.get(export)
+                    if idx is not None:
                         code[idx * SLOT_SIZE : (idx + 1) * SLOT_SIZE] = body.ljust(SLOT_SIZE, b"\x90")
         self.image = (
             self._build_header(code_size, len(export_data)).ljust(_HEADER_SIZE, b"\0") + bytes(code) + export_data
@@ -204,7 +212,7 @@ class FakeModule:
             struct.pack_into("<I", eat, 4 * (ordinal - self.ordinal_base), self._code_rva + idx * SLOT_SIZE)
         npt = b"".join(struct.pack("<I", rva) for rva in name_rvas)
         name_ordinals = b"".join(
-            struct.pack("<H", self._slot_ordinals[idx] - self.ordinal_base) for idx in range(count)
+            struct.pack("<H", self._slot_ordinals[self._name_slots[export]] - self.ordinal_base) for export in names
         )
         return directory + bytes(eat) + npt + name_ordinals + bytes(strings)
 

@@ -16,6 +16,7 @@ import pefile
 from angr.analyses.unpacker.emulation import StopReason
 from angr.analyses.unpacker.emulation.apis import API_HANDLERS, GdiObject
 from angr.analyses.unpacker.emulation.modules import FakeModule
+from angr.analyses.unpacker.emulation.syscalls import WIN7_X64_SYSCALLS, WIN7_X86_SYSCALLS
 from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
 from angr.errors import SimSegfaultException
 
@@ -1468,6 +1469,30 @@ class TestFakeModule(unittest.TestCase):
             # a DLL without a list has whatever it is asked for
             assert call("GetProcAddress", third.base, name) == third.exports["wine_get_version"]
             assert all(entry.dll == "kernel32.dll" for entry in emu.unlisted_exports)
+
+    def test_system_call_stubs_follow_their_numbers(self):
+        # as in ntdll: the Zw stubs sorted by address are in the order of their system call numbers, and the name
+        # table stays sorted by name
+        for is_64bit in (False, True):
+            emu = emulator(b"\xc3", is_64bit)
+            ntdll = emu.load_module("ntdll.dll")
+            table = WIN7_X64_SYSCALLS if is_64bit else WIN7_X86_SYSCALLS
+            assert len(table) == 401
+            numbers = {name: number for number, name in table.items()}
+            stubs = sorted(
+                (addr, numbers["Nt" + name[2:]])
+                for name, addr in ntdll.exports.items()
+                if name.startswith("Zw") and "Nt" + name[2:] in numbers
+            )
+            assert len(stubs) >= 10
+            assert [number for _, number in stubs] == sorted(number for _, number in stubs)
+            offset = 4 if is_64bit else 1
+            for addr, number in stubs:
+                assert emu.read_u32(addr + offset) == number
+            # every export is still found by name through the export directory
+            for name in ("ZwClose", "NtQueryInformationProcess", "ZwQueryInformationProcess"):
+                assert emu.resolve_export(ntdll, name) == ntdll.exports[name]
+        assert (table[0x90], table[0x49]) == ("NtCreateDebugObject", "NtApphelpCacheControl")
 
 
 class TestExceptions(unittest.TestCase):
