@@ -31,7 +31,7 @@ from angr.errors import (
 from angr.procedures.definitions import SIM_LIBRARIES, load_win32api_definitions
 from angr.state_plugins.unicorn_engine import STOP
 
-from .apis import API_HANDLERS, STATUS_ACCESS_VIOLATION, STATUS_NOT_IMPLEMENTED, ApiHandler
+from .apis import API_HANDLERS, SLEEP_POLL_APIS, STATUS_ACCESS_VIOLATION, STATUS_NOT_IMPLEMENTED, ApiHandler
 from .exceptions import (
     EXCEPTION_ACCESS_VIOLATION,
     EXCEPTION_BREAKPOINT,
@@ -180,6 +180,12 @@ class WindowsEmulator:
     PID = 0x1234
     TID = 0x1238
     STACK_SIZE = 0x100000
+    # On this engine every API call restarts Unicorn (about 6 ms), so a Sleep loop that waits for a thread which
+    # sleeps for a minute costs minutes. After SLEEP_POLL_STREAK identical polls in a row, with every other thread
+    # asleep, the next poll lasts until the first of them wakes. Engines with cheap API calls turn this off.
+    SLEEP_POLL_FAST_FORWARD: bool = True
+    # above the round iteration counts of bounded poll loops (10 to 100), which therefore run unchanged
+    SLEEP_POLL_STREAK = 128
 
     def __init__(self, project: Project, image_path: str | None = None):
         main = project.loader.main_object
@@ -256,6 +262,10 @@ class WindowsEmulator:
         self.threads: list[Thread] = []
         self.current_thread = 0
         self._api_frame = (0, 0)
+        self._api_return = 0
+        # the Sleep call being repeated, as (thread id, return address, milliseconds), and how often so far
+        self._sleep_poll: tuple[int, int, int] | None = None
+        self._sleep_polls = 0
         self._syscall_names: dict[int, str] = dict(WIN7_X64_SYSCALLS if self.is_64bit else WIN7_X86_SYSCALLS)
         self.exit_code: int | None = None
         self.blocks = 0
@@ -607,6 +617,7 @@ class WindowsEmulator:
                     target = earliest
         if target is None:
             return False
+        self._sleep_poll = None
         current = self.thread
         if current.alive:
             self._save_registers(current)
@@ -652,6 +663,27 @@ class WindowsEmulator:
         if isinstance(obj, Thread):
             return not obj.alive
         return True
+
+    def sleep_wake_tick(self, milliseconds: int) -> int:
+        """
+        When the current thread, which calls Sleep, wakes up.
+        """
+        wake = self.tick + min(max(milliseconds, 1), 60000)
+        if not self.SLEEP_POLL_FAST_FORWARD:
+            return wake
+        poll = (self.thread.tid, self._api_return, milliseconds)
+        if poll != self._sleep_poll:
+            self._sleep_poll = poll
+            self._sleep_polls = 0
+        self._sleep_polls += 1
+        if self._sleep_polls < self.SLEEP_POLL_STREAK:
+            return wake
+        others = [thread for thread in self.threads if thread is not self.thread]
+        if any(self._runnable(thread) for thread in others):
+            return wake
+        # nothing the loop polls for can change before another thread wakes
+        wakes = [thread.wake_tick for thread in others if self._wakes_by_time(thread)]
+        return max(wake, min(wakes)) if wakes else wake
 
     def exit_thread(self) -> None:
         self.thread.alive = False
@@ -1099,6 +1131,8 @@ class WindowsEmulator:
 
     def _dispatch_api(self, addr: int) -> None:
         module, name = self.api_slots[addr]
+        if name not in SLEEP_POLL_APIS:
+            self._sleep_poll = None
         handler: ApiHandler | None = API_HANDLERS.get(name)
         nargs = handler.nargs if handler is not None else self.api_nargs(module, name)
         cdecl = (
@@ -1123,6 +1157,7 @@ class WindowsEmulator:
         self.api_counts[name] += 1
         self.api_trace.append((name, ret_addr, tuple(args)))
         self._api_frame = (addr, sp)
+        self._api_return = ret_addr
         new_sp = sp + self.ptr_size
         if not self.is_64bit and not cdecl:
             new_sp += 4 * (nargs or 0)
@@ -1205,6 +1240,7 @@ class WindowsEmulator:
         name = self._syscall_names.get(number)
         handler = API_HANDLERS.get(name) or API_HANDLERS.get("Zw" + name[2:]) if name is not None else None
         label = name or f"syscall_{number:#x}"
+        self._sleep_poll = None
         self.api_counts[label] += 1
         if handler is None or (arg_base is None and not self.is_64bit):
             self.unhandled_apis[f"syscall!{label}"] += 1

@@ -934,9 +934,13 @@ def get_tick_count64(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:di
     return emu.tick
 
 
+# the calls that count as polls of a Sleep loop; they share _sleep()
+SLEEP_POLL_APIS = frozenset(("Sleep", "SleepEx"))
+
+
 def _sleep(emu: WindowsEmulator, milliseconds: int) -> None:
     thread = emu.thread
-    thread.wake_tick = emu.tick + min(max(milliseconds, 1), 60000)
+    thread.wake_tick = emu.sleep_wake_tick(milliseconds)
     emu.set_reg("rax" if emu.is_64bit else "eax", 0)
     if not emu.switch_thread():
         # nothing else to run: the sleep simply elapses

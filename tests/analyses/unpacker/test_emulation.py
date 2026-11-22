@@ -389,6 +389,62 @@ class TestThreads(unittest.TestCase):
         assert emu.read_u32(cell) == 1
         assert emu.tick - start == 150 + 16 + 60000
 
+    def test_long_sleep_poll_loop(self):
+        # main: CreateThread(worker); while (!flag) Sleep(50); ret        worker: Sleep(60000); flag = 1; ret 4
+        base = IMAGE_BASE + CODE_RVA
+        iat, flag, worker = base + 0x200, base + 0x300, base + 0x80
+        p32 = lambda value: struct.pack("<I", value)
+        call = lambda idx: b"\xff\x15" + p32(iat + 4 * idx)
+        loop = b"\x6a\x32" + call(0) + b"\x83\x3d" + p32(flag) + b"\x00"
+        main = b"\x6a\x00\x6a\x00\x6a\x00\x68" + p32(worker) + b"\x6a\x00\x6a\x00" + call(1)
+        main += loop + b"\x74" + bytes([0x100 - len(loop) - 2]) + b"\xc3"
+        body = b"\x68" + p32(60000) + call(0) + b"\xc7\x05" + p32(flag) + p32(1) + b"\xc2\x04\x00"
+        code = bytearray(0x400)
+        code[: len(main)] = main
+        code[0x80 : 0x80 + len(body)] = body
+        emu = emulator(bytes(code))
+        kernel32 = emu.load_module("kernel32.dll")
+        for idx, name in enumerate(("Sleep", "CreateThread")):
+            addr = emu.resolve_export(kernel32, name)
+            assert addr is not None
+            emu.write_u32(iat + 4 * idx, addr)
+        start = emu.tick
+        emu.start()
+        assert emu.run(max_blocks=1_000_000).reason is StopReason.RETURNED
+        # either way the loop sees the flag once the worker's minute has passed
+        assert emu.read_u32(flag) == 1
+        polls = emu.api_counts["Sleep"] - 1
+        if emu.SLEEP_POLL_FAST_FORWARD:
+            # after a streak of identical polls, one poll lasts until the worker wakes
+            assert polls == emu.SLEEP_POLL_STREAK + 1
+            assert 60000 <= emu.tick - start < 60000 + 50 * (emu.SLEEP_POLL_STREAK + 2)
+        else:
+            assert polls == 1200
+            assert emu.tick - start == 60000
+
+    def test_sleep_poll_streak_resets(self):
+        emu = emulator(b"\xc3")
+        worker = emu.spawn_thread(IMAGE_BASE + CODE_RVA, 0)
+        worker.wake_tick = emu.tick + 60000
+        get_tick_count = emu.resolve_export(emu.load_module("kernel32.dll"), "GetTickCount")
+        assert get_tick_count is not None
+        streak = emu.SLEEP_POLL_STREAK
+        for _ in range(streak - 1):
+            assert emu.sleep_wake_tick(50) == emu.tick + 50
+        # any other API call starts the count again
+        frame = emu.sp - 4
+        emu.write_u32(frame, IMAGE_BASE + CODE_RVA)
+        emu._set_sp(frame)
+        emu._dispatch_api(get_tick_count)
+        for _ in range(streak - 1):
+            assert emu.sleep_wake_tick(50) == emu.tick + 50
+        # a different argument too
+        assert emu.sleep_wake_tick(51) == emu.tick + 51
+        for _ in range(streak - 1):
+            assert emu.sleep_wake_tick(50) == emu.tick + 50
+        expected = worker.wake_tick if emu.SLEEP_POLL_FAST_FORWARD else emu.tick + 50
+        assert emu.sleep_wake_tick(50) == expected
+
     def test_timed_wait_takes_its_timeout(self):
         # main: CreateThread(worker); cell[0] = WaitForSingleObject(event, 5000); cell[1] = GetTickCount(); ret
         base = IMAGE_BASE + CODE_RVA

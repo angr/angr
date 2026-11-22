@@ -383,6 +383,8 @@ class IcicleWindowsEmulator(WindowsEmulator):
     # instructions per time slice when several threads exist, and between deadline checks otherwise
     SLICE = int(os.environ.get("ANGR_UNPACKER_ICICLE_SLICE", "4000000"))
     CHUNK = 50_000_000
+    # an API call costs microseconds here: Sleep loops run poll by poll
+    SLEEP_POLL_FAST_FORWARD: bool = False
 
     def _init_machine(self) -> None:
         self.vm = WinVm(self.is_64bit, patched_processors(), os.environ.get("ANGR_UNPACKER_ICICLE_JIT", "1") != "0")
