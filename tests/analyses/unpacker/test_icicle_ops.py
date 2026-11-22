@@ -307,6 +307,20 @@ class TestBitScans(unittest.TestCase):
             assert (vm.reg_read("rax"), vm.reg_read("CF")) == (64, 1)
 
 
+class TestMemory(unittest.TestCase):
+
+    def test_write_after_failed_lift(self):
+        # an undecodable instruction leaves the page marked as code without a block; writes must still go through
+        vm = WinVm(False, patched_processors(), False)
+        vm.mem_map(CODE, 0x1000, 7)
+        vm.mem_write(CODE, bytes.fromhex("0f0b"))
+        vm.pc = CODE
+        assert vm.run(10)[:2] == (winemu.EXIT_EXCEPTION, winemu.FAULT_INVALID)
+        vm.mem_write(CODE, b"\x90\xcc")
+        vm.pc = CODE
+        assert vm.run(10)[:2] == (winemu.EXIT_EXCEPTION, winemu.FAULT_SYSCALL)
+        assert vm.pc == CODE + 1
+
 
 if __name__ == "__main__":
     unittest.main()

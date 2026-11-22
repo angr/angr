@@ -1193,13 +1193,22 @@ impl WinVm {
         if touched_code {
             self.forget_code_pages(addr, len, false);
         }
-        self.vm
-            .cpu
-            .mem
-            .write_bytes(addr, &data, perm::NONE)
-            .map_err(|e| {
-                PyRuntimeError::new_err(format!("Failed to write {len:#x} bytes at {addr:#x}: {e}"))
-            })
+        let mut result = self.vm.cpu.mem.write_bytes(addr, &data, perm::NONE);
+        if result.is_err() && !touched_code {
+            // a page can carry a code-cache mark without a lifted block (the lift failed): clear it and retry
+            let start = addr & !(PAGE - 1);
+            let mut page = start;
+            while page < addr + len {
+                self.invalidate_code(page, PAGE, false);
+                let p = self.vm.cpu.mem.get_perm(page) & !perm::IN_CODE_CACHE;
+                let _ = self.vm.cpu.mem.update_perm(page, PAGE, p);
+                page += PAGE;
+            }
+            result = self.vm.cpu.mem.write_bytes(addr, &data, perm::NONE);
+        }
+        result.map_err(|e| {
+            PyRuntimeError::new_err(format!("Failed to write {len:#x} bytes at {addr:#x}: {e}"))
+        })
     }
 
     // Execution
