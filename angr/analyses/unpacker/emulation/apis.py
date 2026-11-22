@@ -5,7 +5,7 @@ import ntpath
 import re
 import struct
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from angr.errors import SimSegfaultException
@@ -830,7 +830,12 @@ def c_specific_handler(emu: WindowsEmulator, args: list[int]) -> int | None:
     return next_scope(0)
 
 
-_const(("GetSystemMetrics",), 1, 0)
+@api("GetSystemMetrics", nargs=1)
+def get_system_metrics(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    # a 1024x768 screen; everything else (remote session, mouse buttons, ...) reads as zero
+    return {0: 1024, 1: 768}.get(args[0], 0)
+
+
 _const(("FindWindowA", "FindWindowW"), 2, 0)
 ERROR_ENVVAR_NOT_FOUND = 203
 _ENVIRONMENT_REFERENCE_RE = re.compile(r"%([^%=]+)%")
@@ -2661,6 +2666,16 @@ class WindowClass:
 class WindowObject:
     wndclass: WindowClass | None
     parent: int
+    thread: Thread | None = None
+    wndproc: int = 0
+    longs: dict[int, int] = field(default_factory=dict)
+    # left, top, right, bottom
+    rect: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
+    visible: bool = False
+    # a visible window with an invalid region gets WM_PAINT once its thread's queue is empty
+    needs_paint: bool = False
+    # when the simulated user clicks the window (None: not yet scheduled; -1: clicked)
+    click_tick: int | None = None
 
 
 class GdiObject:
@@ -2712,9 +2727,39 @@ def register_class_w(emu: WindowsEmulator, args: list[int]) -> int:
     return _register_class(emu, args[0], False, True)
 
 
-def _create_window(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+def _create_window(emu: WindowsEmulator, args: list[int], wide: bool) -> int | None:
     name = _class_name(emu, args[1], wide).lower()
-    return emu.new_handle(WindowObject(emu.window_classes.get(name), args[8]))
+    wndclass = emu.window_classes.get(name)
+    window = WindowObject(wndclass, args[8], emu.thread, wndclass.wndproc if wndclass is not None else 0)
+    x, y, width, height = (value - (1 << 32) if value & 0x80000000 else value for value in args[4:8])
+    window.rect = [x, y, x + width, y + height]
+    window.visible = window.needs_paint = bool(args[3] & WS_VISIBLE)
+    hwnd = emu.new_handle(window)
+    if not window.wndproc:
+        return hwnd
+    # WM_NCCREATE and WM_CREATE get a CREATESTRUCT: the arguments in reverse order
+    if emu.is_64bit:
+        create = struct.pack("<QQQQiiiiIIQQII", args[11], args[10], args[9], args[8], args[7], args[6], args[5],
+                             args[4], args[3], 0, args[2], args[1], args[0], 0)  # fmt: skip
+    else:
+        create = struct.pack("<IIIIiiiiIIII", *(args[11 - i] for i in range(12)))
+    buf = emu.alloc(len(create))
+    emu.write(buf, create)
+
+    def created(results: list[int]) -> int:
+        # WM_NCCREATE returning FALSE or WM_CREATE returning -1 fail the creation
+        if results[0] == 0 or (len(results) == 2 and results[1] == (1 << (8 * emu.ptr_size)) - 1):
+            emu.handles.pop(hwnd, None)
+            return 0
+        return hwnd
+
+    _guest_calls(
+        emu,
+        [(window.wndproc, (hwnd, WM_NCCREATE, 0, buf)), (window.wndproc, (hwnd, WM_CREATE, 0, buf))],
+        created,
+        lambda results: results[-1] != 0,
+    )
+    return None
 
 
 @api("CreateWindowExA", nargs=12)
@@ -2772,7 +2817,398 @@ def set_dib_color_table(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 _const(("ReleaseDC",), 2, 1)
-_const(("DeleteDC", "DeleteObject", "UpdateWindow", "DestroyWindow"), 1, 1)
-_const(("ShowWindow",), 2, 0)
+_const(("DeleteDC", "DeleteObject"), 1, 1)
 _const(("BitBlt",), 9, 1)
 _const(("StretchBlt",), 11, 1)
+
+
+#
+# Window messages: per-thread queues, timers, and calls into window procedures
+#
+
+WM_CREATE = 0x1
+WM_DESTROY = 0x2
+WM_PAINT = 0xF
+WS_VISIBLE = 0x10000000
+WM_CLOSE = 0x10
+WM_QUIT = 0x12
+WM_NCCREATE = 0x81
+WM_NCDESTROY = 0x82
+WM_TIMER = 0x113
+WM_LBUTTONDOWN = 0x201
+WM_LBUTTONUP = 0x202
+# how long a window waits for input before the simulated user clicks it (splash screens that close on a click)
+USER_CLICK_DELAY = 3000
+
+
+@dataclass
+class TimerObject:
+    thread: Thread
+    hwnd: int
+    ident: int
+    elapse: int
+    proc: int
+    due: int
+
+
+def _guest_calls(
+    emu: WindowsEmulator,
+    calls: list[tuple[int, tuple[int, ...]]],
+    finish: Callable[[list[int]], int],
+    proceed: Callable[[list[int]], bool] = lambda _: True,
+) -> None:
+    """
+    For API handlers that call guest code (window procedures): make the calls in order while proceed(results)
+    holds, then return finish(results) to the API's caller. The handler itself returns None.
+    """
+    ret_pc = emu.pc
+    results: list[int] = []
+
+    def step(result: int | None = None) -> None:
+        if result is not None:
+            results.append(result & ((1 << (8 * emu.ptr_size)) - 1))
+        if len(results) < len(calls) and (not results or proceed(results)):
+            addr, args = calls[len(results)]
+            emu.call_guest(addr, args, step)
+            return
+        emu.set_reg("rax" if emu.is_64bit else "eax", finish(results))
+        emu._set_pc(ret_pc)  # pylint:disable=protected-access
+
+    step()
+
+
+def _window(emu: WindowsEmulator, hwnd: int) -> WindowObject | None:
+    window = emu.handles.get(hwnd)
+    return window if isinstance(window, WindowObject) else None
+
+
+def _post(emu: WindowsEmulator, thread: Thread, message: tuple[int, int, int, int]) -> None:
+    thread.messages.append(message)
+    if thread.wait_handle is None:
+        # a thread blocked in GetMessage wakes up
+        thread.wake_tick = min(thread.wake_tick, emu.tick)
+
+
+def _next_message(emu: WindowsEmulator, remove: bool) -> tuple[int, int, int, int] | None:
+    thread = emu.thread
+    if thread.messages:
+        return thread.messages.pop(0) if remove else thread.messages[0]
+    due = [t for t in emu.timers if t.thread is thread and t.due <= emu.tick]
+    if not due:
+        windows = [(h, w) for h, w in emu.handles.items() if isinstance(w, WindowObject) and w.thread is thread]
+        for hwnd, window in windows:
+            if window.needs_paint:
+                # WM_PAINT stays pending until BeginPaint or ValidateRect
+                return hwnd, WM_PAINT, 0, 0
+        for hwnd, window in windows:
+            if window.click_tick is not None and 0 <= window.click_tick <= emu.tick:
+                if remove:
+                    window.click_tick = -1
+                    thread.messages.append((hwnd, WM_LBUTTONUP, 0, 0x000A000A))
+                return hwnd, WM_LBUTTONDOWN, 1, 0x000A000A  # MK_LBUTTON at (10, 10)
+        return None
+    timer = min(due, key=lambda t: t.due)
+    if remove:
+        timer.due = emu.tick + timer.elapse
+    return timer.hwnd, WM_TIMER, timer.ident, timer.proc
+
+
+def _write_message(emu: WindowsEmulator, addr: int, message: tuple[int, int, int, int]) -> None:
+    hwnd, msg, wparam, lparam = message
+    if emu.is_64bit:
+        emu.write(addr, struct.pack("<QIIQQIii", hwnd, msg, 0, wparam, lparam, emu.tick & 0xFFFFFFFF, 0, 0))
+    else:
+        emu.write(addr, struct.pack("<IIIIIii", hwnd, msg, wparam, lparam, emu.tick & 0xFFFFFFFF, 0, 0))
+
+
+def _read_message(emu: WindowsEmulator, addr: int) -> tuple[int, int, int, int]:
+    if emu.is_64bit:
+        hwnd, msg, _, wparam, lparam = struct.unpack("<QIIQQ", emu.read(addr, 32))
+    else:
+        hwnd, msg, wparam, lparam = struct.unpack("<IIII", emu.read(addr, 16))
+    return hwnd, msg, wparam, lparam
+
+
+def _get_message(emu: WindowsEmulator, addr: int) -> int | None:
+    message = _next_message(emu, True)
+    if message is None:
+        thread = emu.thread
+        timers = [t.due for t in emu.timers if t.thread is thread]
+        # a visible window that waits for input gets clicked a while later
+        for window in emu.handles.values():
+            if isinstance(window, WindowObject) and window.thread is thread and window.visible:
+                if window.click_tick is None:
+                    window.click_tick = emu.tick + USER_CLICK_DELAY
+                if window.click_tick >= 0:
+                    timers.append(window.click_tick)
+        # nothing queued: sleep until the next timer, or until another thread posts something
+        thread.wake_tick = min(timers) if timers else emu.tick + 60000
+        if emu.block_thread():
+            return None
+        if not timers:
+            emu.stop(StopReason.BUDGET, "GetMessage waits forever")
+            return 0
+        emu.tick = thread.wake_tick
+        thread.wake_tick = 0
+        message = _next_message(emu, True)
+        assert message is not None
+    _write_message(emu, addr, message)
+    return int(message[1] != WM_QUIT)
+
+
+@api("GetMessageA", "GetMessageW", nargs=4)
+def get_message(emu: WindowsEmulator, args: list[int]) -> int | None:
+    return _get_message(emu, args[0])
+
+
+@api("PeekMessageA", "PeekMessageW", nargs=5)
+def peek_message(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.tick += 1
+    message = _next_message(emu, bool(args[4] & 1))
+    if message is None:
+        return 0
+    _write_message(emu, args[0], message)
+    return 1
+
+
+@api("DispatchMessageA", "DispatchMessageW", nargs=1)
+def dispatch_message(emu: WindowsEmulator, args: list[int]) -> int | None:
+    hwnd, msg, wparam, lparam = _read_message(emu, args[0])
+    if msg == WM_TIMER and lparam:
+        target = lparam
+        call_args = (hwnd, msg, wparam, emu.tick & 0xFFFFFFFF)
+    else:
+        window = _window(emu, hwnd)
+        if window is None or not window.wndproc:
+            return 0
+        target, call_args = window.wndproc, (hwnd, msg, wparam, lparam)
+    _guest_calls(emu, [(target, call_args)], lambda results: results[0])
+    return None
+
+
+def _send(emu: WindowsEmulator, hwnd: int, msg: int, wparam: int, lparam: int) -> int | None:
+    window = _window(emu, hwnd)
+    if window is None or not window.wndproc:
+        return 0
+    _guest_calls(emu, [(window.wndproc, (hwnd, msg, wparam, lparam))], lambda results: results[0])
+    return None
+
+
+@api("SendMessageA", "SendMessageW", nargs=4)
+def send_message(emu: WindowsEmulator, args: list[int]) -> int | None:
+    return _send(emu, *args)
+
+
+@api("PostMessageA", "PostMessageW", nargs=4)
+def post_message(emu: WindowsEmulator, args: list[int]) -> int:
+    window = _window(emu, args[0])
+    thread = window.thread if window is not None and window.thread is not None else emu.thread
+    _post(emu, thread, (args[0], args[1], args[2], args[3]))
+    return 1
+
+
+@api("PostThreadMessageA", "PostThreadMessageW", nargs=4)
+def post_thread_message(emu: WindowsEmulator, args: list[int]) -> int:
+    thread = next((t for t in emu.threads if t.tid == args[0] and t.alive), None)
+    if thread is None:
+        return 0
+    _post(emu, thread, (0, args[1], args[2], args[3]))
+    return 1
+
+
+@api("PostQuitMessage", nargs=1)
+def post_quit_message(emu: WindowsEmulator, args: list[int]) -> int:
+    _post(emu, emu.thread, (0, WM_QUIT, args[0], 0))
+    return 0
+
+
+@api("DestroyWindow", nargs=1)
+def destroy_window(emu: WindowsEmulator, args: list[int]) -> int | None:
+    hwnd = args[0]
+    window = _window(emu, hwnd)
+    if window is None:
+        return 0
+    emu.timers = [t for t in emu.timers if t.hwnd != hwnd]
+
+    def destroyed(_: list[int]) -> int:
+        emu.handles.pop(hwnd, None)
+        return 1
+
+    if not window.wndproc:
+        return destroyed([])
+    _guest_calls(emu, [(window.wndproc, (hwnd, WM_DESTROY, 0, 0)), (window.wndproc, (hwnd, WM_NCDESTROY, 0, 0))],
+                 destroyed)  # fmt: skip
+    return None
+
+
+@api("DefWindowProcA", "DefWindowProcW", nargs=4)
+def def_window_proc(emu: WindowsEmulator, args: list[int]) -> int | None:
+    if args[1] == WM_CLOSE:
+        return destroy_window(emu, args[:1])
+    window = _window(emu, args[0])
+    if args[1] == WM_PAINT and window is not None:
+        window.needs_paint = False
+    return int(args[1] == WM_NCCREATE)
+
+
+@api("ShowWindow", nargs=2)
+def show_window(emu: WindowsEmulator, args: list[int]) -> int:
+    window = _window(emu, args[0])
+    if window is None:
+        return 0
+    was_visible = window.visible
+    window.visible = args[1] != 0  # SW_HIDE
+    window.needs_paint |= window.visible and not was_visible
+    return int(was_visible)
+
+
+@api("UpdateWindow", nargs=1)
+def update_window(emu: WindowsEmulator, args: list[int]) -> int | None:
+    window = _window(emu, args[0])
+    if window is None:
+        return 0
+    if not (window.visible and window.needs_paint and window.wndproc):
+        return 1
+    # sends WM_PAINT right away
+    _guest_calls(emu, [(window.wndproc, (args[0], WM_PAINT, 0, 0))], lambda _: 1)
+    return None
+
+
+def _invalidate(emu: WindowsEmulator, hwnd: int, invalid: bool) -> int:
+    window = _window(emu, hwnd)
+    if window is None:
+        return 0
+    window.needs_paint = invalid and window.visible
+    return 1
+
+
+@api("InvalidateRect", nargs=3)
+def invalidate_rect(emu: WindowsEmulator, args: list[int]) -> int:
+    return _invalidate(emu, args[0], True)
+
+
+@api("ValidateRect", nargs=2)
+def validate_rect(emu: WindowsEmulator, args: list[int]) -> int:
+    return _invalidate(emu, args[0], False)
+
+
+@api("BeginPaint", nargs=2)
+def begin_paint(emu: WindowsEmulator, args: list[int]) -> int:
+    window = _window(emu, args[0])
+    if window is None:
+        return 0
+    window.needs_paint = False
+    dc = emu.new_handle(GdiObject("dc"))
+    left, top, right, bottom = window.rect
+    # PAINTSTRUCT: hdc, fErase, rcPaint, ...
+    emu.write_ptr(args[1], dc)
+    emu.write(args[1] + emu.ptr_size, struct.pack("<Iiiii", 0, 0, 0, right - left, bottom - top))
+    return dc
+
+
+_const(("EndPaint",), 2, 1)
+
+
+@api("GetDeviceCaps", nargs=2)
+def get_device_caps(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    # HORZRES, VERTRES, BITSPIXEL, PLANES, LOGPIXELSX, LOGPIXELSY
+    return {8: 1024, 10: 768, 12: 32, 14: 1, 0x58: 96, 0x5A: 96}.get(args[1], 0)
+
+
+@api("MulDiv", nargs=3)
+def mul_div(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    a, b, c = (value - (1 << 32) if value & 0x80000000 else value for value in (x & 0xFFFFFFFF for x in args))
+    if c == 0:
+        return -1
+    product = a * b
+    # rounded half away from zero, as Windows does
+    quotient = (abs(product) + abs(c) // 2) // abs(c)
+    return quotient if (product < 0) == (c < 0) else -quotient
+
+
+@api("SetTimer", nargs=4)
+def set_timer(emu: WindowsEmulator, args: list[int]) -> int:
+    hwnd, ident, elapse, proc = args
+    window = _window(emu, hwnd)
+    if hwnd and window is None:
+        return 0
+    if not hwnd:
+        ident = 0x7FF0 + len(emu.timers)
+    emu.timers = [t for t in emu.timers if (t.hwnd, t.ident) != (hwnd, ident)]
+    thread = window.thread if window is not None and window.thread is not None else emu.thread
+    elapse = min(max(elapse, 10), 0x7FFFFFFF)
+    emu.timers.append(TimerObject(thread, hwnd, ident, elapse, proc, emu.tick + elapse))
+    return ident or 1
+
+
+@api("KillTimer", nargs=2)
+def kill_timer(emu: WindowsEmulator, args: list[int]) -> int:
+    before = len(emu.timers)
+    emu.timers = [t for t in emu.timers if (t.hwnd, t.ident) != (args[0], args[1])]
+    return int(len(emu.timers) < before)
+
+
+@api("IsWindow", nargs=1)
+def is_window(emu: WindowsEmulator, args: list[int]) -> int:
+    return int(_window(emu, args[0]) is not None)
+
+
+def _window_long(emu: WindowsEmulator, args: list[int], value: int | None) -> int:
+    window = _window(emu, args[0])
+    if window is None:
+        return 0
+    index = args[1] - (1 << 32) if args[1] & 0x80000000 else args[1]
+    previous = window.wndproc if index == -4 else window.longs.get(index, 0)
+    if value is not None:
+        if index == -4:  # GWL_WNDPROC
+            window.wndproc = value
+        else:
+            window.longs[index] = value
+    return previous
+
+
+@api("GetWindowLongA", "GetWindowLongW", "GetWindowLongPtrA", "GetWindowLongPtrW", nargs=2)
+def get_window_long(emu: WindowsEmulator, args: list[int]) -> int:
+    return _window_long(emu, args, None)
+
+
+@api("SetWindowLongA", "SetWindowLongW", "SetWindowLongPtrA", "SetWindowLongPtrW", nargs=3)
+def set_window_long(emu: WindowsEmulator, args: list[int]) -> int:
+    return _window_long(emu, args, args[2])
+
+
+def _window_rect(emu: WindowsEmulator, hwnd: int, rect: int, client: bool) -> int:
+    window = _window(emu, hwnd)
+    if window is None:
+        return 0
+    left, top, right, bottom = window.rect
+    emu.write(rect, struct.pack("<iiii", *((0, 0, right - left, bottom - top) if client else window.rect)))
+    return 1
+
+
+@api("GetWindowRect", nargs=2)
+def get_window_rect(emu: WindowsEmulator, args: list[int]) -> int:
+    return _window_rect(emu, args[0], args[1], False)
+
+
+@api("GetClientRect", nargs=2)
+def get_client_rect(emu: WindowsEmulator, args: list[int]) -> int:
+    return _window_rect(emu, args[0], args[1], True)
+
+
+@api("SetWindowPos", nargs=7)
+def set_window_pos(emu: WindowsEmulator, args: list[int]) -> int:
+    window = _window(emu, args[0])
+    if window is None:
+        return 0
+    x, y, width, height = (value - (1 << 32) if value & 0x80000000 else value for value in args[2:6])
+    left, top, right, bottom = window.rect
+    if not args[6] & 2:  # SWP_NOMOVE
+        left, top, right, bottom = x, y, x + right - left, y + bottom - top
+    if not args[6] & 1:  # SWP_NOSIZE
+        right, bottom = left + width, top + height
+    window.rect = [left, top, right, bottom]
+    return 1
+
+
+_const(("TranslateMessage",), 1, 0)

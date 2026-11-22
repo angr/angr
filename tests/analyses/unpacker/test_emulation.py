@@ -484,6 +484,26 @@ class TestApiHandlers(unittest.TestCase):
         assert (emu.read_u32(buf + 0x300), emu.read_u32(buf + 0x304)) == (8, 3)
         assert call("RegOpenKeyExW", 0x80000002, buf, 0, 0x20019, buf + 0x100) == 2
 
+    def test_splash_picture(self):
+        # CreateStreamOnHGlobal + OleLoadPicture on a 600x400 BMP, then IPicture::get_Width through its vtable
+        emu = emulator(b"\xc3")
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        image = call("GlobalAlloc", 2, 0x40)
+        assert call("GlobalLock", image) == image
+        emu.write(image, b"BM" + bytes(16) + struct.pack("<ii", 600, -400))
+        buf = emu.alloc(0x1000)
+        emu.write(buf + 0x20, _guid("7bf80980-bf32-101a-8bbb-00aa00300cab"))  # IID_IPicture
+        assert call("CreateStreamOnHGlobal", image, 1, buf) == 0
+        assert call("OleLoadPicture", emu.read_u32(buf), 0, 0, buf + 0x20, buf + 4) == 0
+        picture = emu.read_u32(buf + 4)
+        get_width = emu.com.slots[emu.read_u32(emu.read_u32(picture) + 4 * 6)]
+        assert get_width.name == "IPicture::get_Width"
+        assert get_width.handler.func(emu, [picture, buf + 8]) == 0
+        # HIMETRIC at 96 DPI, back to pixels with MulDiv
+        dpi = call("GetDeviceCaps", call("GetDC", 0), 0x58)
+        assert call("MulDiv", dpi, emu.read_u32(buf + 8), 2540) == 600
+        assert "IPicture::get_Width" not in emu.load_module("kernel32.dll").exports
+
     def test_message_box_ex(self):
         emu = emulator(b"\xc3")
         buf = emu.alloc(0x1000)
@@ -498,9 +518,10 @@ class TestApiHandlers(unittest.TestCase):
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         emu.write(buf + 0x100, b"Splash\0")
-        emu.write(buf, struct.pack("<12I", 48, 0, 0x401000, 0, 0, IMAGE_BASE, 0, 0, 0, 0, buf + 0x100, 0))
+        # no window procedure, so that CreateWindowExA does not call into the guest
+        emu.write(buf, struct.pack("<12I", 48, 0, 0, 0, 0, IMAGE_BASE, 0, 0, 0, 0, buf + 0x100, 0))
         assert call("RegisterClassExA", buf) >= 0xC000
-        assert emu.window_classes["splash"].wndproc == 0x401000
+        assert "splash" in emu.window_classes
         hwnd = call("CreateWindowExA", 8, buf + 0x100, 0, 0x80000000, 0, 0, 0x1AA, 0xE1, 0, 0, IMAGE_BASE, 0)
         assert hwnd and call("GetDC", hwnd) and call("LoadCursorA", 0, 0x7F89)
         # BITMAPINFOHEADER: 0x1AA x -0xE1 (top-down), 8 bits per pixel
@@ -841,6 +862,61 @@ class TestComObjects(unittest.TestCase):
         emu.write(image, bytes(16))
         assert call("OleLoadPicture", emu.read_u32(buf + 0x20), 0, 0, buf, buf + 0x24) == 0x800A01E1
         assert emu.read_u32(buf + 0x24) == 0
+
+
+class TestWindowMessages(unittest.TestCase):
+    # RegisterClassExA, CreateWindowExA(style), then GetMessageA/DispatchMessageA until WM_QUIT; returns its wParam
+    MAIN = (
+        "6800194000ff15001840006a0068000040006a006a006a646a646a006a0068{style}6a0068001a40006a08ff1504184000"
+        "a3041c40006a006a006a0068001b4000ff150818400085c0740d68001b4000ff150c184000ebdea1081b4000c3"
+    )
+    APIS = ("RegisterClassExA", "CreateWindowExA", "GetMessageA", "DispatchMessageA", "SetTimer", "DestroyWindow",
+            "PostQuitMessage", "ValidateRect")  # fmt: skip
+
+    def _run(self, style: int, wndproc: bytes):
+        code = bytearray(0x1000)
+        main = bytes.fromhex(self.MAIN.format(style=struct.pack("<I", style).hex()))
+        code[: len(main)] = main
+        code[0x200 : 0x200 + len(wndproc)] = wndproc
+        emu = emulator(bytes(code))
+        text = IMAGE_BASE + CODE_RVA
+        user32 = emu.load_module("user32.dll")
+        for idx, name in enumerate(self.APIS):
+            emu.write_u32(text + 0x800 + 4 * idx, emu.resolve_export(user32, name))
+        # WNDCLASSEXA: cbSize, style, lpfnWndProc, ..., lpszClassName
+        emu.write(text + 0x900, struct.pack("<12I", 48, 0, text + 0x200, 0, 0, IMAGE_BASE, 0, 0, 0, 0, text + 0xA00, 0))
+        emu.write(text + 0xA00, b"Splash\0")
+        tick = emu.tick
+        emu.start()
+        stop = emu.run(timeout=20)
+        assert stop.reason is StopReason.RETURNED
+        return emu, emu.tick - tick
+
+    def test_timer_and_destroy(self):
+        # a hidden window: the procedure sets a timer on WM_CREATE, destroys the window on the third WM_TIMER and
+        # posts WM_QUIT(42) on WM_DESTROY
+        wndproc = bytes.fromhex(
+            "8b4424083d81000000741683f80174193d13010000742783f802744031c0c21000b801000000c210006a006a326a07ff7424"
+            "10ff151018400031c0c21000ff05001c4000833d001c400003720aff742404ff151418400031c0c210006a2aff151818400031"
+            "c0c21000"
+        )
+        emu, elapsed = self._run(0x80000000, wndproc)
+        text = IMAGE_BASE + CODE_RVA
+        assert emu.reg("eax") == 42
+        assert emu.read_u32(text + 0xC00) == 3
+        hwnd = emu.read_u32(text + 0xC04)
+        assert hwnd and API_HANDLERS["IsWindow"].func(emu, [hwnd]) == 0
+        assert elapsed >= 150 and not emu.timers
+
+    def test_splash_closed_by_a_click(self):
+        # a visible window that validates itself on WM_PAINT and posts WM_QUIT(7) when clicked
+        wndproc = bytes.fromhex(
+            "8b4424083d8100000074113d01020000742383f80f740d31c0c21000b801000000c210006a00ff742408ff151c18400031c0"
+            "c210006a07ff151818400031c0c21000"
+        )
+        emu, elapsed = self._run(0x90000000, wndproc)
+        assert emu.reg("eax") == 7
+        assert elapsed >= 3000
 
 
 class TestImportWrappers(unittest.TestCase):

@@ -23,6 +23,8 @@ class Thread:
     wait_handle: int | None = None
     # the wait on wait_handle ends at wake_tick
     timed_wait: bool = False
+    # posted window messages: (hwnd, message, wParam, lParam)
+    messages: list[tuple[int, int, int, int]] = field(default_factory=list)
 
 
 @dataclass

@@ -39,6 +39,7 @@ from .apis import (
     STATUS_NOT_IMPLEMENTED,
     ApiHandler,
     MappingObject,
+    TimerObject,
     WindowClass,
 )
 from .com import ComRuntime
@@ -320,6 +321,7 @@ class WindowsEmulator:
         self.named_mappings: dict[str, MappingObject] = {}
         self.handles: dict[int, object] = {}
         self.window_classes: dict[str, WindowClass] = {}
+        self.timers: list[TimerObject] = []
         # (predefined key, lower-case path) -> value name -> (type, data)
         self.registry: dict[tuple[int, str], dict[str, tuple[int, bytes]]] = {}
         self.threads: list[Thread] = []
