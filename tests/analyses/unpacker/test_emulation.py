@@ -1457,6 +1457,27 @@ class TestExceptions(unittest.TestCase):
         # the chain now starts at the target frame
         assert emu.read_u32(cell + 4) == emu.read_u32(cell + 16)
 
+    def test_fault_on_small_heap_stack(self):
+        # Themida's VM runs on an 8 KB heap block: the exception frame goes right below esp, as on Windows
+        code = bytearray(0x200)
+        cell = IMAGE_BASE + CODE_RVA + 0x100
+        # mov ebp, esp; mov esp, top; xor eax, eax; mov [eax], eax; mov esp, ebp; ret
+        main = bytes.fromhex("89 e5 bc 00 00 00 00 31 c0 89 00 89 ec c3")
+        code[: len(main)] = main
+        # vectored handler: save CONTEXT.EFlags, skip the faulting mov, continue execution
+        code[0x80:0x9C] = bytes.fromhex(
+            "8b 44 24 04 8b 40 04 8b 88 c0 00 00 00 89 0d" + struct.pack("<I", cell).hex()
+            + "83 80 b8 00 00 00 02 83 c8 ff c2 04 00"
+        )  # fmt: skip
+        emu = emulator(bytes(code))
+        block = emu.alloc(0x2000)
+        emu.write(IMAGE_BASE + CODE_RVA + 3, struct.pack("<I", block + 0x1FF0))
+        emu.exceptions.vectored.append(IMAGE_BASE + CODE_RVA + 0x80)
+        emu.start()
+        stop = emu.run(max_blocks=100000)
+        assert stop.reason is StopReason.RETURNED, stop
+        assert emu.exceptions.count == 1
+
     def test_x64_try_except(self):
         code = bytearray(0x400)
 

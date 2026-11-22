@@ -270,8 +270,9 @@ class ExceptionDispatcher:
             emu.stop(StopReason.ERROR, "exception storm")
             return
         ptr = emu.ptr_size
-        frame = (emu.sp - 0x1000) & ~0xF
-        if emu.space.find(frame - 0x1000) is None or emu.space.find(frame + 0x800) is None:
+        # right below the faulting sp, as Windows does: sp may be a small heap block (Themida's VM stack)
+        frame = (emu.sp - (0x700 if emu.is_64bit else 0x400)) & ~0xF
+        if emu.space.find(frame - 0x40) is None or emu.space.find(emu.sp - 1) is None:
             emu.stop(StopReason.ERROR, f"exception {code:#x} at {pc:#x} with an unusable stack ({emu.sp:#x})")
             return
         context = frame + 0x100
