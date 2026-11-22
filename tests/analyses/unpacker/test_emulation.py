@@ -122,6 +122,11 @@ class TestApiHandlers(unittest.TestCase):
             assert emu.sp == sp, name
         assert emu.reg("eax") == 0  # GetLastActivePopup
 
+    def test_static_dll_dependencies(self):
+        emu = emulator(b"\xc3")
+        emu.load_module("shell32.dll")
+        assert {"user32.dll", "gdi32.dll", "shlwapi.dll"} <= set(emu.modules)
+
     def test_toolhelp_threads_and_affinity(self):
         emu = emulator(b"\xc3")
         buf = emu.alloc(0x1000)

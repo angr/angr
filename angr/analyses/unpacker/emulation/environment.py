@@ -62,6 +62,22 @@ _NTDLL_PREFIXES = ("Nt", "Zw", "Rtl", "Ldr", "Dbg", "Ki", "Csr", "Etw")
 _WIN32_LOWERCASE_PREFIXES = ("lstr", "wsprintf", "wvsprintf")
 _CDECL_MODULE_PREFIXES = ("msvcr", "msvcp", "ucrtbase", "vcruntime", "crtdll", "api-ms-win-crt")
 _PRELOADED = ("ntdll.dll", "kernel32.dll", "kernelbase.dll")
+# static imports of Windows 7 system DLLs that pull in other DLLs: loading one maps these too, as the Windows
+# loader does (a program importing shell32 has user32 mapped)
+_DLL_DEPENDENCIES = {
+    "advapi32.dll": ("msvcrt.dll",),
+    "comctl32.dll": ("user32.dll", "gdi32.dll", "advapi32.dll", "msvcrt.dll"),
+    "comdlg32.dll": ("user32.dll", "gdi32.dll", "shlwapi.dll", "shell32.dll", "comctl32.dll"),
+    "gdi32.dll": ("user32.dll",),
+    "ole32.dll": ("user32.dll", "gdi32.dll", "advapi32.dll", "rpcrt4.dll", "msvcrt.dll"),
+    "oleaut32.dll": ("ole32.dll", "user32.dll", "gdi32.dll"),
+    "shell32.dll": ("user32.dll", "gdi32.dll", "shlwapi.dll", "advapi32.dll", "msvcrt.dll"),
+    "shlwapi.dll": ("user32.dll", "gdi32.dll", "advapi32.dll", "msvcrt.dll"),
+    "user32.dll": ("gdi32.dll",),
+    "wininet.dll": ("user32.dll", "shlwapi.dll", "advapi32.dll", "msvcrt.dll"),
+    "winmm.dll": ("user32.dll", "advapi32.dll", "msvcrt.dll"),
+    "ws2_32.dll": ("rpcrt4.dll", "msvcrt.dll"),
+}
 _KUSER_SHARED_DATA = 0x7FFE0000
 
 
@@ -728,6 +744,8 @@ class WindowsEmulator:
             self.api_slots[addr] = (module, export)
         self._stop_points.update(module.slot_names)
         self._add_ldr_entry(name, "C:\\Windows\\System32\\" + name, base, module.size, 0)
+        for dependency in _DLL_DEPENDENCIES.get(name, ()):
+            self.load_module(dependency)
         if name == "ntdll.dll" and not self.is_64bit and self.is_mapped(_KUSER_SHARED_DATA):
             # KUSER_SHARED_DATA.SystemCall / SystemCallReturn, which the 32-bit stubs call through
             for offset, export in ((0x300, "KiFastSystemCall"), (0x304, "KiFastSystemCallRet")):
