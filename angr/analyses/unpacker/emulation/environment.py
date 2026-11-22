@@ -79,6 +79,9 @@ _DLL_DEPENDENCIES = {
     "ws2_32.dll": ("rpcrt4.dll", "msvcrt.dll"),
 }
 _KUSER_SHARED_DATA = 0x7FFE0000
+# KUSER_SHARED_DATA.TickCountMultiplier of a 15.625 ms clock: milliseconds = TickCount * multiplier >> 24
+_TICK_MULTIPLIER = 0x0FA00000
+SYSTEM_TIME_BASE = 0x01DB3A0000000000
 
 
 class AddressSpace:
@@ -235,6 +238,7 @@ class WindowsEmulator:
         self.exit_code: int | None = None
         self.blocks = 0
         self.tick = 0x493E0
+        self._shared_tick: int | None = None
         self._next_handle = 0x100
         self._stop_points: set[int] = set()
         self._continuations: dict[int, Callable[[int], None]] = {}
@@ -474,7 +478,9 @@ class WindowsEmulator:
             self.map(kusd, PAGE, 1)
             self.write(kusd + 0x30, "C:\\Windows".encode("utf-16-le"))
             self.write(kusd + 0x264, struct.pack("<III", 1, 6, 1))
-            self.write(kusd + 0x14, struct.pack("<Q", 0x01DB3A0000000000))
+            self.write_u32(kusd + 4, _TICK_MULTIPLIER)
+            self._shared_tick = -1
+            self._sync_shared_time()
 
         self._sentinels = self.alloc(PAGE, 5)
         self._next_sentinel = self._sentinels
@@ -498,6 +504,20 @@ class WindowsEmulator:
             self.load_module(name)
         self._bind_imports()
         self._setup_tls()
+
+    def _sync_shared_time(self) -> None:
+        """
+        Make the time fields of KUSER_SHARED_DATA, which programs read without any call, follow the clock. Called
+        before guest code runs; the page changes only when the clock did.
+        """
+        if self._shared_tick is None or self._shared_tick == self.tick:
+            return
+        self._shared_tick = self.tick
+        interrupt_time = self.tick * 10000
+        tick_count = (self.tick << 24) // _TICK_MULTIPLIER
+        # KSYSTEM_TIME: LowPart, High1Time, High2Time
+        for offset, value in ((0x08, interrupt_time), (0x14, SYSTEM_TIME_BASE + interrupt_time), (0x320, tick_count)):
+            self.write(_KUSER_SHARED_DATA + offset, struct.pack("<QI", value, value >> 32))
 
     @property
     def thread(self) -> Thread:
@@ -1205,6 +1225,7 @@ class WindowsEmulator:
                 deadline is not None and time.monotonic() > deadline
             ):
                 return EmulationStop(StopReason.BUDGET, addr)
+            self._sync_shared_time()
             try:
                 successors = self.project.factory.successors(self.state, extra_stop_points=self._stop_points)
             except SimSegfaultException as ex:

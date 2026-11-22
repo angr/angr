@@ -334,6 +334,29 @@ class TestThreads(unittest.TestCase):
         assert emu.read_u32(cell) == 1
         assert emu.tick - start == 150 + 16 + 60000
 
+    def test_shared_data_time_follows_the_clock(self):
+        # 2 x GetTickCount, then copy KUSER_SHARED_DATA's TickCount, InterruptTime and SystemTime (low parts)
+        base = IMAGE_BASE + CODE_RVA
+        iat, cell = base + 0x200, base + 0x300
+        p32 = lambda value: struct.pack("<I", value)
+        main = (b"\xff\x15" + p32(iat)) * 2
+        for idx, offset in enumerate((0x320, 0x08, 0x14, 0x04)):
+            main += b"\xa1" + p32(0x7FFE0000 + offset) + b"\xa3" + p32(cell + 4 * idx)
+        emu = emulator(main + b"\xc3")
+        addr = emu.resolve_export(emu.load_module("kernel32.dll"), "GetTickCount")
+        assert addr is not None
+        emu.write_u32(iat, addr)
+        assert emu.read_u32(0x7FFE0008) == (emu.tick * 10000) & 0xFFFFFFFF
+        start = emu.tick
+        emu.start()
+        assert emu.run(max_blocks=10000).reason is StopReason.RETURNED
+        assert emu.tick == start + 32
+        tick_count, interrupt_time, system_time, multiplier = struct.unpack("<4I", emu.read(cell, 16))
+        # what a program computes for GetTickCount, in 15.625 ms steps
+        assert 0 <= emu.tick - (tick_count * multiplier >> 24) < 16
+        assert interrupt_time == (emu.tick * 10000) & 0xFFFFFFFF
+        assert system_time == (0x01DB3A0000000000 + emu.tick * 10000) & 0xFFFFFFFF
+
 
 class TestImportWrappers(unittest.TestCase):
     def test_trace_to_api(self):

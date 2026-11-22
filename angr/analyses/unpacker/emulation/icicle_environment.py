@@ -629,6 +629,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
                 budget = min(budget, limit - vm.icount)
             # the time-stamp counter follows the clock the API handlers keep
             vm.clock = self.tick
+            self._sync_shared_time()
             kind, code, value = vm.run(budget)
             self.blocks = self.instructions = vm.icount
             if kind == winemu.EXIT_BREAKPOINT:
