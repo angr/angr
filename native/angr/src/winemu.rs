@@ -23,6 +23,7 @@ const PAGE: u64 = 0x1000;
 /// `Exception::value`s of `ExceptionCode::Environment` raised by the injected code.
 const ENV_TRAP_FLAG: u64 = 1;
 const ENV_PRIVILEGED: u64 = 2;
+const ENV_INVALID: u64 = 3;
 
 /// Exit kinds returned by `WinVm.run`.
 pub const EXIT_LIMIT: u8 = 0;
@@ -185,6 +186,12 @@ fn privileged_op(cpu: &mut Cpu, _: pcode::VarNode, _: [pcode::Value; 2]) {
     cpu.exception = Exception::new(ExceptionCode::Environment, ENV_PRIVILEGED);
 }
 
+fn invalid_op(cpu: &mut Cpu, _: pcode::VarNode, _: [pcode::Value; 2]) {
+    cpu.exception = Exception::new(ExceptionCode::Environment, ENV_INVALID);
+}
+
+fn no_op(_: &mut Cpu, _: pcode::VarNode, _: [pcode::Value; 2]) {}
+
 /// User ops implemented here, on top of Icicle's own tables.
 const HELPERS: &[(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)] = &[
     ("segment", segment),
@@ -199,6 +206,48 @@ const HELPERS: &[(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)] = &[
     ("TaskRegister", task_register),
     ("rdmsr", privileged_op),
     ("rdpmc", privileged_op),
+    ("wrmsr", privileged_op),
+    ("invlpg", privileged_op),
+    ("invpcid", privileged_op),
+    ("clts", privileged_op),
+    ("swapgs", privileged_op),
+    ("sysexit", privileged_op),
+    ("sysret", privileged_op),
+    ("monitor", privileged_op),
+    ("mwait", privileged_op),
+    ("xsaves", privileged_op),
+    ("xsaves64", privileged_op),
+    ("xrstors", privileged_op),
+    ("xrstors64", privileged_op),
+    // VMX outside VMX operation, SVM on an Intel processor, RTM where cpuid has none: undefined opcodes
+    ("vmcall", invalid_op),
+    ("vmlaunch", invalid_op),
+    ("vmresume", invalid_op),
+    ("vmxoff", invalid_op),
+    ("vmxon", invalid_op),
+    ("vmclear", invalid_op),
+    ("vmptrld", invalid_op),
+    ("vmptrst", invalid_op),
+    ("vmread", invalid_op),
+    ("vmwrite", invalid_op),
+    ("vmfunc", invalid_op),
+    ("invept", invalid_op),
+    ("invvpid", invalid_op),
+    ("vmmcall", invalid_op),
+    ("vmload", invalid_op),
+    ("vmrun", invalid_op),
+    ("vmsave", invalid_op),
+    ("clgi", invalid_op),
+    ("stgi", invalid_op),
+    ("skinit", invalid_op),
+    ("smm_restore_state", invalid_op),
+    ("xbegin", invalid_op),
+    ("xend", invalid_op),
+    ("xabort", invalid_op),
+    ("xtest", invalid_op),
+    // HLE prefixes are hints
+    ("XACQUIRE", no_op),
+    ("XRELEASE", no_op),
 ];
 
 fn helpers() -> impl Iterator<Item = &'static (&'static str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)> {
@@ -1324,6 +1373,9 @@ impl WinVm {
                     ExceptionCode::Environment if value == ENV_PRIVILEGED => {
                         return (EXIT_PRIVILEGED, 0, 0);
                     }
+                    ExceptionCode::Environment if value == ENV_INVALID => {
+                        return (EXIT_EXCEPTION, FAULT_INVALID, self.vm.cpu.read_pc());
+                    }
                     ExceptionCode::InvalidInstruction if self.lift_redundant_prefixes(value) => {
                         self.vm.cpu.write_pc(value);
                         continue;
@@ -1343,6 +1395,9 @@ impl WinVm {
             }
             icicle_vm::VmExit::UnhandledException((code, value)) => match code {
                 ExceptionCode::Environment if value == ENV_PRIVILEGED => (EXIT_PRIVILEGED, 0, 0),
+                ExceptionCode::Environment if value == ENV_INVALID => {
+                    (EXIT_EXCEPTION, FAULT_INVALID, self.vm.cpu.read_pc())
+                }
                 ExceptionCode::Environment if value == ENV_TRAP_FLAG => (EXIT_LIMIT, 0, 0),
                 code => fault(code, value),
             },

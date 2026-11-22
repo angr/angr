@@ -146,6 +146,24 @@ class TestWinVm(unittest.TestCase):
         _run(vm, bytes.fromhex("660f6fcb"))
         assert vm.reg_read_bytes("xmm1") == value
 
+    def test_privileged_and_absent_instructions(self):
+        # wrmsr, invlpg [eax], mwait: privileged; vmcall, vmxon [eax], vmmcall, xbegin, xtest: undefined opcodes
+        for code in ("0f30", "0f0138", "0f01c9"):
+            vm = _vm()
+            vm.reg_write("eax", 0x500100)
+            assert _run(vm, bytes.fromhex(code))[0] == winemu.EXIT_PRIVILEGED, code
+            assert vm.pc == CODE
+        for code in ("0f01c1", "f30fc730", "0f01d9", "c7f800000000", "0f01d6"):
+            vm = _vm()
+            vm.reg_write("eax", 0x500100)
+            assert _run(vm, bytes.fromhex(code))[:2] == (winemu.EXIT_EXCEPTION, winemu.FAULT_INVALID), code
+            assert vm.pc == CODE
+        # an HLE prefix is a hint: xacquire lock inc dword [eax]
+        vm = _vm()
+        vm.reg_write("eax", 0x500100)
+        assert _run(vm, bytes.fromhex("f2f0ff00"))[1] == winemu.FAULT_SYSCALL
+        assert vm.mem_read(0x500100, 4) == struct.pack("<I", 1)
+
     def test_time_stamp_counter(self):
         # rdtsc; mov ebx, eax; mov ecx, edx; rdtsc
         code = bytes.fromhex("0f31 89c3 89d1 0f31")
