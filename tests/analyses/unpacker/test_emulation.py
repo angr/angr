@@ -17,6 +17,7 @@ from angr.analyses.unpacker.emulation import StopReason
 from angr.analyses.unpacker.emulation.apis import API_HANDLERS
 from angr.analyses.unpacker.emulation.modules import FakeModule
 from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
+from angr.errors import SimSegfaultException
 
 from .pe_builder import IMAGE_BASE, IMAGE_BASE_64, build_pe
 
@@ -391,6 +392,15 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read(buf + 0x100, 2) == b"MZ"
         emu.write(buf, b"C:\\Windows\\System32\\drivers\\vmmouse.sys\0")
         assert call("CreateFileA", buf, 0x80000000, 1, 0, 3, 0x80, 0) == -1
+
+    def test_virtual_protect_into_unmapped_memory(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        perms = emu.perms(buf)
+        # the range runs past the allocation: nothing changes and the call fails
+        with self.assertRaises(SimSegfaultException):
+            API_HANDLERS["VirtualProtect"].func(emu, [buf, 0x100000, 0x40, buf + 0x10])
+        assert emu.perms(buf) == perms
 
 
 class TestThreads(unittest.TestCase):

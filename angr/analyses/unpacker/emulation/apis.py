@@ -8,6 +8,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from angr.errors import SimSegfaultException
+
 from .stops import StopReason
 from .threads import EventObject, Thread
 
@@ -164,6 +166,10 @@ def nt_allocate_virtual_memory(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 def _virtual_protect(emu: WindowsEmulator, addr: int, size: int, protect: int, old_ptr: int) -> None:
+    # a range that runs into unmapped memory fails as a whole
+    for page in range(addr & ~0xFFF, addr + max(size, 1), 0x1000):
+        if not emu.is_mapped(page):
+            raise SimSegfaultException(page, "unmapped")
     if old_ptr:
         old = emu.perms(addr & ~0xFFF)
         emu.write_u32(old_ptr, _PERMS_PAGE.get(old, 0x04))
