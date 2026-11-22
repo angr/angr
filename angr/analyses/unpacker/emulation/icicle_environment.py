@@ -189,6 +189,17 @@ _X87 = (
         "    ST0 = fprem1(ST0, ST1);\n",
     ),
 )
+# bsf / bsr of zero: ZF is set and the destination stays as it was, upper half of a 64-bit register included (AMD
+# documents this; Intel processors behave the same)
+_BIT_SCANS = (
+    ("    if ( ZF == 1 ) goto <done>;", "    if ( ZF == 1 ) goto <zero>;"),
+    ("    Reg16 = bitIndex;", "    Reg16 = bitIndex;\n<zero>"),
+    (
+        "    Reg32 = bitIndex;\n    build check_Reg32_dest;",
+        "    Reg32 = bitIndex;\n    build check_Reg32_dest;\n<zero>",
+    ),
+    ("    Reg64 = bitIndex;", "    Reg64 = bitIndex;\n<zero>"),
+)
 # regex substitutions inside every constructor of a mnemonic: these conversions round (MXCSR's default, to nearest
 # even) where the spec truncates
 _CONSTRUCTOR_PATCHES = tuple(
@@ -202,6 +213,7 @@ _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _SSE41),
     *(("ia.sinc", old, new) for old, new in _SSE42),
     *(("ia.sinc", old, new) for old, new in _X87),
+    *(("ia.sinc", old, new) for old, new in _BIT_SCANS),
     ("lockable.sinc", *_XCHG_M32),
 )
 

@@ -105,6 +105,10 @@ class TestOpVectors(unittest.TestCase):
         self._check(vectors.X87)
 
 
+    def test_bit_scans(self):
+        self._check(vectors.BITSCAN)
+
+
 
 class TestSse(unittest.TestCase):
     def test_conversion_out_of_range(self):
@@ -188,6 +192,23 @@ class TestProcessorState(unittest.TestCase):
         vm.run(20)
         assert vm.mem_read(DATA + Q_OFF, 8) == struct.pack("<d", 1.5)
 
+
+
+class TestBitScans(unittest.TestCase):
+    def test_zero_source_keeps_destination(self):
+        for jit in (False, True):
+            for code in ("0fbcc3", "0fbdc3", "660fbcc3", "660fbdc3", "480fbcc3", "480fbdc3"):
+                vm = _run(code, True, jit, rax=0x1122334455667788, rbx=0)
+                assert vm.reg_read("rax") == 0x1122334455667788, code
+                assert vm.reg_read("ZF") == 1
+            # a non-zero source: the index, zero-extended for the 32-bit form
+            vm = _run("0fbdc3", True, jit, rax=0x1122334455667788, rbx=0x100)
+            assert (vm.reg_read("rax"), vm.reg_read("ZF")) == (8, 0)
+            # tzcnt / lzcnt of zero are defined: the operand size, CF set
+            vm = _run("f30fbcc3", True, jit, rax=0x1122334455667788, rbx=0)
+            assert (vm.reg_read("rax"), vm.reg_read("CF")) == (32, 1)
+            vm = _run("f3480fbdc3", True, jit, rax=5, rbx=0)
+            assert (vm.reg_read("rax"), vm.reg_read("CF")) == (64, 1)
 
 
 
