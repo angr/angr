@@ -467,6 +467,8 @@ pub struct WinVm {
     runs: u64,
     #[pyo3(get)]
     fixups: u64,
+    code_pages: std::collections::HashSet<u64>,
+    scanned_blocks: usize,
 }
 
 fn reg_var(vm: &icicle_vm::Vm, name: &str) -> Option<pcode::VarNode> {
@@ -518,11 +520,19 @@ impl WinVm {
             .retain(|&vaddr, _| vaddr < addr || vaddr >= end);
     }
 
-    fn page_executed(&self, addr: u64) -> bool {
-        match self.vm.cpu.mem.get_physical_index(addr) {
-            Some(index) => self.vm.cpu.mem.get_physical(index).executed,
-            None => false,
+    /// Whether code was ever lifted from the page at addr. Icicle's per-page `executed` mark is lost when a page
+    /// is copied on write after a snapshot, so the lifted blocks themselves are the record.
+    fn page_executed(&mut self, addr: u64) -> bool {
+        let blocks = &self.vm.code.blocks;
+        for block in &blocks[self.scanned_blocks.min(blocks.len())..] {
+            let mut page = block.start & !(PAGE - 1);
+            while page < block.end.max(block.start + 1) {
+                self.code_pages.insert(page);
+                page += PAGE;
+            }
         }
+        self.scanned_blocks = blocks.len();
+        self.code_pages.contains(&(addr & !(PAGE - 1)))
     }
 
     /// Drop the code of the pages in [addr, addr + size) that ran, and clear their code-cache marks.
@@ -777,6 +787,8 @@ impl WinVm {
             smc_count: 0,
             runs: 0,
             fixups: 0,
+            code_pages: std::collections::HashSet::new(),
+            scanned_blocks: 0,
         })
     }
 
@@ -871,6 +883,14 @@ impl WinVm {
             perm: perms_to_icicle(perms),
             value: 0,
         };
+        // lifted code from whatever was mapped here before is stale
+        let mut page = addr & !(PAGE - 1);
+        while page < addr.saturating_add(size) {
+            if self.page_executed(page) {
+                self.invalidate_code(page, PAGE, false);
+            }
+            page += PAGE;
+        }
         if !self.vm.cpu.mem.map_memory_len(addr, size, mapping) {
             return Err(PyRuntimeError::new_err(format!(
                 "Failed to map {size:#x} bytes at {addr:#x}"
