@@ -617,6 +617,25 @@ class TestApiHandlers(unittest.TestCase):
             assert query(0x1F, buf, 4, 0) == 0 and emu.read_u32(buf) == 1
             assert query(0x55, buf, 4, 0) == 0xC0000003
 
+    def test_debug_object_count(self):
+        # NtCreateDebugObject, then NtQueryObject(ObjectTypeInformation): the program's object is the only one
+        for is_64bit in (False, True):
+            emu = emulator(b"\xc3", is_64bit)
+            buf = emu.alloc(0x1000)
+            call = lambda name, *args, emu=emu: API_HANDLERS[name].func(emu, list(args))
+            assert call("NtCreateDebugObject", buf, 0x1F000F, 0, 0) == 0
+            handle = emu.read_ptr(buf)
+            assert call("NtQueryObject", handle, 2, 0, 0, buf + 0x10) == 0xC0000004
+            size = emu.read_u32(buf + 0x10)
+            assert call("NtQueryObject", handle, 2, buf + 0x100, size, 0) == 0
+            length, _ = struct.unpack("<HH", emu.read(buf + 0x100, 4))
+            name = emu.read(emu.read_ptr(buf + 0x100 + emu.ptr_size), length).decode("utf-16-le")
+            assert name == "DebugObject"
+            assert struct.unpack("<II", emu.read(buf + 0x100 + 2 * emu.ptr_size, 8)) == (1, 1)
+            assert call("NtQueryObject", handle, 2, buf + 0x101, size, 0) == 0x80000002
+            assert call("NtClose", handle) == 0
+            assert call("NtQueryObject", handle, 2, buf + 0x100, size, 0) == 0xC0000008
+
 
 class TestThreads(unittest.TestCase):
     def test_sleep_poll_next_to_a_long_sleeper(self):

@@ -1007,6 +1007,72 @@ def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
     return status
 
 
+class DebugObject:
+    """
+    A debug object the program created itself (to count the debug objects of the system through NtQueryObject).
+    """
+
+
+@api("NtCreateDebugObject", "ZwCreateDebugObject", nargs=4)
+def nt_create_debug_object(emu: WindowsEmulator, args: list[int]) -> int:
+    status = _probe_for_write(emu, args[0], emu.ptr_size, 4)
+    if status is not None:
+        return status
+    emu.write_ptr(args[0], emu.new_handle(DebugObject()))
+    return STATUS_SUCCESS
+
+
+def _object_type_name(obj: object) -> str:
+    if isinstance(obj, DebugObject):
+        return "DebugObject"
+    if isinstance(obj, Thread):
+        return "Thread"
+    if isinstance(obj, EventObject):
+        return "Event"
+    if isinstance(obj, FileObject):
+        return "File"
+    if isinstance(obj, MappingObject):
+        return "Section"
+    return "Event"
+
+
+@api("NtQueryObject", "ZwQueryObject", nargs=5)
+def nt_query_object(emu: WindowsEmulator, args: list[int]) -> int:
+    handle, info_class, buf, length, return_length = args
+    status = _probe_for_write(emu, buf, length, 4)
+    if status is None and return_length:
+        status = _probe_for_write(emu, return_length, 4, 1)
+    if status is not None:
+        return status
+    obj = emu.handles.get(handle)
+    if obj is None:
+        return STATUS_INVALID_HANDLE
+    ptr = emu.ptr_size
+    if info_class == 0:  # ObjectBasicInformation: attributes, access, one handle, two references
+        data = struct.pack("<IIII", 0, 0x1F0003, 1, 2).ljust(0x38, b"\0")
+        if length != len(data):
+            return STATUS_INFO_LENGTH_MISMATCH
+    elif info_class == 2:  # ObjectTypeInformation: the type's name, then how many objects and handles of it exist
+        name = _object_type_name(obj).encode("utf-16-le")
+        header = 0x68 if emu.is_64bit else 0x60
+        text = buf + header
+        string = struct.pack("<HH", len(name), len(name) + 2).ljust(ptr, b"\0") + text.to_bytes(ptr, "little")
+        # the program's own object is the only one: a debugger would hold another debug object
+        counts = struct.pack("<II", 1, 1) + bytes(16) + struct.pack("<II", 1, 1)
+        data = (string + counts).ljust(header, b"\0") + name + b"\0\0"
+        data = data.ljust((len(data) + ptr - 1) & ~(ptr - 1), b"\0")
+        if return_length:
+            emu.write_u32(return_length, len(data))
+        if length < len(data):
+            return STATUS_INFO_LENGTH_MISMATCH
+    else:
+        return STATUS_INVALID_INFO_CLASS
+    emu.write(buf, data)
+    if return_length:
+        emu.write_u32(return_length, len(data))
+    return STATUS_SUCCESS
+
+
 @api("GetTickCount", nargs=0)
 def get_tick_count(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
     emu.tick += 16
