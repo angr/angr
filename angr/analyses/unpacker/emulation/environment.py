@@ -38,6 +38,7 @@ from .apis import (
     STATUS_NO_MEMORY,
     STATUS_NOT_IMPLEMENTED,
     ApiHandler,
+    MappingObject,
 )
 from .com import ComRuntime
 from .exceptions import (
@@ -306,6 +307,7 @@ class WindowsEmulator:
         # files and directories the program created, by lower-case full path: (path, contents) and path
         self.files: dict[str, tuple[str, bytearray]] = {}
         self.directories: dict[str, str] = {}
+        self.named_mappings: dict[str, MappingObject] = {}
         self.handles: dict[int, object] = {}
         self.threads: list[Thread] = []
         self.current_thread = 0

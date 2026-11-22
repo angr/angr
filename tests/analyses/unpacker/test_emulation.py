@@ -397,6 +397,20 @@ class TestApiHandlers(unittest.TestCase):
         emu._dispatch_api(emu.resolve_export(emu.load_module("kernel32.dll"), "HeapAlloc"))  # pylint:disable=protected-access
         assert emu.reg("eax") == 0
 
+    def test_pagefile_mapping(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        emu.write(buf, b"Local\\demo\0")
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        first = call("CreateFileMappingA", 0xFFFFFFFF, 0, 4, 0, 0x2000, buf)
+        assert first
+        view = call("MapViewOfFile", first, 6, 0, 0, 0)
+        emu.write(view, b"shared")
+        # opening it again by name finds the same memory and says it already existed
+        second = call("CreateFileMappingA", 0xFFFFFFFF, 0, 4, 0, 0x2000, buf)
+        assert call("GetLastError") == 183
+        assert emu.read(call("MapViewOfFile", second, 6, 0, 0, 0), 6) == b"shared"
+
     def test_system_files(self):
         emu = emulator(b"\xc3")
         buf = emu.alloc(0x1000)

@@ -98,11 +98,13 @@ class FileObject:
 
 class MappingObject:
     """
-    A file-mapping handle.
+    A file-mapping handle. A mapping backed by the paging file has one view, which every MapViewOfFile returns.
     """
 
-    def __init__(self, data: bytes):
+    def __init__(self, data: bytes, pagefile: bool = False):
         self.data = data
+        self.pagefile = pagefile
+        self.view = 0
 
 
 class FindObject:
@@ -1722,12 +1724,38 @@ def read_file(emu: WindowsEmulator, args: list[int]) -> int:
     return 1
 
 
-@api("CreateFileMappingA", "CreateFileMappingW", nargs=6)
-def create_file_mapping(emu: WindowsEmulator, args: list[int]) -> int:
+_MAX_PAGEFILE_MAPPING = 1 << 28
+
+
+def _create_file_mapping(emu: WindowsEmulator, args: list[int], name: str) -> int:
     obj = emu.handles.get(args[0])
-    if not isinstance(obj, FileObject):
+    if isinstance(obj, FileObject):
+        return emu.new_handle(MappingObject(bytes(obj.data)))
+    if args[0] & 0xFFFFFFFF != 0xFFFFFFFF:
         return 0
-    return emu.new_handle(MappingObject(bytes(obj.data)))
+    # shared memory backed by the paging file, often named so a second instance can find it
+    existing = emu.named_mappings.get(name) if name else None
+    if existing is not None:
+        _set_last_error(emu, ERROR_ALREADY_EXISTS)
+        return emu.new_handle(existing)
+    size = (args[3] << 32) | args[4]
+    if not 0 < size <= _MAX_PAGEFILE_MAPPING:
+        return 0
+    mapping = MappingObject(bytes(size), pagefile=True)
+    if name:
+        emu.named_mappings[name] = mapping
+    _set_last_error(emu, 0)
+    return emu.new_handle(mapping)
+
+
+@api("CreateFileMappingA", nargs=6)
+def create_file_mapping_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _create_file_mapping(emu, args, emu.read_cstr(args[5]) if args[5] else "")
+
+
+@api("CreateFileMappingW", nargs=6)
+def create_file_mapping_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _create_file_mapping(emu, args, emu.read_wstr(args[5]) if args[5] else "")
 
 
 @api("MapViewOfFile", nargs=5)
@@ -1735,6 +1763,10 @@ def map_view_of_file(emu: WindowsEmulator, args: list[int]) -> int:
     obj = emu.handles.get(args[0])
     if not isinstance(obj, MappingObject):
         return 0
+    if obj.pagefile:
+        if not obj.view:
+            obj.view = emu.alloc(len(obj.data))
+        return obj.view
     offset = (args[2] << 32) | args[3]
     data = obj.data[offset : offset + args[4]] if args[4] else obj.data[offset:]
     addr = emu.alloc(max(len(data), 1))
