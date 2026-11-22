@@ -156,6 +156,11 @@ _SSE41 = (
         "",
     ),
 )
+# pcmpestri / pcmpestrm: tell the helper whether the lengths are 64 bits wide (REX.W)
+_SSE42 = (
+    (", EAX, EDX);", ", EAX, EDX, 0:1);"),
+    (", RAX, RDX);", ", RAX, RDX, 1:1);"),
+)
 # regex substitutions inside every constructor of a mnemonic: these conversions round (MXCSR's default, to nearest
 # even) where the spec truncates
 _CONSTRUCTOR_PATCHES = tuple(
@@ -167,6 +172,7 @@ _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _DESCRIPTORS),
     *(("ia.sinc", old, new) for old, new in _SSE2),
     *(("ia.sinc", old, new) for old, new in _SSE41),
+    *(("ia.sinc", old, new) for old, new in _SSE42),
     ("lockable.sinc", *_XCHG_M32),
 )
 

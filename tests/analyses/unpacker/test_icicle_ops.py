@@ -75,6 +75,8 @@ class TestOpVectors(unittest.TestCase):
     def test_sse41(self):
         self._check(vectors.SSE41)
 
+    def test_sse42(self):
+        self._check(vectors.SSE42)
 
 
 
@@ -102,6 +104,16 @@ class TestSse(unittest.TestCase):
             vm.run(10)
             assert vm.reg_read("eax") == expected
 
+    def test_string_compare_flags_in_jit(self):
+        # sub eax, eax sets flags the JIT keeps in registers; pcmpistri's helper must still win
+        vm = _vm(False, True)
+        vm.reg_write_bytes("xmm0", b"ab".ljust(16, b"\0"))
+        vm.reg_write_bytes("xmm1", b"xxbxxxxxxxxxxxxx")
+        vm.mem_write(CODE, bytes.fromhex("29c0 660f3a63c100 cc"))
+        vm.pc = CODE
+        vm.run(10)
+        # equal any: index 2; CF (match), SF (xmm0 ends early), not ZF
+        assert (vm.reg_read("ecx"), vm.reg_read("eflags") & 0x8C1) == (2, 0x81)
 
 
 
