@@ -148,6 +148,14 @@ _SSE2 = (
     ("    local count:4 = XmmReg2[0,32];", "    local count:8 = XmmReg2[0,64];"),
     ("    local count:4 = m[0,32];", "    local count:8 = m[0,64];"),
 )
+# extractps stores 32 bits whatever the mode (a register destination is zero-extended by the 32-bit form)
+_SSE41 = (
+    (
+        ":EXTRACTPS rm64, XmmReg, imm8  is $(LONGMODE_ON) & vexMode=0 & bit64=1 & $(PRE_66) & byte=0x0F; byte=0x3A;"
+        " byte=0x17; XmmReg ... & rm64; imm8 { rm64 = extractps(XmmReg, imm8:8); }",
+        "",
+    ),
+)
 # regex substitutions inside every constructor of a mnemonic: these conversions round (MXCSR's default, to nearest
 # even) where the spec truncates
 _CONSTRUCTOR_PATCHES = tuple(
@@ -158,6 +166,7 @@ _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _STACK16),
     *(("ia.sinc", old, new) for old, new in _DESCRIPTORS),
     *(("ia.sinc", old, new) for old, new in _SSE2),
+    *(("ia.sinc", old, new) for old, new in _SSE41),
     ("lockable.sinc", *_XCHG_M32),
 )
 

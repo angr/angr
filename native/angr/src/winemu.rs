@@ -211,6 +211,7 @@ fn helpers() -> impl Iterator<Item = &'static (&'static str, icicle_vm::cpu::exe
         .iter()
         .chain(ops::sse2::HELPERS)
         .chain(ops::ssse3::HELPERS)
+        .chain(ops::sse41::HELPERS)
 }
 
 struct FlagsHandler {

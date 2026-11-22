@@ -72,6 +72,8 @@ class TestOpVectors(unittest.TestCase):
     def test_ssse3(self):
         self._check(vectors.SSSE3)
 
+    def test_sse41(self):
+        self._check(vectors.SSE41)
 
 
 

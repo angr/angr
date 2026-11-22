@@ -9,6 +9,7 @@ use pcode::{Value, VarNode};
 use super::write_trunc;
 
 pub mod sse2;
+pub mod sse41;
 pub mod ssse3;
 
 pub(super) type Args = [Value; 2];
