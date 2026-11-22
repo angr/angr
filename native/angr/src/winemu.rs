@@ -140,6 +140,7 @@ struct WinPatcher {
     cpuid_hook: pcode::HookId,
     tf_hook: pcode::HookId,
     div_hook: pcode::HookId,
+    precise_faults: bool,
     tf: pcode::VarNode,
     af: pcode::VarNode,
     of: pcode::VarNode,
@@ -297,6 +298,85 @@ impl WinPatcher {
         inst.instructions.extend(tail);
     }
 
+    /// Icicle faults on a memory access after the instruction may already have updated registers (push moves
+    /// esp, stosd advances edi), which a fault handler would see. Keep register results in temporaries until the
+    /// instruction's last memory access has succeeded.
+    fn defer_register_writes(&self, inst: &mut pcode::Block) {
+        let ops = &inst.instructions;
+        let is_mem = |op: pcode::Op| matches!(op, pcode::Op::Load(_) | pcode::Op::Store(_));
+        let Some(last_mem) = ops.iter().rposition(|stmt| is_mem(stmt.op)) else {
+            return;
+        };
+        let is_reg = |var: pcode::VarNode| var.id > 0 && !var.is_invalid();
+        let Some(first) = ops[..last_mem].iter().position(|stmt| {
+            is_reg(stmt.output) && !matches!(stmt.op, pcode::Op::InstructionMarker)
+        }) else {
+            return;
+        };
+        // straight-line code only, and each deferred register only ever accessed whole
+        let mut written: Vec<pcode::VarNode> = Vec::new();
+        for stmt in &ops[first..=last_mem] {
+            if matches!(
+                stmt.op,
+                pcode::Op::Branch(_)
+                    | pcode::Op::PcodeBranch(_)
+                    | pcode::Op::PcodeLabel(_)
+                    | pcode::Op::Hook(_)
+                    | pcode::Op::HookIf(_)
+                    | pcode::Op::PcodeOp(_)
+                    | pcode::Op::Exception
+            ) {
+                return;
+            }
+            if is_reg(stmt.output) && !is_mem(stmt.op) && !written.contains(&stmt.output) {
+                written.push(stmt.output);
+            }
+        }
+        for stmt in &ops[first..=last_mem] {
+            let [a, b] = stmt.inputs.get();
+            for var in [a, b]
+                .into_iter()
+                .filter_map(|v| match v {
+                    pcode::Value::Var(var) => Some(var),
+                    pcode::Value::Const(..) => None,
+                })
+                .chain(std::iter::once(stmt.output))
+            {
+                if written.iter().any(|w| w.id == var.id && *w != var) {
+                    return;
+                }
+            }
+        }
+        inst.recompute_next_tmp();
+        let temps: Vec<pcode::VarNode> = written.iter().map(|w| inst.alloc_tmp(w.size)).collect();
+        let mut live = vec![false; written.len()];
+        for stmt in &mut inst.instructions[first..=last_mem] {
+            let [a, b] = stmt.inputs.get();
+            let remap = |v: pcode::Value, live: &[bool]| match v {
+                pcode::Value::Var(var) => match written.iter().position(|w| *w == var) {
+                    Some(i) if live[i] => pcode::Value::Var(temps[i]),
+                    _ => v,
+                },
+                c => c,
+            };
+            stmt.inputs = pcode::Inputs::new(remap(a, &live), remap(b, &live));
+            if !is_mem(stmt.op) {
+                if let Some(i) = written.iter().position(|w| *w == stmt.output) {
+                    stmt.output = temps[i];
+                    live[i] = true;
+                }
+            }
+        }
+        let copies: Vec<pcode::Instruction> = written
+            .iter()
+            .zip(&temps)
+            .map(|(w, t)| (*w, pcode::Op::Copy, pcode::Value::Var(*t)).into())
+            .collect();
+        let tail: Vec<pcode::Instruction> = inst.instructions.drain(last_mem + 1..).collect();
+        inst.instructions.extend(copies);
+        inst.instructions.extend(tail);
+    }
+
     fn patch(&self, inst: &mut pcode::Block) {
         self.add_aux_carry(inst);
         self.add_divide_overflow(inst);
@@ -308,6 +388,9 @@ impl WinPatcher {
         }
         let [addr, len] = marker.inputs.get();
         let (addr, len) = (addr.as_u64(), len.as_u64());
+        if self.precise_faults {
+            self.defer_register_writes(inst);
+        }
         match self.classify(inst, addr) {
             None => {}
             Some(Patch::TrapFlag) => {
@@ -655,6 +738,7 @@ impl WinVm {
             cpuid_hook,
             tf_hook,
             div_hook,
+            precise_faults: std::env::var_os("ANGR_WINEMU_IMPRECISE").is_none(),
             tf,
             af: get(&vm, "AF")?,
             of: get(&vm, "OF")?,

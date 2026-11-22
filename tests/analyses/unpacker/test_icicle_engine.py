@@ -80,6 +80,19 @@ class TestWinVm(unittest.TestCase):
         _run(vm, bytes.fromhex("66d3ef 9c"))
         assert struct.unpack("<Q", vm.mem_read(vm.reg_read("rsp"), 8))[0] & 0x10
 
+    def test_precise_faults(self):
+        # a fault leaves the registers as they were before the instruction
+        for code in ("ab", "50", "a5", "f3ab", "60", "8f00", "e800000000"):
+            vm = _vm()
+            regs = {"eax": 0x600000, "ecx": 2, "edi": 0x600000, "esi": 0x500100, "esp": 0x600010}
+            if code == "8f00":
+                regs["esp"] = 0x500100
+            for name, value in regs.items():
+                vm.reg_write(name, value)
+            assert _run(vm, bytes.fromhex(code))[:2] == (winemu.EXIT_EXCEPTION, winemu.FAULT_WRITE), code
+            assert vm.pc == CODE
+            assert {name: vm.reg_read(name) for name in regs} == regs, code
+
     def test_divide_overflow(self):
         vm = _vm()
         vm.reg_write("eax", 0x80000000)
