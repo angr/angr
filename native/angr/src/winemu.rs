@@ -506,6 +506,11 @@ impl WinVm {
         let mut config = icicle_vm::cpu::Config::from_target_triple(triple);
         config.enable_shadow_stack = false;
         config.enable_jit = enable_jit;
+        // the lifter's optimizers cost more than they save on code that runs a few times (4x on Themida);
+        // ANGR_WINEMU_LIFT_OPT=1 turns them back on
+        let optimize = std::env::var_os("ANGR_WINEMU_LIFT_OPT").is_some();
+        config.optimize_block = optimize;
+        config.optimize_instructions = optimize;
         let mut vm = icicle_vm::build_with_path(&config, &PathBuf::from(processors_path))
             .map_err(|e| PyRuntimeError::new_err(format!("Failed to build VM: {e}")))?;
 
