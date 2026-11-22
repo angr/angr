@@ -12,7 +12,7 @@ import struct
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import angr_data
 import cle
@@ -83,6 +83,19 @@ _KUSER_SHARED_DATA = 0x7FFE0000
 # KUSER_SHARED_DATA.TickCountMultiplier of a 15.625 ms clock: milliseconds = TickCount * multiplier >> 24
 _TICK_MULTIPLIER = 0x0FA00000
 SYSTEM_TIME_BASE = 0x01DB3A0000000000
+
+
+class UnlistedExport(NamedTuple):
+    """
+    An export that was asked of a DLL whose export list does not have it: a gap in the list, or a name that Windows
+    does not export either (a probe).
+    """
+
+    dll: str
+    #: The export's name, or "#<ordinal>"
+    name: str
+    #: Asked for by the image's import directory (it got a slot anyway) rather than looked up at run time (not found)
+    static: bool
 
 
 class AddressSpace:
@@ -230,6 +243,7 @@ class WindowsEmulator:
         self.api_counts: collections.Counter[str] = collections.Counter()
         self.api_trace: collections.deque[tuple[str, int, tuple[int, ...]]] = collections.deque(maxlen=4096)
         self.unhandled_apis: collections.Counter[str] = collections.Counter()
+        self.unlisted_exports: list[UnlistedExport] = []
         self.messages: list[str] = []
         self.allocations: dict[int, int] = {}
         self.file_views: set[int] = set()
@@ -852,7 +866,12 @@ class WindowsEmulator:
                 handler = API_HANDLERS.get(export)
                 nargs = handler.nargs if handler is not None else known_nargs.get(export)
                 stack_bytes[export] = 4 * (nargs or 0)
-        module = FakeModule(name, base, sorted(exports), self.is_64bit, ordinals, syscalls, stack_bytes)
+        listed = bool(known_exports)
+        module = FakeModule(name, base, sorted(exports), self.is_64bit, ordinals, syscalls, stack_bytes, listed)
+        if listed:
+            # Windows would not have loaded the image; a gap in the list is the likelier reason, so they get slots
+            for export in sorted(self._static_imports.get(name, set()) - known_exports.keys()):
+                self._note_unlisted(module, export, True)
         self.map(base, module.size, 5)
         self.write(base, module.image)
         self.modules[name] = module
@@ -883,16 +902,38 @@ class WindowsEmulator:
                 return module
         return None
 
-    def resolve_export(self, module: FakeModule, name: str) -> int | None:
-        addr = module.resolve(name)
-        if addr is not None and addr not in self.api_slots:
-            self.api_slots[addr] = (module, name)
-            self._stop_points.add(addr)
-        return addr
+    def _note_unlisted(self, module: FakeModule, name: str, static: bool) -> None:
+        entry = UnlistedExport(module.name, name, static)
+        if entry not in self.unlisted_exports:
+            self.unlisted_exports.append(entry)
+            _l.warning(
+                "%s!%s is not in the DLL's export list (%s)",
+                module.name,
+                name,
+                "imported statically: given a slot" if static else "looked up at run time: not found",
+            )
 
-    def resolve_ordinal(self, module: FakeModule, ordinal: int) -> int | None:
-        addr = module.resolve_ordinal(ordinal)
-        if addr is not None and addr not in self.api_slots:
+    def resolve_export(self, module: FakeModule, name: str, required: bool = False) -> int | None:
+        """
+        The trap address of an export. A DLL that has an export list only has the names in the list; a DLL without
+        one has every name it is asked for.
+
+        :param required:    The process cannot run without it (a static import): it gets a slot in any case.
+        """
+        addr = module.resolve(name, create=required or not module.listed)
+        return self._resolved(module, name, addr)
+
+    def resolve_ordinal(self, module: FakeModule, ordinal: int, required: bool = False) -> int | None:
+        addr = module.resolve_ordinal(ordinal, create=required or not module.listed)
+        return self._resolved(module, f"#{ordinal}", addr)
+
+    def _resolved(self, module: FakeModule, name: str, addr: int | None) -> int | None:
+        if addr is None:
+            self._note_unlisted(module, name, False)
+        elif addr not in self.api_slots:
+            # a spare slot
+            if module.listed:
+                self._note_unlisted(module, name, True)
             self.api_slots[addr] = (module, module.slot_names[addr])
             self._stop_points.add(addr)
         return addr
@@ -903,9 +944,9 @@ class WindowsEmulator:
             module = self.load_module(entry.dll.decode("latin-1"))
             for imp in entry.imports:
                 if imp.name is not None:
-                    addr = self.resolve_export(module, imp.name.decode("latin-1"))
+                    addr = self.resolve_export(module, imp.name.decode("latin-1"), required=True)
                 else:
-                    addr = self.resolve_ordinal(module, imp.ordinal)
+                    addr = self.resolve_ordinal(module, imp.ordinal, required=True)
                 if addr is not None:
                     self.write_ptr(imp.address + delta, addr)
 
@@ -1026,13 +1067,13 @@ class WindowsEmulator:
                 return
             # kernel32!BaseThreadInitThunk calls the entry point; protectors find kernel32 by scanning down from
             # the return address for an MZ header
-            thunk = self.resolve_export(self.load_module("kernel32.dll"), "BaseThreadInitThunk")
+            thunk = self.resolve_export(self.load_module("kernel32.dll"), "BaseThreadInitThunk", required=True)
             assert thunk is not None
             top = self.sp
             if not self.is_64bit:
                 # the stack of a Windows 7 main thread: __RtlUserThreadStart's arguments (entry, PEB) at the top, then
                 # BaseThreadInitThunk's frame, which ebp points at; packers read both
-                start = self.resolve_export(self.load_module("ntdll.dll"), "RtlUserThreadStart")
+                start = self.resolve_export(self.load_module("ntdll.dll"), "RtlUserThreadStart", required=True)
                 assert start is not None
                 self.write(top - 0xC, struct.pack("<III", entry, self.peb, 0))
                 frame = top - 0x6C

@@ -837,11 +837,15 @@ class TestFakeModule(unittest.TestCase):
             assert stem == stem.lower() and not stem.endswith(extensions), file_name
             assert not stem.startswith(("api-ms-", "ext-ms-")), file_name
 
-    def test_static_imports_are_exported(self):
-        # a third-party DLL without an export list still exports what the image's import directory names
+    @staticmethod
+    def _importing_emulator(lists: dict[str, dict[str, int | None]]):
+        """
+        An emulator for an image that imports ThirdParty@@ and ordinal 7 from thirdparty.dll, with the given export
+        lists installed.
+        """
         idata = bytearray(0x200)
         struct.pack_into("<5I", idata, 0, 0x2080, 0, 0, 0x2100, 0x2080)  # descriptor: ILT = IAT, DLL name
-        struct.pack_into("<I", idata, 0x80, 0x20C0)  # ILT entry -> hint/name
+        struct.pack_into("<II", idata, 0x80, 0x20C0, 0x80000007)  # ILT: hint/name, ordinal 7
         idata[0xC2:0xCF] = b"ThirdParty@@\0"
         idata[0x100:0x10F] = b"thirdparty.dll\0"
         sections = [
@@ -853,10 +857,66 @@ class TestFakeModule(unittest.TestCase):
             path = os.path.join(tmpdir, "sample.exe")
             with open(path, "wb") as f:
                 f.write(packed)
-            emu = GenericUnpackerCore(path, watch_sections=set()).emu
+            for stem, names in lists.items():
+                with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
+                    json.dump(names, f)
+            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
+                emu = GenericUnpackerCore(path, watch_sections=set()).emu
+                for stem in lists:
+                    emu.load_module(stem + ".dll")
+        return emu
+
+    def test_static_imports_are_exported(self):
+        # a third-party DLL without an export list still exports what the image's import directory names
+        emu = self._importing_emulator({})
         module = emu.load_module("thirdparty.dll")
         names = {sym.name for sym in pefile.PE(data=module.image).DIRECTORY_ENTRY_EXPORT.symbols}
         assert b"ThirdParty@@" in names
+        assert emu.read_ptr(IMAGE_BASE + 0x2080) == module.exports["ThirdParty@@"]
+        assert not emu.unlisted_exports
+
+    def test_static_imports_missing_from_an_export_list(self):
+        # the list has a gap: the import still gets a slot, and the gap is recorded
+        emu = self._importing_emulator({"thirdparty": {"Listed": 1}})
+        module = emu.modules["thirdparty.dll"]
+        assert emu.read_ptr(IMAGE_BASE + 0x2080) == module.exports["ThirdParty@@"]
+        assert emu.api_slots[emu.read_ptr(IMAGE_BASE + 0x2084)] == (module, "ordinal_7")
+        assert emu.unlisted_exports == [("thirdparty.dll", "ThirdParty@@", True), ("thirdparty.dll", "#7", True)]
+
+    def test_lookups_of_unlisted_exports_fail(self):
+        lists = {"kernel32": {"Sleep": 1, "GetProcAddress": 2}, "ntdll": {"NtClose": 1}}
+        for is_listed in (True, False):
+            emu = self._importing_emulator(lists if is_listed else {})
+            call = lambda name, *args, emu=emu: API_HANDLERS[name].func(emu, list(args))
+            kernel32, third = emu.load_module("kernel32.dll"), emu.load_module("thirdparty.dll")
+            buf = emu.alloc(0x1000)
+            name = emu.alloc_cstr("wine_get_version")
+            emu.write(buf, struct.pack("<HHI", 16, 17, name))
+            assert call("GetProcAddress", kernel32.base, emu.alloc_cstr("Sleep")) == kernel32.exports["Sleep"]
+            assert call("SetLastError", 0) is not None
+            found = call("GetProcAddress", kernel32.base, name)
+            by_ordinal = call("GetProcAddress", kernel32.base, 0x4321)
+            native = call("LdrGetProcedureAddress", kernel32.base, buf, 0, buf + 0x10)
+            native_ordinal = call("LdrGetProcedureAddress", kernel32.base, 0, 0x4322, buf + 0x14)
+            if is_listed:
+                # a DLL with an export list does not have other names or ordinals
+                assert (found, by_ordinal) == (0, 0)
+                assert call("GetLastError") == 127  # ERROR_PROC_NOT_FOUND
+                assert (native, native_ordinal) == (0xC0000139, 0xC0000138)
+                assert struct.unpack("<II", emu.read(buf + 0x10, 8)) == (0, 0)
+                assert emu.unlisted_exports == [
+                    ("kernel32.dll", "wine_get_version", False),
+                    ("kernel32.dll", "#17185", False),
+                    ("kernel32.dll", "#17186", False),
+                ]
+                assert "wine_get_version" not in kernel32.exports
+            else:
+                # no export data: every name exists, as before
+                assert found == kernel32.exports["wine_get_version"] == emu.read_ptr(buf + 0x10)
+                assert by_ordinal and (native, native_ordinal) == (0, 0)
+            # a DLL without a list has whatever it is asked for
+            assert call("GetProcAddress", third.base, name) == third.exports["wine_get_version"]
+            assert all(entry.dll == "kernel32.dll" for entry in emu.unlisted_exports)
 
 
 class TestExceptions(unittest.TestCase):

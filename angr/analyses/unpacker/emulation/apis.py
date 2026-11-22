@@ -31,6 +31,7 @@ STATUS_NOT_IMPLEMENTED = 0xC0000002
 STATUS_PORT_NOT_SET = 0xC0000353
 STATUS_INVALID_INFO_CLASS = 0xC0000003
 STATUS_DLL_NOT_FOUND = 0xC0000135
+STATUS_ORDINAL_NOT_FOUND = 0xC0000138
 STATUS_ENTRYPOINT_NOT_FOUND = 0xC0000139
 
 _PAGE_PERMS = {0x01: 0, 0x02: 1, 0x04: 3, 0x08: 3, 0x10: 5, 0x20: 5, 0x40: 7, 0x80: 7}
@@ -433,8 +434,12 @@ def _get_proc_address(emu: WindowsEmulator, base: int, name: str | None, ordinal
 @api("GetProcAddress", nargs=2)
 def get_proc_address(emu: WindowsEmulator, args: list[int]) -> int:
     if args[1] < 0x10000:
-        return _get_proc_address(emu, args[0], None, args[1])
-    return _get_proc_address(emu, args[0], emu.read_cstr(args[1]), 0)
+        addr = _get_proc_address(emu, args[0], None, args[1])
+    else:
+        addr = _get_proc_address(emu, args[0], emu.read_cstr(args[1]), 0)
+    if not addr:
+        _set_last_error(emu, ERROR_PROC_NOT_FOUND)
+    return addr
 
 
 @api("LdrGetProcedureAddress", nargs=4)
@@ -442,7 +447,9 @@ def ldr_get_procedure_address(emu: WindowsEmulator, args: list[int]) -> int:
     name = _read_counted_string(emu, args[1], False) if args[1] else None
     addr = _get_proc_address(emu, args[0], name, args[2])
     emu.write_ptr(args[3], addr)
-    return STATUS_SUCCESS if addr else STATUS_ENTRYPOINT_NOT_FOUND
+    if addr:
+        return STATUS_SUCCESS
+    return STATUS_ENTRYPOINT_NOT_FOUND if name is not None else STATUS_ORDINAL_NOT_FOUND
 
 
 def _write_text(emu: WindowsEmulator, buf: int, capacity: int, text: str, wide: bool) -> int:
@@ -1150,6 +1157,7 @@ ERROR_ACCESS_DENIED = 5
 ERROR_INVALID_HANDLE = 6
 ERROR_FILE_EXISTS = 80
 ERROR_INVALID_NAME = 123
+ERROR_PROC_NOT_FOUND = 127
 ERROR_ALREADY_EXISTS = 183
 
 

@@ -14,7 +14,7 @@ import pefile
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.project import Project
 
-from .emulation import EmulationStop, SimWindowsEmulated, StopReason, WindowsEmulator
+from .emulation import EmulationStop, SimWindowsEmulated, StopReason, UnlistedExport, WindowsEmulator
 from .packer_identifier import call_target_score, entropy, section_name
 from .pe_rebuilder import RecoveredImport, rebuild_pe
 
@@ -313,6 +313,8 @@ class EmulatingUnpacker(Analysis):
         self.oep: int | None = None
         self.unpacked: bytes | None = None
         self.core: GenericUnpackerCore | None = None
+        #: Exports the program asked for that the export lists of the DLLs do not have
+        self.unlisted_exports: list[UnlistedExport] = []
         self._emulate(self._sections_to_watch(), timeout, settle_timeout)
 
     def _sections_to_watch(self) -> set[int] | None:
@@ -327,6 +329,7 @@ class EmulatingUnpacker(Analysis):
         self.core = core
         self.layers = core.layers
         self.stop = core.stop
+        self.unlisted_exports = core.emu.unlisted_exports
         final = core.final_layer
         if final is not None:
             self.oep = final.oep

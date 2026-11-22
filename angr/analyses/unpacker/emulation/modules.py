@@ -43,12 +43,16 @@ class FakeModule:
         ordinals: dict[int, str | None] | None = None,
         syscalls: dict[str, int] | None = None,
         stack_bytes: dict[str, int] | None = None,
+        listed: bool = False,
     ):
         """
         :param ordinals:    Known export ordinals: the export's name, or None for an export without a name. Other
                             exports get the ordinals that follow.
+        :param listed:      Whether export_names is the real DLL's export list (and not only the names somebody
+                            asked for): lookups of other names should then fail.
         """
         self.name = name.lower()
+        self.listed = listed
         self.base = base
         self.is_64bit = is_64bit
         self.exports: dict[str, int] = {}
@@ -141,11 +145,11 @@ class FakeModule:
             self._next_spare += 1
         return addr
 
-    def resolve_ordinal(self, ordinal: int) -> int | None:
+    def resolve_ordinal(self, ordinal: int, create: bool = True) -> int | None:
         idx = self._ordinal_slots.get(ordinal)
         if idx is not None:
             return self.base + self._code_rva + idx * SLOT_SIZE
-        return self.resolve(f"ordinal_{ordinal}")
+        return self.resolve(f"ordinal_{ordinal}", create)
 
     def unnamed_ordinal(self, addr: int) -> int | None:
         """
