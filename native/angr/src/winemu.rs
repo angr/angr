@@ -609,9 +609,19 @@ fn cpuid_values(leaf: u32, sub: u32) -> [u32; 4] {
     let s = |b: &[u8; 4]| u32::from_le_bytes(*b);
     match leaf {
         0 => [0xD, s(b"Genu"), s(b"ntel"), s(b"ineI")],
-        // family 6 model 0x9e; no hypervisor bit
-        1 => [0x000906EA, 0x00100800, 0x7FFAFBBF & !(1 << 31), 0xBFEBFBFF],
-        7 if sub == 0 => [0, 0x029C67AF, 0, 0],
+        // family 6 model 0x9e; no hypervisor bit; without the extensions whose instructions are not
+        // implemented: FMA (12), AVX (28) and F16C (29)
+        1 => [
+            0x000906EA,
+            0x00100800,
+            0x7FFAFBBF & !(1 << 31 | 1 << 12 | 1 << 28 | 1 << 29),
+            0xBFEBFBFF,
+        ],
+        // likewise without AVX2 (5) and MPX (14)
+        7 if sub == 0 => [0, 0x029C67AF & !(1 << 5 | 1 << 14), 0, 0],
+        // XSAVE: x87 and SSE state in the 576-byte standard area; xsaveopt
+        0xD if sub == 0 => [3, 576, 576, 0],
+        0xD if sub == 1 => [1, 0, 0, 0],
         0x8000_0000 => [0x8000_0008, 0, 0, 0],
         0x8000_0001 => [0, 0, 0x121, 0x2C10_0800],
         0x8000_0002 => [s(b"Inte"), s(b"l(R)"), s(b" Cor"), s(b"e(TM")],
@@ -944,9 +954,9 @@ impl WinVm {
         // what smsw shows on Windows 7: PE, MP, ET, NE, WP, PG
         let cr0 = get(&vm, "CR0")?;
         vm.cpu.write_reg(cr0, 0x8001_003B);
-        // x87, SSE and AVX state enabled, matching the OSXSAVE and AVX bits cpuid reports
+        // x87 and SSE state enabled, matching the OSXSAVE bit cpuid reports (no AVX)
         let xcr0 = get(&vm, "XCR0")?;
-        vm.cpu.write_reg(xcr0, 7);
+        vm.cpu.write_reg(xcr0, 3);
 
         Ok(Self {
             vm,

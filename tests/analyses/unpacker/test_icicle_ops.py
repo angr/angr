@@ -104,6 +104,8 @@ class TestOpVectors(unittest.TestCase):
     def test_x87(self):
         self._check(vectors.X87)
 
+    def test_bmi(self):
+        self._check(vectors.BMI)
 
     def test_bit_scans(self):
         self._check(vectors.BITSCAN)
@@ -194,6 +196,98 @@ class TestProcessorState(unittest.TestCase):
         vm.run(20)
         assert vm.mem_read(DATA + Q_OFF, 8) == struct.pack("<d", 1.5)
 
+
+class TestInventory(unittest.TestCase):
+    # user ops behind the instruction-set extensions cpuid advertises
+    ADVERTISED = [
+        "pshufb",
+        "palignr",
+        "pabsb",
+        "phaddw",
+        "pmaddubsw",
+        "pmulhrsw",
+        "psignb",
+        "pblendw",
+        "pblendvb",
+        "blendvps",
+        "roundps",
+        "roundsd",
+        "dpps",
+        "pmulld",
+        "pmuldq",
+        "packusdw",
+        "pmovsxbw",
+        "pmovzxdq",
+        "insertps",
+        "extractps",
+        "mpsadbw",
+        "phminposuw",
+        "crc32",
+        "pcmpistri",
+        "pcmpistrm",
+        "pcmpestri",
+        "pcmpestrm",
+        "aesenc",
+        "aesenclast",
+        "aesdec",
+        "aesdeclast",
+        "aesimc",
+        "aeskeygenassist",
+        "paddusb",
+        "psubsw",
+        "pavgb",
+        "pmulhuw",
+        "psadbw",
+        "packsswb",
+        "pshufw",
+        "divps",
+        "sqrtpd",
+        "maxps",
+        "minpd",
+        "rcpps",
+        "rsqrtss",
+        "movmskps",
+        "lddqu",
+        "maskmovdqu",
+        "_fxsave",
+        "_fxrstor",
+        "xsave",
+        "xrstor",
+        "xsaveopt",
+        "rdtscp",
+        "rdrand",
+        "rdseed",
+        "clflush",
+        "fprem",
+        "fpatan",
+        "log2",
+        "to_bcd",
+        "from_bcd",
+    ]
+
+    def test_user_ops(self):
+        for is_64bit in (False, True):
+            handled = dict(_vm(is_64bit, False).user_ops())
+            # palignr is plain SLEIGH; every other name must have a helper
+            missing = [name for name in self.ADVERTISED if name != "palignr" and not handled.get(name)]
+            assert not missing, missing
+
+    def test_cpuid_matches_the_implementation(self):
+        vm = _run("0fa2", eax=1, ecx=0)
+        ecx = vm.reg_read("ecx")
+        # SSE3, PCLMULQDQ, SSSE3, CX16, SSE4.1, SSE4.2, MOVBE, POPCNT, AES, XSAVE, OSXSAVE, RDRAND
+        for bit in (0, 1, 9, 13, 19, 20, 22, 23, 25, 26, 27, 30):
+            assert ecx >> bit & 1, bit
+        # no FMA, AVX, F16C; no hypervisor
+        for bit in (12, 28, 29, 31):
+            assert not ecx >> bit & 1, bit
+        vm = _run("0fa2", eax=7, ecx=0)
+        ebx = vm.reg_read("ebx")
+        # BMI1, BMI2, ADX, RDSEED; no AVX2, MPX, AVX-512, SHA
+        assert all(ebx >> bit & 1 for bit in (3, 8, 18, 19))
+        assert not any(ebx >> bit & 1 for bit in (5, 14, 16, 29))
+        vm = _run("0fa2", eax=0xD, ecx=0)
+        assert (vm.reg_read("eax"), vm.reg_read("ebx")) == (3, 576)
 
 
 class TestBitScans(unittest.TestCase):

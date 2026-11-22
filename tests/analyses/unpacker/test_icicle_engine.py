@@ -128,10 +128,10 @@ class TestWinVm(unittest.TestCase):
             vm.reg_write("edi", selector)
             _run(vm, bytes.fromhex(code))
             assert vm.reg_read("ZF") == zf, (code, selector)
-        # xgetbv: x87, SSE and AVX state enabled
+        # xgetbv: x87 and SSE state enabled
         vm.reg_write("ecx", 0)
         _run(vm, bytes.fromhex("0f01d0"))
-        assert (vm.reg_read("eax"), vm.reg_read("edx")) == (7, 0)
+        assert (vm.reg_read("eax"), vm.reg_read("edx")) == (3, 0)
 
     def test_user_ops_and_wide_registers(self):
         vm = _vm()
