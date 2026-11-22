@@ -2475,10 +2475,139 @@ def reg_close_key(emu: WindowsEmulator, args: list[int]) -> int:
     return 0
 
 
-# nothing can be enumerated or deleted: ERROR_NO_MORE_ITEMS, ERROR_FILE_NOT_FOUND
-_const(("RegEnumValueA", "RegEnumValueW", "RegEnumKeyExA", "RegEnumKeyExW"), 8, 259)
-_const(("RegEnumKeyA", "RegEnumKeyW"), 4, 259)
-_const(("RegDeleteValueA", "RegDeleteValueW", "RegDeleteKeyA", "RegDeleteKeyW"), 2, 2)
+ERROR_NO_MORE_ITEMS = 259
+
+
+def _reg_name(emu: WindowsEmulator, buf: int, size_ptr: int, name: str, wide: bool) -> int:
+    """
+    Store an enumerated name; the size is in characters, without the terminator on return.
+    """
+    capacity = emu.read_u32(size_ptr)
+    if capacity <= len(name):
+        return ERROR_MORE_DATA
+    _write_text(emu, buf, capacity, name, wide)
+    emu.write_u32(size_ptr, len(name))
+    return 0
+
+
+def _reg_enum_value(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+    values = _reg_values(emu, args[0])
+    if values is None:
+        return ERROR_INVALID_HANDLE
+    if args[1] >= len(values):
+        return ERROR_NO_MORE_ITEMS
+    # names are kept in lower case
+    name, (kind, data) = list(values.items())[args[1]]
+    status = _reg_name(emu, args[2], args[3], name, wide)
+    if status:
+        return status
+    if args[5]:
+        emu.write_u32(args[5], kind)
+    if args[7]:
+        capacity = emu.read_u32(args[7])
+        emu.write_u32(args[7], len(data))
+        if args[6]:
+            if capacity < len(data):
+                return ERROR_MORE_DATA
+            emu.write(args[6], data)
+    return 0
+
+
+@api("RegEnumValueA", nargs=8)
+def reg_enum_value_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_enum_value(emu, args, False)
+
+
+@api("RegEnumValueW", nargs=8)
+def reg_enum_value_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_enum_value(emu, args, True)
+
+
+def _reg_subkeys(emu: WindowsEmulator, key: tuple[int, str]) -> list[str]:
+    root, path = key
+    prefix = path + "\\" if path else ""
+    names = {
+        other[len(prefix) :].split("\\")[0]
+        for other_root, other in emu.registry
+        if other_root == root and other != path and other.startswith(prefix)
+    }
+    return sorted(names)
+
+
+def _reg_enum_key(emu: WindowsEmulator, handle: int, index: int, buf: int, size_ptr: int, wide: bool) -> int:
+    opened = emu.handles.get(handle)
+    if not isinstance(opened, RegistryKey):
+        # a predefined root (or anything else): the registry has no keys but the sample's own
+        return ERROR_NO_MORE_ITEMS
+    subkeys = _reg_subkeys(emu, opened.key)
+    if index >= len(subkeys):
+        return ERROR_NO_MORE_ITEMS
+    return _reg_name(emu, buf, size_ptr, subkeys[index], wide)
+
+
+@api("RegEnumKeyExA", nargs=8)
+def reg_enum_key_ex_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_enum_key(emu, args[0], args[1], args[2], args[3], False)
+
+
+@api("RegEnumKeyExW", nargs=8)
+def reg_enum_key_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_enum_key(emu, args[0], args[1], args[2], args[3], True)
+
+
+def _reg_enum_key_plain(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+    # the size is passed by value
+    size = emu.alloc(4)
+    emu.write_u32(size, args[3])
+    return _reg_enum_key(emu, args[0], args[1], args[2], size, wide)
+
+
+@api("RegEnumKeyA", nargs=4)
+def reg_enum_key_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_enum_key_plain(emu, args, False)
+
+
+@api("RegEnumKeyW", nargs=4)
+def reg_enum_key_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_enum_key_plain(emu, args, True)
+
+
+def _reg_delete_value(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+    values = _reg_values(emu, args[0])
+    name = (emu.read_wstr(args[1]) if wide else emu.read_cstr(args[1])) if args[1] else ""
+    if values is None or values.pop(name.lower(), None) is None:
+        return ERROR_FILE_NOT_FOUND
+    return 0
+
+
+@api("RegDeleteValueA", nargs=2)
+def reg_delete_value_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_delete_value(emu, args, False)
+
+
+@api("RegDeleteValueW", nargs=2)
+def reg_delete_value_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_delete_value(emu, args, True)
+
+
+def _reg_delete_key(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
+    key = _registry_key(emu, args[0], args[1], wide)
+    if key is None or key not in emu.registry:
+        return ERROR_FILE_NOT_FOUND
+    if _reg_subkeys(emu, key):
+        return ERROR_ACCESS_DENIED
+    del emu.registry[key]
+    return 0
+
+
+@api("RegDeleteKeyA", nargs=2)
+def reg_delete_key_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_delete_key(emu, args, False)
+
+
+@api("RegDeleteKeyW", nargs=2)
+def reg_delete_key_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _reg_delete_key(emu, args, True)
 
 
 def _new_object(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument

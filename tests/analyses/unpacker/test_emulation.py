@@ -484,6 +484,43 @@ class TestApiHandlers(unittest.TestCase):
         assert (emu.read_u32(buf + 0x300), emu.read_u32(buf + 0x304)) == (8, 3)
         assert call("RegOpenKeyExW", 0x80000002, buf, 0, 0x20019, buf + 0x100) == 2
 
+    def test_registry_enumeration_and_deletion(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        hkcu = 0x80000001
+        # an empty registry: nothing to enumerate or delete
+        emu.write(buf, b"Software\\Demo\0")
+        emu.write_u32(buf + 0x300, 0x40)
+        assert call("RegEnumKeyExA", hkcu, 0, buf + 0x200, buf + 0x300, 0, 0, 0, 0) == 259
+        assert call("RegDeleteKeyA", hkcu, buf) == 2
+        assert call("RegCreateKeyA", hkcu, buf, buf + 0x100) == 0
+        key = emu.read_u32(buf + 0x100)
+        assert call("RegEnumValueA", key, 0, buf + 0x200, buf + 0x300, 0, 0, 0, 0) == 259
+        emu.write(buf + 0x40, b"Count\0")
+        emu.write(buf + 0x80, struct.pack("<I", 7))
+        assert call("RegDeleteValueA", key, buf + 0x40) == 2
+        assert call("RegSetValueExA", key, buf + 0x40, 0, 4, buf + 0x80, 4) == 0
+        # the value the sample wrote is enumerated, with its type and data
+        emu.write_u32(buf + 0x304, 0x10)
+        assert call("RegEnumValueA", key, 0, buf + 0x200, buf + 0x300, 0, buf + 0x308, buf + 0x400, buf + 0x304) == 0
+        assert emu.read_cstr(buf + 0x200).lower() == "count"
+        assert struct.unpack("<4I", emu.read(buf + 0x300, 12) + emu.read(buf + 0x400, 4)) == (5, 4, 4, 7)
+        assert call("RegEnumValueA", key, 1, buf + 0x200, buf + 0x300, 0, 0, 0, 0) == 259
+        # its key is a subkey of Software
+        emu.write(buf, b"Software\0")
+        assert call("RegCreateKeyA", hkcu, buf, buf + 0x104) == 0
+        assert call("RegEnumKeyA", emu.read_u32(buf + 0x104), 0, buf + 0x200, 0x40) == 0
+        assert emu.read_cstr(buf + 0x200) == "demo"
+        assert call("RegEnumKeyA", emu.read_u32(buf + 0x104), 1, buf + 0x200, 0x40) == 259
+        # deleting: the value, then the key (a key with subkeys stays)
+        assert call("RegDeleteKeyA", hkcu, buf) == 5
+        assert call("RegDeleteValueA", key, buf + 0x40) == 0
+        assert call("RegQueryValueExA", key, buf + 0x40, 0, 0, 0, 0) == 2
+        emu.write(buf, b"Software\\Demo\0")
+        assert call("RegDeleteKeyA", hkcu, buf) == 0
+        assert call("RegOpenKeyA", hkcu, buf, buf + 0x108) == 2
+
     def test_splash_picture(self):
         # CreateStreamOnHGlobal + OleLoadPicture on a 600x400 BMP, then IPicture::get_Width through its vtable
         emu = emulator(b"\xc3")
