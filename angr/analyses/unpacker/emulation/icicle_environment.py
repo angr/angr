@@ -253,6 +253,28 @@ _ASCII_ADJUST = (
     ("{ AL = AL + imm8*AH; AH=0; resultflags(AX); }", "{ AL = AL + imm8*AH; AH=0; resultflags(AL); }"),
     ("{ AH = AL/imm8; AL = AL % imm8; resultflags(AX); }", "{ AH = AL/imm8; AL = AL % imm8; resultflags(AL); }"),
 )
+# 16-bit shld / shrd by more than 16: processors shift the 48-bit dest:src:dest, which is also what gives the last
+# bit shifted out
+_WIDE = "local wide:8 = (zext(rm16) << 32) | (zext(Reg16) << 16) | zext(rm16);"
+_DOUBLE_SHIFTS = tuple(
+    (
+        f"rm16 = (rm16 << count) | (Reg16 >> (16 - count));\n{pad}shlflags(tmp,rm16,count);",
+        (
+            f"{_WIDE} local moved:8 = wide << count; rm16 = moved(4);\n{pad}shlflags(tmp,rm16,count);"
+            " conditionalAssign(CF, count==0, CF, ((wide >> (48 - count)) & 1) != 0);"
+        ),
+    )
+    for pad in (" " * 43, " " * 42)
+) + tuple(
+    (
+        f"rm16 = (rm16 >> count) | (Reg16 << (16 - count));\n{pad}shrdflags(tmp,rm16,count);",
+        (
+            f"{_WIDE} local moved:8 = wide >> count; rm16 = moved:2;\n{pad}shrdflags(tmp,rm16,count);"
+            " conditionalAssign(CF, count==0, CF, ((wide >> (count - 1)) & 1) != 0);"
+        ),
+    )
+    for pad in (" " * 43, " " * 42)
+)
 # regex substitutions inside every constructor of a mnemonic: these conversions round (MXCSR's default, to nearest
 # even) where the spec truncates
 _CONSTRUCTOR_PATCHES = tuple(
@@ -269,6 +291,7 @@ _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _BIT_SCANS),
     *(("ia.sinc", old, new) for old, new in _MULTIPLY_FLAGS),
     *(("ia.sinc", old, new) for old, new in _ASCII_ADJUST),
+    *(("ia.sinc", old, new) for old, new in _DOUBLE_SHIFTS),
     ("lockable.sinc", *_XCHG_M32),
 )
 

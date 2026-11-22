@@ -297,6 +297,23 @@ class TestInventory(unittest.TestCase):
         assert (vm.reg_read("eax"), vm.reg_read("ebx")) == (3, 576)
 
 
+class TestDoubleShifts(unittest.TestCase):
+    def test_16_bit_counts_above_16(self):
+        # shld / shrd bx, dx, 20 shift the 48-bit bx:dx:bx, as Intel processors and QEMU do
+        for jit in (False, True):
+            vm = _run("660fa4d314", jit=jit, ebx=0x1234, edx=0xABCD)
+            assert (vm.reg_read("ebx"), vm.reg_read("CF")) == (0xBCD1, 0)
+            vm = _run("660facd314", jit=jit, ebx=0x1234, edx=0xABCD)
+            assert (vm.reg_read("ebx"), vm.reg_read("CF")) == (0x4ABC, 1)
+            # by one: OF says whether the sign changed
+            vm = _run("660fa4d301", jit=jit, ebx=0x4000, edx=0)
+            assert (vm.reg_read("ebx"), vm.reg_read("OF"), vm.reg_read("CF")) == (0x8000, 1, 0)
+            vm = _run("660facd301", jit=jit, ebx=0, edx=1)
+            assert (vm.reg_read("ebx"), vm.reg_read("OF")) == (0x8000, 1)
+            vm = _run("660facd301", jit=jit, ebx=0x8003, edx=1)
+            assert (vm.reg_read("ebx"), vm.reg_read("OF"), vm.reg_read("CF")) == (0xC001, 0, 1)
+
+
 class TestBitScans(unittest.TestCase):
     def test_zero_source_keeps_destination(self):
         for jit in (False, True):
