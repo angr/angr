@@ -63,8 +63,11 @@ _NTDLL_PREFIXES = ("Nt", "Zw", "Rtl", "Ldr", "Dbg", "Ki", "Csr", "Etw")
 _WIN32_LOWERCASE_PREFIXES = ("lstr", "wsprintf", "wvsprintf")
 _CDECL_MODULE_PREFIXES = ("msvcr", "msvcp", "ucrtbase", "vcruntime", "crtdll", "api-ms-win-crt")
 _PRELOADED = ("ntdll.dll", "kernel32.dll", "kernelbase.dll")
-# API sets that combase.dll implements (COM and the Windows Runtime); the other API sets go to kernel32
+# without an API set table: the sets that combase.dll implements (COM and the Windows Runtime); the C runtime sets
+# go to ucrtbase and the others to kernel32
 _COMBASE_API_SETS = ("api-ms-win-core-com-", "api-ms-win-core-winrt-")
+# what follows the layer number in an API set name (api-ms-win-core-file-l1-2-0)
+_API_SET_VERSION_RE = re.compile(r"(-l\d+)-\d+(?:-\d+)?$")
 # static imports of Windows 7 system DLLs that pull in other DLLs: loading one maps these too, as the Windows
 # loader does (a program importing shell32 has user32 mapped)
 _DLL_DEPENDENCIES = {
@@ -226,11 +229,18 @@ class WindowsEmulator:
                 pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_TLS"],
             ]
         )
+        self._export_db_dir = os.environ.get("ANGR_UNPACKER_EXPORTS") or angr_data.get_path("unpacker", "win_exports")
+        self._export_db: dict[str, dict[str, int | None]] = {}
+        self._api_sets = self._load_api_sets()
+        self.unlisted_exports: list[UnlistedExport] = []
         # the image loaded, so every name its import directory asks for exists in the named DLL
         self._static_imports: dict[str, set[str]] = {}
         for entry in getattr(self.pe, "DIRECTORY_ENTRY_IMPORT", []):
-            names = self._static_imports.setdefault(self.normalize_module_name(entry.dll.decode("latin-1")), set())
-            names.update(imp.name.decode("latin-1") for imp in entry.imports if imp.name is not None)
+            dll = entry.dll.decode("latin-1")
+            for imp in entry.imports:
+                if imp.name is not None:
+                    export = imp.name.decode("latin-1")
+                    self._static_imports.setdefault(self._import_host(dll, export), set()).add(export)
         size = max(main.max_addr - main.min_addr + 1, self.pe.OPTIONAL_HEADER.SizeOfImage)
         self.image_size: int = (size + PAGE - 1) & ~(PAGE - 1)
 
@@ -245,7 +255,6 @@ class WindowsEmulator:
         self.api_counts: collections.Counter[str] = collections.Counter()
         self.api_trace: collections.deque[tuple[str, int, tuple[int, ...]]] = collections.deque(maxlen=4096)
         self.unhandled_apis: collections.Counter[str] = collections.Counter()
-        self.unlisted_exports: list[UnlistedExport] = []
         self.messages: list[str] = []
         self.allocations: dict[int, int] = {}
         self.file_views: set[int] = set()
@@ -302,8 +311,6 @@ class WindowsEmulator:
         self._next_dll_base = 0x7FF800000000 if self.is_64bit else 0x70000000
         self._next_alloc = 0x20000000 if not self.is_64bit else 0x200000000
         self._ldr_entries: dict[str, int] = {}
-        self._export_db_dir = os.environ.get("ANGR_UNPACKER_EXPORTS") or angr_data.get_path("unpacker", "win_exports")
-        self._export_db: dict[str, dict[str, int | None]] = {}
         self.com = ComRuntime(self)
 
         self._init_machine()
@@ -788,20 +795,57 @@ class WindowsEmulator:
                 self.write_ptr(node, nodes[(pos + 1) % len(nodes)])
                 self.write_ptr(node + self.ptr_size, nodes[pos - 1])
 
-    @staticmethod
-    def normalize_module_name(name: str) -> str:
+    def _load_api_sets(self) -> dict[str, str]:
+        """
+        The DLL that hosts each API set, from api_sets.json next to the export list directory. The key is the set's
+        name up to its layer number: the rest of the version does not take part in the match.
+        """
+        path = os.path.join(os.path.dirname(os.path.normpath(self._export_db_dir)), "api_sets.json")
+        if not os.path.isfile(path):
+            return {}
+        with open(path, "rb") as f:
+            table: dict[str, str | None] = json.load(f)
+        hosts: dict[str, str] = {}
+        for name, host in table.items():
+            if host is not None:
+                hosts.setdefault(_API_SET_VERSION_RE.sub(r"\1", name.lower()), host.lower())
+        return hosts
+
+    def normalize_module_name(self, name: str) -> str:
+        """
+        The name a module is loaded under: lower case, with an extension, and an API set's host for an API set.
+        """
         name = ntpath.basename(name.strip().strip('"')).lower()
         if not name:
             return name
         if "." not in name:
             name += ".dll"
+        if not name.startswith(("api-ms-", "ext-ms-")):
+            return name
+        host = self._api_sets.get(_API_SET_VERSION_RE.sub(r"\1", os.path.splitext(name)[0]))
+        if host is not None:
+            return host
+        # no table, or a set it does not place
         if name.startswith(("api-ms-win-crt", "ext-ms-win-crt")):
             return "ucrtbase.dll"
         if name.startswith(_COMBASE_API_SETS):
             return "combase.dll"
-        if name.startswith(("api-ms-", "ext-ms-")):
+        return "kernel32.dll"
+
+    def _import_host(self, dll: str, export: str) -> str:
+        """
+        The module that a static import of a name from a DLL binds to. A name asked of an API set whose host's list
+        lacks it comes from kernel32 if kernel32's list has it (programs got these names from kernel32 before the
+        API sets, so the host's list is the likelier one to have the gap).
+        """
+        host = self.normalize_module_name(dll)
+        if host == "kernel32.dll" or not ntpath.basename(dll).lower().startswith(("api-ms-", "ext-ms-")):
+            return host
+        listed = self._known_exports(host)
+        if listed and export not in listed and export in self._known_exports("kernel32.dll"):
+            self._note_unlisted(host, export, True)
             return "kernel32.dll"
-        return name
+        return host
 
     def _known_exports(self, name: str) -> dict[str, int | None]:
         """
@@ -888,7 +932,7 @@ class WindowsEmulator:
         if listed:
             # Windows would not have loaded the image; a gap in the list is the likelier reason, so they get slots
             for export in sorted(self._static_imports.get(name, set()) - known_exports.keys()):
-                self._note_unlisted(module, export, True)
+                self._note_unlisted(name, export, True)
         self.map(base, module.size, 5)
         self.write(base, module.image)
         self.modules[name] = module
@@ -919,13 +963,13 @@ class WindowsEmulator:
                 return module
         return None
 
-    def _note_unlisted(self, module: FakeModule, name: str, static: bool) -> None:
-        entry = UnlistedExport(module.name, name, static)
+    def _note_unlisted(self, dll: str, name: str, static: bool) -> None:
+        entry = UnlistedExport(dll, name, static)
         if entry not in self.unlisted_exports:
             self.unlisted_exports.append(entry)
             _l.warning(
                 "%s!%s is not in the DLL's export list (%s)",
-                module.name,
+                dll,
                 name,
                 "imported statically: given a slot" if static else "looked up at run time: not found",
             )
@@ -952,11 +996,11 @@ class WindowsEmulator:
 
     def _resolved(self, module: FakeModule, name: str, addr: int | None, known: bool) -> int | None:
         if addr is None:
-            self._note_unlisted(module, name, False)
+            self._note_unlisted(module.name, name, False)
         elif addr not in self.api_slots:
             # a spare slot
             if known:
-                self._note_unlisted(module, name, True)
+                self._note_unlisted(module.name, name, True)
             self.api_slots[addr] = (module, module.slot_names[addr])
             self._stop_points.add(addr)
         return addr
@@ -964,10 +1008,12 @@ class WindowsEmulator:
     def _bind_imports(self) -> None:
         delta = self.main.mapped_base - self.main.linked_base
         for entry in getattr(self.pe, "DIRECTORY_ENTRY_IMPORT", []):
-            module = self.load_module(entry.dll.decode("latin-1"))
+            dll = entry.dll.decode("latin-1")
+            module = self.load_module(dll)
             for imp in entry.imports:
                 if imp.name is not None:
-                    addr = self.resolve_export(module, imp.name.decode("latin-1"), required=True)
+                    export = imp.name.decode("latin-1")
+                    addr = self.resolve_export(self.load_module(self._import_host(dll, export)), export, required=True)
                 else:
                     addr = self.resolve_ordinal(module, imp.ordinal, required=True)
                 if addr is not None:

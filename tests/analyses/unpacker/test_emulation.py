@@ -836,22 +836,32 @@ class TestFakeModule(unittest.TestCase):
         for file_name in os.listdir(directory):
             stem, ext = os.path.splitext(file_name)
             assert ext == ".json", file_name
-            stem = stem.removesuffix(".ordinals")
             # the stem is a lower-case module name without its extension, and not an API set (those are redirected)
+            for suffix in (".ordinals", ".ordinal_args"):
+                stem = stem.removesuffix(suffix)
             assert stem == stem.lower() and not stem.endswith(extensions), file_name
             assert not stem.startswith(("api-ms-", "ext-ms-")), file_name
+        # the API set table sits next to the lists and names hosts as modules are named
+        table = os.path.join(os.path.dirname(os.path.normpath(directory)), "api_sets.json")
+        if os.path.isfile(table):
+            with open(table, "rb") as f:
+                for api_set, host in json.load(f).items():
+                    assert api_set == api_set.lower() and api_set.startswith(("api-ms-", "ext-ms-")), api_set
+                    assert host is None or (host == host.lower() and "." in host), api_set
 
     @staticmethod
-    def _importing_emulator(lists: dict[str, dict[str, int | None]]):
+    def _importing_emulator(
+        lists: dict[str, dict], dll: str = "thirdparty.dll", api_sets: dict[str, str | None] | None = None
+    ):
         """
-        An emulator for an image that imports ThirdParty@@ and ordinal 7 from thirdparty.dll, with the given export
-        lists installed.
+        An emulator for an image that imports ThirdParty@@ and ordinal 7 from a DLL, with the given export lists
+        (and API set table) installed.
         """
         idata = bytearray(0x200)
         struct.pack_into("<5I", idata, 0, 0x2080, 0, 0, 0x2100, 0x2080)  # descriptor: ILT = IAT, DLL name
         struct.pack_into("<II", idata, 0x80, 0x20C0, 0x80000007)  # ILT: hint/name, ordinal 7
         idata[0xC2:0xCF] = b"ThirdParty@@\0"
-        idata[0x100:0x10F] = b"thirdparty.dll\0"
+        idata[0x100 : 0x101 + len(dll)] = dll.encode() + b"\0"
         sections = [
             (b".text", CODE_RVA, 0x1000, b"\xc3", 0x60000020),
             (b".idata", 0x2000, 0x200, bytes(idata), 0xC0000040),
@@ -861,10 +871,15 @@ class TestFakeModule(unittest.TestCase):
             path = os.path.join(tmpdir, "sample.exe")
             with open(path, "wb") as f:
                 f.write(packed)
+            exports_dir = os.path.join(tmpdir, "win_exports")
+            os.mkdir(exports_dir)
             for stem, names in lists.items():
-                with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
+                with open(os.path.join(exports_dir, stem + ".json"), "w", encoding="ascii") as f:
                     json.dump(names, f)
-            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
+            if api_sets is not None:
+                with open(os.path.join(tmpdir, "api_sets.json"), "w", encoding="ascii") as f:
+                    json.dump(api_sets, f)
+            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": exports_dir}):
                 emu = GenericUnpackerCore(path, watch_sections=set()).emu
                 for stem in lists:
                     if "." not in stem:
@@ -906,6 +921,44 @@ class TestFakeModule(unittest.TestCase):
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         handle = call("LoadLibraryA", emu.alloc_cstr("api-ms-win-core-winrt-string-l1-1-0.dll"))
         assert call("GetProcAddress", handle, emu.alloc_cstr("RoInitialize")) == combase.exports["RoInitialize"]
+
+    def test_api_set_hosts(self):
+        api_sets = {
+            "api-ms-win-core-synch-l1-1-0": "kernelbase.dll",
+            "api-ms-win-core-apiquery-l1-1-0": "ntdll.dll",
+            "api-ms-win-core-apiquery-l2-1-0": "kernelbase.dll",
+            "api-ms-win-security-lsalookup-l1-1-0": "Sechost.dll",
+            "ext-ms-win-nobody-l1-1-0": None,
+        }
+        lists = {"kernel32": {"Sleep": 1}, "kernelbase": {"SleepEx": 2}, "ntdll": {"NtClose": 1}}
+        imported = "api-ms-win-core-synch-l1-2-0.dll"
+        emu = self._importing_emulator(lists, imported, api_sets)
+        kernel32, kernelbase = emu.modules["kernel32.dll"], emu.modules["kernelbase.dll"]
+        # a set is its host, whatever follows the layer number; the layer number counts
+        assert emu.load_module("API-MS-Win-Core-Synch-L1-1-0") is kernelbase
+        assert emu.load_module("api-ms-win-core-apiquery-l1-1-1.dll") is emu.modules["ntdll.dll"]
+        assert emu.load_module("api-ms-win-core-apiquery-l2-1-0.dll") is kernelbase
+        assert emu.load_module("api-ms-win-security-lsalookup-l1-1-0.dll").name == "sechost.dll"
+        # sets the table does not place fall back to the built-in rules
+        assert emu.load_module("ext-ms-win-nobody-l1-1-0.dll") is kernel32
+        assert emu.load_module("api-ms-win-crt-heap-l1-1-0.dll").name == "ucrtbase.dll"
+        # neither list has the imported name: the host gets it
+        assert emu.read_ptr(IMAGE_BASE + 0x2080) == kernelbase.exports["ThirdParty@@"]
+        assert kernelbase.unnamed_ordinal(emu.read_ptr(IMAGE_BASE + 0x2084)) == 7
+        assert emu.unlisted_exports == [("kernelbase.dll", "ThirdParty@@", True), ("kernelbase.dll", "#7", True)]
+        # only kernel32's list has it: it comes from kernel32, and the gap in the host's list is recorded
+        emu = self._importing_emulator(lists | {"kernel32": {"ThirdParty@@": 2}}, imported, api_sets)
+        kernel32, kernelbase = emu.modules["kernel32.dll"], emu.modules["kernelbase.dll"]
+        assert emu.read_ptr(IMAGE_BASE + 0x2080) == kernel32.exports["ThirdParty@@"]
+        assert "ThirdParty@@" not in kernelbase.exports
+        assert ("kernelbase.dll", "ThirdParty@@", True) in emu.unlisted_exports
+        # the host's list has it
+        emu = self._importing_emulator(lists | {"kernelbase": {"ThirdParty@@": 2}}, imported, api_sets)
+        assert emu.read_ptr(IMAGE_BASE + 0x2080) == emu.modules["kernelbase.dll"].exports["ThirdParty@@"]
+        assert emu.unlisted_exports == [("kernelbase.dll", "#7", True)]
+        # no table: API sets are kernel32, as before
+        emu = self._importing_emulator(lists, imported)
+        assert emu.read_ptr(IMAGE_BASE + 0x2080) == emu.modules["kernel32.dll"].exports["ThirdParty@@"]
 
     def test_static_imports_are_exported(self):
         # a third-party DLL without an export list still exports what the image's import directory names
