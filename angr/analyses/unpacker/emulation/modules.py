@@ -25,6 +25,9 @@ def _align(value: int, alignment: int) -> int:
     return (value + alignment - 1) & ~(alignment - 1)
 
 
+_DOS_STUB = bytes.fromhex("0e1fba0e00b409cd21b8014ccd21") + b"This program cannot be run in DOS mode.\r\r\n$"
+
+
 class FakeModule:
     """
     A synthetic DLL image: a PE header, one trap slot per export, and a real export directory, so both
@@ -195,6 +198,8 @@ class FakeModule:
         dos = bytearray(e_lfanew)
         dos[0:2] = b"MZ"
         struct.pack_into("<I", dos, 0x3C, e_lfanew)
+        # the linker's DOS stub: code that finds a system DLL by scanning memory checks for its text at 0x4E
+        dos[0x40 : 0x40 + len(_DOS_STUB)] = _DOS_STUB
         machine = IMAGE_FILE_MACHINE_AMD64 if self.is_64bit else IMAGE_FILE_MACHINE_I386
         opt_size = 0xF0 if self.is_64bit else 0xE0
         file_header = struct.pack("<HHIIIHH", machine, 2, 0, 0, 0, opt_size, 0x2102 if not self.is_64bit else 0x2022)

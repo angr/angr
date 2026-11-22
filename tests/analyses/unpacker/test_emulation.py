@@ -148,6 +148,17 @@ class TestImportRecovery(unittest.TestCase):
 
 
 class TestFakeModule(unittest.TestCase):
+    def test_scan_for_dos_stub(self):
+        # packers find kernel32 by walking down from an address inside it until the DOS stub's text shows at 0x4E:
+        # and ebx, ~0xfff; again: cmp dword [ebx + 0x4e], "This"; je done; sub ebx, 0x100; jmp again; done: ret
+        emu = emulator(bytes.fromhex("81e300f0ffff 817b4e54686973 7408 81eb00010000 ebef c3"))
+        kernel32 = emu.load_module("kernel32.dll")
+        emu.start()
+        emu.set_reg("ebx", kernel32.exports["GetProcAddress"])
+        assert emu.run(max_blocks=10000).reason is StopReason.RETURNED
+        assert emu.reg("ebx") == kernel32.base
+        assert pefile.PE(data=kernel32.image).DOS_HEADER.e_lfanew == 0x80
+
     def test_export_ordinals(self):
         base = 0x10000000
         module = FakeModule("demo.dll", base, ["Alpha", "Beta"], False, {100: "Beta", 105: None})
