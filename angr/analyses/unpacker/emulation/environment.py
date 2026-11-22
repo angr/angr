@@ -32,6 +32,7 @@ from angr.procedures.definitions import SIM_LIBRARIES, load_win32api_definitions
 from angr.state_plugins.unicorn_engine import STOP
 
 from .apis import API_HANDLERS, SLEEP_POLL_APIS, STATUS_ACCESS_VIOLATION, STATUS_NOT_IMPLEMENTED, ApiHandler
+from .com import ComRuntime
 from .exceptions import (
     EXCEPTION_ACCESS_VIOLATION,
     EXCEPTION_BREAKPOINT,
@@ -287,6 +288,7 @@ class WindowsEmulator:
         self._ldr_entries: dict[str, int] = {}
         self._export_db_dir = os.environ.get("ANGR_UNPACKER_EXPORTS") or angr_data.get_path("unpacker", "win_exports")
         self._export_db: dict[str, dict[str, int | None]] = {}
+        self.com = ComRuntime(self)
 
         self._init_machine()
         self.exceptions = ExceptionDispatcher(self)
@@ -458,6 +460,12 @@ class WindowsEmulator:
             page_perms = perms & ~4 if self._is_watched(page) else perms
             self.state.memory.permissions(page, page_perms, priv=True)
         self.state.unicorn.uncache_region(start, end - start)
+
+    def add_stop_point(self, addr: int) -> None:
+        """
+        Make run() look at this address before executing it.
+        """
+        self._stop_points.add(addr)
 
     def new_handle(self, obj: object = None) -> int:
         self._next_handle += 4
@@ -1130,16 +1138,25 @@ class WindowsEmulator:
         return self._nargs_cache[key]
 
     def _dispatch_api(self, addr: int) -> None:
-        module, name = self.api_slots[addr]
+        com_slot = self.com.slots.get(addr)
+        handler: ApiHandler | None
+        if com_slot is not None:
+            # a method of a stub COM object
+            module_name, name, handler = "com", com_slot.name, com_slot.handler
+            nargs: int | None = handler.nargs
+            cdecl = False
+        else:
+            module, name = self.api_slots[addr]
+            module_name = module.name
+            handler = API_HANDLERS.get(name)
+            nargs = handler.nargs if handler is not None else self.api_nargs(module, name)
+            cdecl = (
+                handler.cdecl
+                if handler is not None
+                else module_name.startswith(_CDECL_MODULE_PREFIXES) or (nargs is None and name[:1].islower())
+            )
         if name not in SLEEP_POLL_APIS:
             self._sleep_poll = None
-        handler: ApiHandler | None = API_HANDLERS.get(name)
-        nargs = handler.nargs if handler is not None else self.api_nargs(module, name)
-        cdecl = (
-            handler.cdecl
-            if handler is not None
-            else module.name.startswith(_CDECL_MODULE_PREFIXES) or (nargs is None and name[:1].islower())
-        )
         sp = self.sp
         ret_addr = self.read_ptr(sp)
         if self._rewatch:
@@ -1164,9 +1181,9 @@ class WindowsEmulator:
         self._set_sp(new_sp)
         self._set_pc(ret_addr)
         if handler is None:
-            self.unhandled_apis[f"{module.name}!{name}"] += 1
+            self.unhandled_apis[f"{module_name}!{name}"] += 1
             if nargs is None and not self.is_64bit and not cdecl:
-                _l.warning("Unknown argument count for %s!%s; the stack may be unbalanced", module.name, name)
+                _l.warning("Unknown argument count for %s!%s; the stack may be unbalanced", module_name, name)
             result = 0
         else:
             try:
@@ -1285,7 +1302,7 @@ class WindowsEmulator:
             if self._stop is not None:
                 return self._stop
             addr = self.state.addr
-            if addr in self.api_slots:
+            if addr in self.api_slots or addr in self.com.slots:
                 self._dispatch_api(addr)
                 continue
             continuation = self._continuations.pop(addr, None)

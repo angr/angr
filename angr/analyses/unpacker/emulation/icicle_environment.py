@@ -610,7 +610,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
             if self._stop is not None:
                 return self._stop
             addr = vm.pc
-            if addr in self.api_slots:
+            if addr in self.api_slots or addr in self.com.slots:
                 self._dispatch_api(addr)
                 continue
             continuation = self._continuations.pop(addr, None)

@@ -510,6 +510,180 @@ class TestThreads(unittest.TestCase):
         assert system_time == (0x01DB3A0000000000 + emu.tick * 10000) & 0xFFFFFFFF
 
 
+def _guid(text: str) -> bytes:
+    first, second, third, fourth, fifth = text.split("-")
+    return struct.pack("<IHH", int(first, 16), int(second, 16), int(third, 16)) + bytes.fromhex(fourth + fifth)
+
+
+class _ComProgram:
+    """
+    x86 guest code that calls APIs and COM methods, storing eax and esp after each call.
+    """
+
+    BASE = IMAGE_BASE + CODE_RVA
+    IAT, RESULTS, DATA = BASE + 0x600, BASE + 0x700, BASE + 0x900
+
+    def __init__(self):
+        self.code = b""
+        self.data = b""
+        self.apis: list[tuple[str, str]] = []
+        self.calls = 0
+
+    def put(self, data: bytes) -> int:
+        addr = self.DATA + len(self.data)
+        self.data += data + bytes(-len(data) % 4)
+        return addr
+
+    def _record(self) -> int:
+        p32 = lambda value: struct.pack("<I", value)
+        # mov [results + 8n], eax; mov [results + 8n + 4], esp
+        self.code += b"\xa3" + p32(self.RESULTS + 8 * self.calls) + b"\x89\x25" + p32(self.RESULTS + 8 * self.calls + 4)
+        self.calls += 1
+        return self.calls - 1
+
+    def _push(self, args: tuple[int, ...]) -> None:
+        for arg in reversed(args):
+            self.code += b"\x68" + struct.pack("<I", arg)
+
+    def api(self, dll: str, name: str, *args: int) -> int:
+        if (dll, name) not in self.apis:
+            self.apis.append((dll, name))
+        self._push(args)
+        self.code += b"\xff\x15" + struct.pack("<I", self.IAT + 4 * self.apis.index((dll, name)))
+        return self._record()
+
+    def method(self, cell: int, index: int, *args: int) -> int:
+        # mov eax, [cell]; push eax; mov ecx, [eax]; call [ecx + 4 * index]
+        self._push(args)
+        self.code += b"\xa1" + struct.pack("<I", cell) + b"\x50\x8b\x08\xff\x91" + struct.pack("<I", 4 * index)
+        return self._record()
+
+    def run(self):
+        code = bytearray(0x1000)
+        code[: len(self.code) + 1] = self.code + b"\xc3"
+        assert len(self.code) < 0x600 and len(self.data) < 0x700
+        code[0x900 : 0x900 + len(self.data)] = self.data
+        emu = emulator(bytes(code))
+        for idx, (dll, name) in enumerate(self.apis):
+            addr = emu.resolve_export(emu.load_module(dll), name)
+            assert addr is not None
+            emu.write_u32(self.IAT + 4 * idx, addr)
+        emu.start()
+        esp = emu.sp
+        assert emu.run(max_blocks=100000).reason is StopReason.RETURNED
+        results = [struct.unpack("<II", emu.read(self.RESULTS + 8 * idx, 8)) for idx in range(self.calls)]
+        # every call left the stack as a stdcall callee must
+        assert [stack for _, stack in results] == [esp] * self.calls
+        return emu, [value for value, _ in results]
+
+
+class TestComObjects(unittest.TestCase):
+    SHELL_LINK = "00021401-0000-0000-c000-000000000046"
+    IID_SHELL_LINK_A = "000214ee-0000-0000-c000-000000000046"
+    IID_PERSIST_FILE = "0000010b-0000-0000-c000-000000000046"
+    IID_UNKNOWN = "00000000-0000-0000-c000-000000000046"
+    OTHER = "12345678-9abc-def0-1122-334455667788"
+
+    def test_shell_link_object(self):
+        prog = _ComProgram()
+        clsid, iid_link, iid_file = (
+            prog.put(_guid(g)) for g in (self.SHELL_LINK, self.IID_SHELL_LINK_A, self.IID_PERSIST_FILE)
+        )
+        iid_unknown, other = prog.put(_guid(self.IID_UNKNOWN)), prog.put(_guid(self.OTHER))
+        link, file, unknown, none = (prog.put(b"\xee" * 4) for _ in range(4))
+        text = prog.put(b"C:\\x.lnk\0")
+        init = prog.api("ole32.dll", "CoInitialize", 0)
+        created = prog.api("ole32.dll", "CoCreateInstance", clsid, 0, 1, iid_link, link)
+        queried = prog.method(link, 0, iid_file, file)
+        save = prog.method(file, 6, text, 1)  # IPersistFile::Save
+        set_path = prog.method(link, 20, text)  # IShellLinkA::SetPath
+        resolve = prog.method(link, 19, 0, 0)  # IShellLinkA::Resolve
+        as_unknown = prog.method(file, 0, iid_unknown, unknown)
+        refused = prog.method(link, 0, other, none)
+        add_ref = prog.method(link, 1)
+        releases = [prog.method(cell, 2) for cell in (file, unknown, link, link)]
+        # neither the class nor the interface is known: no object rather than one with guessed methods
+        missing = prog.api("ole32.dll", "CoCreateInstance", other, 0, 1, other, none)
+        unsupported = prog.api("ole32.dll", "CoCreateInstance", clsid, 0, 1, other, none)
+        emu, results = prog.run()
+        assert [results[idx] for idx in (init, created, queried, as_unknown)] == [0, 0, 0, 0]
+        assert [results[idx] for idx in (save, set_path, resolve)] == [0x80004001] * 3  # E_NOTIMPL
+        assert results[refused] == 0x80004002 and emu.read_u32(none) == 0  # E_NOINTERFACE
+        assert results[add_ref] == 4
+        assert [results[idx] for idx in releases] == [3, 2, 1, 0]
+        assert results[missing] == 0x80040154 and results[unsupported] == 0x80004002  # REGDB_E_CLASSNOTREG
+        # IUnknown is the first pointer; the other interface has a pointer of its own
+        assert emu.read_u32(unknown) == emu.read_u32(link) != emu.read_u32(file)
+        assert emu.api_counts["IPersistFile::Save"] == 1 and emu.api_counts["IShellLinkA::SetPath"] == 1
+        assert [request[3] for request in emu.com.requests] == [0, 0x80040154, 0x80004002]
+
+    def test_allocator_stream_and_wmi(self):
+        prog = _ComProgram()
+        malloc, stream, locator, services, block = (prog.put(b"\xee" * 4) for _ in range(5))
+        buf, count = prog.put(b"hello" + bytes(11)), prog.put(bytes(4))
+        wbem = prog.put(_guid("4590f811-1d3a-11d0-891f-00aa004b2e24"))
+        iid_locator = prog.put(_guid("dc12a687-737f-11cf-884d-00aa004b2e24"))
+        get_malloc = prog.api("shell32.dll", "SHGetMalloc", malloc)
+        alloc = prog.method(malloc, 3, 0x20)
+        prog.code += b"\xa3" + struct.pack("<I", block)
+        size = prog.method(malloc, 6, 0)  # GetSize(NULL)
+        task = prog.api("ole32.dll", "CoTaskMemAlloc", 0x10)
+        prog.api("ole32.dll", "CoTaskMemFree", 0)
+        make = prog.api("ole32.dll", "CreateStreamOnHGlobal", 0, 1, stream)
+        write = prog.method(stream, 4, buf, 5, 0)
+        seek = prog.method(stream, 5, 1, 0, 0, 0)  # Seek(1, STREAM_SEEK_SET, NULL): a 64-bit argument
+        read = prog.method(stream, 3, buf + 8, 8, count)
+        lock = prog.method(stream, 10, 0, 0, 1, 0, 1)  # LockRegion: two 64-bit arguments
+        create = prog.api("ole32.dll", "CoCreateInstance", wbem, 0, 1, iid_locator, locator)
+        connect = prog.method(locator, 3, 0, 0, 0, 0, 0, 0, 0, services)
+        emu, results = prog.run()
+        assert [results[idx] for idx in (get_malloc, make, write, seek, create)] == [0] * 5
+        assert results[alloc] in emu.allocations and results[task] in emu.allocations
+        assert results[size] == 0xFFFFFFFF
+        assert results[read] == 1 and emu.read_u32(count) == 4 and emu.read(buf + 8, 4) == b"ello"  # S_FALSE: short
+        assert results[lock] == 0x80004001
+        # the locator exists, but there is no WMI service to connect to
+        assert results[connect] == 0x800706BA and emu.read_u32(services) == 0
+
+    def test_x64_object_of_unknown_interface(self):
+        # x64 callees pop nothing, so an unknown interface gets an object whose methods all fail
+        emu = emulator(b"\xc3", True)
+        buf = emu.alloc(0x1000)
+        emu.write(buf, _guid(self.OTHER))
+        assert API_HANDLERS["CoCreateInstance"].func(emu, [buf, 0, 1, buf, buf + 0x40]) == 0
+        obj = emu.read_ptr(buf + 0x40)
+        call = lambda index, *args: emu.com.slots[emu.read_ptr(emu.read_ptr(obj) + 8 * index)].handler.func(
+            emu, [obj, *args]
+        )
+        assert call(0, buf, buf + 0x48) == 0 and emu.read_ptr(buf + 0x48) == obj
+        assert call(40, 1, 2, 3) == 0x80004001
+        assert (call(1), call(2), call(2), call(2)) == (3, 2, 1, 0)
+        # a table interface is the same on both
+        assert API_HANDLERS["SHGetDesktopFolder"].func(emu, [buf + 0x50]) == 0
+        folder = emu.read_ptr(buf + 0x50)
+        assert emu.com.slots[emu.read_ptr(emu.read_ptr(folder) + 8 * 12)].name == "IShellFolder::SetNameOf"
+
+    def test_picture_from_stream(self):
+        emu = emulator(b"\xc3")
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        buf = emu.alloc(0x1000)
+        image = call("GlobalAlloc", 0, 0x100)
+        emu.write(image, b"BM" + bytes(16) + struct.pack("<ii", 96, -48))
+        emu.write(buf, _guid("7bf80980-bf32-101a-8bbb-00aa00300cab"))
+        assert call("CreateStreamOnHGlobal", image, 0, buf + 0x20) == 0
+        assert call("OleLoadPicture", emu.read_u32(buf + 0x20), 0, 0, buf, buf + 0x24) == 0
+        picture = emu.read_u32(buf + 0x24)
+        method = lambda index, *args: emu.com.slots[emu.read_u32(emu.read_u32(picture) + 4 * index)].handler.func(
+            emu, [picture, *args]
+        )
+        assert method(6, buf + 0x30) == 0 and method(7, buf + 0x34) == 0  # get_Width, get_Height
+        assert struct.unpack("<II", emu.read(buf + 0x30, 8)) == (2540, 1270)  # 96 and 48 pixels in 0.01 mm
+        # not an image: no object
+        emu.write(image, bytes(16))
+        assert call("OleLoadPicture", emu.read_u32(buf + 0x20), 0, 0, buf, buf + 0x24) == 0x800A01E1
+        assert emu.read_u32(buf + 0x24) == 0
+
+
 class TestImportWrappers(unittest.TestCase):
     def test_trace_to_api(self):
         emu = emulator(b"\xc3")

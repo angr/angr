@@ -246,5 +246,12 @@ class TestIcicleThreads(test_emulation.TestThreads):
     """
 
 
+@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+class TestIcicleComObjects(test_emulation.TestComObjects):
+    """
+    The COM object tests, on Icicle.
+    """
+
+
 if __name__ == "__main__":
     unittest.main()
