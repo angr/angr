@@ -78,6 +78,8 @@ class TestOpVectors(unittest.TestCase):
     def test_sse42(self):
         self._check(vectors.SSE42)
 
+    def test_crypto(self):
+        self._check(vectors.CRYPTO)
 
 
 

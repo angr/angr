@@ -8,6 +8,7 @@ use pcode::{Value, VarNode};
 
 use super::write_trunc;
 
+pub mod crypto;
 pub mod sse2;
 pub mod sse41;
 pub mod sse42;
