@@ -238,7 +238,8 @@ def write_process_memory(emu: WindowsEmulator, args: list[int]) -> int:
     return 1
 
 
-_const(("VirtualFree", "VirtualLock", "VirtualUnlock", "FlushInstructionCache"), 3, 1)
+_const(("VirtualFree", "FlushInstructionCache"), 3, 1)
+_const(("VirtualLock", "VirtualUnlock"), 2, 1)
 _const(("VirtualFreeEx",), 4, 1)
 _const(("NtFreeVirtualMemory", "ZwFreeVirtualMemory"), 4, STATUS_SUCCESS)
 
@@ -315,7 +316,8 @@ def global_realloc(emu: WindowsEmulator, args: list[int]) -> int:
     return new
 
 
-_const(("HeapDestroy", "HeapSetInformation"), 4, 1)
+_const(("HeapSetInformation",), 4, 1)
+_const(("HeapDestroy",), 1, 1)
 
 #
 # Modules
@@ -482,7 +484,8 @@ def terminate_process(emu: WindowsEmulator, args: list[int]) -> int:
 
 _const(("GetCurrentProcess",), 0, -1)
 _const(("GetCurrentThread",), 0, -2)
-_const(("IsDebuggerPresent", "GetLastActivePopup", "GetACP"), 0, 0)
+_const(("IsDebuggerPresent", "GetACP"), 0, 0)
+_const(("GetLastActivePopup",), 1, 0)
 _const(("GetOEMCP",), 0, 437)
 _const(("IsProcessorFeaturePresent",), 1, 1)
 
@@ -538,7 +541,15 @@ _const(("SetErrorMode", "OutputDebugStringA", "OutputDebugStringW"), 1, 0)
 _const(("InitializeCriticalSection", "DeleteCriticalSection", "EnterCriticalSection", "LeaveCriticalSection",
         "RtlInitializeCriticalSection", "RtlEnterCriticalSection", "RtlLeaveCriticalSection",
         "RtlDeleteCriticalSection"), 1, 0)  # fmt: skip
-_const(("InitializeCriticalSectionAndSpinCount", "SetHandleCount"), 2, 1)
+_const(("InitializeCriticalSectionAndSpinCount",), 2, 1)
+
+
+@api("SetHandleCount", nargs=1)
+def set_handle_count(emu: WindowsEmulator, args: list[int]) -> int:
+    # a no-op since Windows NT: returns the requested count
+    return args[0]
+
+
 _const(("InitializeCriticalSectionEx",), 3, 1)
 _const(("NtSetInformationThread", "ZwSetInformationThread"), 4, STATUS_SUCCESS)
 

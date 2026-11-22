@@ -102,6 +102,26 @@ class TestApiHandlers(unittest.TestCase):
         emu.write(buf + 0x60, struct.pack("<III", 24, 0, 0))
         assert call("NtOpenFile", buf, 0x80100080, buf + 0x60, buf + 0x10, 3, 0x60) == 0xC0000034
 
+    def test_stdcall_handlers_pop_their_arguments(self):
+        # a handler popping the wrong number of bytes shifts the caller's saved registers
+        emu = emulator(b"\xc3")
+        for dll, name, nargs in (
+            ("kernel32.dll", "SetHandleCount", 1),
+            ("kernel32.dll", "HeapDestroy", 1),
+            ("kernel32.dll", "VirtualLock", 2),
+            ("kernel32.dll", "VirtualUnlock", 2),
+            ("user32.dll", "GetLastActivePopup", 1),
+        ):
+            addr = emu.resolve_export(emu.load_module(dll), name)
+            assert addr is not None
+            sp = emu.sp
+            frame = sp - 4 * (nargs + 1)
+            emu.write(frame, struct.pack(f"<{nargs + 1}I", 0x401000, *([0x20] * nargs)))
+            emu._set_sp(frame)
+            emu._dispatch_api(addr)
+            assert emu.sp == sp, name
+        assert emu.reg("eax") == 0  # GetLastActivePopup
+
     def test_toolhelp_threads_and_affinity(self):
         emu = emulator(b"\xc3")
         buf = emu.alloc(0x1000)
