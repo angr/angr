@@ -866,6 +866,31 @@ class TestFakeModule(unittest.TestCase):
                     emu.load_module(stem + ".dll")
         return emu
 
+    def test_lookups_in_unknown_modules_and_of_empty_names(self):
+        for lists in ({"kernel32": {"Sleep": 1}, "ntdll": {"NtClose": 1}}, {}):
+            emu = self._importing_emulator(lists)
+            call = lambda name, *args, emu=emu: API_HANDLERS[name].func(emu, list(args))
+            kernel32, third = emu.load_module("kernel32.dll"), emu.load_module("thirdparty.dll")
+            buf = emu.alloc(0x1000)
+            sleep = emu.alloc_cstr("Sleep")
+            emu.write(buf, struct.pack("<HHI", 5, 6, sleep) + struct.pack("<HHI", 0, 1, buf + 0x40))
+            # not a module handle
+            assert call("GetProcAddress", 0x12340000, sleep) == 0
+            assert call("GetLastError") == 126  # ERROR_MOD_NOT_FOUND
+            emu.write_ptr(buf + 0x20, 0x1111)
+            assert call("LdrGetProcedureAddress", 0x12340000, buf, 0, buf + 0x20) == 0xC0000135  # DLL_NOT_FOUND
+            assert emu.read_ptr(buf + 0x20) == 0
+            # an empty name, a null name (= ordinal 0): no such export, whether or not the DLL has a list
+            for module in (kernel32, third):
+                slots = len(module.exports)
+                assert call("GetProcAddress", module.base, emu.alloc_cstr("")) == 0
+                assert call("GetLastError") == 127  # ERROR_PROC_NOT_FOUND
+                assert call("GetProcAddress", module.base, 0) == 0
+                assert call("LdrGetProcedureAddress", module.base, buf + 8, 0, buf + 0x20) == 0xC0000139
+                assert call("LdrGetProcedureAddress", module.base, 0, 0, buf + 0x20) == 0xC0000138
+                assert len(module.exports) == slots
+            assert not emu.unlisted_exports
+
     def test_com_api_sets_are_combase(self):
         emu = self._importing_emulator({"combase": {"RoInitialize": 1}, "kernel32": {"Sleep": 1}})
         combase, kernel32 = emu.modules["combase.dll"], emu.modules["kernel32.dll"]

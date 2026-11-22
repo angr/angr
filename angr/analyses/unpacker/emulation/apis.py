@@ -420,13 +420,20 @@ def ldr_get_dll_handle(emu: WindowsEmulator, args: list[int]) -> int:
     return STATUS_SUCCESS if handle else STATUS_DLL_NOT_FOUND
 
 
-def _get_proc_address(emu: WindowsEmulator, base: int, name: str | None, ordinal: int) -> int:
+def _get_proc_address(emu: WindowsEmulator, base: int, name: str | None, ordinal: int) -> int | None:
+    """
+    The address of an export by name, or by ordinal if name is None: 0 if the module does not have it, None if base
+    is not a module.
+    """
     module = emu.module_by_base(base)
-    if module is None:
-        if base == emu.image_base and name is not None:
-            symbol = emu.main.get_symbol(name)
-            return symbol.rebased_addr if symbol is not None else 0
+    if module is None and base != emu.image_base:
+        return None
+    if not name and (name is not None or ordinal == 0):
+        # no export has an empty name; ordinal 0 is what a null name looks like
         return 0
+    if module is None:
+        symbol = emu.main.get_symbol(name) if name is not None else None
+        return symbol.rebased_addr if symbol is not None else 0
     addr = emu.resolve_export(module, name) if name is not None else emu.resolve_ordinal(module, ordinal)
     return addr or 0
 
@@ -438,17 +445,19 @@ def get_proc_address(emu: WindowsEmulator, args: list[int]) -> int:
     else:
         addr = _get_proc_address(emu, args[0], emu.read_cstr(args[1]), 0)
     if not addr:
-        _set_last_error(emu, ERROR_PROC_NOT_FOUND)
-    return addr
+        _set_last_error(emu, ERROR_MOD_NOT_FOUND if addr is None else ERROR_PROC_NOT_FOUND)
+    return addr or 0
 
 
 @api("LdrGetProcedureAddress", nargs=4)
 def ldr_get_procedure_address(emu: WindowsEmulator, args: list[int]) -> int:
     name = _read_counted_string(emu, args[1], False) if args[1] else None
     addr = _get_proc_address(emu, args[0], name, args[2])
-    emu.write_ptr(args[3], addr)
+    emu.write_ptr(args[3], addr or 0)
     if addr:
         return STATUS_SUCCESS
+    if addr is None:
+        return STATUS_DLL_NOT_FOUND
     return STATUS_ENTRYPOINT_NOT_FOUND if name is not None else STATUS_ORDINAL_NOT_FOUND
 
 
@@ -1157,6 +1166,7 @@ ERROR_ACCESS_DENIED = 5
 ERROR_INVALID_HANDLE = 6
 ERROR_FILE_EXISTS = 80
 ERROR_INVALID_NAME = 123
+ERROR_MOD_NOT_FOUND = 126
 ERROR_PROC_NOT_FOUND = 127
 ERROR_ALREADY_EXISTS = 183
 
