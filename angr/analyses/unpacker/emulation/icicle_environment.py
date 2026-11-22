@@ -195,6 +195,22 @@ class IcicleWindowsEmulator(WindowsEmulator):
             size = max(section.Misc_VirtualSize, section.SizeOfRawData)
             if size:
                 self.vm.mem_protect(self.image_base + (section.VirtualAddress & ~(PAGE - 1)), size, perms | 1)
+        # as on the Unicorn path: file bytes past a section's virtual size and the gaps between sections read as zero
+        cursor = self.pe.OPTIONAL_HEADER.SizeOfHeaders
+        for section in sorted(self.pe.sections, key=lambda s: s.VirtualAddress):
+            end = (section.VirtualAddress + max(section.Misc_VirtualSize, section.SizeOfRawData) + PAGE - 1) & ~(
+                PAGE - 1
+            )
+            if section.VirtualAddress > cursor:
+                self.vm.mem_write(
+                    self.image_base + cursor,
+                    bytes(min(section.VirtualAddress - cursor, PAGE - (cursor & (PAGE - 1)))),
+                )
+            backed = min(section.SizeOfRawData, section.Misc_VirtualSize or section.SizeOfRawData)
+            cursor = section.VirtualAddress + backed
+            if end > cursor:
+                self.vm.mem_write(self.image_base + cursor, bytes(end - cursor))
+            cursor = end
 
     def _copy_loaded(self, start: int, size: int) -> None:
         memory = self.project.loader.memory
