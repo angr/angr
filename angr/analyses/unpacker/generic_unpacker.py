@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import bisect
 import logging
+import os
 import re
 import struct
 import time
@@ -63,7 +64,12 @@ class GenericUnpackerCore:
 
     def __init__(self, path: str, watch_sections: set[int] | None = None):
         self.project = Project(path, auto_load_libs=False, selfmodifying_code=True, simos=SimWindowsEmulated)
-        self.emu = WindowsEmulator(self.project)
+        if os.environ.get("ANGR_UNPACKER_ENGINE") == "rust":
+            from .emulation.icicle_environment import IcicleWindowsEmulator  # pylint:disable=import-outside-toplevel
+
+            self.emu = IcicleWindowsEmulator(self.project)
+        else:
+            self.emu = WindowsEmulator(self.project)
         self.layers: list[UnpackedLayer] = []
         self.stop: EmulationStop | None = None
         self._initial: dict[int, bytes] = {}
