@@ -223,7 +223,7 @@ class WindowsEmulator:
         self._export_db_dir = os.environ.get("ANGR_UNPACKER_EXPORTS") or angr_data.get_path("unpacker", "win_exports")
         self._export_db: dict[str, dict[str, int | None]] = {}
 
-        self.state: SimState = self._create_state()
+        self._init_machine()
         self.exceptions = ExceptionDispatcher(self)
         self._setup_process()
 
@@ -336,6 +336,12 @@ class WindowsEmulator:
             return False
         return True
 
+    def perms(self, addr: int) -> int:
+        """
+        Permission bits (1 read, 2 write, 4 execute) of the mapped page at addr.
+        """
+        return self.state.solver.eval(self.state.memory.permissions(addr, priv=True))
+
     def _zero_fill_image(self) -> None:
         """
         Map every page of the image and give every byte that has no file backing a concrete zero.
@@ -396,6 +402,9 @@ class WindowsEmulator:
     #
     # Process setup
     #
+
+    def _init_machine(self) -> None:
+        self.state: SimState = self._create_state()
 
     def _create_state(self) -> SimState:
         state = self.project.factory.blank_state(
@@ -517,14 +526,13 @@ class WindowsEmulator:
                 self.tick = max(self.tick, self.threads[target].wake_tick)
         if target is None:
             return False
-        size = max(offset + length for offset, length in self.project.arch.registers.values())
         current = self.thread
         if current.alive:
-            current.registers = self.state.registers.load(0, size)
+            self._save_registers(current)
         self.current_thread = target
         thread = self.thread
         if thread.started:
-            self.state.registers.store(0, thread.registers)
+            self._load_registers(thread)
             return True
         thread.started = True
         self._set_thread_register(thread)
@@ -535,6 +543,13 @@ class WindowsEmulator:
 
         self.call_guest(thread.start, (thread.param,), exited)
         return True
+
+    def _save_registers(self, thread: Thread) -> None:
+        size = max(offset + length for offset, length in self.project.arch.registers.values())
+        thread.registers = self.state.registers.load(0, size)
+
+    def _load_registers(self, thread: Thread) -> None:
+        self.state.registers.store(0, thread.registers)
 
     def _runnable(self, thread: Thread) -> bool:
         if not thread.alive or thread.wake_tick > self.tick:
@@ -910,7 +925,7 @@ class WindowsEmulator:
         end = (start + size + PAGE - 1) & ~(PAGE - 1)
         self._watched.append((begin, end))
         for page in range(begin, end, PAGE):
-            perms = self.state.solver.eval(self.state.memory.permissions(page, priv=True))
+            perms = self.perms(page)
             self.state.memory.permissions(page, perms & ~4, priv=True)
         self.state.unicorn.uncache_region(begin, end - begin)
 
@@ -919,7 +934,7 @@ class WindowsEmulator:
             if begin <= addr < end:
                 del self._watched[idx]
                 for page in range(begin, end, PAGE):
-                    perms = self.state.solver.eval(self.state.memory.permissions(page, priv=True))
+                    perms = self.perms(page)
                     self.state.memory.permissions(page, perms | 4, priv=True)
                 self.state.unicorn.uncache_region(begin, end - begin)
                 return begin, end
@@ -997,7 +1012,7 @@ class WindowsEmulator:
             return
         if self.space.find(ex.addr) is not None and ex.reason not in ("unmapped", "non-writable", "non-readable"):
             # executing data: allowed, as in a process without DEP
-            perms = self.state.solver.eval(self.state.memory.permissions(ex.addr, priv=True))
+            perms = self.perms(ex.addr)
             self.protect(ex.addr, PAGE, perms | 4)
             return
         self._raise_at_instruction(

@@ -132,7 +132,7 @@ def nt_allocate_virtual_memory(emu: WindowsEmulator, args: list[int]) -> int:
 
 def _virtual_protect(emu: WindowsEmulator, addr: int, size: int, protect: int, old_ptr: int) -> None:
     if old_ptr:
-        old = emu.state.solver.eval(emu.state.memory.permissions(addr & ~0xFFF, priv=True))
+        old = emu.perms(addr & ~0xFFF)
         emu.write_u32(old_ptr, _PERMS_PAGE.get(old, 0x04))
     emu.protect(addr, size, page_perms(protect))
 
@@ -170,10 +170,7 @@ def _query_memory(emu: WindowsEmulator, addr: int, buf: int) -> int:
         # MEM_FREE up to the next region
         fields = (addr, 0, 0, emu.space.next_start(addr) - addr, 0x10000, 1, 0)
     else:
-        if emu.is_mapped(addr):
-            perms = emu.state.solver.eval(emu.state.memory.permissions(addr, priv=True))
-        else:
-            perms = emu.lazy_regions.get(region[0], (3, 0))[0]
+        perms = emu.perms(addr) if emu.is_mapped(addr) else emu.lazy_regions.get(region[0], (3, 0))[0]
         protect = _PERMS_PAGE.get(perms, 0x04)
         # MEM_IMAGE, MEM_MAPPED or MEM_PRIVATE
         kind = 0x1000000 if emu.is_image(region[0]) else 0x40000 if region[0] in emu.file_views else 0x20000
@@ -601,7 +598,7 @@ def c_specific_handler(emu: WindowsEmulator, args: list[int]) -> int | None:
                 else:
                     disposition = 0
                 emu.set_reg("rax", disposition)
-                emu.state.regs.ip = ret_pc
+                emu._set_pc(ret_pc)
 
             emu.call_guest(base + handler, (pointers, establisher), after_filter)
             return None
