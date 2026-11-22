@@ -122,6 +122,18 @@ class TestApiHandlers(unittest.TestCase):
             assert emu.sp == sp, name
         assert emu.reg("eax") == 0  # GetLastActivePopup
 
+    def test_stack_pointer_before_start(self):
+        # both engines: the main thread is on its own stack as soon as the process exists
+        for is_64bit in (False, True):
+            emu = emulator(b"\xc3", is_64bit)
+            sp = emu.sp
+            assert sp == emu.thread.stack_base - 0x2000
+            assert emu.space.find(sp) == (emu.thread.stack_base - emu.STACK_SIZE, emu.thread.stack_base)
+            emu.write_ptr(sp - emu.ptr_size, 0x1234)
+            assert emu.read_ptr(sp - emu.ptr_size) == 0x1234
+            emu.start()
+            assert sp - 0x80 <= emu.sp < sp
+
     def test_static_dll_dependencies(self):
         emu = emulator(b"\xc3")
         emu.load_module("shell32.dll")

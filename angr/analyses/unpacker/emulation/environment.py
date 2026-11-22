@@ -484,6 +484,8 @@ class WindowsEmulator:
         self._write_unicode_string(params + lay.params_image_path, self.image_path)
         self._write_unicode_string(params + lay.params_cmdline, self.cmdline)
         self._set_thread_register(self.thread)
+        # on the thread's own stack from the beginning: handlers and call_guest() are usable before start()
+        self._set_sp(self.thread.stack_base - 0x2000)
 
         self._add_ldr_entry(ntpath.basename(self.image_path), self.image_path, self.image_base, self.image_size,
                             self.project.entry)  # fmt: skip

@@ -232,5 +232,12 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
         assert emu.read(IMAGE_BASE + CODE_RVA, 1) == b"\xb8"
 
 
+@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+class TestIcicleApiHandlers(test_emulation.TestApiHandlers):
+    """
+    The API handler tests, on Icicle.
+    """
+
+
 if __name__ == "__main__":
     unittest.main()
