@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -130,10 +131,33 @@ _DESCRIPTORS = (
         f"  {_checked('SegmentLimit', 'rm32', 'Reg64 = zext(tmp:4);')}\n",
     ),
 )
+# MMX / SSE2
+_SSE2 = (
+    # the masked moves merge into memory: pass its old content to the helper
+    ("{ maskMovDI = maskmovdqu(XmmReg1, XmmReg2); }", "{ maskMovDI = maskmovdqu(XmmReg1, XmmReg2, maskMovDI); }"),
+    (
+        "{ maskMovDI = MaskedMoveQWord(mmxreg1, mmxreg2); }",
+        "{ maskMovDI = MaskedMoveQWord(mmxreg1, mmxreg2, maskMovDI); }",
+    ),
+    # cvtps2pi stored the rounded floats instead of integers
+    ("  mmxreg[0,32] = round(m[0,32]);", "  mmxreg[0,32] = trunc(round(m[0,32]));"),
+    ("  mmxreg[32,32] = round(m[32,32]);", "  mmxreg[32,32] = trunc(round(m[32,32]));"),
+    ("  mmxreg1[0,32] = round(XmmReg2[0,32]);", "  mmxreg1[0,32] = trunc(round(XmmReg2[0,32]));"),
+    ("  mmxreg1[32,32] = round(XmmReg2[32,32]);", "  mmxreg1[32,32] = trunc(round(XmmReg2[32,32]));"),
+    # psrad xmm: the count is the whole low quadword
+    ("    local count:4 = XmmReg2[0,32];", "    local count:8 = XmmReg2[0,64];"),
+    ("    local count:4 = m[0,32];", "    local count:8 = m[0,64];"),
+)
+# regex substitutions inside every constructor of a mnemonic: these conversions round (MXCSR's default, to nearest
+# even) where the spec truncates
+_CONSTRUCTOR_PATCHES = tuple(
+    (name, r"trunc\((.*?)\);", r"trunc(round(\1));") for name in ("CVTPS2DQ", "CVTPD2DQ", "CVTPD2PI")
+)
 _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _IA_PATCHES),
     *(("ia.sinc", old, new) for old, new in _STACK16),
     *(("ia.sinc", old, new) for old, new in _DESCRIPTORS),
+    *(("ia.sinc", old, new) for old, new in _SSE2),
     ("lockable.sinc", *_XCHG_M32),
 )
 
@@ -142,7 +166,7 @@ def patched_processors() -> str:
     """
     A copy of pypcode's x86 SLEIGH files with _SLEIGH_PATCHES applied, made once per pypcode version.
     """
-    digest = hashlib.sha256(repr(_SLEIGH_PATCHES).encode()).hexdigest()[:12]
+    digest = hashlib.sha256(repr((_SLEIGH_PATCHES, _CONSTRUCTOR_PATCHES)).encode()).hexdigest()[:12]
     root = os.path.join(tempfile.gettempdir(), f"angr-unpacker-sleigh-{pypcode.__version__}-{digest}")
     languages = os.path.join(root, "x86", "data", "languages")
     if os.path.isdir(languages):
@@ -157,6 +181,15 @@ def patched_processors() -> str:
             if patched == name:
                 assert old in text, old
                 text = text.replace(old, new)
+        if name == "ia.sinc":
+            for mnemonic, pattern, repl in _CONSTRUCTOR_PATCHES:
+                text, count = re.subn(
+                    rf"^:{mnemonic} .*?^\}}",
+                    lambda m, pattern=pattern, repl=repl: re.sub(pattern, repl, m.group(0)),
+                    text,
+                    flags=re.MULTILINE | re.DOTALL,
+                )
+                assert count, mnemonic
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
     try:

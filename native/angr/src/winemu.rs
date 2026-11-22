@@ -16,6 +16,8 @@ use pyo3::{
     types::PyBytes,
 };
 
+mod ops;
+
 const PAGE: u64 = 0x1000;
 
 /// `Exception::value`s of `ExceptionCode::Environment` raised by the injected code.
@@ -207,6 +209,7 @@ const HELPERS: &[(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)] = &[
 fn helpers() -> impl Iterator<Item = &'static (&'static str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)> {
     HELPERS
         .iter()
+        .chain(ops::sse2::HELPERS)
 }
 
 struct FlagsHandler {
@@ -477,9 +480,77 @@ impl WinPatcher {
         inst.instructions.extend(tail);
     }
 
+    /// A float-to-integer conversion saturates in p-code; on x86 an out-of-range or NaN source gives the
+    /// "integer indefinite", the most negative value.
+    fn add_integer_indefinite(&self, inst: &mut pcode::Block) {
+        let mut at = 0;
+        while at < inst.instructions.len() {
+            let stmt = inst.instructions[at];
+            at += 1;
+            let pcode::Op::FloatToInt = stmt.op else {
+                continue;
+            };
+            let (out, src) = (stmt.output, stmt.inputs.first());
+            if !matches!(out.size, 2 | 4 | 8) || !matches!(src.size(), 4 | 8 | 10) {
+                continue;
+            }
+            inst.recompute_next_tmp();
+            let mut fix: Vec<pcode::Instruction> = Vec::new();
+            // the conversion may overwrite its source (cvttps2dq xmm0, xmm0)
+            let src = match src {
+                pcode::Value::Var(var) if var.id == out.id => {
+                    let saved = inst.alloc_tmp(var.size);
+                    inst.instructions
+                        .insert(at - 1, (saved, pcode::Op::Copy, src).into());
+                    at += 1;
+                    pcode::Value::Var(saved)
+                }
+                _ => src,
+            };
+            // x87 values are doubles in ten bytes
+            let (value, size) = if src.size() == 10 {
+                let narrow = inst.alloc_tmp(8);
+                fix.push((narrow, pcode::Op::FloatToFloat, src).into());
+                (pcode::Value::Var(narrow), 8)
+            } else {
+                (src, src.size())
+            };
+            let bits = 8 * out.size as i32;
+            let limit = |sign: f64| {
+                let bound = sign * 2f64.powi(bits - 1);
+                let raw = if size == 4 {
+                    (bound as f32).to_bits() as u64
+                } else {
+                    bound.to_bits()
+                };
+                pcode::Value::Const(raw, size)
+            };
+            let [high, low, nan, either, bad] = [(); 5].map(|_| inst.alloc_tmp(1));
+            let [wide, select, keep, kept, forced] = [(); 5].map(|_| inst.alloc_tmp(out.size));
+            let minimum = pcode::Value::Const(1u64 << (bits - 1), out.size);
+            fix.push((high, pcode::Op::FloatLessEqual, (limit(1.0), value)).into());
+            fix.push((low, pcode::Op::FloatLess, (value, limit(-1.0))).into());
+            fix.push((nan, pcode::Op::FloatIsNan, value).into());
+            fix.push((either, pcode::Op::BoolOr, (high, low)).into());
+            fix.push((bad, pcode::Op::BoolOr, (either, nan)).into());
+            fix.push((wide, pcode::Op::ZeroExtend, bad).into());
+            fix.push((select, pcode::Op::IntNegate, wide).into());
+            fix.push((keep, pcode::Op::IntNot, select).into());
+            fix.push((kept, pcode::Op::IntAnd, (out, keep)).into());
+            fix.push((forced, pcode::Op::IntAnd, (pcode::Value::Var(select), minimum)).into());
+            fix.push((out, pcode::Op::IntOr, (kept, forced)).into());
+            let count = fix.len();
+            let tail: Vec<pcode::Instruction> = inst.instructions.drain(at..).collect();
+            inst.instructions.extend(fix);
+            inst.instructions.extend(tail);
+            at += count;
+        }
+    }
+
     fn patch(&self, inst: &mut pcode::Block) {
         self.add_aux_carry(inst);
         self.add_divide_overflow(inst);
+        self.add_integer_indefinite(inst);
         let Some(&marker) = inst.instructions.first() else {
             return;
         };
