@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from angr.errors import SimSegfaultException
 
-from .apis import ApiHandler, api
+from .apis import ApiHandler, GdiObject, api
 
 if TYPE_CHECKING:
     from .environment import WindowsEmulator
@@ -1004,7 +1004,7 @@ def _himetric(pixels: int) -> int:
 @method("IPicture", "get_Handle")
 def picture_get_handle(emu: WindowsEmulator, obj: ComObject, this: int, args: list[int]) -> int:  # pylint:disable=unused-argument
     if not obj.bitmap:
-        obj.bitmap = emu.new_handle("bitmap")
+        obj.bitmap = emu.new_handle(GdiObject("bitmap"))
     emu.write_u32(args[0], obj.bitmap)
     return S_OK
 

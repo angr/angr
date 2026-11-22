@@ -14,7 +14,7 @@ from unittest import mock
 import pefile
 
 from angr.analyses.unpacker.emulation import StopReason
-from angr.analyses.unpacker.emulation.apis import API_HANDLERS
+from angr.analyses.unpacker.emulation.apis import API_HANDLERS, GdiObject
 from angr.analyses.unpacker.emulation.modules import FakeModule
 from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
 from angr.errors import SimSegfaultException
@@ -876,10 +876,27 @@ class TestComObjects(unittest.TestCase):
         )
         assert method(6, buf + 0x30) == 0 and method(7, buf + 0x34) == 0  # get_Width, get_Height
         assert struct.unpack("<II", emu.read(buf + 0x30, 8)) == (2540, 1270)  # 96 and 48 pixels in 0.01 mm
+        # the picture's handle is a GDI bitmap, the same one each time
+        assert method(3, buf + 0x38) == 0 and method(3, buf + 0x3C) == 0  # get_Handle
+        bitmap = emu.read_u32(buf + 0x38)
+        assert isinstance(emu.handles[bitmap], GdiObject) and emu.read_u32(buf + 0x3C) == bitmap
         # not an image: no object
         emu.write(image, bytes(16))
         assert call("OleLoadPicture", emu.read_u32(buf + 0x20), 0, 0, buf, buf + 0x24) == 0x800A01E1
         assert emu.read_u32(buf + 0x24) == 0
+
+    def test_ole_picture_loading_fails_cleanly(self):
+        # nothing to load a picture from: the out pointer is NULL and the HRESULT a failure, so callers skip the picture
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        emu.write(buf, b"\xff" * 16)
+        assert call("OleLoadPicture", 0, 0, 0, 0, buf + 4) & 0x80000000
+        assert emu.read_u32(buf + 4) == 0
+        # a handle that is no global block makes an empty stream, which holds no picture
+        assert call("CreateStreamOnHGlobal", 0x1234, 1, buf) == 0
+        assert call("OleLoadPicture", emu.read_u32(buf), 0, 0, 0, buf + 8) & 0x80000000
+        assert emu.read_u32(buf + 8) == 0
 
 
 class TestWindowMessages(unittest.TestCase):
