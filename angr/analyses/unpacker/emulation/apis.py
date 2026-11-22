@@ -1913,6 +1913,26 @@ def find_close(emu: WindowsEmulator, args: list[int]) -> int:
     return int(isinstance(emu.handles.pop(args[0], None), FindObject))
 
 
+@api("CheckSumMappedFile", nargs=4)
+def check_sum_mapped_file(emu: WindowsEmulator, args: list[int]) -> int:
+    base, length, header_sum, check_sum = args
+    data = emu.read(base, (length + 1) & ~1)
+    if data[:2] != b"MZ":
+        return 0
+    nt = base + struct.unpack_from("<I", data, 0x3C)[0]
+    if emu.read(nt, 4) != b"PE\0\0":
+        return 0
+    # 16-bit ones'-complement sum with end-around carry, as imagehlp's ChkSum
+    total = sum(struct.unpack(f"<{len(data) // 2}H", data))
+    calc = 0 if total == 0 else (total - 1) % 0xFFFF + 1
+    stored = emu.read_u32(nt + 0x58)
+    for part in (stored & 0xFFFF, stored >> 16):
+        calc = (calc - part if calc & 0xFFFF >= part else ((calc - part) & 0xFFFF) - 1) & 0xFFFFFFFF
+    emu.write_u32(header_sum, stored)
+    emu.write_u32(check_sum, (calc + length) & 0xFFFFFFFF)
+    return nt
+
+
 def _object_name(emu: WindowsEmulator, attributes: int) -> str:
     """
     The name in an OBJECT_ATTRIBUTES structure.

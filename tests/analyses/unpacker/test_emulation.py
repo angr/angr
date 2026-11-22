@@ -535,6 +535,24 @@ class TestApiHandlers(unittest.TestCase):
         assert call("SelectObject", dc, bitmap) not in (0, bitmap)
         assert call("SetDIBColorTable", dc, 0, 0xFF, buf + 0x400) == 0xFF
 
+    def test_check_sum_mapped_file(self):
+        emu = emulator(b"\xc3")
+        data = bytearray(emu.image_file)
+        pe = pefile.PE(data=bytes(data))
+        pe.OPTIONAL_HEADER.CheckSum = 0x12345678
+        data = pe.write()
+        view = emu.alloc(len(data) + 0x1000)
+        emu.write(view, data)
+        out = emu.alloc(0x1000)
+        nt = API_HANDLERS["CheckSumMappedFile"].func(emu, [view, len(data), out, out + 4])
+        assert nt == view + pe.DOS_HEADER.e_lfanew
+        assert emu.read_u32(out) == 0x12345678
+        assert emu.read_u32(out + 4) == pe.generate_checksum()
+        # a protector checksumming only a prefix of its file
+        API_HANDLERS["CheckSumMappedFile"].func(emu, [view, len(data) - 0x104, out, out + 4])
+        prefix = pefile.PE(data=bytes(data[: len(data) - 0x104]), fast_load=True)
+        assert emu.read_u32(out + 4) == prefix.generate_checksum()
+
 
 class TestThreads(unittest.TestCase):
     def test_sleep_poll_next_to_a_long_sleeper(self):
