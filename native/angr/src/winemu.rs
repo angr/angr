@@ -675,6 +675,8 @@ impl WinVm {
 
         // whole-cache recompilation (every 60 s) builds functions too large for cranelift on protector code
         vm.enable_recompilation = false;
+        // icicle's default of 50k pages (200 MB) is less than some protected processes touch
+        vm.cpu.mem.set_capacity(1 << 20);
         let mut regs = HashMap::new();
         {
             let sleigh = &vm.cpu.arch.sleigh;
