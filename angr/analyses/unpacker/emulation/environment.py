@@ -709,16 +709,19 @@ class WindowsEmulator:
         module = self.modules.get(name)
         if module is not None:
             return module
-        exports: set[str] = set(self._known_exports(name)) | self._static_imports.get(name, set())
+        known_exports = self._known_exports(name)
+        exports: set[str] = set(known_exports) | self._static_imports.get(name, set())
         for lib in SIM_LIBRARIES.get(name, []):
             exports.update(lib.prototypes_json)
             exports.update(lib.prototypes)
-        for api_name in API_HANDLERS:
-            is_nt = api_name.startswith(_NTDLL_PREFIXES) or (
-                (api_name[0].islower() or api_name[0] == "_") and not api_name.startswith(_WIN32_LOWERCASE_PREFIXES)
-            )
-            if (name == "ntdll.dll" and is_nt) or (name in ("kernel32.dll", "kernelbase.dll") and not is_nt):
-                exports.add(api_name)
+        if not known_exports and name in _PRELOADED:
+            # no export list for this DLL: the handlers stand in for one, split by name between ntdll and kernel32
+            for api_name in API_HANDLERS:
+                is_nt = api_name.startswith(_NTDLL_PREFIXES) or (
+                    (api_name[0].islower() or api_name[0] == "_") and not api_name.startswith(_WIN32_LOWERCASE_PREFIXES)
+                )
+                if is_nt == (name == "ntdll.dll"):
+                    exports.add(api_name)
         syscalls: dict[str, int] | None = None
         if name == "ntdll.dll":
             syscalls = {}

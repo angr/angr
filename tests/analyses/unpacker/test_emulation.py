@@ -290,6 +290,36 @@ class TestFakeModule(unittest.TestCase):
         names = {sym.name for sym in pe.DIRECTORY_ENTRY_EXPORT.symbols}
         assert {b"NtClose", b"strcspn"} <= names
 
+    def test_handler_names_stay_in_their_own_dll(self):
+        export_names = lambda module: {sym.name for sym in pefile.PE(data=module.image).DIRECTORY_ENTRY_EXPORT.symbols}
+        lists = {
+            "kernel32": {"Sleep": 1, "RegCloseKey": 1},
+            "ntdll": {"NtClose": 1},
+            "user32": {"MessageBoxA": 4},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for stem, names in lists.items():
+                with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
+                    json.dump(names, f)
+            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
+                emu = emulator(b"\xc3")
+            kernel32, ntdll = emu.load_module("kernel32.dll"), emu.load_module("ntdll.dll")
+            # a DLL with an export list exports that list, not every handler
+            assert {b"Sleep", b"RegCloseKey"} <= export_names(kernel32)
+            assert not {b"MessageBoxA", b"wsprintfA", b"RegOpenKeyA", b"NtClose"} & export_names(kernel32)
+            assert b"NtClose" in export_names(ntdll)
+            assert not {b"malloc", b"timeGetTime", b"Sleep"} & export_names(ntdll)
+            assert b"MessageBoxA" in export_names(emu.load_module("user32.dll"))
+            # kernelbase has no list here, so the handlers still stand in for one
+            assert {b"VirtualAlloc", b"MessageBoxA"} <= export_names(emu.load_module("kernelbase.dll"))
+        # no export data at all: the handlers are split between ntdll and kernel32, as before
+        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
+            emu = emulator(b"\xc3")
+        kernel32, ntdll = emu.load_module("kernel32.dll"), emu.load_module("ntdll.dll")
+        assert {b"VirtualAlloc", b"Sleep", b"MessageBoxA", b"lstrlenA"} <= export_names(kernel32)
+        assert {b"NtClose", b"RtlAllocateHeap", b"memcpy"} <= export_names(ntdll)
+        assert b"NtClose" not in export_names(kernel32)
+
     def test_static_imports_are_exported(self):
         # a third-party DLL without an export list still exports what the image's import directory names
         idata = bytearray(0x200)
