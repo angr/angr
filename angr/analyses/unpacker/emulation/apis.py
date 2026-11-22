@@ -118,12 +118,15 @@ class FindObject:
 
 class ToolhelpSnapshot:
     """
-    A CreateToolhelp32Snapshot handle: the threads of the emulated process, as (thread id, process id).
+    A CreateToolhelp32Snapshot handle: the threads of the emulated process, as (thread id, process id), and the
+    processes of the session, as (process id, parent, threads, name), each with a cursor.
     """
 
-    def __init__(self, threads: list[tuple[int, int]]):
+    def __init__(self, threads: list[tuple[int, int]], processes: list[tuple[int, int, int, str]]):
         self.threads = threads
+        self.processes = processes
         self.pos = 0
+        self.process_pos = 0
 
 
 #
@@ -547,14 +550,35 @@ def nt_close(emu: WindowsEmulator, args: list[int]) -> int:
     return STATUS_SUCCESS if emu.handles.pop(args[0], None) is not None else STATUS_INVALID_HANDLE
 
 
+TH32CS_SNAPPROCESS = 0x2
 TH32CS_SNAPTHREAD = 0x4
 ERROR_NO_MORE_FILES = 0x12
+# a plain desktop session with the sample started from Explorer: (pid, parent pid, threads, name)
+_EXPLORER_PID = 0x6A8
+_PROCESSES = (
+    (0, 0, 2, "[System Process]"),
+    (4, 0, 96, "System"),
+    (0x110, 4, 2, "smss.exe"),
+    (0x174, 0x16C, 9, "csrss.exe"),
+    (0x1A4, 0x16C, 3, "wininit.exe"),
+    (0x1B0, 0x19C, 9, "csrss.exe"),
+    (0x1E8, 0x19C, 3, "winlogon.exe"),
+    (0x210, 0x1A4, 7, "services.exe"),
+    (0x220, 0x1A4, 7, "lsass.exe"),
+    (0x2A0, 0x210, 18, "svchost.exe"),
+    (0x5F4, 0x210, 12, "spoolsv.exe"),
+    (0x680, 0x2A0, 5, "dwm.exe"),
+    (_EXPLORER_PID, 0x674, 30, "explorer.exe"),
+)
 
 
 @api("CreateToolhelp32Snapshot", nargs=2)
 def create_toolhelp32_snapshot(emu: WindowsEmulator, args: list[int]) -> int:
     threads = [(t.tid, emu.PID) for t in emu.threads if t.alive] if args[0] & TH32CS_SNAPTHREAD else []
-    return emu.new_handle(ToolhelpSnapshot(threads))
+    processes: list[tuple[int, int, int, str]] = []
+    if args[0] & TH32CS_SNAPPROCESS:
+        processes = [*_PROCESSES, (emu.PID, _EXPLORER_PID, len(emu.threads), ntpath.basename(emu.image_path))]
+    return emu.new_handle(ToolhelpSnapshot(threads, processes))
 
 
 def _thread32(emu: WindowsEmulator, args: list[int], first: bool) -> int:
@@ -2305,6 +2329,62 @@ _const(("GetUserDefaultUILanguage", "GetSystemDefaultUILanguage", "GetUserDefaul
 _const(("GetAdaptersInfo",), 2, 232)
 _const(("GetAdaptersAddresses",), 5, 232)
 _const(("SetConsoleCtrlHandler", "SetThreadPriority"), 2, 1)
+
+
+#
+# Tool Help process lists
+#
+
+ERROR_BAD_LENGTH = 24
+
+
+def _process_entry(emu: WindowsEmulator, handle: int, entry: int, wide: bool, first: bool) -> int:
+    snapshot = emu.handles.get(handle)
+    if not isinstance(snapshot, ToolhelpSnapshot):
+        set_last_error(emu, [6])  # ERROR_INVALID_HANDLE
+        return 0
+    # PROCESSENTRY32: the name follows nine fields, th32DefaultHeapID is pointer-sized
+    name_offset = 0x2C if emu.is_64bit else 0x24
+    size = name_offset + 260 * (2 if wide else 1)
+    if emu.is_64bit:
+        size = (size + 7) & ~7
+    if emu.read_u32(entry) < size:
+        set_last_error(emu, [ERROR_BAD_LENGTH])
+        return 0
+    if first:
+        snapshot.process_pos = 0
+    if snapshot.process_pos >= len(snapshot.processes):
+        set_last_error(emu, [ERROR_NO_MORE_FILES])
+        return 0
+    pid, parent, threads, name = snapshot.processes[snapshot.process_pos]
+    snapshot.process_pos += 1
+    if emu.is_64bit:
+        fields = struct.pack("<IIIIQIIIiI", size, 0, pid, 0, 0, 0, threads, parent, 8, 0)
+    else:
+        fields = struct.pack("<IIIIIIIiI", size, 0, pid, 0, 0, threads, parent, 8, 0)
+    emu.write(entry, fields)
+    _write_text(emu, entry + name_offset, 260, name, wide)
+    return 1
+
+
+@api("Process32First", nargs=2)
+def process32_first(emu: WindowsEmulator, args: list[int]) -> int:
+    return _process_entry(emu, args[0], args[1], False, True)
+
+
+@api("Process32Next", nargs=2)
+def process32_next(emu: WindowsEmulator, args: list[int]) -> int:
+    return _process_entry(emu, args[0], args[1], False, False)
+
+
+@api("Process32FirstW", nargs=2)
+def process32_first_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _process_entry(emu, args[0], args[1], True, True)
+
+
+@api("Process32NextW", nargs=2)
+def process32_next_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _process_entry(emu, args[0], args[1], True, False)
 
 
 @api("CreateThread", nargs=6)

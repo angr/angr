@@ -435,6 +435,29 @@ class TestApiHandlers(unittest.TestCase):
             API_HANDLERS["VirtualProtect"].func(emu, [buf, 0x100000, 0x40, buf + 0x10])
         assert emu.perms(buf) == perms
 
+    def _process_list(self, is_64bit: bool, name_offset: int, size: int) -> None:
+        emu = emulator(b"\xc3", is_64bit=is_64bit)
+        entry = emu.alloc(0x1000)
+        first, following = API_HANDLERS["Process32FirstW"].func, API_HANDLERS["Process32NextW"].func
+        snapshot = API_HANDLERS["CreateToolhelp32Snapshot"].func(emu, [2, 0])
+        emu.write_u32(entry, size - 1)
+        assert first(emu, [snapshot, entry]) == 0
+        emu.write_u32(entry, size)
+        processes = []
+        ok = first(emu, [snapshot, entry])
+        while ok:
+            # th32ProcessID, th32ParentProcessID, szExeFile
+            pid, parent = emu.read_u32(entry + 8), emu.read_u32(entry + name_offset - 12)
+            processes.append((emu.read_wstr(entry + name_offset), pid, parent))
+            ok = following(emu, [snapshot, entry])
+        explorer = next(pid for name, pid, _ in processes if name == "explorer.exe")
+        assert processes[-1] == ("sample.exe", emu.PID, explorer)
+        assert len(processes) > 10
+
+    def test_process_snapshot(self):
+        self._process_list(False, 0x24, 0x22C)
+        self._process_list(True, 0x2C, 0x238)
+
     def test_message_box_ex(self):
         emu = emulator(b"\xc3")
         buf = emu.alloc(0x1000)
