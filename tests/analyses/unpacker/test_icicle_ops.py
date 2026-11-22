@@ -136,6 +136,13 @@ class TestSse(unittest.TestCase):
             vm.run(10)
             assert vm.reg_read("eax") == expected
 
+    def test_movdq2q(self):
+        # movdq2q mm3, xmm6; movq [edi], mm3; emms: the low half of the XMM register named by the r/m field
+        code = "f20fd6de 0f7f1f 0f77"
+        vm = _run(code)
+        xmm6 = vectors.make_state(code, False, "i")[2][6]
+        assert vm.mem_read(DATA + Q_OFF, 8) == (xmm6 & (2**64 - 1)).to_bytes(8, "little")
+
     def test_string_compare_flags_in_jit(self):
         # sub eax, eax sets flags the JIT keeps in registers; pcmpistri's helper must still win
         vm = _vm(False, True)

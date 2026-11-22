@@ -144,6 +144,17 @@ _SSE2 = (
     ("  mmxreg[32,32] = round(m[32,32]);", "  mmxreg[32,32] = trunc(round(m[32,32]));"),
     ("  mmxreg1[0,32] = round(XmmReg2[0,32]);", "  mmxreg1[0,32] = trunc(round(XmmReg2[0,32]));"),
     ("  mmxreg1[32,32] = round(XmmReg2[32,32]);", "  mmxreg1[32,32] = trunc(round(XmmReg2[32,32]));"),
+    # movdq2q: the MMX register is the reg field and the XMM register the r/m field, not the reverse
+    (
+        (
+            ":MOVDQ2Q      mmxreg2, XmmReg1    is vexMode=0 &  $(PRE_F2) & byte=0x0F; byte=0xD6; XmmReg1 & mmxreg2"
+            " { mmxreg2 = movdq2q(mmxreg2, XmmReg1); }"
+        ),
+        (
+            ":MOVDQ2Q      mmxreg1, XmmReg2    is vexMode=0 &  $(PRE_F2) & byte=0x0F; byte=0xD6; xmmmod=3 & mmxreg1 & XmmReg2"
+            " { mmxreg1 = XmmReg2[0,64]; }"
+        ),
+    ),
     # psrad xmm: the count is the whole low quadword
     ("    local count:4 = XmmReg2[0,32];", "    local count:8 = XmmReg2[0,64];"),
     ("    local count:4 = m[0,32];", "    local count:8 = m[0,64];"),
@@ -151,8 +162,10 @@ _SSE2 = (
 # extractps stores 32 bits whatever the mode (a register destination is zero-extended by the 32-bit form)
 _SSE41 = (
     (
-        ":EXTRACTPS rm64, XmmReg, imm8  is $(LONGMODE_ON) & vexMode=0 & bit64=1 & $(PRE_66) & byte=0x0F; byte=0x3A;"
-        " byte=0x17; XmmReg ... & rm64; imm8 { rm64 = extractps(XmmReg, imm8:8); }",
+        (
+            ":EXTRACTPS rm64, XmmReg, imm8  is $(LONGMODE_ON) & vexMode=0 & bit64=1 & $(PRE_66) & byte=0x0F; byte=0x3A;"
+            " byte=0x17; XmmReg ... & rm64; imm8 { rm64 = extractps(XmmReg, imm8:8); }"
+        ),
         "",
     ),
 )
@@ -165,8 +178,10 @@ _SSE42 = (
 _X87 = (
     (
         "define pcodeop segment;",
-        "define pcodeop segment;\ndefine pcodeop f80_decode;\ndefine pcodeop f80_encode;\ndefine pcodeop fprem;\n"
-        "define pcodeop fprem1;",
+        (
+            "define pcodeop segment;\ndefine pcodeop f80_decode;\ndefine pcodeop f80_encode;\ndefine pcodeop fprem;\n"
+            "define pcodeop fprem1;"
+        ),
     ),
     (
         "    fpushv(m80fp); ",
@@ -179,10 +194,14 @@ _X87 = (
     ("  C0 = nan(ST0);", "  C0 = nan(ST0) || (((ST0 f+ ST0) f== ST0) && (ST0 f!= fzero));"),
     ("  C2 = ( ST0 f!= fzero );", "  C2 = !nan(ST0) && ( ST0 f!= fzero );"),
     (
-        ":FPREM          is vexMode=0 & byte=0xD9; byte=0xF8\n{\n    FPUInstructionPointer = inst_start;\n"
-        "    local tmp = ST0 f/ ST1;\n    tmp = trunc(tmp);\n    tmp = tmp f* ST1;\n    ST0 = ST0 f- tmp;\n",
-        ":FPREM          is vexMode=0 & byte=0xD9; byte=0xF8\n{\n    FPUInstructionPointer = inst_start;\n"
-        "    ST0 = fprem(ST0, ST1);\n",
+        (
+            ":FPREM          is vexMode=0 & byte=0xD9; byte=0xF8\n{\n    FPUInstructionPointer = inst_start;\n"
+            "    local tmp = ST0 f/ ST1;\n    tmp = trunc(tmp);\n    tmp = tmp f* ST1;\n    ST0 = ST0 f- tmp;\n"
+        ),
+        (
+            ":FPREM          is vexMode=0 & byte=0xD9; byte=0xF8\n{\n    FPUInstructionPointer = inst_start;\n"
+            "    ST0 = fprem(ST0, ST1);\n"
+        ),
     ),
     (
         "    local tmp = ST0 f/ ST1;\n    tmp = round(tmp);\n    tmp = tmp f* ST1;\n    ST0 = ST0 f- tmp;\n",
@@ -219,13 +238,17 @@ _MULTIPLY_FLAGS = (
 _ASCII_ADJUST = (
     (
         "{ local car = ((AL & 0xf) > 9) | AF; AL = (AL+6*car)&0xf; AH=AH+car; CF=car; AF=car; }",
-        "{ local car = ((AL & 0xf) > 9) | AF; local wrap = car & (AL > 0xf9); AL = (AL+6*car)&0xf; AH=AH+car+wrap;"
-        " CF=car; AF=car; }",
+        (
+            "{ local car = ((AL & 0xf) > 9) | AF; local wrap = car & (AL > 0xf9); AL = (AL+6*car)&0xf; AH=AH+car+wrap;"
+            " CF=car; AF=car; }"
+        ),
     ),
     (
         "{ local car = ((AL & 0xf) > 9) | AF; AL = (AL-6*car)&0xf; AH=AH-car; CF=car; AF=car; }",
-        "{ local car = ((AL & 0xf) > 9) | AF; local wrap = car & (AL < 6); AL = (AL-6*car)&0xf; AH=AH-car-wrap;"
-        " CF=car; AF=car; }",
+        (
+            "{ local car = ((AL & 0xf) > 9) | AF; local wrap = car & (AL < 6); AL = (AL-6*car)&0xf; AH=AH-car-wrap;"
+            " CF=car; AF=car; }"
+        ),
     ),
     ("{ AL = AL + imm8*AH; AH=0; resultflags(AX); }", "{ AL = AL + imm8*AH; AH=0; resultflags(AL); }"),
     ("{ AH = AL/imm8; AL = AL % imm8; resultflags(AX); }", "{ AH = AL/imm8; AL = AL % imm8; resultflags(AL); }"),
