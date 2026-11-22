@@ -863,14 +863,26 @@ class WindowsEmulator:
     def stop(self, reason: StopReason, detail: str = "") -> None:
         self._stop = EmulationStop(reason, self.pc, detail)
 
-    def call_guest(self, addr: int, args: tuple[int, ...], continuation: Callable[[int], None]) -> None:
+    def call_guest(
+        self,
+        addr: int,
+        args: tuple[int, ...],
+        continuation: Callable[[int], None],
+        return_address: int | None = None,
+    ) -> None:
         """
         Transfer control to guest code at addr; continuation(return_value) runs when it returns.
+
+        :param return_address:  Where the call returns to, if not a fresh sentinel; code that looks at its return
+                                address expects some callers inside a system DLL.
         """
-        sentinel = self._next_sentinel
-        self._next_sentinel += SLOT_SIZE
-        if self._next_sentinel >= self._sentinels + PAGE:
-            self._next_sentinel = self._sentinels
+        if return_address is None:
+            sentinel = self._next_sentinel
+            self._next_sentinel += SLOT_SIZE
+            if self._next_sentinel >= self._sentinels + PAGE:
+                self._next_sentinel = self._sentinels
+        else:
+            sentinel = return_address
         self._stop_points.add(sentinel)
         self._continuations[sentinel] = continuation
         sp = self.sp
@@ -909,13 +921,31 @@ class WindowsEmulator:
             if is_dll:
                 self.call_guest(entry, (self.image_base, 1, 0), finished)
                 return
-            self.call_guest(entry, (self.peb,), finished)
+            # kernel32!BaseThreadInitThunk calls the entry point; protectors find kernel32 by scanning down from
+            # the return address for an MZ header
+            thunk = self.resolve_export(self.load_module("kernel32.dll"), "BaseThreadInitThunk")
+            assert thunk is not None
+            top = self.sp
+            if not self.is_64bit:
+                # the stack of a Windows 7 main thread: __RtlUserThreadStart's arguments (entry, PEB) at the top, then
+                # BaseThreadInitThunk's frame, which ebp points at; packers read both
+                start = self.resolve_export(self.load_module("ntdll.dll"), "RtlUserThreadStart")
+                assert start is not None
+                self.write(top - 0xC, struct.pack("<III", entry, self.peb, 0))
+                frame = top - 0x6C
+                self.write(frame, struct.pack("<III", top - 0x2C, start + SLOT_SIZE - 4, self.peb))
+                self._set_sp(frame)
+                self.set_reg("ebp", frame)
+            self.call_guest(entry, (self.peb,), finished, return_address=thunk + SLOT_SIZE - 4)
             if self.is_64bit:
                 self.set_reg("rdx", entry)
                 self.set_reg("r8", self.peb)
             else:
+                # BaseThreadInitThunk takes the entry in edx, as a fastcall
                 self.set_reg("eax", entry)
                 self.set_reg("ebx", self.peb)
+                self.set_reg("ecx", 0)
+                self.set_reg("edx", entry)
 
         next_step(0)
 

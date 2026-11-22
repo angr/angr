@@ -233,6 +233,19 @@ class TestApiHandlers(unittest.TestCase):
         emu.write(buf + 0x60, struct.pack("<III", 24, 0, 0))
         assert call("NtOpenFile", buf, 0x80100080, buf + 0x60, buf + 0x10, 3, 0x60) == 0xC0000034
 
+    def test_entry_point_stack(self):
+        # the entry point returns into kernel32 and finds BaseThreadInitThunk's frame and arguments where Windows 7
+        # puts them: edx = [ebp + 0x60] = entry, [ebp + 8] = PEB
+        emu = emulator(b"\xc3")
+        emu.start()
+        entry = IMAGE_BASE + CODE_RVA
+        kernel32 = emu.load_module("kernel32.dll")
+        assert kernel32.base < emu.read_u32(emu.sp) < kernel32.base + kernel32.size
+        ebp = emu.reg("ebp")
+        assert ebp == emu.sp + 8
+        assert (emu.reg("edx"), emu.read_u32(ebp + 0x60), emu.read_u32(ebp + 8)) == (entry, entry, emu.peb)
+        assert emu.run(max_blocks=1000).reason is StopReason.RETURNED
+
     def test_stdcall_handlers_pop_their_arguments(self):
         # a handler popping the wrong number of bytes shifts the caller's saved registers
         emu = emulator(b"\xc3")
