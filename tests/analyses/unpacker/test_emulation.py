@@ -208,6 +208,31 @@ class TestApiHandlers(unittest.TestCase):
         assert call("GetEnvironmentVariableA", name, buf, 0x100) == 0
         assert b"WLNumDLLsProt" not in emu.read(call("GetEnvironmentStrings"), 0x800)
 
+    def test_legacy_file_calls_and_sockets(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        hfile_error = -1
+        missing, own = emu.alloc_cstr("C:\\Temp\\old.dat"), emu.alloc_cstr(emu.image_path)
+        assert call("_lopen", missing, 0) == hfile_error
+        assert call("OpenFile", missing, buf, 0x4000) == hfile_error  # OF_EXIST
+        assert struct.unpack("<H", emu.read(buf + 2, 2))[0] == 2  # nErrCode: ERROR_FILE_NOT_FOUND
+        handle = call("_lcreat", missing, 0)
+        assert handle != hfile_error
+        emu.write(buf, b"0123456789")
+        assert call("_lwrite", handle, buf, 10) == 10
+        assert call("_llseek", handle, 0xFFFFFFFC, 2) == 6
+        assert call("_lread", handle, buf + 0x100, 0x20) == 4
+        assert emu.read(buf + 0x100, 4) == b"6789"
+        assert call("_lclose", handle) == 0 and call("_lclose", handle) == hfile_error
+        assert call("OpenFile", missing, buf, 0x4000) != hfile_error
+        assert emu.read_cstr(buf + 8) == "C:\\Temp\\old.dat"
+        # the sample opens itself the old way
+        handle = call("OpenFile", own, buf, 0)
+        assert call("_lread", handle, buf + 0x100, 2) == 2 and emu.read(buf + 0x100, 2) == b"MZ"
+        assert call("socket", 2, 1, 6) == -1  # INVALID_SOCKET
+        assert call("WSAGetLastError") == 10050
+
     def test_global_memory_handles(self):
         # GlobalAlloc/LocalAlloc hand out the block's address as its handle; locking it yields the same address
         emu = emulator(b"\xc3")

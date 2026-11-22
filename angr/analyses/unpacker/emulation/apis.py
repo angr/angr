@@ -876,7 +876,7 @@ def get_current_thread_id(emu: WindowsEmulator, args: list[int]) -> int:  # pyli
     return emu.thread.tid
 
 
-@api("GetLastError", "RtlGetLastWin32Error", nargs=0)
+@api("GetLastError", "RtlGetLastWin32Error", "WSAGetLastError", nargs=0)
 def get_last_error(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
     return emu.read_u32(emu.teb + (0x68 if emu.is_64bit else 0x34))
 
@@ -1376,6 +1376,91 @@ def write_file(emu: WindowsEmulator, args: list[int]) -> int:
     if args[3]:
         emu.write_u32(args[3], size)
     return 1
+
+
+HFILE_ERROR = -1
+OF_PARSE, OF_DELETE, OF_CREATE, OF_EXIST = 0x100, 0x200, 0x1000, 0x4000
+
+
+@api("_lopen", nargs=2)
+def lopen(emu: WindowsEmulator, args: list[int]) -> int:
+    return _create_file_win32(emu, emu.read_cstr(args[0]), OPEN_EXISTING)
+
+
+@api("_lcreat", nargs=2)
+def lcreat(emu: WindowsEmulator, args: list[int]) -> int:
+    return _create_file_win32(emu, emu.read_cstr(args[0]), CREATE_ALWAYS)
+
+
+@api("OpenFile", nargs=3)
+def open_file(emu: WindowsEmulator, args: list[int]) -> int:
+    path, style = emu.read_cstr(args[0]), args[2]
+    name = full_path(emu, path).encode("latin-1", "replace")[:127]
+    if style & OF_PARSE:
+        handle, error = 0, 0
+    elif style & OF_DELETE:
+        handle, error = (1, 0) if _delete_file(emu, path) else (HFILE_ERROR, ERROR_FILE_NOT_FOUND)
+    else:
+        handle, error = _create_file(emu, path, CREATE_ALWAYS if style & OF_CREATE else OPEN_EXISTING)
+        if handle == INVALID_HANDLE:
+            _set_last_error(emu, error)
+        else:
+            error = 0
+            if style & OF_EXIST:
+                # only a test: the file is closed again
+                emu.handles.pop(handle)
+    # OFSTRUCT: cBytes, fFixedDisk, nErrCode, two reserved words, szPathName[128]
+    emu.write(args[1], struct.pack("<BBHHH", 136, 1, error, 0, 0) + name.ljust(128, b"\0"))
+    return handle
+
+
+@api("_lread", "_hread", nargs=3)
+def lread(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    if not isinstance(obj, FileObject):
+        return HFILE_ERROR
+    data = bytes(obj.data[obj.pos : obj.pos + args[2]])
+    obj.pos += len(data)
+    emu.write(args[1], data)
+    return len(data)
+
+
+@api("_lwrite", "_hwrite", nargs=3)
+def lwrite(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    size = min(args[2], 1 << 26)
+    if not isinstance(obj, FileObject) or not obj.write(emu.read(args[1], size)):
+        return HFILE_ERROR
+    return size
+
+
+@api("_llseek", nargs=3)
+def llseek(emu: WindowsEmulator, args: list[int]) -> int:
+    obj = emu.handles.get(args[0])
+    if not isinstance(obj, FileObject) or args[2] > 2:
+        return HFILE_ERROR
+    distance = args[1] - (1 << 32) if args[1] & 0x80000000 else args[1]
+    obj.pos = max(0, (0, obj.pos, len(obj.data))[args[2]] + distance)
+    return obj.pos
+
+
+@api("_lclose", nargs=1)
+def lclose(emu: WindowsEmulator, args: list[int]) -> int:
+    return 0 if isinstance(emu.handles.pop(args[0], None), FileObject) else HFILE_ERROR
+
+
+INVALID_SOCKET = -1
+WSAENETDOWN = 10050
+
+
+def _no_socket(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+    # there is no network
+    _set_last_error(emu, WSAENETDOWN)
+    return INVALID_SOCKET
+
+
+API_HANDLERS["socket"] = ApiHandler(_no_socket, 3)
+API_HANDLERS["WSASocketA"] = API_HANDLERS["WSASocketW"] = ApiHandler(_no_socket, 6)
 
 
 @api("SetEndOfFile", nargs=1)
