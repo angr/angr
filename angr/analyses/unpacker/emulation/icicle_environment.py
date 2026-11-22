@@ -71,8 +71,25 @@ _XCHG_M32 = (
         "  build m32;\n  local tmp = m32; \n  m32 = Reg32; \n  Reg32 = tmp; \n  build check_Reg32_dest;\n"
     ),
 )
+# an address-size prefix (16-bit addressing) does not change the stack's width, which the SS descriptor sets (32 bits
+# in a flat process); SLEIGH pushes and pops through SP for it
+_STACK16 = tuple(
+    (
+        f"macro push2{n}(x) {{\n  mysave:{n} = x;\n  SP = SP{' -' if n == 2 else '-'}{n};\n"
+        + f"  tmp:$(SIZE) = segment(SS,SP);\n  *:{n} tmp = mysave;\n}}",
+        f"macro push2{n}(x) {{\n  mysave:{n} = x;\n  $(STACKPTR) = $(STACKPTR) - {n};\n  *:{n} $(STACKPTR) = mysave;\n}}",
+    )
+    for n in (2, 4, 8)
+) + tuple(
+    (
+        f"macro pop2{n}(x) {{\n  tmp:$(SIZE) = segment(SS,SP);\n  x = *:{n} tmp;\n  SP = SP+{n};\n}}",
+        f"macro pop2{n}(x) {{\n  x = *:{n} $(STACKPTR);\n  $(STACKPTR) = $(STACKPTR) + {n};\n}}",
+    )
+    for n in (2, 4, 8)
+)
 _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _IA_PATCHES),
+    *(("ia.sinc", old, new) for old, new in _STACK16),
     ("lockable.sinc", *_XCHG_M32),
 )
 

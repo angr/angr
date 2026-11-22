@@ -103,6 +103,17 @@ class TestWinVm(unittest.TestCase):
         assert vm.pc == CODE
         assert vm.reg_read("eax") == 0x80000000
 
+    def test_16bit_addressing(self):
+        # 0x67-prefixed operands use a 16-bit offset (from the FS base here); the stack keeps its 32-bit esp
+        vm = _vm()
+        vm.reg_write("fs_base", 0x500000)
+        vm.mem_write(0x500030, struct.pack("<I", 0x11223344))
+        # mov ebx, fs:[0x30]; push dword fs:[0x30]; pop dword fs:[0x40]
+        _run(vm, bytes.fromhex("64678b1e3000 6764ff363000 64678f064000"))
+        assert vm.reg_read("ebx") == 0x11223344
+        assert vm.reg_read("esp") == 0x500F00
+        assert vm.mem_read(0x500040, 4) == struct.pack("<I", 0x11223344)
+
     def test_cpuid_and_privileged(self):
         vm = _vm()
         assert _run(vm, bytes.fromhex("31c0 0fa2"))[1] == winemu.FAULT_SYSCALL

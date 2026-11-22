@@ -105,6 +105,28 @@ fn task_register(cpu: &mut Cpu, dst: pcode::VarNode, _: [pcode::Value; 2]) {
     write_trunc(cpu, dst, tr);
 }
 
+/// segment(seg, offset), the address of a 16-bit-addressed operand (0x67 prefix): flat segments, FS and GS at their
+/// bases.
+fn segment(cpu: &mut Cpu, dst: pcode::VarNode, args: [pcode::Value; 2]) {
+    let base = match args[0] {
+        pcode::Value::Var(var) => {
+            let sleigh = &cpu.arch.sleigh;
+            let lookup = |name: &str| sleigh.get_reg(name).and_then(|reg| reg.get_var());
+            let base = if lookup("FS").is_some_and(|fs| fs.id == var.id) {
+                lookup("FS_OFFSET")
+            } else if lookup("GS").is_some_and(|gs| gs.id == var.id) {
+                lookup("GS_OFFSET")
+            } else {
+                None
+            };
+            base.map_or(0, |base| cpu.read_reg(base))
+        }
+        pcode::Value::Const(..) => 0,
+    };
+    let offset: u64 = cpu.read_dynamic(args[1]).zxt();
+    write_trunc(cpu, dst, base.wrapping_add(offset) as u128);
+}
+
 fn privileged_op(cpu: &mut Cpu, _: pcode::VarNode, _: [pcode::Value; 2]) {
     cpu.exception = Exception::new(ExceptionCode::Environment, ENV_PRIVILEGED);
 }
@@ -760,8 +782,9 @@ impl WinVm {
         vm.lifter
             .patchers
             .push(Box::new(move |inst: &mut pcode::Block| patcher.patch(inst)));
-        let helpers: [(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper); 7] = [
+        let helpers: [(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper); 8] = [
             ("rdtsc", rdtsc),
+            ("segment", segment),
             ("GlobalDescriptorTableRegister", gdtr),
             ("InterruptDescriptorTableRegister", idtr),
             ("LocalDescriptorTableRegister", ldtr),
