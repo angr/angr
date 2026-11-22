@@ -867,6 +867,12 @@ class WindowsEmulator:
             self._export_db[name] = known
         return known
 
+    def has_export_list(self, name: str) -> bool:
+        """
+        Whether name is a DLL that ships with Windows (one with an export list).
+        """
+        return bool(self._known_exports(name))
+
     def _known_ordinals(self, name: str) -> dict[int, str | None]:
         """
         Export ordinals of a real DLL, for those DLLs whose exports are imported by ordinal.

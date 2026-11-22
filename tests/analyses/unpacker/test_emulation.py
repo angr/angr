@@ -377,6 +377,21 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read(buf, 20) == "ntdll.dll\0".encode("utf-16-le")
         assert emu.read(buf + 24, 2) != b"\0\0"
 
+    def test_system_files(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        assert call("GetWindowsDirectoryA", buf, 0x100) == 10
+        assert emu.read_cstr(buf) == "C:\\Windows"
+        # protectors read the first bytes of explorer.exe; files of virtual machines stay missing
+        emu.write(buf, b"C:\\Windows\\explorer.exe\0")
+        handle = call("CreateFileA", buf, 0x80000000, 1, 0, 3, 0x80, 0)
+        assert handle != -1
+        assert call("ReadFile", handle, buf + 0x100, 2, buf + 0x110, 0) == 1
+        assert emu.read(buf + 0x100, 2) == b"MZ"
+        emu.write(buf, b"C:\\Windows\\System32\\drivers\\vmmouse.sys\0")
+        assert call("CreateFileA", buf, 0x80000000, 1, 0, 3, 0x80, 0) == -1
+
 
 class TestThreads(unittest.TestCase):
     def test_sleep_poll_next_to_a_long_sleeper(self):

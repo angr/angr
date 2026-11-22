@@ -75,7 +75,8 @@ def page_perms(protect: int) -> int:
 
 class FileObject:
     """
-    An open file: the emulated copy of the sample's own file (read-only bytes), or a file the program created.
+    An open file: the emulated copy of the sample's own file or a stand-in for a system file (read-only bytes), or a
+    file the program created.
     """
 
     def __init__(self, data: bytes | bytearray):
@@ -1147,17 +1148,28 @@ def get_startup_info(emu: WindowsEmulator, args: list[int]) -> int:
     return 0
 
 
-SYSTEM_DIRECTORY = "C:\\Windows\\System32"
+WINDOWS_DIRECTORY = "C:\\Windows"
+SYSTEM_DIRECTORY = WINDOWS_DIRECTORY + "\\System32"
 
 
-@api("GetSystemDirectoryA", "GetWindowsDirectoryA", nargs=2)
+@api("GetSystemDirectoryA", nargs=2)
 def get_system_directory_a(emu: WindowsEmulator, args: list[int]) -> int:
     return _write_text(emu, args[0], args[1], SYSTEM_DIRECTORY, False)
 
 
-@api("GetSystemDirectoryW", "GetWindowsDirectoryW", nargs=2)
+@api("GetSystemDirectoryW", nargs=2)
 def get_system_directory_w(emu: WindowsEmulator, args: list[int]) -> int:
     return _write_text(emu, args[0], args[1], SYSTEM_DIRECTORY, True)
+
+
+@api("GetWindowsDirectoryA", "GetSystemWindowsDirectoryA", nargs=2)
+def get_windows_directory_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _write_text(emu, args[0], args[1], WINDOWS_DIRECTORY, False)
+
+
+@api("GetWindowsDirectoryW", "GetSystemWindowsDirectoryW", nargs=2)
+def get_windows_directory_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _write_text(emu, args[0], args[1], WINDOWS_DIRECTORY, True)
 
 
 TEMP_DIRECTORY = "C:\\Users\\admin\\AppData\\Local\\Temp"
@@ -1339,7 +1351,8 @@ def tls_set_value(emu: WindowsEmulator, args: list[int]) -> int:
 _const(("TlsFree", "FlsFree"), 1, 1)
 
 #
-# Files: the sample's own image, and the files the program creates (kept in memory)
+# Files: the sample's own image, stand-ins for a few files every Windows 7 installation has, and the files the
+# program creates (kept in memory)
 #
 
 CREATE_NEW, CREATE_ALWAYS, OPEN_EXISTING, OPEN_ALWAYS, TRUNCATE_EXISTING = 1, 2, 3, 4, 5
@@ -1348,6 +1361,42 @@ INVALID_FILE_ATTRIBUTES = -1
 _STD_HANDLE = 0x30
 _FILE_TIME = 0x01DB3A0000000000
 
+# protectors probe for these, e.g. read the first two bytes of explorer.exe and expect "MZ"
+_WINDOWS_FILES = frozenset(("explorer.exe", "notepad.exe", "regedit.exe", "hh.exe", "winhlp32.exe", "write.exe"))
+_SYSTEM32_FILES = frozenset(
+    ("cmd.exe", "notepad.exe", "calc.exe", "svchost.exe", "lsass.exe", "csrss.exe", "winlogon.exe", "services.exe",
+     "smss.exe", "taskmgr.exe", "rundll32.exe", "regsvr32.exe", "conhost.exe", "dllhost.exe", "mspaint.exe")
+)  # fmt: skip
+
+
+def _stub_image(is_64bit: bool) -> bytes:
+    """
+    Headers of an empty PE image.
+    """
+    image = bytearray(0x400)
+    image[:2] = b"MZ"
+    struct.pack_into("<I", image, 0x3C, 0x80)
+    image[0x80:0x84] = b"PE\0\0"
+    struct.pack_into("<H", image, 0x84, 0x8664 if is_64bit else 0x14C)
+    struct.pack_into("<HH", image, 0x94, 0xF0 if is_64bit else 0xE0, 0x22 if is_64bit else 0x102)
+    struct.pack_into("<H", image, 0x98, 0x20B if is_64bit else 0x10B)
+    return bytes(image)
+
+
+def _system_file(emu: WindowsEmulator, path: str) -> bytes | None:
+    """
+    The stand-in for a system file, given its absolute path in lower case.
+    """
+    directory, name = ntpath.split(path)
+    windows = WINDOWS_DIRECTORY.lower()
+    if directory == windows:
+        exists = name in _WINDOWS_FILES
+    elif directory in (SYSTEM_DIRECTORY.lower(), windows + "\\syswow64"):
+        exists = name in _SYSTEM32_FILES or (name.endswith(".dll") and emu.has_export_list(name))
+    else:
+        exists = False
+    return _stub_image(emu.is_64bit) if exists else None
+
 
 def _file_data(emu: WindowsEmulator, path: str) -> bytes | bytearray | None:
     """
@@ -1355,8 +1404,9 @@ def _file_data(emu: WindowsEmulator, path: str) -> bytes | bytearray | None:
     """
     if ntpath.basename(path).lower() == ntpath.basename(emu.image_path).lower():
         return emu.image_file
-    stored = emu.files.get(full_path(emu, path).lower())
-    return stored[1] if stored is not None else None
+    key = full_path(emu, path).lower()
+    stored = emu.files.get(key)
+    return stored[1] if stored is not None else _system_file(emu, key)
 
 
 def _is_directory(emu: WindowsEmulator, path: str) -> bool:
