@@ -60,6 +60,14 @@ class TestApiHandlers(unittest.TestCase):
         assert call("SetCurrentDirectoryW", emu.alloc_cstr("..\\System32", wide=True)) == 1
         assert call("GetCurrentDirectoryW", 0x100, buf) == len("C:\\Windows\\System32")
         assert emu.read_wstr(buf) == "C:\\Windows\\System32"
+        # the process parameters in the PEB say the same
+        for emu64 in (emu, emulator(b"\xc3", True)):
+            assert API_HANDLERS["SetCurrentDirectoryA"].func(emu64, [emu64.alloc_cstr("C:\\Windows\\System32")]) == 1
+            params = emu64.read_ptr(emu64.peb + (0x20 if emu64.is_64bit else 0x10))
+            dos_path = params + (0x38 if emu64.is_64bit else 0x24)
+            length, capacity = struct.unpack("<HH", emu64.read(dos_path, 4))
+            text = emu64.read(emu64.read_ptr(dos_path + emu64.ptr_size), length).decode("utf-16-le")
+            assert (text, capacity) == ("C:\\Windows\\System32\\", 0x208)
         assert call("SetCurrentDirectoryA", emu.alloc_cstr("")) == 0
         assert call("GetLastError") == 123  # ERROR_INVALID_NAME
         length = call("GetTempPathA", 0x100, buf)

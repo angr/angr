@@ -161,12 +161,13 @@ class _Layout:
     entry_base_name: int
     params_image_path: int
     params_cmdline: int
+    params_current_directory: int
 
 
 _LAYOUT32 = _Layout(0x18, 0x04, 0x08, 0x20, 0x24, 0x2C, 0x30, 0x34, 0x08, 0x0C, 0x10, 0x18, 0x68, 0xA4,
-                    (0x0C, 0x14, 0x1C), 0x18, 0x1C, 0x20, 0x24, 0x2C, 0x38, 0x40)  # fmt: skip
+                    (0x0C, 0x14, 0x1C), 0x18, 0x1C, 0x20, 0x24, 0x2C, 0x38, 0x40, 0x24)  # fmt: skip
 _LAYOUT64 = _Layout(0x30, 0x08, 0x10, 0x40, 0x48, 0x58, 0x60, 0x68, 0x10, 0x18, 0x20, 0x30, 0xBC, 0x118,
-                    (0x10, 0x20, 0x30), 0x30, 0x38, 0x40, 0x48, 0x58, 0x60, 0x70)  # fmt: skip
+                    (0x10, 0x20, 0x30), 0x30, 0x38, 0x40, 0x48, 0x58, 0x60, 0x70, 0x38)  # fmt: skip
 
 
 class WindowsEmulator:
@@ -494,6 +495,10 @@ class WindowsEmulator:
         self.cmdline = f'"{self.image_path}"'
         self._write_unicode_string(params + lay.params_image_path, self.image_path)
         self._write_unicode_string(params + lay.params_cmdline, self.cmdline)
+        # RTL_USER_PROCESS_PARAMETERS.CurrentDirectory.DosPath, with a buffer for any path
+        self._current_directory_string = params + lay.params_current_directory
+        self.write_ptr(self._current_directory_string + self.ptr_size, self._arena_alloc(0x210))
+        self.set_current_directory(self.current_directory)
         self._set_thread_register(self.thread)
         # on the thread's own stack from the beginning: handlers and call_guest() are usable before start()
         self._set_sp(self.thread.stack_base - 0x2000)
@@ -666,6 +671,14 @@ class WindowsEmulator:
         self.write(buf, data + b"\0\0")
         self.write(addr, struct.pack("<HH", len(data), len(data) + 2))
         self.write_ptr(addr + self.ptr_size, buf)
+
+    def set_current_directory(self, path: str) -> None:
+        self.current_directory = path
+        # the process parameters hold it with a trailing backslash
+        data = (path.rstrip("\\") + "\\").encode("utf-16-le")[:0x206]
+        addr = self._current_directory_string
+        self.write(self.read_ptr(addr + self.ptr_size), data + b"\0\0")
+        self.write(addr, struct.pack("<HH", len(data), 0x208))
 
     def _add_ldr_entry(self, base_name: str, full_name: str, base: int, size: int, entry: int) -> None:
         lay = self._layout

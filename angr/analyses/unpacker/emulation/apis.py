@@ -1104,7 +1104,7 @@ def _set_current_directory(emu: WindowsEmulator, path: str) -> int:
     if not path.strip():
         _set_last_error(emu, ERROR_INVALID_NAME)
         return 0
-    emu.current_directory = full_path(emu, path)
+    emu.set_current_directory(full_path(emu, path))
     return 1
 
 
