@@ -13,7 +13,7 @@ from angr.errors import SimSegfaultException
 from angr.rustylib import winemu
 from angr.rustylib.winemu import WinVm
 
-from .environment import PAGE, WindowsEmulator
+from .environment import PAGE, WindowsEmulator, file_backed_size
 from .exceptions import (
     EXCEPTION_ACCESS_VIOLATION,
     EXCEPTION_BREAKPOINT,
@@ -461,7 +461,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
             size = max(section.Misc_VirtualSize, section.SizeOfRawData)
             if size:
                 self.vm.mem_protect(self.image_base + (section.VirtualAddress & ~(PAGE - 1)), size, perms | 1)
-        # as on the Unicorn path: file bytes past a section's virtual size and the gaps between sections read as zero
+        # as on the Unicorn path: bytes past a section's raw data and the gaps between sections read as zero
         cursor = self.pe.OPTIONAL_HEADER.SizeOfHeaders
         for section in sorted(self.pe.sections, key=lambda s: s.VirtualAddress):
             end = (section.VirtualAddress + max(section.Misc_VirtualSize, section.SizeOfRawData) + PAGE - 1) & ~(
@@ -472,7 +472,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
                     self.image_base + cursor,
                     bytes(min(section.VirtualAddress - cursor, PAGE - (cursor & (PAGE - 1)))),
                 )
-            backed = min(section.SizeOfRawData, section.Misc_VirtualSize or section.SizeOfRawData)
+            backed = file_backed_size(section)
             cursor = section.VirtualAddress + backed
             if end > cursor:
                 self.vm.mem_write(self.image_base + cursor, bytes(end - cursor))

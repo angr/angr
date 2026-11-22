@@ -901,6 +901,23 @@ class TestImportRecovery(unittest.TestCase):
         assert code[0x20] == 0xE8
 
 
+class TestImageLayout(unittest.TestCase):
+    def test_raw_data_past_virtual_size(self):
+        # VirtualSize 0x45, SizeOfRawData 0x200: the loader keeps the raw bytes up to the end of the page
+        raw = bytes((i * 7 + 1) & 0xFF or 1 for i in range(0x48))
+        sections = [(b".text", CODE_RVA, 0x10, b"\xc3", 0xE0000020), (b".data", 0x2000, 0x45, raw, 0xC0000040)]
+        packed = build_pe(sections, entry_rva=CODE_RVA)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "sample.exe")
+            with open(path, "wb") as f:
+                f.write(packed)
+            emu = GenericUnpackerCore(path, watch_sections=set()).emu
+        assert emu.read(IMAGE_BASE + 0x2000, 0x48) == raw
+        # past the raw data (padded to the file alignment) and in the gap after .text: zero
+        assert emu.read(IMAGE_BASE + 0x2048, 0xFB8) == bytes(0xFB8)
+        assert emu.read(IMAGE_BASE + CODE_RVA + 1, 0xFFF) == bytes(0xFFF)
+
+
 class TestFakeModule(unittest.TestCase):
     def test_scan_for_dos_stub(self):
         # packers find kernel32 by walking down from an address inside it until the DOS stub's text shows at 0x4E:

@@ -175,6 +175,15 @@ class AddressSpace:
         return None
 
 
+def file_backed_size(section: pefile.SectionStructure) -> int:
+    """
+    How many bytes of a section the loader takes from the file: the raw data up to the end of the section's last
+    page. Raw bytes past VirtualSize stay (Themida 3.x decompresses from them); only what lies past the raw data is zero.
+    """
+    virtual = section.Misc_VirtualSize or section.SizeOfRawData
+    return min(section.SizeOfRawData, (virtual + PAGE - 1) & ~(PAGE - 1))
+
+
 @dataclass
 class _Layout:
     teb_self: int
@@ -480,7 +489,7 @@ class WindowsEmulator:
                 gap_start = self.image_base + cursor
                 if self.is_mapped(gap_start):
                     self.write(gap_start, bytes(min(section.VirtualAddress - cursor, PAGE - (cursor & (PAGE - 1)))))
-            backed = min(section.SizeOfRawData, section.Misc_VirtualSize or section.SizeOfRawData)
+            backed = file_backed_size(section)
             cursor = section.VirtualAddress + backed
             if end > cursor:
                 self.write(self.image_base + cursor, bytes(end - cursor))
