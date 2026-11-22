@@ -760,8 +760,11 @@ class WindowsEmulator:
 
     def _write_unicode_string(self, addr: int, text: str) -> None:
         data = text.encode("utf-16-le")
-        buf = self._arena_alloc(len(data) + 2)
-        self.write(buf, data + b"\0\0")
+        # a heap block: the next block's (never zero) header follows at 8-byte granularity; module finders read the
+        # character at a fixed index of each BaseDllName to pick a name of that length
+        padded = (len(data) + 2 + 7) & ~7
+        buf = self._arena_alloc(padded + 8)
+        self.write(buf, (data + b"\0\0").ljust(padded, b"\0") + struct.pack("<HBBI", 4, 1, 0x0F, 0))
         self.write(addr, struct.pack("<HH", len(data), len(data) + 2))
         self.write_ptr(addr + self.ptr_size, buf)
 

@@ -369,6 +369,14 @@ class TestApiHandlers(unittest.TestCase):
         assert call("GetProcessAffinityMask", 0xFFFFFFFF, buf, buf + 4) == 1
         assert struct.unpack("<II", emu.read(buf, 8)) == (0xF, 0xF)
 
+    def test_loader_name_buffers(self):
+        # the character after a short BaseDllName is the next heap block's header, never a terminator
+        emu = emulator(b"\xc3")
+        ntdll = emu._ldr_entries["ntdll.dll"]  # pylint:disable=protected-access
+        buf = emu.read_ptr(ntdll + emu._layout.entry_base_name + emu.ptr_size)  # pylint:disable=protected-access
+        assert emu.read(buf, 20) == "ntdll.dll\0".encode("utf-16-le")
+        assert emu.read(buf + 24, 2) != b"\0\0"
+
 
 class TestThreads(unittest.TestCase):
     def test_sleep_poll_next_to_a_long_sleeper(self):
