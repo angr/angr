@@ -3,7 +3,7 @@
 //! The run loop stays in Rust and only returns at API trap slots (breakpoints), faults, traps and budget ends.
 //! Self-modifying code is handled here: the written page's lifted code is dropped and the write is retried.
 
-use std::{collections::HashMap, path::PathBuf};
+use std::{cell::Cell, collections::HashMap, path::PathBuf, rc::Rc};
 
 use icicle_vm::cpu::{
     BlockKey, Cpu, Exception, ExceptionCode, Regs, ValueSource,
@@ -56,14 +56,10 @@ fn fault(code: ExceptionCode, value: u64) -> (u8, u32, u64) {
     (EXIT_EXCEPTION, category, value)
 }
 
-fn rdtsc(cpu: &mut Cpu, dst: pcode::VarNode, _: [pcode::Value; 2]) {
-    // the host's counter, as QEMU (the Unicorn path) passes it through; protectors seed and time with it
-    #[cfg(target_arch = "x86_64")]
-    let value = unsafe { core::arch::x86_64::_rdtsc() };
-    #[cfg(not(target_arch = "x86_64"))]
-    let value = 0x2_0000_0000 + cpu.icount.wrapping_mul(3);
-    cpu.write_var(dst, value);
-}
+/// Time-stamp counter ticks per millisecond of the emulated clock (a nominal 3.6 GHz).
+pub const TSC_PER_MS: u64 = 3_600_000;
+/// Cycles one rdtsc takes.
+const TSC_PER_READ: u64 = 24;
 
 fn is_x64(cpu: &Cpu) -> bool {
     matches!(
@@ -191,7 +187,6 @@ fn privileged_op(cpu: &mut Cpu, _: pcode::VarNode, _: [pcode::Value; 2]) {
 
 /// User ops implemented here, on top of Icicle's own tables.
 const HELPERS: &[(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)] = &[
-    ("rdtsc", rdtsc),
     ("segment", segment),
     ("SegmentLimit", segment_limit),
     ("SegmentRights", segment_rights),
@@ -236,6 +231,7 @@ impl icicle_vm::cpu::RegHandler for FlagsHandler {
 #[derive(Clone, Copy)]
 enum Patch {
     Cpuid,
+    Hook(pcode::HookId),
     Privileged,
     Sysenter,
     TrapFlag,
@@ -244,6 +240,8 @@ enum Patch {
 /// Rewrites, per lifted instruction, what the SLEIGH spec gets wrong for a user-mode Windows guest.
 struct WinPatcher {
     cpuid_ops: Vec<u16>,
+    /// rdtsc and rdtscp, with the hooks that replace them
+    tsc_ops: Vec<(u16, pcode::HookId)>,
     sysenter_op: Option<u16>,
     cpuid_hook: pcode::HookId,
     tf_hook: pcode::HookId,
@@ -264,6 +262,9 @@ impl WinPatcher {
             if let pcode::Op::PcodeOp(id) = stmt.op {
                 if self.cpuid_ops.contains(&id) {
                     return Some(Patch::Cpuid);
+                }
+                if let Some((_, hook)) = self.tsc_ops.iter().find(|(op, _)| *op == id) {
+                    return Some(Patch::Hook(*hook));
                 }
                 if Some(id) == self.sysenter_op {
                     return Some(Patch::Sysenter);
@@ -581,6 +582,10 @@ impl WinPatcher {
                     _ => inst.push(check),
                 }
             }
+            Some(Patch::Hook(hook)) => {
+                inst.instructions.truncate(1);
+                inst.push(pcode::Op::Hook(hook));
+            }
             Some(Patch::Cpuid) => {
                 inst.instructions.truncate(1);
                 inst.push(pcode::Op::Hook(self.cpuid_hook));
@@ -643,6 +648,7 @@ pub struct WinVm {
     vm: icicle_vm::Vm,
     is_64bit: bool,
     regs: HashMap<String, pcode::VarNode>,
+    clock: Rc<Cell<u64>>,
     eflags: pcode::VarNode,
     tf: pcode::VarNode,
     threads: HashMap<u64, Regs>,
@@ -917,6 +923,35 @@ impl WinVm {
             cpu.write_var::<u8>(tf, 0);
             cpu.exception = Exception::new(ExceptionCode::Environment, ENV_TRAP_FLAG);
         });
+        // rdtsc / rdtscp read the emulated clock, so that runs repeat and the counter agrees with GetTickCount:
+        // clock milliseconds at a nominal frequency, plus the cost of each read so far (two reads in a row differ
+        // by what they do on hardware). The instruction count is left out: where a block is interrupted, and with
+        // it the count a read sees, is not the same in every run.
+        let clock = Rc::new(Cell::new(0u64));
+        let reads = Rc::new(Cell::new(0u64));
+        let tsc_regs = [names[0], names[3], names[2]].map(|name| get(&vm, name));
+        let [tsc_low, tsc_high, tsc_aux] = tsc_regs;
+        let (tsc_low, tsc_high, tsc_aux) = (tsc_low?, tsc_high?, tsc_aux?);
+        let mut tsc_ops = Vec::new();
+        for (name, with_aux) in [("rdtsc", false), ("rdtscp", true)] {
+            let (clock, reads) = (clock.clone(), reads.clone());
+            let hook = vm.cpu.add_hook(move |cpu: &mut Cpu, _addr: u64| {
+                reads.set(reads.get() + 1);
+                let tsc = clock
+                    .get()
+                    .wrapping_mul(TSC_PER_MS)
+                    .wrapping_add(reads.get() * TSC_PER_READ);
+                cpu.write_reg(tsc_low, tsc & 0xFFFF_FFFF);
+                cpu.write_reg(tsc_high, tsc >> 32);
+                if with_aux {
+                    // IA32_TSC_AUX: processor 0
+                    cpu.write_reg(tsc_aux, 0);
+                }
+            });
+            if let Some(id) = vm.cpu.arch.sleigh.get_userop(name) {
+                tsc_ops.push((id, hook));
+            }
+        }
         let mut cpuid_ops = Vec::new();
         let mut sysenter_op = None;
         {
@@ -932,6 +967,7 @@ impl WinVm {
         }
         let patcher = WinPatcher {
             cpuid_ops,
+            tsc_ops,
             sysenter_op,
             cpuid_hook,
             tf_hook,
@@ -962,6 +998,7 @@ impl WinVm {
             vm,
             is_64bit,
             regs,
+            clock,
             eflags,
             tf,
             threads: HashMap::new(),
@@ -1031,6 +1068,17 @@ impl WinVm {
     #[setter]
     pub fn set_pc(&mut self, pc: u64) {
         self.vm.cpu.write_pc(pc);
+    }
+
+    /// The emulated clock in milliseconds, which the time-stamp counter follows.
+    #[getter]
+    pub fn get_clock(&self) -> u64 {
+        self.clock.get()
+    }
+
+    #[setter]
+    pub fn set_clock(&mut self, milliseconds: u64) {
+        self.clock.set(milliseconds);
     }
 
     /// How many times a block is interpreted before it is compiled.
@@ -1360,7 +1408,7 @@ impl WinVm {
                 .any(|(helper, _)| *helper == name);
             let handling = if self.vm.lifter.op_injectors.contains_key(&(id as u16))
                 || name.starts_with("cpuid")
-                || name == "sysenter"
+                || matches!(name, "sysenter" | "rdtsc" | "rdtscp")
             {
                 "lifter"
             } else if has_helper {

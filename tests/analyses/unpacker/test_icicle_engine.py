@@ -146,6 +146,28 @@ class TestWinVm(unittest.TestCase):
         _run(vm, bytes.fromhex("660f6fcb"))
         assert vm.reg_read_bytes("xmm1") == value
 
+    def test_time_stamp_counter(self):
+        # rdtsc; mov ebx, eax; mov ecx, edx; rdtsc
+        code = bytes.fromhex("0f31 89c3 89d1 0f31")
+        runs = []
+        for _ in range(2):
+            vm = _vm()
+            vm.clock = 1000
+            _run(vm, code)
+            first = vm.reg_read("ecx") << 32 | vm.reg_read("ebx")
+            second = vm.reg_read("edx") << 32 | vm.reg_read("eax")
+            # 250 ms later on the emulated clock (a Sleep), rdtscp
+            vm.clock = 1250
+            _run(vm, bytes.fromhex("0f01f9"))
+            third = vm.reg_read("edx") << 32 | vm.reg_read("eax")
+            runs.append((first, second, third))
+        # the same in every run; some cycles between two reads; the clock's delta at 3.6 GHz across the sleep
+        assert runs[0] == runs[1]
+        first, second, third = runs[0]
+        assert first // 3_600_000 == 1000 and 0 < second - first < 100
+        assert 0 <= third - second - 250 * 3_600_000 < 100
+        assert vm.reg_read("ecx") == 0
+
     def test_cpuid_and_privileged(self):
         vm = _vm()
         assert _run(vm, bytes.fromhex("31c0 0fa2"))[1] == winemu.FAULT_SYSCALL

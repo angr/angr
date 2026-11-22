@@ -570,6 +570,8 @@ class IcicleWindowsEmulator(WindowsEmulator):
             budget = self.SLICE if len(self.threads) > 1 else self.CHUNK
             if limit is not None:
                 budget = min(budget, limit - vm.icount)
+            # the time-stamp counter follows the clock the API handlers keep
+            vm.clock = self.tick
             kind, code, value = vm.run(budget)
             self.blocks = self.instructions = vm.icount
             if kind == winemu.EXIT_BREAKPOINT:

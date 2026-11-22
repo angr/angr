@@ -279,23 +279,6 @@ fn xrstor(cpu: &mut Cpu, _: VarNode, args: Args) {
     }
 }
 
-fn rdtscp(cpu: &mut Cpu, _: VarNode, _: Args) {
-    #[cfg(target_arch = "x86_64")]
-    let tsc = unsafe { core::arch::x86_64::_rdtsc() };
-    #[cfg(not(target_arch = "x86_64"))]
-    let tsc = 0x2_0000_0000 + cpu.icount.wrapping_mul(3);
-    let names = if is_x64(cpu) {
-        ["RAX", "RDX", "RCX"]
-    } else {
-        ["EAX", "EDX", "ECX"]
-    };
-    // ecx: IA32_TSC_AUX, processor 0
-    for (name, value) in names.into_iter().zip([tsc & 0xFFFF_FFFF, tsc >> 32, 0]) {
-        let var = reg(cpu, name);
-        cpu.write_reg(var, value);
-    }
-}
-
 /// rdrand / rdseed: a repeatable sequence (splitmix64 of the instruction count).
 fn random(cpu: &mut Cpu, dst: VarNode, _: Args) {
     let mut z = (cpu.icount ^ 0x9E37_79B9_7F4A_7C15).wrapping_mul(0xBF58_476D_1CE4_E5B9);
@@ -348,7 +331,6 @@ pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
     ("xsaveopt64", xsave),
     ("xrstor", xrstor),
     ("xrstor64", xrstor),
-    ("rdtscp", rdtscp),
     ("rdrand", random),
     ("rdseed", random),
     ("rdrandIsValid", one),

@@ -28,6 +28,7 @@ class WinVm:
     pc: int
     jit: bool
     jit_threshold: int
+    clock: int
     @property
     def icount(self) -> int: ...
     @property
