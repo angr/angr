@@ -157,6 +157,40 @@ class TestApiHandlers(unittest.TestCase):
         assert struct.unpack("<II", emu.read(buf, 8)) == (0xF, 0xF)
 
 
+class TestThreads(unittest.TestCase):
+    def test_sleep_poll_next_to_a_long_sleeper(self):
+        # main: CreateThread(worker); 3 x Sleep(50); cell[1] = GetTickCount(); Sleep(60000); ret
+        # worker: Sleep(60000); cell[0] = 1; ret 4
+        base = IMAGE_BASE + CODE_RVA
+        iat, cell, worker = base + 0x200, base + 0x300, base + 0x80
+        p32 = lambda value: struct.pack("<I", value)
+        call = lambda idx: b"\xff\x15" + p32(iat + 4 * idx)
+        sleep_60s = b"\x68" + p32(60000) + call(0)
+        main = (
+            b"\x6a\x00\x6a\x00\x6a\x00\x68" + p32(worker) + b"\x6a\x00\x6a\x00" + call(1)
+            + b"\xbe" + p32(3) + b"\x6a\x32" + call(0) + b"\x4e\x75\xf5"
+            + call(2) + b"\xa3" + p32(cell + 4) + sleep_60s + b"\xc3"
+        )  # fmt: skip
+        code = bytearray(0x400)
+        code[: len(main)] = main
+        body = sleep_60s + b"\xc7\x05" + p32(cell) + p32(1) + b"\xc2\x04\x00"
+        code[0x80 : 0x80 + len(body)] = body
+        emu = emulator(bytes(code))
+        kernel32 = emu.load_module("kernel32.dll")
+        for idx, name in enumerate(("Sleep", "CreateThread", "GetTickCount")):
+            addr = emu.resolve_export(kernel32, name)
+            assert addr is not None
+            emu.write_u32(iat + 4 * idx, addr)
+        start = emu.tick
+        emu.start()
+        assert emu.run(max_blocks=100000).reason is StopReason.RETURNED
+        # each poll takes 50 ms, although the only other thread wakes much later
+        assert emu.read_u32(cell + 4) - start == 150 + 16
+        # the longer sleep lets the worker wake first, at its own time
+        assert emu.read_u32(cell) == 1
+        assert emu.tick - start == 150 + 16 + 60000
+
+
 class TestImportWrappers(unittest.TestCase):
     def test_trace_to_api(self):
         emu = emulator(b"\xc3")

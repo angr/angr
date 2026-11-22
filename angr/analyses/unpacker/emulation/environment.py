@@ -539,17 +539,21 @@ class WindowsEmulator:
 
     def switch_thread(self) -> bool:
         """
-        Hand the CPU to the next runnable thread. Returns False if there is no other thread.
+        Hand the CPU to the next runnable thread. Returns False if the current thread keeps running: there is no
+        other thread, or every thread sleeps and the current one wakes first (the clock is moved to that time).
         """
         count = len(self.threads)
         order = [(self.current_thread + step) % count for step in range(1, count)]
         target = next((idx for idx in order if self._runnable(self.threads[idx])), None)
         if target is None and not self._runnable(self.thread):
-            # everything is waiting: skip ahead to the next timed wake-up
-            sleepers = [idx for idx in order if self.threads[idx].alive and self.threads[idx].wait_handle is None]
+            # everything is waiting: skip ahead to the next timed wake-up, which may be the current thread's own
+            candidates = (*order, self.current_thread)
+            sleepers = [idx for idx in candidates if self.threads[idx].alive and self.threads[idx].wait_handle is None]
             if sleepers:
-                target = min(sleepers, key=lambda idx: self.threads[idx].wake_tick)
-                self.tick = max(self.tick, self.threads[target].wake_tick)
+                earliest = min(sleepers, key=lambda idx: self.threads[idx].wake_tick)
+                self.tick = max(self.tick, self.threads[earliest].wake_tick)
+                if earliest != self.current_thread:
+                    target = earliest
         if target is None:
             return False
         current = self.thread
