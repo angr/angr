@@ -1477,6 +1477,8 @@ class TestExceptions(unittest.TestCase):
         stop = emu.run(max_blocks=100000)
         assert stop.reason is StopReason.RETURNED, stop
         assert emu.exceptions.count == 1
+        # IF and the reserved bit always read as set in a user-mode CONTEXT
+        assert emu.read_u32(cell) & 0x202 == 0x202
 
     def test_x64_try_except(self):
         code = bytearray(0x400)

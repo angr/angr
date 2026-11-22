@@ -17,6 +17,9 @@ EXCEPTION_INT_DIVIDE_BY_ZERO = 0xC0000094
 
 _CONTINUE_EXECUTION = 0xFFFFFFFF
 _TRAP_FLAG = 0x100
+# EFlags of a user-mode thread: IF and the reserved bit 1 always read as set; NtContinue keeps only these bits
+_USER_FLAGS = 0x202
+_USER_FLAGS_SANITIZE = 0x3F4DD7
 _MAX_FRAMES = 128
 _X86_CONTEXT_SIZE = 0x2CC
 _X64_CONTEXT_SIZE = 0x4D0
@@ -68,7 +71,7 @@ class ExceptionDispatcher:
             emu.write(addr, bytes(_X64_CONTEXT_SIZE))
             emu.write(addr + 0x30, struct.pack("<I", 0x10001F))
             emu.write(addr + 0x38, struct.pack("<HHHHHH", 0x33, 0x2B, 0x2B, 0x53, 0x2B, 0x2B))
-            emu.write(addr + 0x44, struct.pack("<I", emu.reg("rflags") & 0xFFFFFFFF))
+            emu.write(addr + 0x44, struct.pack("<I", (emu.reg("rflags") & 0xFFFFFFFF) | _USER_FLAGS))
             for name, off in _X64_REGS:
                 emu.write(addr + off, struct.pack("<Q", pc if name == "rip" else emu.reg(name)))
         else:
@@ -79,18 +82,20 @@ class ExceptionDispatcher:
             emu.write(addr + 0xC8, struct.pack("<I", 0x23))
             for name, off in _X86_REGS:
                 emu.write(addr + off, struct.pack("<I", pc if name == "eip" else emu.reg(name)))
+            emu.write(addr + 0xC0, struct.pack("<I", emu.reg("eflags") | _USER_FLAGS))
 
     def restore_context(self, addr: int) -> None:
         emu = self.emu
         if emu.is_64bit:
             for name, off in _X64_REGS:
                 emu.set_reg(name, struct.unpack("<Q", emu.read(addr + off, 8))[0])
-            flags = emu.read_u32(addr + 0x44)
+            flags = (emu.read_u32(addr + 0x44) & _USER_FLAGS_SANITIZE) | _USER_FLAGS
             emu.set_reg("rflags", flags)
         else:
             for name, off in _X86_REGS:
                 emu.set_reg(name, emu.read_u32(addr + off))
-            flags = emu.read_u32(addr + 0xC0)
+            flags = (emu.read_u32(addr + 0xC0) & _USER_FLAGS_SANITIZE) | _USER_FLAGS
+            emu.set_reg("eflags", flags)
         emu.trap_pending = bool(flags & _TRAP_FLAG)
 
     def read_registers(self, addr: int) -> dict[str, int]:

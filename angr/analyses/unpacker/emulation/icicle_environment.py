@@ -60,6 +60,9 @@ _IA_PATCHES = (
         " conditionalAssign(OF, count==1, CF ^ ((result << 1) s< 0), OF); ",
         " conditionalAssign(OF, count==0, OF, CF ^ ((result << 1) s< 0)); ",
     ),
+    # user mode (CPL 3, IOPL 0): popf leaves IF alone and IF stays set; cli is a no-op like sti
+    ("  IF = (tmp & 0x0200) != 0;\n", ""),
+    (":CLI\t\t\tis vexMode=0 & byte=0xfa\t\t\t\t\t\t{ IF = 0; }", ":CLI\t\t\tis vexMode=0 & byte=0xfa\t\t\t\t\t\t{ }"),
 )
 # xchg m32, r32 in 64-bit mode: the register's upper half is cleared like for every 32-bit write
 _XCHG_M32 = (

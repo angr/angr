@@ -186,6 +186,13 @@ class TestWinVm(unittest.TestCase):
         assert 0 <= third - second - 250 * 3_600_000 < 100
         assert vm.reg_read("ecx") == 0
 
+    def test_user_mode_interrupt_flag(self):
+        # push 0; popfd; cli; pushfd; pop eax: IF stays set, as for any user-mode thread
+        vm = _vm()
+        vm.reg_write("if", 1)
+        assert _run(vm, bytes.fromhex("6a00 9d fa 9c 58"))[1] == winemu.FAULT_SYSCALL
+        assert vm.reg_read("eax") == 0x202
+
     def test_cpuid_and_privileged(self):
         vm = _vm()
         assert _run(vm, bytes.fromhex("31c0 0fa2"))[1] == winemu.FAULT_SYSCALL
