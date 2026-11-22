@@ -3,11 +3,7 @@
 //! The run loop stays in Rust and only returns at API trap slots (breakpoints), faults, traps and budget ends.
 //! Self-modifying code is handled here: the written page's lifted code is dropped and the write is retried.
 
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{collections::HashMap, path::PathBuf};
 
 use icicle_vm::cpu::{
     BlockKey, Cpu, Exception, ExceptionCode, Regs, ValueSource,
@@ -58,14 +54,12 @@ fn fault(code: ExceptionCode, value: u64) -> (u8, u32, u64) {
     (EXIT_EXCEPTION, category, value)
 }
 
-static TSC: AtomicU64 = AtomicU64::new(0x2_0000_0000);
-
 fn rdtsc(cpu: &mut Cpu, dst: pcode::VarNode, _: [pcode::Value; 2]) {
-    // monotonic and roughly proportional to the work done
-    let floor = 0x2_0000_0000 + cpu.icount.wrapping_mul(3);
-    let prev = TSC.fetch_add(0x20, Ordering::Relaxed);
-    let value = floor.max(prev + 0x20);
-    TSC.store(value, Ordering::Relaxed);
+    // the host's counter, as QEMU (the Unicorn path) passes it through; protectors seed and time with it
+    #[cfg(target_arch = "x86_64")]
+    let value = unsafe { core::arch::x86_64::_rdtsc() };
+    #[cfg(not(target_arch = "x86_64"))]
+    let value = 0x2_0000_0000 + cpu.icount.wrapping_mul(3);
     cpu.write_var(dst, value);
 }
 
@@ -344,7 +338,7 @@ impl WinVm {
     }
 
     /// Drop all lifted code overlapping [addr, addr + size).
-    fn invalidate_code(&mut self, addr: u64, size: u64) {
+    fn invalidate_code(&mut self, addr: u64, size: u64, keep_current: bool) {
         let end = addr.saturating_add(size);
         let mut keys = Vec::new();
         let mut blocks = Vec::new();
@@ -364,7 +358,7 @@ impl WinVm {
         for id in blocks {
             self.vm.jit.invalidate(id);
             self.vm.code.blocks[id].entry = None;
-            if id as u64 == current {
+            if id as u64 == current && !keep_current {
                 let pc = self.vm.cpu.read_pc();
                 self.vm.cpu.write_pc(pc);
             }
@@ -383,13 +377,13 @@ impl WinVm {
     }
 
     /// Drop the code of the pages in [addr, addr + size) that ran, and clear their code-cache marks.
-    fn forget_code_pages(&mut self, addr: u64, size: u64) {
+    fn forget_code_pages(&mut self, addr: u64, size: u64, keep_current: bool) {
         let start = addr & !(PAGE - 1);
         let end = addr.saturating_add(size).saturating_add(PAGE - 1) & !(PAGE - 1);
         let mut page = start;
         while page < end {
             if self.page_executed(page) {
-                self.invalidate_code(page, PAGE);
+                self.invalidate_code(page, PAGE, keep_current);
                 let p = self.vm.cpu.mem.get_perm(page) & (perm::READ | perm::WRITE | perm::EXEC);
                 let _ = self.vm.cpu.mem.update_perm(page, PAGE, p);
             }
@@ -397,20 +391,32 @@ impl WinVm {
         }
     }
 
-    fn on_smc(&mut self, addr: u64) {
+    /// A guest write hit lifted code. Icicle raises this after the instruction may already have updated
+    /// registers (stosd advances edi first), so the instruction is finished from where it stopped instead of
+    /// being restarted; then the code is lifted again.
+    fn on_smc(&mut self, addr: u64, limit: u64) -> Option<icicle_vm::VmExit> {
         self.smc_count += 1;
         let page = addr & !(PAGE - 1);
         // a write may straddle two pages
-        self.forget_code_pages(
-            page,
-            if (addr & (PAGE - 1)) > PAGE - 16 {
-                2 * PAGE
-            } else {
-                PAGE
-            },
-        );
-        let pc = self.vm.cpu.read_pc();
-        self.vm.cpu.write_pc(pc);
+        let size = if (addr & (PAGE - 1)) > PAGE - 16 {
+            2 * PAGE
+        } else {
+            PAGE
+        };
+        self.forget_code_pages(page, size, true);
+        self.vm.cpu.exception.clear();
+        // resuming mid-instruction counts that instruction, so this runs exactly its rest
+        self.vm.icount_limit = self.vm.cpu.icount + 1;
+        let exit = self.vm.run();
+        self.vm.icount_limit = limit;
+        match exit {
+            icicle_vm::VmExit::InstructionLimit => {
+                let pc = self.vm.cpu.read_pc();
+                self.vm.cpu.write_pc(pc);
+                None
+            }
+            other => Some(other),
+        }
     }
 
     /// SLEIGH rejects prefixes the CPU ignores (a REX that does not directly precede the opcode). Lift the code
@@ -651,6 +657,17 @@ impl WinVm {
         self.vm.cpu.write_pc(pc);
     }
 
+    /// How many times a block is interpreted before it is compiled.
+    #[getter]
+    pub fn get_jit_threshold(&self) -> u32 {
+        self.vm.jit_threshold
+    }
+
+    #[setter]
+    pub fn set_jit_threshold(&mut self, threshold: u32) {
+        self.vm.jit_threshold = threshold;
+    }
+
     #[getter]
     pub fn get_jit(&self) -> bool {
         self.vm.enable_jit
@@ -704,7 +721,7 @@ impl WinVm {
     }
 
     pub fn mem_unmap(&mut self, addr: u64, size: u64) -> PyResult<()> {
-        self.invalidate_code(addr, size);
+        self.invalidate_code(addr, size, false);
         if !self.vm.cpu.mem.unmap_memory_len(addr, size) {
             return Err(PyRuntimeError::new_err(format!(
                 "Failed to unmap {size:#x} bytes at {addr:#x}"
@@ -720,7 +737,7 @@ impl WinVm {
         let mut page = start;
         while page < end {
             if self.page_executed(page) {
-                self.invalidate_code(page, PAGE);
+                self.invalidate_code(page, PAGE, false);
             }
             page += PAGE;
         }
@@ -790,7 +807,7 @@ impl WinVm {
             page += PAGE;
         }
         if touched_code {
-            self.forget_code_pages(addr, len);
+            self.forget_code_pages(addr, len, false);
         }
         self.vm
             .cpu
@@ -820,18 +837,26 @@ impl WinVm {
             // resuming on a stop point that has nothing to do there
             self.step_over_breakpoint();
         }
+        let mut pending = None;
         loop {
-            self.vm.icount_limit = limit;
-            self.runs += 1;
-            let exit = self.vm.run();
-            self.vm.icount_limit = u64::MAX;
+            let exit = match pending.take() {
+                Some(exit) => exit,
+                None => {
+                    self.vm.icount_limit = limit;
+                    self.runs += 1;
+                    let exit = self.vm.run();
+                    self.vm.icount_limit = u64::MAX;
+                    exit
+                }
+            };
             match exit {
                 icicle_vm::VmExit::InstructionLimit => return (EXIT_LIMIT, 0, 0),
                 icicle_vm::VmExit::Breakpoint => return (EXIT_BREAKPOINT, 0, 0),
                 icicle_vm::VmExit::Halt => return (EXIT_HALT, 0, 0),
                 icicle_vm::VmExit::UnhandledException((code, value)) => match code {
                     ExceptionCode::SelfModifyingCode => {
-                        self.on_smc(value);
+                        pending = self.on_smc(value, limit);
+                        self.vm.icount_limit = u64::MAX;
                         continue;
                     }
                     ExceptionCode::Environment if value == ENV_TRAP_FLAG => {
@@ -908,7 +933,7 @@ impl WinVm {
         self.vm.cpu.mem.clear_page_modification_log();
         // code lifted from bytes the run wrote is stale now
         for page in written {
-            self.invalidate_code(page, PAGE);
+            self.invalidate_code(page, PAGE, false);
         }
         let pc = self.vm.cpu.read_pc();
         self.vm.cpu.write_pc(pc);

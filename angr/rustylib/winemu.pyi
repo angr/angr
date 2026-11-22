@@ -27,6 +27,7 @@ class WinVm:
     fixups: int
     pc: int
     jit: bool
+    jit_threshold: int
     @property
     def icount(self) -> int: ...
     @property

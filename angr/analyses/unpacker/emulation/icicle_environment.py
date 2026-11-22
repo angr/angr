@@ -25,7 +25,7 @@ from .stops import EmulationStop, StopReason
 from .threads import Thread
 
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
-# fixes to Ghidra's x86 spec: SHR/SHRD by one set OF from the operand's sign; for shift and rotate counts above one,
+# fixes to Ghidra's x86 spec: pushf bit 1; SHR/SHRD by one set OF from the operand's sign; for shift and rotate counts above one,
 # where OF is undefined, OF follows QEMU (the engine the Unicorn path runs on)
 _SLEIGH_PATCHES = (
     (
@@ -41,6 +41,8 @@ _SLEIGH_PATCHES = (
         " conditionalAssign(OF, count==0, OF, CF ^ (result s< 0));\n}\n\nmacro sarflags",
     ),
     (" conditionalAssign(OF, count==1, 0, OF); ", " conditionalAssign(OF, count==0, OF, 0); "),
+    # pushf: the reserved bit 1 always reads as one
+    ("| (0x0004 * zext(PF&1)) | (0x0001 * zext(CF&1));", "| (0x0004 * zext(PF&1)) | 0x0002 | (0x0001 * zext(CF&1));"),
     (
         " conditionalAssign(OF, count==1, CF ^ (result s< 0), OF); \n}\n\nmacro rorflags",
         " conditionalAssign(OF, count==0, OF, CF ^ (result s< 0)); \n}\n\nmacro rorflags",
@@ -120,6 +122,8 @@ class IcicleWindowsEmulator(WindowsEmulator):
 
     def _init_machine(self) -> None:
         self.vm = WinVm(self.is_64bit, patched_processors(), os.environ.get("ANGR_UNPACKER_ICICLE_JIT", "1") != "0")
+        # protector code mostly runs a few times after it is decrypted; compiling it all costs ~1 ms per block
+        self.vm.jit_threshold = int(os.environ.get("ANGR_UNPACKER_ICICLE_JIT_THRESHOLD", "32"))
         self._stop_points = _StopPoints(self.vm)
         self.vm.pc = self.project.entry
         self.instructions = 0
@@ -237,6 +241,9 @@ class IcicleWindowsEmulator(WindowsEmulator):
         self.vm.reg_write("rsp" if self.is_64bit else "esp", value)
 
     def reg(self, name: str) -> int:
+        if name in ("eflags", "rflags"):
+            # what the Unicorn path reports (VEX's flags thunk): status flags, DF, AC and ID only
+            return self.vm.reg_read(name) & 0x240CD5
         return self.vm.reg_read(name)
 
     def set_reg(self, name: str, value: int) -> None:
