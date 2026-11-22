@@ -88,6 +88,16 @@ class MappingObject:
         self.data = data
 
 
+class ToolhelpSnapshot:
+    """
+    A CreateToolhelp32Snapshot handle: the threads of the emulated process, as (thread id, process id).
+    """
+
+    def __init__(self, threads: list[tuple[int, int]]):
+        self.threads = threads
+        self.pos = 0
+
+
 #
 # Memory
 #
@@ -462,6 +472,43 @@ def nt_close(emu: WindowsEmulator, args: list[int]) -> int:
     return STATUS_SUCCESS if emu.handles.pop(args[0], None) is not None else STATUS_INVALID_HANDLE
 
 
+TH32CS_SNAPTHREAD = 0x4
+ERROR_NO_MORE_FILES = 0x12
+
+
+@api("CreateToolhelp32Snapshot", nargs=2)
+def create_toolhelp32_snapshot(emu: WindowsEmulator, args: list[int]) -> int:
+    threads = [(t.tid, emu.PID) for t in emu.threads if t.alive] if args[0] & TH32CS_SNAPTHREAD else []
+    return emu.new_handle(ToolhelpSnapshot(threads))
+
+
+def _thread32(emu: WindowsEmulator, args: list[int], first: bool) -> int:
+    snapshot = emu.handles.get(args[0])
+    if not isinstance(snapshot, ToolhelpSnapshot):
+        emu.write_u32(emu.teb + (0x68 if emu.is_64bit else 0x34), 6)  # ERROR_INVALID_HANDLE
+        return 0
+    if first:
+        snapshot.pos = 0
+    if snapshot.pos >= len(snapshot.threads) or emu.read_u32(args[1]) < 0x1C:
+        emu.write_u32(emu.teb + (0x68 if emu.is_64bit else 0x34), ERROR_NO_MORE_FILES)
+        return 0
+    tid, pid = snapshot.threads[snapshot.pos]
+    snapshot.pos += 1
+    # THREADENTRY32: dwSize, cntUsage, th32ThreadID, th32OwnerProcessID, tpBasePri, tpDeltaPri, dwFlags
+    emu.write(args[1], struct.pack("<IIIIiiI", 0x1C, 0, tid, pid, 8, 0, 0))
+    return 1
+
+
+@api("Thread32First", nargs=2)
+def thread32_first(emu: WindowsEmulator, args: list[int]) -> int:
+    return _thread32(emu, args, True)
+
+
+@api("Thread32Next", nargs=2)
+def thread32_next(emu: WindowsEmulator, args: list[int]) -> int:
+    return _thread32(emu, args, False)
+
+
 _const(("SetErrorMode", "OutputDebugStringA", "OutputDebugStringW"), 1, 0)
 _const(("InitializeCriticalSection", "DeleteCriticalSection", "EnterCriticalSection", "LeaveCriticalSection",
         "RtlInitializeCriticalSection", "RtlEnterCriticalSection", "RtlLeaveCriticalSection",
@@ -611,6 +658,14 @@ _const(("GetSystemMetrics",), 1, 0)
 _const(("FindWindowA", "FindWindowW"), 2, 0)
 _const(("GetEnvironmentVariableA", "GetEnvironmentVariableW"), 3, 0)
 _const(("SetThreadAffinityMask", "SetProcessAffinityMask"), 2, 1)
+
+
+@api("GetProcessAffinityMask", nargs=3)
+def get_process_affinity_mask(emu: WindowsEmulator, args: list[int]) -> int:
+    # the four processors GetSystemInfo reports
+    emu.write_ptr(args[1], 0xF)
+    emu.write_ptr(args[2], 0xF)
+    return 1
 
 
 @api("GetCurrentProcessId", nargs=0)

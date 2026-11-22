@@ -88,6 +88,23 @@ class TestApiHandlers(unittest.TestCase):
         emu.write(buf + 0x60, struct.pack("<III", 24, 0, 0))
         assert call("NtOpenFile", buf, 0x80100080, buf + 0x60, buf + 0x10, 3, 0x60) == 0xC0000034
 
+    def test_toolhelp_threads_and_affinity(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        snapshot = call("CreateToolhelp32Snapshot", 4, 0)  # TH32CS_SNAPTHREAD
+        assert snapshot not in (0, 0xFFFFFFFF)
+        emu.write_u32(buf, 0x1C)
+        assert call("Thread32First", snapshot, buf) == 1
+        _, _, tid, pid = struct.unpack("<4I", emu.read(buf, 16))
+        assert (tid, pid) == (emu.thread.tid, emu.PID)
+        assert call("Thread32Next", snapshot, buf) == 0
+        assert call("GetLastError") == 0x12  # ERROR_NO_MORE_FILES
+        assert call("CloseHandle", snapshot) == 1
+        assert call("Thread32First", snapshot, buf) == 0
+        assert call("GetProcessAffinityMask", 0xFFFFFFFF, buf, buf + 4) == 1
+        assert struct.unpack("<II", emu.read(buf, 8)) == (0xF, 0xF)
+
 
 class TestImportWrappers(unittest.TestCase):
     def test_trace_to_api(self):
