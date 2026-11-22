@@ -14,6 +14,8 @@ import pefile
 import angr
 from angr.analyses.unpacker import VMProtectUnpacker
 from angr.analyses.unpacker.emulation import StopReason
+from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
+from angr.analyses.unpacker.protected_unpackers import vmprotect_original_sections
 
 from .pe_builder import IMAGE_BASE, build_pe, fake_code
 from .test_vmprotect_static import CODE, build_vmprotect_like
@@ -80,6 +82,40 @@ class TestGenericUnpacker(unittest.TestCase):
         pe = pefile.PE(data=unpacker.unpacked)
         assert pe.OPTIONAL_HEADER.AddressOfEntryPoint == OEP_RVA
         assert pe.sections[0].get_data()[: len(code)] == code
+
+    def test_entry_point_in_packed_section(self):
+        # the entry stub sits inside the packed .text; the loader decrypts .text, restores the original entry code,
+        # calls an API and jumps back to the entry point
+        code = bytearray(fake_code(0x1000, IMAGE_BASE + TEXT_RVA))
+        code[OEP_RVA - TEXT_RVA : OEP_RVA - TEXT_RVA + 3] = b"\x31\xc0\xc3"  # xor eax, eax; ret
+        encrypted = bytearray(b ^ XOR_KEY for b in code)
+        encrypted[OEP_RVA - TEXT_RVA : OEP_RVA - TEXT_RVA + 5] = b"\xe9" + struct.pack("<i", STUB_RVA - OEP_RVA - 5)
+        cell = IMAGE_BASE + STUB_RVA + 0x100
+        stub = b"\xbe" + struct.pack("<I", IMAGE_BASE + TEXT_RVA)  # mov esi, .text
+        stub += b"\xb9" + struct.pack("<I", len(code))  # mov ecx, size
+        stub += bytes([0x80, 0x36, XOR_KEY, 0x46, 0xE2, 0xFA])  # xor byte [esi], key; inc esi; loop
+        oep = IMAGE_BASE + OEP_RVA
+        stub += b"\xc7\x05" + struct.pack("<II", oep, 0x90C3C031)  # mov dword [oep], xor eax, eax; ret
+        stub += b"\xff\x15" + struct.pack("<I", cell)  # call [GetTickCount]
+        stub += b"\xe9" + struct.pack("<i", OEP_RVA - (STUB_RVA + len(stub) + 5))  # jmp oep
+        packed = build_pe(
+            [
+                (b".text", TEXT_RVA, len(code), bytes(encrypted), 0xE0000020),
+                (b" 0", STUB_RVA, 0x200, stub, 0xE0000020),
+            ],
+            entry_rva=OEP_RVA,
+        )
+        assert vmprotect_original_sections(packed) == {0}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "packed.exe")
+            with open(path, "wb") as f:
+                f.write(packed)
+            core = GenericUnpackerCore(path, {0})
+        api = core.emu.resolve_export(core.emu.load_module("kernel32.dll"), "GetTickCount")
+        assert api is not None
+        core.emu.write_u32(cell, api)
+        core.run(timeout=30, settle_timeout=0)
+        assert [layer.oep for layer in core.layers] == [oep]
 
     def test_snapshot_without_transfer(self):
         # the stub decrypts .text but returns instead of jumping to the OEP

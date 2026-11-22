@@ -212,6 +212,7 @@ class WindowsEmulator:
         self._continuations: dict[int, Callable[[int], None]] = {}
         self._saved_sp: dict[int, int] = {}
         self._watched: list[tuple[int, int]] = []
+        self._rewatch: list[int] = []
         self._lazy: dict[int, tuple[int, int]] = {}
         self._committed: set[int] = set()
         self._stop: EmulationStop | None = None
@@ -940,6 +941,12 @@ class WindowsEmulator:
                 return begin, end
         return None
 
+    def watch_page_after_leaving(self, page: int) -> None:
+        """
+        Watch a page again at the first API call made from outside it.
+        """
+        self._rewatch.append(page)
+
     def _is_watched(self, addr: int) -> bool:
         return any(begin <= addr < end for begin, end in self._watched)
 
@@ -966,6 +973,12 @@ class WindowsEmulator:
         )
         sp = self.sp
         ret_addr = self.read_ptr(sp)
+        if self._rewatch:
+            pending = self._rewatch
+            self._rewatch = [page for page in pending if page <= ret_addr < page + PAGE]
+            for page in pending:
+                if not page <= ret_addr < page + PAGE:
+                    self.watch_exec(page, PAGE)
         count = nargs if nargs is not None else 4
         if self.is_64bit:
             args = [self.reg(r) for r in ("rcx", "rdx", "r8", "r9")][:count]

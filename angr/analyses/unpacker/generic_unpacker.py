@@ -77,6 +77,8 @@ class GenericUnpackerCore:
         self._wrappers: dict[int, int] = {}
         self._cell_of_target: dict[int, int] = {}
         self._started = 0.0
+        # the watched section that holds the entry point (only when the caller asked for it)
+        self._entry_section: int | None = None
         emu = self.emu
         ep_rva = emu.pe.OPTIONAL_HEADER.AddressOfEntryPoint
         for idx, section in enumerate(emu.pe.sections):
@@ -84,9 +86,11 @@ class GenericUnpackerCore:
                 continue
             size = max(section.Misc_VirtualSize, section.SizeOfRawData)
             name = section_name(section).strip().lower()
-            if size == 0 or section.contains_rva(ep_rva) or (watch_sections is None and name in _SKIPPED_SECTIONS):
+            if size == 0 or (watch_sections is None and (section.contains_rva(ep_rva) or name in _SKIPPED_SECTIONS)):
                 continue
             start = emu.image_base + section.VirtualAddress
+            if section.contains_rva(ep_rva):
+                self._entry_section = start
             self._sections[start] = section
             self._initial[start] = emu.read(start, size)
             emu.watch_exec(start, size)
@@ -114,8 +118,20 @@ class GenericUnpackerCore:
             if stop.reason is not StopReason.EXEC_TRAP:
                 break
             region = emu.unwatch_exec(stop.addr)
-            if region is not None and self._was_written(stop.addr, region[0]):
-                self.layers.append(self._snapshot(stop.addr, region[0]))
+            if region is None:
+                continue
+            start = self._section_start(stop.addr)
+            if self._was_written(stop.addr, start):
+                self.layers.append(self._snapshot(stop.addr, start))
+            elif start == self._entry_section:
+                # the protector's own code in the entry section (its entry stub): run it, but keep watching the rest
+                # of the section, and this page once control has left it, for the jump back to the original code
+                page = stop.addr & ~(PAGE - 1)
+                if page > region[0]:
+                    emu.watch_exec(region[0], page - region[0])
+                if page + PAGE < region[1]:
+                    emu.watch_exec(page + PAGE, region[1] - page - PAGE)
+                emu.watch_page_after_leaving(page)
         if not self.layers:
             self._snapshot_unpacked_code()
 
@@ -134,6 +150,10 @@ class GenericUnpackerCore:
                 best = layer
         if best is not None:
             self.layers.append(best)
+
+    def _section_start(self, addr: int) -> int:
+        starts = sorted(self._sections)
+        return starts[bisect.bisect_right(starts, addr) - 1]
 
     def _was_written(self, addr: int, start: int) -> bool:
         initial = self._initial[start]

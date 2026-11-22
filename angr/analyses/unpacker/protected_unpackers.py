@@ -38,6 +38,10 @@ def vmprotect_original_sections(data: bytes) -> set[int] | None:
         ),
         0,
     )
+    if first == 0 and pe.sections and pe.sections[0].contains_rva(ep) and not _name(pe.sections[0]).startswith(".vmp"):
+        # the entry point was left in the original code section (a virtualized entry function): the loader returns
+        # to it once the section is unpacked
+        return {0}
     return set(range(first)) or None
 
 
