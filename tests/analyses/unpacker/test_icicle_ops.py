@@ -188,6 +188,49 @@ class TestProcessorState(unittest.TestCase):
         # back to 80 bits: the double's 53 significant bits
         assert vm.mem_read(DATA + Q_OFF + 16, 10) == bytes.fromhex("00c06821a2da0fc90040")
 
+    def test_exact_64_bit_integers(self):
+        # values a double cannot hold survive fild / fistp, register moves, an 80-bit store and reload, and BCD
+        values = (0x7FFFFFFFFFFFFFFF, -0x7FFFFFFFFFFFFFFF, (1 << 53) + 1, -(1 << 62) - 3, 999999999999999999)
+        programs = (
+            # fild qword [esi]; fistp qword [edi]
+            "df2e df3f",
+            # fild qword [esi]; fld1; fxch st(1); fld st(0); fstp st(2); fistp qword [edi]; fstp st(0)
+            "df2e d9e8 d9c9 d9c0 ddda df3f ddd8",
+            # fild qword [esi]; fstp tbyte [edi+16]; fld tbyte [edi+16]; fisttp qword [edi]
+            "df2e db7f10 db6f10 dd0f",
+            # fild qword [esi]; fbstp tbyte [edi+16]; fbld tbyte [edi+16]; fistp qword [edi]
+            "df2e df7710 df6710 df3f",
+            # fild qword [esi]; fxsave [edi+0x100]; fninit; fxrstor [edi+0x100]; fistp qword [edi]
+            "df2e 0fae8700010000 dbe3 0fae8f00010000 df3f",
+        )
+        for jit in (False, True):
+            vm = _vm(False, jit)
+            for code in programs:
+                for value in values:
+                    if "df7710" in code and abs(value) >= 10**18:
+                        # packed decimal has 18 digits
+                        continue
+                    vm.mem_write(CODE, bytes.fromhex("dbe3" + code) + b"\xcc")
+                    vm.mem_write(DATA + P_OFF, struct.pack("<q", value))
+                    vm.reg_write("esi", DATA + P_OFF)
+                    vm.reg_write("edi", DATA + Q_OFF)
+                    vm.pc = CODE
+                    assert vm.run(100)[1] == winemu.FAULT_SYSCALL, code
+                    assert struct.unpack("<q", vm.mem_read(DATA + Q_OFF, 8))[0] == value, (code, value, jit)
+        # an 80-bit operand with more than 53 significant bits comes back as it was
+        raw = bytes.fromhex("35c26821a2da0fc90040")
+        vm.mem_write(CODE, bytes.fromhex("dbe3 db2e db3f cc"))
+        vm.mem_write(DATA + P_OFF, raw)
+        vm.pc = CODE
+        vm.run(100)
+        assert vm.mem_read(DATA + Q_OFF, 10) == raw
+        # out of range for fistp m64: the integer indefinite (fld1; fild; fscale -> 2 ** 62 * 2 ** 62)
+        vm.mem_write(CODE, bytes.fromhex("dbe3 df2e df2e d9fd df3f cc"))
+        vm.mem_write(DATA + P_OFF, struct.pack("<q", 62))
+        vm.pc = CODE
+        vm.run(100)
+        assert vm.mem_read(DATA + Q_OFF, 8) == struct.pack("<Q", 1 << 63)
+
     def test_small_instructions(self):
         # rdtscp; clflush [esi]; rdrand eax (CF set); fprem needs no 10-byte integer
         vm = _run("0f01f9 0fae3e 0fc7f0 9c", ecx=5)

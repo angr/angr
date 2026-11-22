@@ -59,6 +59,95 @@ fn f64_to_f80(value: f64) -> u128 {
     ((bits >> 63) as u128) << 79 | ((e as u128 & 0x7FFF) << 64) | m as u128
 }
 
+/// Exact shadows. A value loaded from an 80-bit operand, a 64-bit integer or a BCD operand that a double cannot
+/// hold exactly is also kept in one of SLOTS spare registers (added to the SLEIGH spec, so they are part of each
+/// thread's register file); the two bytes of the x87 register that the double leaves free name the slot. Register
+/// moves copy the ten bytes, arithmetic writes a fresh double without a tag, so a tagged value stored again by
+/// fstp m80, fistp m64 or fbstp is the one that was loaded.
+const SLOTS: u16 = 16;
+
+/// (the double a slot was filled for, its exact 80-bit value)
+fn slot(cpu: &Cpu, index: u16) -> (VarNode, VarNode) {
+    (reg(cpu, &format!("X87K{index}")), reg(cpu, &format!("X87V{index}")))
+}
+
+/// The ten bytes of an x87 register for `value`, tagged if `exact` (an 80-bit encoding) says more than the double.
+fn tagged(cpu: &mut Cpu, value: f64, exact: u128) -> u128 {
+    let bits = value.to_bits() as u128;
+    if f64_to_f80(value) == exact {
+        return bits;
+    }
+    let counter = reg(cpu, "X87XN");
+    let index = cpu.read_var::<u8>(counter) as u16 % SLOTS;
+    cpu.write_var::<u8>(counter, (index + 1) as u8);
+    let (key, value) = slot(cpu, index);
+    write_trunc(cpu, key, bits);
+    write_trunc(cpu, value, exact);
+    bits | ((index as u128 + 1) << 64)
+}
+
+/// The exact 80-bit value of an x87 register operand: its shadow if it has one, else the double widened.
+fn exact(cpu: &Cpu, value: Value) -> u128 {
+    let raw = rd(cpu, value);
+    let (bits, tag) = (raw as u64, (raw >> 64) as u16);
+    if (1..=SLOTS).contains(&tag) {
+        let (key, value) = slot(cpu, tag - 1);
+        if rd(cpu, Value::Var(key)) as u64 == bits {
+            return rd(cpu, Value::Var(value));
+        }
+    }
+    f64_to_f80(f64::from_bits(bits))
+}
+
+fn int_to_f80(value: i128) -> u128 {
+    let magnitude = value.unsigned_abs();
+    if magnitude == 0 {
+        return 0;
+    }
+    let lead = magnitude.leading_zeros();
+    // the top bit of the magnitude becomes the explicit integer bit; at most 64 bits are significant here
+    let mantissa = ((magnitude << lead) >> 64) as u64;
+    let exponent = 16383 + 127 - lead as u128;
+    ((value < 0) as u128) << 79 | exponent << 64 | mantissa as u128
+}
+
+/// An 80-bit value as a 64-bit integer, rounded to nearest even or truncated; None if it does not fit.
+fn f80_to_int(raw: u128, truncate: bool) -> Option<i64> {
+    let (mantissa, exponent, negative) = (raw as u64, (raw >> 64) as i32 & 0x7FFF, raw >> 79 & 1 != 0);
+    if exponent == 0x7FFF || (exponent != 0 && mantissa >> 63 == 0) {
+        return None;
+    }
+    // value = mantissa * 2^-shift
+    let shift = 16383 + 63 - exponent.max(1);
+    let magnitude: u128 = if shift < 0 {
+        return None;
+    } else if shift == 0 {
+        mantissa as u128
+    } else if shift > 64 {
+        0
+    } else {
+        let wide = (mantissa as u128) << 64 >> shift;
+        let (whole, rest) = (wide >> 64, wide as u64);
+        let up = !truncate && (rest > 1 << 63 || (rest == 1 << 63 && whole & 1 == 1));
+        whole + up as u128
+    };
+    let value = if negative { -(magnitude as i128) } else { magnitude as i128 };
+    i64::try_from(value).ok()
+}
+
+fn from_int(cpu: &mut Cpu, dst: VarNode, args: Args) {
+    let value = rd(cpu, args[0]) as u64 as i64;
+    let out = tagged(cpu, value as f64, int_to_f80(value as i128));
+    write_trunc(cpu, dst, out);
+}
+
+/// x87_to_int(st, truncate): fistp / fisttp m64; the integer indefinite for what does not fit.
+fn to_int(cpu: &mut Cpu, dst: VarNode, args: Args) {
+    let truncate = rd(cpu, args[1]) != 0;
+    let value = f80_to_int(exact(cpu, args[0]), truncate).unwrap_or(i64::MIN);
+    write_trunc(cpu, dst, value as u64 as u128);
+}
+
 /// fprem / fprem1 (as patched in the SLEIGH spec): the remainder; C0, C3 and C1 get the quotient's low bits.
 fn partial_remainder(cpu: &mut Cpu, dst: VarNode, args: Args, nearest: bool) {
     let (x, y) = (st(cpu, args[0]), st(cpu, args[1]));
@@ -87,24 +176,29 @@ fn from_bcd(cpu: &mut Cpu, dst: VarNode, args: Args) {
     let raw = rd(cpu, args[0]);
     let magnitude = (0..18)
         .rev()
-        .fold(0f64, |acc, i| acc * 10.0 + ((raw >> (4 * i)) & 0xF) as f64);
+        .fold(0i128, |acc, i| acc * 10 + ((raw >> (4 * i)) & 0xF) as i128);
     let value = if raw >> 79 & 1 != 0 { -magnitude } else { magnitude };
-    set_st(cpu, dst, value);
+    let mut out = tagged(cpu, value as f64, int_to_f80(value));
+    if value == 0 && raw >> 79 & 1 != 0 {
+        out = (-0.0f64).to_bits() as u128;
+    }
+    write_trunc(cpu, dst, out);
 }
 
 fn to_bcd(cpu: &mut Cpu, dst: VarNode, args: Args) {
-    let value = st(cpu, args[0]).round_ties_even();
-    let out = if value.is_nan() || value.abs() >= 1e18 {
-        // the packed-decimal indefinite
-        0xFFFF_C000_0000_0000_0000_0000u128
-    } else {
-        let mut magnitude = value.abs() as u64;
-        let mut digits = 0u128;
-        for i in 0..18 {
-            digits |= ((magnitude % 10) as u128) << (4 * i);
-            magnitude /= 10;
+    let source = exact(cpu, args[0]);
+    let out = match f80_to_int(source, false) {
+        Some(value) if value.unsigned_abs() < 1_000_000_000_000_000_000 => {
+            let mut magnitude = value.unsigned_abs();
+            let mut digits = 0u128;
+            for i in 0..18 {
+                digits |= ((magnitude % 10) as u128) << (4 * i);
+                magnitude /= 10;
+            }
+            digits | (source >> 79 & 1) << 79
         }
-        digits | (value.is_sign_negative() as u128) << 79
+        // the packed-decimal indefinite
+        _ => 0xFFFF_C000_0000_0000_0000u128,
     };
     write_trunc(cpu, dst, out);
 }
@@ -160,9 +254,9 @@ fn fxsave_image(cpu: &Cpu) -> [u8; 512] {
     image[24..28].copy_from_slice(&cpu.read_var::<u32>(reg(cpu, "MXCSR")).to_le_bytes());
     image[28..32].copy_from_slice(&0xFFFFu32.to_le_bytes());
     for i in 0..8 {
-        let value = st(cpu, Value::Var(reg(cpu, &format!("ST{i}"))));
+        let value = exact(cpu, Value::Var(reg(cpu, &format!("ST{i}"))));
         let at = 32 + 16 * i;
-        image[at..at + 10].copy_from_slice(&f64_to_f80(value).to_le_bytes()[..10]);
+        image[at..at + 10].copy_from_slice(&value.to_le_bytes()[..10]);
     }
     for i in 0..xmm_count(cpu) {
         let value = rd(cpu, Value::Var(reg(cpu, &format!("XMM{i}"))));
@@ -188,7 +282,9 @@ fn load_fxsave_image(cpu: &mut Cpu, image: &[u8; 512], x87: bool, sse: bool) {
         }
         for i in 0..8 {
             let var = reg(cpu, &format!("ST{i}"));
-            set_st(cpu, var, f80_to_f64(chunk(32 + 16 * i, 10)));
+            let raw = chunk(32 + 16 * i, 10);
+            let value = tagged(cpu, f80_to_f64(raw), raw);
+            write_trunc(cpu, var, value);
         }
     }
     if sse {
@@ -295,13 +391,16 @@ fn nop(_: &mut Cpu, _: VarNode, _: Args) {}
 pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
     // added to the SLEIGH spec for fld / fstp of 80-bit operands, fprem and fprem1
     ("f80_decode", |c, d, a| {
-        let value = f80_to_f64(rd(c, a[0]));
-        set_st(c, d, value)
-    }),
-    ("f80_encode", |c, d, a| {
-        let value = f64_to_f80(st(c, a[0]));
+        let raw = rd(c, a[0]);
+        let value = tagged(c, f80_to_f64(raw), raw);
         write_trunc(c, d, value)
     }),
+    ("f80_encode", |c, d, a| {
+        let value = exact(c, a[0]);
+        write_trunc(c, d, value)
+    }),
+    ("x87_from_int", from_int),
+    ("x87_to_int", to_int),
     ("fprem", |c, d, a| partial_remainder(c, d, a, false)),
     ("fprem1", |c, d, a| partial_remainder(c, d, a, true)),
     ("fpatan", |c, d, a| {

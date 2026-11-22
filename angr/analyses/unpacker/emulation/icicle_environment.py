@@ -180,7 +180,11 @@ _X87 = (
         "define pcodeop segment;",
         (
             "define pcodeop segment;\ndefine pcodeop f80_decode;\ndefine pcodeop f80_encode;\ndefine pcodeop fprem;\n"
-            "define pcodeop fprem1;"
+            "define pcodeop fprem1;\ndefine pcodeop x87_from_int;\ndefine pcodeop x87_to_int;\n"
+            # exact shadows of x87 values a double cannot hold (see ops/state.rs)
+            "define register offset=0x7000 size=8 [ " + " ".join(f"X87K{i}" for i in range(16)) + " ];\n"
+            "define register offset=0x7100 size=10 [ " + " ".join(f"X87V{i}" for i in range(16)) + " ];\n"
+            "define register offset=0x7200 size=1 [ X87XN ];"
         ),
     ),
     (
@@ -190,6 +194,13 @@ _X87 = (
     ("    fpopv(m80fp); ", "    local ext:10; fpopv(ext); local raw:10 = f80_encode(ext); m80fp = raw; "),
     ("    ST0 = from_bcd(m80); ", "    local raw:10 = m80; ST0 = from_bcd(raw); "),
     ("    m80 = to_bcd(ST0); ", "    local raw:10 = to_bcd(ST0); m80 = raw; "),
+    # 64-bit integers go through helpers that keep them exact (fild / fistp / fisttp m64)
+    ("    ST0 = int2float(m64); ", "    local wide:8 = m64; ST0 = x87_from_int(wide); "),
+    (
+        "    tmp:10 = round(ST0); \n    fpop(); \n    m64 = trunc(tmp); \n",
+        "    local wide:8 = x87_to_int(ST0, 0:1); m64 = wide; fpop();\n",
+    ),
+    ("    m64 = trunc(ST0); \n", "    local wide:8 = x87_to_int(ST0, 1:1); m64 = wide;\n"),
     # fxam: infinities and NaNs get their own classes
     ("  C0 = nan(ST0);", "  C0 = nan(ST0) || (((ST0 f+ ST0) f== ST0) && (ST0 f!= fzero));"),
     ("  C2 = ( ST0 f!= fzero );", "  C2 = !nan(ST0) && ( ST0 f!= fzero );"),
