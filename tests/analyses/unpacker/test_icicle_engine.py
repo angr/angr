@@ -66,6 +66,20 @@ class TestWinVm(unittest.TestCase):
         _run(vm, bytes.fromhex("b00f 0401 9c"))
         assert struct.unpack("<I", vm.mem_read(vm.reg_read("esp"), 4))[0] & 0x10
 
+    def test_x64_zero_extension_and_shift_flags(self):
+        vm = _vm(True)
+        vm.mem_write(0x500100, struct.pack("<I", 0x11223344))
+        vm.reg_write("rax", 0x500100)
+        vm.reg_write("r10", 0xF6620AA00)
+        # xchg [rax], r10d clears the upper half of r10
+        _run(vm, bytes.fromhex("448710"))
+        assert vm.reg_read("r10") == 0x11223344
+        # shr di, cl with cl = 0 keeps AF
+        vm.reg_write("rcx", 0)
+        vm.reg_write("eflags", 0x12)
+        _run(vm, bytes.fromhex("66d3ef 9c"))
+        assert struct.unpack("<Q", vm.mem_read(vm.reg_read("rsp"), 8))[0] & 0x10
+
     def test_cpuid_and_privileged(self):
         vm = _vm()
         assert _run(vm, bytes.fromhex("31c0 0fa2"))[1] == winemu.FAULT_SYSCALL

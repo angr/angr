@@ -27,7 +27,7 @@ from .threads import Thread
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
 # fixes to Ghidra's x86 spec: pushf bit 1; SHR/SHRD by one set OF from the operand's sign; for shift and rotate counts above one,
 # where OF is undefined, OF follows QEMU (the engine the Unicorn path runs on)
-_SLEIGH_PATCHES = (
+_IA_PATCHES = (
     (
         " conditionalAssign(OF, count==1, 0, (op1 s< 0)); ",
         " conditionalAssign(OF, count==0, OF, ((op1 >> (count - 1)) ^ result) s< 0); ",
@@ -41,8 +41,16 @@ _SLEIGH_PATCHES = (
         " conditionalAssign(OF, count==0, OF, CF ^ (result s< 0));\n}\n\nmacro sarflags",
     ),
     (" conditionalAssign(OF, count==1, 0, OF); ", " conditionalAssign(OF, count==0, OF, 0); "),
+    # shifts by a non-zero count clear AF (as QEMU does), by zero keep it
+    (
+        " PF = (!notzero & PF) | (notzero & newPF);\n # AF not implemented",
+        " PF = (!notzero & PF) | (notzero & newPF);\n AF = !notzero & AF;",
+    ),
     # pushf: the reserved bit 1 always reads as one
-    ("| (0x0004 * zext(PF&1)) | (0x0001 * zext(CF&1));", "| (0x0004 * zext(PF&1)) | 0x0002 | (0x0001 * zext(CF&1));"),
+    (
+        "| (0x0004 * zext(PF&1)) | (0x0001 * zext(CF&1));",
+        "| (0x0004 * zext(PF&1)) | 0x0002 | (0x0001 * zext(CF&1));",
+    ),
     (
         " conditionalAssign(OF, count==1, CF ^ (result s< 0), OF); \n}\n\nmacro rorflags",
         " conditionalAssign(OF, count==0, OF, CF ^ (result s< 0)); \n}\n\nmacro rorflags",
@@ -51,6 +59,21 @@ _SLEIGH_PATCHES = (
         " conditionalAssign(OF, count==1, CF ^ ((result << 1) s< 0), OF); ",
         " conditionalAssign(OF, count==0, OF, CF ^ ((result << 1) s< 0)); ",
     ),
+)
+# xchg m32, r32 in 64-bit mode: the register's upper half is cleared like for every 32-bit write
+_XCHG_M32 = (
+    (
+        "opsize=1 & byte=0x87; m32 & Reg32 ...        \n{ \n  build xacq_xrel_prefx;\n  build alwaysLock;\n  build m32;\n"
+        "  local tmp = m32; \n  m32 = Reg32; \n  Reg32 = tmp; \n"
+    ),
+    (
+        "opsize=1 & byte=0x87; (check_Reg32_dest & Reg32) ... & m32\n{ \n  build xacq_xrel_prefx;\n  build alwaysLock;\n"
+        "  build m32;\n  local tmp = m32; \n  m32 = Reg32; \n  Reg32 = tmp; \n  build check_Reg32_dest;\n"
+    ),
+)
+_SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
+    *(("ia.sinc", old, new) for old, new in _IA_PATCHES),
+    ("lockable.sinc", *_XCHG_M32),
 )
 
 
@@ -65,14 +88,16 @@ def patched_processors() -> str:
         return root
     staging = tempfile.mkdtemp(prefix=root + ".")
     shutil.copytree(os.path.join(PROCESSORS_DIR, "x86"), os.path.join(staging, "x86"))
-    path = os.path.join(staging, "x86", "data", "languages", "ia.sinc")
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    for old, new in _SLEIGH_PATCHES:
-        assert old in text, old
-        text = text.replace(old, new)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(text)
+    for name in sorted({name for name, _, _ in _SLEIGH_PATCHES}):
+        path = os.path.join(staging, "x86", "data", "languages", name)
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        for patched, old, new in _SLEIGH_PATCHES:
+            if patched == name:
+                assert old in text, old
+                text = text.replace(old, new)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
     try:
         os.rename(staging, root)
     except OSError:
