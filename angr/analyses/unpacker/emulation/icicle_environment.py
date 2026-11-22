@@ -161,6 +161,34 @@ _SSE42 = (
     (", EAX, EDX);", ", EAX, EDX, 0:1);"),
     (", RAX, RDX);", ", RAX, RDX, 1:1);"),
 )
+# x87 values are doubles under Icicle: convert 80-bit memory operands; fprem went through a 10-byte integer
+_X87 = (
+    (
+        "define pcodeop segment;",
+        "define pcodeop segment;\ndefine pcodeop f80_decode;\ndefine pcodeop f80_encode;\ndefine pcodeop fprem;\n"
+        "define pcodeop fprem1;",
+    ),
+    (
+        "    fpushv(m80fp); ",
+        "    fpushv(m80fp); ST0 = f80_decode(ST0); ",
+    ),
+    ("    fpopv(m80fp); ", "    local ext:10; fpopv(ext); local raw:10 = f80_encode(ext); m80fp = raw; "),
+    ("    ST0 = from_bcd(m80); ", "    local raw:10 = m80; ST0 = from_bcd(raw); "),
+    ("    m80 = to_bcd(ST0); ", "    local raw:10 = to_bcd(ST0); m80 = raw; "),
+    # fxam: infinities and NaNs get their own classes
+    ("  C0 = nan(ST0);", "  C0 = nan(ST0) || (((ST0 f+ ST0) f== ST0) && (ST0 f!= fzero));"),
+    ("  C2 = ( ST0 f!= fzero );", "  C2 = !nan(ST0) && ( ST0 f!= fzero );"),
+    (
+        ":FPREM          is vexMode=0 & byte=0xD9; byte=0xF8\n{\n    FPUInstructionPointer = inst_start;\n"
+        "    local tmp = ST0 f/ ST1;\n    tmp = trunc(tmp);\n    tmp = tmp f* ST1;\n    ST0 = ST0 f- tmp;\n",
+        ":FPREM          is vexMode=0 & byte=0xD9; byte=0xF8\n{\n    FPUInstructionPointer = inst_start;\n"
+        "    ST0 = fprem(ST0, ST1);\n",
+    ),
+    (
+        "    local tmp = ST0 f/ ST1;\n    tmp = round(tmp);\n    tmp = tmp f* ST1;\n    ST0 = ST0 f- tmp;\n",
+        "    ST0 = fprem1(ST0, ST1);\n",
+    ),
+)
 # regex substitutions inside every constructor of a mnemonic: these conversions round (MXCSR's default, to nearest
 # even) where the spec truncates
 _CONSTRUCTOR_PATCHES = tuple(
@@ -173,6 +201,7 @@ _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _SSE2),
     *(("ia.sinc", old, new) for old, new in _SSE41),
     *(("ia.sinc", old, new) for old, new in _SSE42),
+    *(("ia.sinc", old, new) for old, new in _X87),
     ("lockable.sinc", *_XCHG_M32),
 )
 

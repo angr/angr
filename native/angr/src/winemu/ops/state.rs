@@ -1,0 +1,358 @@
+//! x87 leftovers, FXSAVE / XSAVE and small state instructions.
+
+use icicle_vm::cpu::{Cpu, Exception, ExceptionCode, ValueSource, exec::helpers::PcodeOpHelper, mem::perm};
+use pcode::{Value, VarNode};
+
+use super::{super::is_x64, *};
+
+fn st(cpu: &Cpu, value: Value) -> f64 {
+    f64::from_bits(rd(cpu, value) as u64)
+}
+
+fn set_st(cpu: &mut Cpu, dst: VarNode, value: f64) {
+    write_trunc(cpu, dst, value.to_bits() as u128);
+}
+
+/// An 80-bit extended value as the nearest double.
+fn f80_to_f64(raw: u128) -> f64 {
+    let (mantissa, exponent) = (raw as u64, (raw >> 64) as i32 & 0x7FFF);
+    let sign = ((raw >> 79) as u64 & 1) << 63;
+    if exponent != 0 && mantissa >> 63 == 0 {
+        // an unnormal: invalid, the default NaN
+        return f64::from_bits(0xFFF8_0000_0000_0000);
+    }
+    if exponent == 0x7FFF && mantissa << 1 != 0 {
+        // a NaN keeps its payload and becomes quiet
+        return f64::from_bits(sign | 0x7FF8_0000_0000_0000 | ((mantissa << 1) >> 12));
+    }
+    let magnitude = if exponent == 0x7FFF {
+        f64::INFINITY
+    } else if mantissa == 0 {
+        0.0
+    } else {
+        // mantissa * 2^(exponent - 16383 - 63); scaled in two steps so that a subnormal result rounds once
+        let lead = mantissa.leading_zeros() as i32;
+        let m = (mantissa << lead) as f64;
+        let e = exponent.max(1) - 16383 - 63 - lead;
+        m * 2f64.powi(e.clamp(-2000, 2000) / 2) * 2f64.powi(e.clamp(-2000, 2000) - e.clamp(-2000, 2000) / 2)
+    };
+    if sign != 0 { -magnitude } else { magnitude }
+}
+
+fn f64_to_f80(value: f64) -> u128 {
+    let bits = value.to_bits();
+    let exponent = (bits >> 52) as i32 & 0x7FF;
+    let fraction = bits & ((1 << 52) - 1);
+    let (e, m) = if exponent == 0x7FF {
+        // infinity, or a NaN with its payload
+        (0x7FFF, (1 << 63) | (fraction << 11))
+    } else if exponent == 0 {
+        if fraction == 0 {
+            (0, 0)
+        } else {
+            let lead = fraction.leading_zeros() as i32;
+            (16383 - 1022 - (lead - 11), fraction << lead)
+        }
+    } else {
+        (exponent - 1023 + 16383, (1 << 63) | (fraction << 11))
+    };
+    ((bits >> 63) as u128) << 79 | ((e as u128 & 0x7FFF) << 64) | m as u128
+}
+
+/// fprem / fprem1 (as patched in the SLEIGH spec): the remainder; C0, C3 and C1 get the quotient's low bits.
+fn partial_remainder(cpu: &mut Cpu, dst: VarNode, args: Args, nearest: bool) {
+    let (x, y) = (st(cpu, args[0]), st(cpu, args[1]));
+    let mut rem = x % y;
+    let mut quotient = ((x - rem) / y).abs();
+    if nearest && rem.is_finite() {
+        let (half, r) = ((y / 2.0).abs(), rem.abs());
+        if r > half || (r == half && quotient % 2.0 == 1.0) {
+            rem -= y.abs().copysign(rem);
+            quotient += 1.0;
+        }
+    }
+    let q = if quotient.is_finite() {
+        (quotient % 8.0) as u8
+    } else {
+        0
+    };
+    set_flag(cpu, "C0", q & 4 != 0);
+    set_flag(cpu, "C3", q & 2 != 0);
+    set_flag(cpu, "C1", q & 1 != 0);
+    set_flag(cpu, "C2", false);
+    set_st(cpu, dst, rem);
+}
+
+fn from_bcd(cpu: &mut Cpu, dst: VarNode, args: Args) {
+    let raw = rd(cpu, args[0]);
+    let magnitude = (0..18)
+        .rev()
+        .fold(0f64, |acc, i| acc * 10.0 + ((raw >> (4 * i)) & 0xF) as f64);
+    let value = if raw >> 79 & 1 != 0 { -magnitude } else { magnitude };
+    set_st(cpu, dst, value);
+}
+
+fn to_bcd(cpu: &mut Cpu, dst: VarNode, args: Args) {
+    let value = st(cpu, args[0]).round_ties_even();
+    let out = if value.is_nan() || value.abs() >= 1e18 {
+        // the packed-decimal indefinite
+        0xFFFF_C000_0000_0000_0000_0000u128
+    } else {
+        let mut magnitude = value.abs() as u64;
+        let mut digits = 0u128;
+        for i in 0..18 {
+            digits |= ((magnitude % 10) as u128) << (4 * i);
+            magnitude /= 10;
+        }
+        digits | (value.is_sign_negative() as u128) << 79
+    };
+    write_trunc(cpu, dst, out);
+}
+
+fn extract_exponent(cpu: &mut Cpu, dst: VarNode, args: Args) {
+    let value = st(cpu, args[0]);
+    let exponent = if value == 0.0 {
+        f64::NEG_INFINITY
+    } else if value.is_finite() {
+        let bits = value.abs().to_bits();
+        if bits >> 52 == 0 {
+            // subnormal
+            -1011.0 - (bits.leading_zeros() as f64)
+        } else {
+            (bits >> 52) as f64 - 1023.0
+        }
+    } else {
+        value.abs()
+    };
+    set_st(cpu, dst, exponent);
+}
+
+fn extract_significand(cpu: &mut Cpu, dst: VarNode, args: Args) {
+    let value = st(cpu, args[0]);
+    let significand = if value == 0.0 || !value.is_finite() {
+        value
+    } else {
+        let bits = value.to_bits();
+        let fraction = if (bits >> 52) & 0x7FF == 0 {
+            let lead = (bits << 12).leading_zeros();
+            (bits << (lead + 1)) & ((1 << 52) - 1)
+        } else {
+            bits & ((1 << 52) - 1)
+        };
+        f64::from_bits((bits & (1 << 63)) | (1023 << 52) | fraction)
+    };
+    set_st(cpu, dst, significand);
+}
+
+fn xmm_count(cpu: &Cpu) -> usize {
+    if is_x64(cpu) { 16 } else { 8 }
+}
+
+/// The FXSAVE image: x87 control state, the registers as 80-bit values, MXCSR and the XMM registers.
+fn fxsave_image(cpu: &Cpu) -> [u8; 512] {
+    let mut image = [0u8; 512];
+    let word = |name: &str| cpu.read_var::<u16>(reg(cpu, name));
+    image[0..2].copy_from_slice(&word("FPUControlWord").to_le_bytes());
+    image[2..4].copy_from_slice(&word("FPUStatusWord").to_le_bytes());
+    let tag = word("FPUTagWord");
+    // abridged tag: one bit per register, set unless it is empty
+    image[4] = (0..8).fold(0, |acc, i| acc | (((tag >> (2 * i)) & 3 != 3) as u8) << i);
+    image[24..28].copy_from_slice(&cpu.read_var::<u32>(reg(cpu, "MXCSR")).to_le_bytes());
+    image[28..32].copy_from_slice(&0xFFFFu32.to_le_bytes());
+    for i in 0..8 {
+        let value = st(cpu, Value::Var(reg(cpu, &format!("ST{i}"))));
+        let at = 32 + 16 * i;
+        image[at..at + 10].copy_from_slice(&f64_to_f80(value).to_le_bytes()[..10]);
+    }
+    for i in 0..xmm_count(cpu) {
+        let value = rd(cpu, Value::Var(reg(cpu, &format!("XMM{i}"))));
+        let at = 160 + 16 * i;
+        image[at..at + 16].copy_from_slice(&value.to_le_bytes());
+    }
+    image
+}
+
+fn load_fxsave_image(cpu: &mut Cpu, image: &[u8; 512], x87: bool, sse: bool) {
+    let chunk = |at: usize, len: usize| {
+        let mut raw = [0u8; 16];
+        raw[..len].copy_from_slice(&image[at..at + len]);
+        u128::from_le_bytes(raw)
+    };
+    if x87 {
+        let tag = (0..8).fold(0u128, |acc, i| {
+            acc | (if image[4] >> i & 1 != 0 { 0 } else { 3 }) << (2 * i)
+        });
+        for (name, value) in [("FPUControlWord", chunk(0, 2)), ("FPUStatusWord", chunk(2, 2)), ("FPUTagWord", tag)] {
+            let var = reg(cpu, name);
+            write_trunc(cpu, var, value);
+        }
+        for i in 0..8 {
+            let var = reg(cpu, &format!("ST{i}"));
+            set_st(cpu, var, f80_to_f64(chunk(32 + 16 * i, 10)));
+        }
+    }
+    if sse {
+        let var = reg(cpu, "MXCSR");
+        write_trunc(cpu, var, chunk(24, 4));
+        for i in 0..xmm_count(cpu) {
+            let var = reg(cpu, &format!("XMM{i}"));
+            write_trunc(cpu, var, chunk(160 + 16 * i, 16));
+        }
+    }
+}
+
+fn store(cpu: &mut Cpu, addr: u64, data: &[u8]) -> bool {
+    match cpu.mem.write_bytes(addr, data, perm::WRITE) {
+        Ok(()) => true,
+        Err(err) => {
+            cpu.exception = Exception::new(ExceptionCode::from_store_error(err), addr);
+            false
+        }
+    }
+}
+
+fn load<const N: usize>(cpu: &mut Cpu, addr: u64) -> Option<[u8; N]> {
+    let mut data = [0u8; N];
+    match cpu.mem.read_bytes(addr, &mut data, perm::READ) {
+        Ok(()) => Some(data),
+        Err(err) => {
+            cpu.exception = Exception::new(ExceptionCode::from_load_error(err), addr);
+            None
+        }
+    }
+}
+
+fn fxsave(cpu: &mut Cpu, _: VarNode, args: Args) {
+    let addr = rd(cpu, args[0]) as u64;
+    let image = fxsave_image(cpu);
+    // the last 96 bytes of the area are left alone
+    store(cpu, addr, &image[..416]);
+}
+
+fn fxrstor(cpu: &mut Cpu, _: VarNode, args: Args) {
+    let addr = rd(cpu, args[0]) as u64;
+    if let Some(image) = load::<512>(cpu, addr) {
+        load_fxsave_image(cpu, &image, true, true);
+    }
+}
+
+/// The state components XSAVE handles here: x87 (1) and SSE (2), as far as XCR0 and eax ask for them.
+fn xsave_components(cpu: &mut Cpu) -> u64 {
+    let (eax, xcr0) = (reg(cpu, "EAX"), reg(cpu, "XCR0"));
+    cpu.read_reg(eax) & cpu.read_reg(xcr0) & 3
+}
+
+fn xsave(cpu: &mut Cpu, _: VarNode, args: Args) {
+    let addr = rd(cpu, args[0]) as u64;
+    let components = xsave_components(cpu);
+    let image = fxsave_image(cpu);
+    let Some(header) = load::<8>(cpu, addr + 512) else {
+        return;
+    };
+    let x87 = components & 1 == 0 || (store(cpu, addr, &image[..24]) && store(cpu, addr + 32, &image[32..160]));
+    // MXCSR goes with either component
+    let done = x87
+        && store(cpu, addr + 24, &image[24..32])
+        && (components & 2 == 0 || store(cpu, addr + 160, &image[160..416]));
+    if done {
+        let saved = (u64::from_le_bytes(header) & !3) | components;
+        store(cpu, addr + 512, &saved.to_le_bytes());
+    }
+}
+
+fn xrstor(cpu: &mut Cpu, _: VarNode, args: Args) {
+    let addr = rd(cpu, args[0]) as u64;
+    let components = xsave_components(cpu);
+    let (Some(image), Some(header)) = (load::<512>(cpu, addr), load::<8>(cpu, addr + 512)) else {
+        return;
+    };
+    let present = u64::from_le_bytes(header);
+    // a requested component that is absent from the image returns to its initial state
+    let mut initial = [0u8; 512];
+    initial[0..2].copy_from_slice(&0x37Fu16.to_le_bytes());
+    initial[24..28].copy_from_slice(&0x1F80u32.to_le_bytes());
+    for (bit, x87) in [(1, true), (2, false)] {
+        if components & bit != 0 {
+            let source = if present & bit != 0 { &image } else { &initial };
+            load_fxsave_image(cpu, source, x87, !x87);
+        }
+    }
+}
+
+fn rdtscp(cpu: &mut Cpu, _: VarNode, _: Args) {
+    #[cfg(target_arch = "x86_64")]
+    let tsc = unsafe { core::arch::x86_64::_rdtsc() };
+    #[cfg(not(target_arch = "x86_64"))]
+    let tsc = 0x2_0000_0000 + cpu.icount.wrapping_mul(3);
+    let names = if is_x64(cpu) {
+        ["RAX", "RDX", "RCX"]
+    } else {
+        ["EAX", "EDX", "ECX"]
+    };
+    // ecx: IA32_TSC_AUX, processor 0
+    for (name, value) in names.into_iter().zip([tsc & 0xFFFF_FFFF, tsc >> 32, 0]) {
+        let var = reg(cpu, name);
+        cpu.write_reg(var, value);
+    }
+}
+
+/// rdrand / rdseed: a repeatable sequence (splitmix64 of the instruction count).
+fn random(cpu: &mut Cpu, dst: VarNode, _: Args) {
+    let mut z = (cpu.icount ^ 0x9E37_79B9_7F4A_7C15).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    write_trunc(cpu, dst, (z ^ (z >> 31)) as u128);
+}
+
+fn one(cpu: &mut Cpu, dst: VarNode, _: Args) {
+    write_trunc(cpu, dst, 1);
+}
+
+fn nop(_: &mut Cpu, _: VarNode, _: Args) {}
+
+pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
+    // added to the SLEIGH spec for fld / fstp of 80-bit operands, fprem and fprem1
+    ("f80_decode", |c, d, a| {
+        let value = f80_to_f64(rd(c, a[0]));
+        set_st(c, d, value)
+    }),
+    ("f80_encode", |c, d, a| {
+        let value = f64_to_f80(st(c, a[0]));
+        write_trunc(c, d, value)
+    }),
+    ("fprem", |c, d, a| partial_remainder(c, d, a, false)),
+    ("fprem1", |c, d, a| partial_remainder(c, d, a, true)),
+    ("fpatan", |c, d, a| {
+        let value = st(c, a[0]).atan2(st(c, a[1]));
+        set_st(c, d, value)
+    }),
+    ("log2", |c, d, a| {
+        let value = st(c, a[0]).log2();
+        set_st(c, d, value)
+    }),
+    ("extract_significand", extract_significand),
+    ("extract_exponent", extract_exponent),
+    ("from_bcd", from_bcd),
+    ("to_bcd", to_bcd),
+    // the tag word is not kept per register
+    ("ffree", |c, d, _| {
+        let tag = c.read_var::<u16>(reg(c, "FPUTagWord"));
+        write_trunc(c, d, tag as u128)
+    }),
+    ("_fxsave", fxsave),
+    ("_fxsave64", fxsave),
+    ("_fxrstor", fxrstor),
+    ("_fxrstor64", fxrstor),
+    ("xsave", xsave),
+    ("xsave64", xsave),
+    ("xsaveopt", xsave),
+    ("xsaveopt64", xsave),
+    ("xrstor", xrstor),
+    ("xrstor64", xrstor),
+    ("rdtscp", rdtscp),
+    ("rdrand", random),
+    ("rdseed", random),
+    ("rdrandIsValid", one),
+    ("rdseedIsValid", one),
+    ("clflush", nop),
+    ("clflushopt", nop),
+];

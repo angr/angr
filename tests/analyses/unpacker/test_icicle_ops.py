@@ -13,7 +13,7 @@ from angr.rustylib import winemu
 from angr.rustylib.winemu import WinVm
 
 from . import icicle_op_vectors as vectors
-from .icicle_op_vectors import CODE, DATA, DSIZE
+from .icicle_op_vectors import CODE, DATA, DSIZE, P_OFF, Q_OFF
 
 GPR64 = ("rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15")
 GPR32 = ("eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi")
@@ -52,6 +52,26 @@ def _execute(vm: WinVm, code: bytes, state: State) -> State:
     )
 
 
+def _run(code: str, is_64bit: bool = False, jit: bool = False, **regs: int) -> WinVm:
+    """
+    Run hex code with the data pointers in esi / edi and the given registers.
+    """
+    vm = _vm(is_64bit, jit)
+    gpr, _, xmm, _ = vectors.make_state(code, is_64bit, "i")
+    raw = bytes.fromhex(code)
+    vm.mem_write(CODE, raw + b"\xcc")
+    vm.mem_write(DATA, bytes(DSIZE))
+    for name, value in zip(GPR64 if is_64bit else GPR32, gpr):
+        vm.reg_write(name, value)
+    for i, value in enumerate(xmm):
+        vm.reg_write_bytes(f"xmm{i}", value.to_bytes(16, "little"))
+    for name, value in regs.items():
+        vm.reg_write(name, value)
+    vm.pc = CODE
+    assert vm.run(100)[:2] == (winemu.EXIT_EXCEPTION, winemu.FAULT_SYSCALL), code
+    assert vm.pc == CODE + len(raw), code
+    return vm
+
 
 class TestOpVectors(unittest.TestCase):
     """
@@ -81,6 +101,8 @@ class TestOpVectors(unittest.TestCase):
     def test_crypto(self):
         self._check(vectors.CRYPTO)
 
+    def test_x87(self):
+        self._check(vectors.X87)
 
 
 
@@ -117,6 +139,54 @@ class TestSse(unittest.TestCase):
         # equal any: index 2; CF (match), SF (xmm0 ends early), not ZF
         assert (vm.reg_read("ecx"), vm.reg_read("eflags") & 0x8C1) == (2, 0x81)
 
+
+class TestProcessorState(unittest.TestCase):
+    def test_fxsave_fxrstor(self):
+        # fninit; fld1; fxsave [edi]; pxor xmm1, xmm1; fstp st(0); fxrstor [edi]; fstp qword [edi + 0x300]
+        vm = _run("dbe3 d9e8 0fae07 660fefc9 ddd8 0fae0f dd9f00030000")
+        image = vm.mem_read(DATA + Q_OFF, 512)
+        assert image[:2] == b"\x7f\x03" and image[24:28] == b"\x80\x1f\0\0"
+        # ST0 = 1.0 as an 80-bit value; xmm1 in its slot
+        assert image[32:42] == bytes.fromhex("0000000000000080ff3f")
+        expected = vectors.make_state("dbe3 d9e8 0fae07 660fefc9 ddd8 0fae0f dd9f00030000", False, "i")[2][1]
+        assert int.from_bytes(image[176:192], "little") == expected
+        assert int.from_bytes(vm.reg_read_bytes("xmm1"), "little") == expected
+        assert vm.mem_read(DATA + Q_OFF + 0x300, 8) == struct.pack("<d", 1.0)
+
+    def test_xsave(self):
+        # xsave [edi] with eax = 3 saves x87 and SSE and says so in the header; xgetbv reports the same states
+        vm = _run("0fae27 31c9 0f01d0", eax=3, edx=0)
+        assert struct.unpack("<Q", vm.mem_read(DATA + Q_OFF + 512, 8))[0] == 3
+        assert (vm.reg_read("eax"), vm.reg_read("edx")) == (3, 0)
+
+    def test_extended_precision_operands(self):
+        # fld tbyte [esi]; fstp qword [edi]; fld qword [edi]; fstp tbyte [edi + 16]
+        vm = _vm(False, False)
+        pi = bytes.fromhex("35c26821a2da0fc90040")
+        vm.mem_write(CODE, bytes.fromhex("db2e dd1f dd07 db7f10 cc"))
+        vm.mem_write(DATA + P_OFF, pi)
+        vm.reg_write("esi", DATA + P_OFF)
+        vm.reg_write("edi", DATA + Q_OFF)
+        vm.pc = CODE
+        vm.run(10)
+        assert vm.mem_read(DATA + Q_OFF, 8) == struct.pack("<d", 3.141592653589793)
+        # back to 80 bits: the double's 53 significant bits
+        assert vm.mem_read(DATA + Q_OFF + 16, 10) == bytes.fromhex("00c06821a2da0fc90040")
+
+    def test_small_instructions(self):
+        # rdtscp; clflush [esi]; rdrand eax (CF set); fprem needs no 10-byte integer
+        vm = _run("0f01f9 0fae3e 0fc7f0 9c", ecx=5)
+        assert vm.reg_read("ecx") == 0
+        assert struct.unpack("<I", vm.mem_read(vm.reg_read("esp"), 4))[0] & 0x8D5 == 1
+        # fld 3.0; fld 7.5 -> fprem: 1.5
+        vm = _vm(False, False)
+        vm.mem_write(DATA + P_OFF, struct.pack("<2d", 3.0, 7.5))
+        vm.mem_write(CODE, bytes.fromhex("dbe3 dd06 dd4608 d9f8 dd1f ddd8 cc"))
+        vm.reg_write("esi", DATA + P_OFF)
+        vm.reg_write("edi", DATA + Q_OFF)
+        vm.pc = CODE
+        vm.run(20)
+        assert vm.mem_read(DATA + Q_OFF, 8) == struct.pack("<d", 1.5)
 
 
 

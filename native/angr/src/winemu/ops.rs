@@ -13,6 +13,7 @@ pub mod sse2;
 pub mod sse41;
 pub mod sse42;
 pub mod ssse3;
+pub mod state;
 
 pub(super) type Args = [Value; 2];
 
