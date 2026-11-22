@@ -1109,6 +1109,30 @@ class TestExceptions(unittest.TestCase):
             assert emu.reg("eax") == expected
             assert emu.read_u32(cell) == (0x1234 if top_level else 0)
 
+    def test_x86_seh_handler_leaves_through_nested_frame(self):
+        # the handler never returns: like ntdll's ExecuteHandler2 callers expect, fs:[0] points at a frame whose
+        # next link is the faulting function's frame, which it unlinks itself
+        base = IMAGE_BASE + CODE_RVA
+        main = bytes.fromhex(
+            "68"
+            + struct.pack("<I", base + 0x40).hex()  # push handler
+            + "64ff3500000000 64892500000000"  # push fs:[0]; mov fs:[0], esp
+            + "31c0 8900 cc"  # xor eax, eax; mov [eax], eax; int3
+        )
+        resume = bytes.fromhex("648f0500000000 83c404 b807000000 c3")  # pop fs:[0]; add esp, 4; mov eax, 7; ret
+        code = bytearray(0x100)
+        code[: len(main)] = main
+        code[0x20 : 0x20 + len(resume)] = resume
+        # handler: mov eax, fs:[0]; mov esp, [eax]; jmp resume
+        code[0x40:0x4D] = bytes.fromhex("64a100000000 8b20 e9") + struct.pack("<i", 0x20 - 0x4D)
+        emu = emulator(bytes(code))
+        emu.start()
+        chain = emu.read_u32(emu.teb)
+        stop = emu.run(max_blocks=100000)
+        assert stop.reason is StopReason.RETURNED, stop
+        assert emu.reg("eax") == 7
+        assert emu.read_u32(emu.teb) == chain
+
     def test_trap_flag_single_step(self):
         self._single_step("90")
 

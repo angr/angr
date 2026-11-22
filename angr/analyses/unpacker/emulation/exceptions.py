@@ -48,6 +48,19 @@ class ExceptionDispatcher:
         self.pointers = 0
         self.context = 0
         self._dynamic_tables: list[tuple[int, int, int]] = []
+        self._nested_handler_addr = 0
+
+    def _nested_handler(self) -> int:
+        """
+        ntdll's handler for exceptions raised inside an x86 exception handler: a spare (unexported) ntdll slot running
+        `mov eax, 1 (ExceptionContinueSearch); ret 16`.
+        """
+        if not self._nested_handler_addr:
+            addr = self.emu.load_module("ntdll.dll").resolve("ExecuteHandler2")
+            assert addr is not None
+            self.emu.write(addr, bytes.fromhex("b801000000c21000"))
+            self._nested_handler_addr = addr
+        return self._nested_handler_addr
 
     def write_context(self, addr: int, pc: int) -> None:
         emu = self.emu
@@ -298,11 +311,21 @@ class ExceptionDispatcher:
                 return
 
             def after_handler(result: int) -> None:
+                # ExecuteHandler2's epilogue: mov esp, fs:[0]; pop fs:[0]
+                head = emu.read_ptr(emu.teb)
+                if emu.is_mapped(head):
+                    emu.write_ptr(emu.teb, emu.read_ptr(head))
                 if result & 0xFFFFFFFF == 0:
                     self.restore_context(context)
                 else:
                     try_seh(emu.read_ptr(frame_addr))
 
+            # ntdll's ExecuteHandler2 registers a frame for nested exceptions above the handler's arguments;
+            # handlers that never return find their way back to the faulting frame through it
+            nested = frame - 0x40 - 12
+            emu.write(nested, struct.pack("<III", emu.read_ptr(emu.teb), self._nested_handler(), frame_addr))
+            emu.write_ptr(emu.teb, nested)
+            emu.set_reg("esp", nested)
             emu.call_guest(emu.read_ptr(frame_addr + 4), (record, frame_addr, context, frame + 0x80), after_handler)
 
         def try_frames(regs: dict[str, int], depth: int) -> None:
