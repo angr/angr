@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import os
+import shutil
+import tempfile
 import time
 
 import pypcode
@@ -22,6 +25,60 @@ from .stops import EmulationStop, StopReason
 from .threads import Thread
 
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
+# fixes to Ghidra's x86 spec: SHR/SHRD by one set OF from the operand's sign; for shift and rotate counts above one,
+# where OF is undefined, OF follows QEMU (the engine the Unicorn path runs on)
+_SLEIGH_PATCHES = (
+    (
+        " conditionalAssign(OF, count==1, 0, (op1 s< 0)); ",
+        " conditionalAssign(OF, count==0, OF, ((op1 >> (count - 1)) ^ result) s< 0); ",
+    ),
+    (
+        " conditionalAssign(OF, count==1, 0, ((op1 s< 0) ^ (result s< 0))); ",
+        " conditionalAssign(OF, count==1, ((op1 s< 0) ^ (result s< 0)), OF); ",
+    ),
+    (
+        " conditionalAssign(OF, count==1, CF ^ (result s< 0), OF);\n}\n\nmacro sarflags",
+        " conditionalAssign(OF, count==0, OF, CF ^ (result s< 0));\n}\n\nmacro sarflags",
+    ),
+    (" conditionalAssign(OF, count==1, 0, OF); ", " conditionalAssign(OF, count==0, OF, 0); "),
+    (
+        " conditionalAssign(OF, count==1, CF ^ (result s< 0), OF); \n}\n\nmacro rorflags",
+        " conditionalAssign(OF, count==0, OF, CF ^ (result s< 0)); \n}\n\nmacro rorflags",
+    ),
+    (
+        " conditionalAssign(OF, count==1, CF ^ ((result << 1) s< 0), OF); ",
+        " conditionalAssign(OF, count==0, OF, CF ^ ((result << 1) s< 0)); ",
+    ),
+)
+
+
+def patched_processors() -> str:
+    """
+    A copy of pypcode's x86 SLEIGH files with _SLEIGH_PATCHES applied, made once per pypcode version.
+    """
+    digest = hashlib.sha256(repr(_SLEIGH_PATCHES).encode()).hexdigest()[:12]
+    root = os.path.join(tempfile.gettempdir(), f"angr-unpacker-sleigh-{pypcode.__version__}-{digest}")
+    languages = os.path.join(root, "x86", "data", "languages")
+    if os.path.isdir(languages):
+        return root
+    staging = tempfile.mkdtemp(prefix=root + ".")
+    shutil.copytree(os.path.join(PROCESSORS_DIR, "x86"), os.path.join(staging, "x86"))
+    path = os.path.join(staging, "x86", "data", "languages", "ia.sinc")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    for old, new in _SLEIGH_PATCHES:
+        assert old in text, old
+        text = text.replace(old, new)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    try:
+        os.rename(staging, root)
+    except OSError:
+        # another process won the race
+        shutil.rmtree(staging, ignore_errors=True)
+    return root
+
+
 _PRIVILEGED_OPCODES = frozenset((0xF4, 0xFA, 0xFB, 0xE4, 0xE5, 0xE6, 0xE7, 0xEC, 0xED, 0xEE, 0xEF, 0x6C, 0x6D, 0x6E,
                                  0x6F))  # fmt: skip
 
@@ -58,11 +115,11 @@ class IcicleWindowsEmulator(WindowsEmulator):
     """
 
     # instructions per time slice when several threads exist, and between deadline checks otherwise
-    SLICE = 4_000_000
+    SLICE = int(os.environ.get("ANGR_UNPACKER_ICICLE_SLICE", "4000000"))
     CHUNK = 50_000_000
 
     def _init_machine(self) -> None:
-        self.vm = WinVm(self.is_64bit, PROCESSORS_DIR, os.environ.get("ANGR_UNPACKER_ICICLE_JIT", "1") != "0")
+        self.vm = WinVm(self.is_64bit, patched_processors(), os.environ.get("ANGR_UNPACKER_ICICLE_JIT", "1") != "0")
         self._stop_points = _StopPoints(self.vm)
         self.vm.pc = self.project.entry
         self.instructions = 0
@@ -213,6 +270,9 @@ class IcicleWindowsEmulator(WindowsEmulator):
     def trace_to_api(self, addr: int, max_blocks: int = 20000) -> int | None:
         vm = self.vm
         vm.save_snapshot()
+        # short runs over mostly new code: compiling each block costs more than interpreting it
+        jit = vm.jit
+        vm.jit = False
         try:
             sp = self.sp - 0x400
             self.vm.mem_write(sp, bytes(self.ptr_size))
@@ -234,6 +294,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
                     return None
             return None
         finally:
+            vm.jit = jit
             vm.restore_snapshot()
 
     def run(self, max_blocks: int | None = None, timeout: float | None = None) -> EmulationStop:

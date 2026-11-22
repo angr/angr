@@ -142,12 +142,13 @@ enum Patch {
 /// Rewrites, per lifted instruction, what the SLEIGH spec gets wrong for a user-mode Windows guest.
 struct WinPatcher {
     cpuid_ops: Vec<u16>,
-    io_ops: Vec<u16>,
     sysenter_op: Option<u16>,
     cpuid_hook: pcode::HookId,
     tf_hook: pcode::HookId,
     tf: pcode::VarNode,
-    iflag: pcode::VarNode,
+    af: pcode::VarNode,
+    of: pcode::VarNode,
+    sf: pcode::VarNode,
     next_pc: pcode::VarNode,
 }
 
@@ -155,28 +156,19 @@ impl WinPatcher {
     fn classify(&self, inst: &pcode::Block, addr: u64) -> Option<Patch> {
         let ops = &inst.instructions;
         let mut writes_tf = false;
-        let mut writes_if = false;
         for stmt in ops {
             if let pcode::Op::PcodeOp(id) = stmt.op {
                 if self.cpuid_ops.contains(&id) {
                     return Some(Patch::Cpuid);
-                }
-                if self.io_ops.contains(&id) {
-                    return Some(Patch::Privileged);
                 }
                 if Some(id) == self.sysenter_op {
                     return Some(Patch::Sysenter);
                 }
             }
             writes_tf |= stmt.output.id == self.tf.id;
-            writes_if |= stmt.output.id == self.iflag.id;
         }
         if writes_tf {
             return Some(Patch::TrapFlag);
-        }
-        if writes_if {
-            // cli / sti
-            return Some(Patch::Privileged);
         }
         // hlt is a jump to itself and nothing else
         if ops.len() == 2
@@ -190,7 +182,64 @@ impl WinPatcher {
         None
     }
 
+    /// SLEIGH leaves AF alone ("AF not implemented"); protectors fold pushfd results into their state. Add
+    /// AF = bit 4 of (op1 ^ op2 ^ result) to the instructions that compute OF with a signed carry or borrow.
+    fn add_aux_carry(&self, inst: &mut pcode::Block) {
+        let ops = &inst.instructions;
+        let Some(of_at) = ops.iter().position(|stmt| {
+            stmt.output.id == self.of.id
+                && matches!(
+                    stmt.op,
+                    pcode::Op::IntSignedCarry | pcode::Op::IntSignedBorrow
+                )
+        }) else {
+            // logical ops and shifts: AF is undefined, the CPU (and QEMU) clear it
+            if ops.iter().any(|stmt| stmt.output.id == self.sf.id)
+                && !ops.iter().any(|stmt| stmt.output.id == self.af.id)
+            {
+                inst.push((self.af, pcode::Op::Copy, pcode::Value::Const(0, 1)));
+            }
+            return;
+        };
+        let Some(sf_at) = ops.iter().rposition(|stmt| {
+            stmt.output.id == self.sf.id && matches!(stmt.op, pcode::Op::IntSignedLess)
+        }) else {
+            return;
+        };
+        if sf_at < of_at {
+            return;
+        }
+        let [x, y] = ops[of_at].inputs.get();
+        let result = ops[sf_at].inputs.get()[0];
+        if x.size() != y.size() || x.size() != result.size() {
+            return;
+        }
+        inst.recompute_next_tmp();
+        let size = x.size();
+        let t1 = inst.alloc_tmp(size);
+        let t2 = inst.alloc_tmp(size);
+        let t3 = inst.alloc_tmp(size);
+        let t4 = inst.alloc_tmp(size);
+        let tail: Vec<pcode::Instruction> = inst.instructions.drain(sf_at + 1..).collect();
+        inst.instructions
+            .insert(of_at, (t1, pcode::Op::IntXor, (x, y)).into());
+        inst.push((t2, pcode::Op::IntXor, (pcode::Value::from(t1), result)));
+        inst.push((
+            t3,
+            pcode::Op::IntRight,
+            (pcode::Value::from(t2), pcode::Value::Const(4, size)),
+        ));
+        inst.push((
+            t4,
+            pcode::Op::IntAnd,
+            (pcode::Value::from(t3), pcode::Value::Const(1, size)),
+        ));
+        inst.push((self.af, pcode::Op::Copy, pcode::Value::from(t4.slice(0, 1))));
+        inst.instructions.extend(tail);
+    }
+
     fn patch(&self, inst: &mut pcode::Block) {
+        self.add_aux_carry(inst);
         let Some(&marker) = inst.instructions.first() else {
             return;
         };
@@ -454,6 +503,8 @@ impl WinVm {
         let mut vm = icicle_vm::build_with_path(&config, &PathBuf::from(processors_path))
             .map_err(|e| PyRuntimeError::new_err(format!("Failed to build VM: {e}")))?;
 
+        // whole-cache recompilation (every 60 s) builds functions too large for cranelift on protector code
+        vm.enable_recompilation = false;
         let mut regs = HashMap::new();
         {
             let sleigh = &vm.cpu.arch.sleigh;
@@ -506,7 +557,6 @@ impl WinVm {
             cpu.exception = Exception::new(ExceptionCode::Environment, ENV_TRAP_FLAG);
         });
         let mut cpuid_ops = Vec::new();
-        let mut io_ops = Vec::new();
         let mut sysenter_op = None;
         {
             let sleigh = &vm.cpu.arch.sleigh;
@@ -514,22 +564,20 @@ impl WinVm {
                 let name = sleigh.get_str(*op);
                 if name.starts_with("cpuid") {
                     cpuid_ops.push(id as u16);
-                } else if name == "in" || name == "out" {
-                    io_ops.push(id as u16);
                 } else if name == "sysenter" {
                     sysenter_op = Some(id as u16);
                 }
             }
         }
-        let iflag = get(&vm, "IF")?;
         let patcher = WinPatcher {
             cpuid_ops,
-            io_ops,
             sysenter_op,
             cpuid_hook,
             tf_hook,
             tf,
-            iflag,
+            af: get(&vm, "AF")?,
+            of: get(&vm, "OF")?,
+            sf: get(&vm, "SF")?,
             next_pc,
         };
         vm.lifter
@@ -601,6 +649,16 @@ impl WinVm {
     #[setter]
     pub fn set_pc(&mut self, pc: u64) {
         self.vm.cpu.write_pc(pc);
+    }
+
+    #[getter]
+    pub fn get_jit(&self) -> bool {
+        self.vm.enable_jit
+    }
+
+    #[setter]
+    pub fn set_jit(&mut self, enable: bool) {
+        self.vm.enable_jit = enable;
     }
 
     #[getter]
@@ -829,6 +887,14 @@ impl WinVm {
 
     /// Execution-local snapshot (memory and registers) for throw-away runs.
     pub fn save_snapshot(&mut self) {
+        // track the pages the throw-away run writes
+        let pages: Vec<u64> = self.vm.cpu.mem.modified.iter().copied().collect();
+        for addr in pages {
+            if let Some(index) = self.vm.cpu.mem.get_physical_index(addr) {
+                self.vm.cpu.mem.get_physical_mut(index).modified = false;
+            }
+        }
+        self.vm.cpu.mem.clear_page_modification_log();
         self.snapshot = Some(self.vm.snapshot());
     }
 
@@ -837,13 +903,30 @@ impl WinVm {
             .snapshot
             .take()
             .ok_or_else(|| PyValueError::new_err("no snapshot"))?;
+        let written: Vec<u64> = self.vm.cpu.mem.modified.iter().copied().collect();
         self.vm.restore(&snapshot);
-        // code lifted during the throw-away run may be stale now
-        self.vm.code.flush_code();
-        unsafe { self.vm.jit.reset() };
+        self.vm.cpu.mem.clear_page_modification_log();
+        // code lifted from bytes the run wrote is stale now
+        for page in written {
+            self.invalidate_code(page, PAGE);
+        }
         let pc = self.vm.cpu.read_pc();
         self.vm.cpu.write_pc(pc);
         Ok(())
+    }
+
+    /// (address, length) of every instruction lifted so far.
+    pub fn lifted_instructions(&self) -> Vec<(u64, u64)> {
+        let mut out = Vec::new();
+        for block in &self.vm.code.blocks {
+            for stmt in &block.pcode.instructions {
+                if let pcode::Op::InstructionMarker = stmt.op {
+                    let [addr, len] = stmt.inputs.get();
+                    out.push((addr.as_u64(), len.as_u64()));
+                }
+            }
+        }
+        out
     }
 
     #[getter]

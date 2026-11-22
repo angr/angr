@@ -26,6 +26,7 @@ class WinVm:
     runs: int
     fixups: int
     pc: int
+    jit: bool
     @property
     def icount(self) -> int: ...
     @property
