@@ -228,6 +228,27 @@ class WindowsEmulator:
         self.file_views: set[int] = set()
         # as when started from Explorer: the directory of the image
         self.current_directory = ntpath.dirname(self.image_path)
+        # environment variables by upper-case name: (name, value)
+        self.environment: dict[str, tuple[str, str]] = {}
+        for variable, value in (
+            ("APPDATA", "C:\\Users\\admin\\AppData\\Roaming"),
+            ("ComSpec", "C:\\Windows\\system32\\cmd.exe"),
+            ("LOCALAPPDATA", "C:\\Users\\admin\\AppData\\Local"),
+            ("NUMBER_OF_PROCESSORS", "4"),
+            ("OS", "Windows_NT"),
+            ("Path", "C:\\Windows\\system32;C:\\Windows"),
+            ("PROCESSOR_ARCHITECTURE", "AMD64" if self.is_64bit else "x86"),
+            ("ProgramData", "C:\\ProgramData"),
+            ("ProgramFiles", "C:\\Program Files"),
+            ("SystemDrive", "C:"),
+            ("SystemRoot", "C:\\Windows"),
+            ("TEMP", "C:\\Users\\admin\\AppData\\Local\\Temp"),
+            ("TMP", "C:\\Users\\admin\\AppData\\Local\\Temp"),
+            ("USERNAME", "admin"),
+            ("USERPROFILE", "C:\\Users\\admin"),
+            ("windir", "C:\\Windows"),
+        ):
+            self.environment[variable.upper()] = (variable, value)
         # files and directories the program created, by lower-case full path: (path, contents) and path
         self.files: dict[str, tuple[str, bytearray]] = {}
         self.directories: dict[str, str] = {}

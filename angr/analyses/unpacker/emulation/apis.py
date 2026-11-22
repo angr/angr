@@ -776,7 +776,80 @@ def c_specific_handler(emu: WindowsEmulator, args: list[int]) -> int | None:
 
 _const(("GetSystemMetrics",), 1, 0)
 _const(("FindWindowA", "FindWindowW"), 2, 0)
-_const(("GetEnvironmentVariableA", "GetEnvironmentVariableW"), 3, 0)
+ERROR_ENVVAR_NOT_FOUND = 203
+_ENVIRONMENT_REFERENCE_RE = re.compile(r"%([^%=]+)%")
+
+
+def _get_environment_variable(emu: WindowsEmulator, name: str, buf: int, capacity: int, wide: bool) -> int:
+    entry = emu.environment.get(name.upper())
+    if entry is None:
+        emu.write_u32(emu.teb + (0x68 if emu.is_64bit else 0x34), ERROR_ENVVAR_NOT_FOUND)
+        return 0
+    value = entry[1]
+    # the length written, or the size needed if it does not fit
+    if capacity <= len(value):
+        return len(value) + 1
+    return _write_text(emu, buf, capacity, value, wide)
+
+
+@api("GetEnvironmentVariableA", nargs=3)
+def get_environment_variable_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _get_environment_variable(emu, emu.read_cstr(args[0]), args[1], args[2], False)
+
+
+@api("GetEnvironmentVariableW", nargs=3)
+def get_environment_variable_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _get_environment_variable(emu, emu.read_wstr(args[0]), args[1], args[2], True)
+
+
+def _set_environment_variable(emu: WindowsEmulator, name: str, value: str | None) -> int:
+    if not name or "=" in name[1:]:
+        emu.write_u32(emu.teb + (0x68 if emu.is_64bit else 0x34), 87)  # ERROR_INVALID_PARAMETER
+        return 0
+    if value is None:
+        emu.environment.pop(name.upper(), None)
+    else:
+        emu.environment[name.upper()] = (name, value)
+    return 1
+
+
+@api("SetEnvironmentVariableA", nargs=2)
+def set_environment_variable_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _set_environment_variable(emu, emu.read_cstr(args[0]), emu.read_cstr(args[1]) if args[1] else None)
+
+
+@api("SetEnvironmentVariableW", nargs=2)
+def set_environment_variable_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _set_environment_variable(emu, emu.read_wstr(args[0]), emu.read_wstr(args[1]) if args[1] else None)
+
+
+def _expand_environment_strings(emu: WindowsEmulator, text: str, buf: int, capacity: int, wide: bool) -> int:
+    def expand(match: re.Match[str]) -> str:
+        entry = emu.environment.get(match.group(1).upper())
+        return match.group(0) if entry is None else entry[1]
+
+    expanded = _ENVIRONMENT_REFERENCE_RE.sub(expand, text)
+    # counts the terminator
+    if buf and capacity > len(expanded):
+        _write_text(emu, buf, capacity, expanded, wide)
+    return len(expanded) + 1
+
+
+@api("ExpandEnvironmentStringsA", nargs=3)
+def expand_environment_strings_a(emu: WindowsEmulator, args: list[int]) -> int:
+    return _expand_environment_strings(emu, emu.read_cstr(args[0], limit=1 << 15), args[1], args[2], False)
+
+
+@api("ExpandEnvironmentStringsW", nargs=3)
+def expand_environment_strings_w(emu: WindowsEmulator, args: list[int]) -> int:
+    return _expand_environment_strings(emu, emu.read_wstr(args[0], limit=1 << 15), args[1], args[2], True)
+
+
+def _environment_block(emu: WindowsEmulator) -> str:
+    # NAME=value strings in name order; alloc_cstr adds the terminator that ends the block
+    return "".join(f"{name}={value}\0" for _, (name, value) in sorted(emu.environment.items()))
+
+
 _const(("SetThreadAffinityMask", "SetProcessAffinityMask"), 2, 1)
 
 
@@ -2004,12 +2077,12 @@ def encode_pointer(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disa
 
 @api("GetEnvironmentStringsW", nargs=0)
 def get_environment_strings_w(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    return emu.alloc_cstr("SystemRoot=C:\\Windows\0", wide=True)
+    return emu.alloc_cstr(_environment_block(emu), wide=True)
 
 
 @api("GetEnvironmentStrings", "GetEnvironmentStringsA", nargs=0)
 def get_environment_strings_a(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    return emu.alloc_cstr("SystemRoot=C:\\Windows\0")
+    return emu.alloc_cstr(_environment_block(emu))
 
 
 @api("SystemFunction036", "RtlGenRandom", nargs=2)

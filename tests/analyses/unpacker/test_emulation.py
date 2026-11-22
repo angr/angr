@@ -186,6 +186,28 @@ class TestApiHandlers(unittest.TestCase):
         assert call("lstrcpynW", buf, wide, 3) == buf
         assert emu.read_wstr(buf) == "xy"
 
+    def test_environment_variables(self):
+        emu = emulator(b"\xc3")
+        buf = emu.alloc(0x1000)
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        name, value = emu.alloc_cstr("WLNumDLLsProt"), emu.alloc_cstr("3")
+        assert call("GetEnvironmentVariableA", name, buf, 0x100) == 0
+        assert call("GetLastError") == 203  # ERROR_ENVVAR_NOT_FOUND
+        assert call("SetEnvironmentVariableA", name, value) == 1
+        assert call("GetEnvironmentVariableW", emu.alloc_cstr("wlnumdllsprot", wide=True), buf, 0x100) == 1
+        assert emu.read_wstr(buf) == "3"
+        # too small: the size needed, terminator included
+        assert call("GetEnvironmentVariableA", emu.alloc_cstr("SystemRoot"), buf, 4) == len("C:\\Windows") + 1
+        text = "%systemroot%\\x %WLNumDLLsProt% %nothing% 100%"
+        expanded = "C:\\Windows\\x 3 %nothing% 100%"
+        assert call("ExpandEnvironmentStringsA", emu.alloc_cstr(text), buf, 0x100) == len(expanded) + 1
+        assert emu.read_cstr(buf) == expanded
+        block = emu.read(call("GetEnvironmentStringsW"), 0x1000).decode("utf-16-le").split("\0\0")[0].split("\0")
+        assert "WLNumDLLsProt=3" in block and "SystemRoot=C:\\Windows" in block
+        assert call("SetEnvironmentVariableA", name, 0) == 1
+        assert call("GetEnvironmentVariableA", name, buf, 0x100) == 0
+        assert b"WLNumDLLsProt" not in emu.read(call("GetEnvironmentStrings"), 0x800)
+
     def test_global_memory_handles(self):
         # GlobalAlloc/LocalAlloc hand out the block's address as its handle; locking it yields the same address
         emu = emulator(b"\xc3")
