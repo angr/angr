@@ -386,6 +386,9 @@ class IcicleWindowsEmulator(WindowsEmulator):
     # an API call costs microseconds here: Sleep loops run poll by poll
     SLEEP_POLL_FAST_FORWARD: bool = False
 
+    WORK_PER_MS = 1_000_000
+    CLOCK_READS_PER_MS = 1000
+
     def _init_machine(self) -> None:
         self.vm = WinVm(self.is_64bit, patched_processors(), os.environ.get("ANGR_UNPACKER_ICICLE_JIT", "1") != "0")
         # protector code mostly runs a few times after it is decrypted; compiling it all costs ~1 ms per block

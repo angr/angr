@@ -235,6 +235,11 @@ class WindowsEmulator:
     # above the round iteration counts of bounded poll loops (10 to 100), which therefore run unchanged
     SLEEP_POLL_STREAK = 128
 
+    # guest time advances with executed work: blocks per millisecond here (Icicle counts instructions), and with
+    # clock reads, which are expensive on Unicorn (every API call restarts the engine)
+    WORK_PER_MS = 200_000
+    CLOCK_READS_PER_MS = 20
+
     def __init__(self, project: Project, image_path: str | None = None):
         main = project.loader.main_object
         if not isinstance(main, cle.backends.pe.PE):
@@ -336,6 +341,9 @@ class WindowsEmulator:
         self.blocks = 0
         self.tick = 0x493E0
         self._shared_tick: int | None = None
+
+        self._clock = self.tick
+        self._clock_reads = 0
         self._next_handle = 0x100
         self._stop_points: set[int] = set()
         self._continuations: dict[int, Callable[[int], None]] = {}
@@ -359,6 +367,17 @@ class WindowsEmulator:
     #
     # Guest memory helpers
     #
+
+    def clock_ms(self) -> int:
+        """
+        Milliseconds since boot: explicit advances (sleeps, time slices) plus time spent executing and reading the
+        clock. Polling it in a tight loop returns the same value several times, as on a real machine.
+        """
+        self._clock_reads += 1
+        self._clock = max(
+            self._clock, self.tick + self.blocks // self.WORK_PER_MS + self._clock_reads // self.CLOCK_READS_PER_MS
+        )
+        return self._clock
 
     def read(self, addr: int, size: int) -> bytes:
         """

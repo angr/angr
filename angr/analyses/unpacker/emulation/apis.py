@@ -2254,8 +2254,8 @@ def vsnwprintf(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("timeGetTime", nargs=0)
 def time_get_time(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    emu.tick += 16
-    return emu.tick & 0xFFFFFFFF
+    # WinLicense rejects a timer that changes on every poll of its virtualized loop
+    return emu.clock_ms() & 0xFFFFFFFF
 
 
 @api("GetLocalTime", "GetSystemTime", nargs=1)

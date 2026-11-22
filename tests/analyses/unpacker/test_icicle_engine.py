@@ -253,5 +253,12 @@ class TestIcicleComObjects(test_emulation.TestComObjects):
     """
 
 
+@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+class TestIcicleTimers(test_emulation.TestTimers):
+    """
+    The timer tests on Icicle.
+    """
+
+
 if __name__ == "__main__":
     unittest.main()

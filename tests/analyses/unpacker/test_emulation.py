@@ -937,6 +937,26 @@ class TestWindowMessages(unittest.TestCase):
         assert elapsed >= 3000
 
 
+class TestTimers(unittest.TestCase):
+    def test_time_get_time_polling(self):
+        # count the polls until timeGetTime changes, as WinLicense does
+        emu = emulator(bytes(0x40))
+        slot = emu.resolve_export(emu.load_module("winmm.dll"), "timeGetTime")
+        assert slot is not None
+        code = (
+            b"\xbe"
+            + struct.pack("<I", slot)  # mov esi, slot
+            + bytes.fromhex("31 db ff d6 89 c7 43 ff d6 39 f8 74 f9 89 d8 c3")
+        )  # xor ebx, ebx; call esi; mov edi, eax; poll: inc ebx; call esi; cmp eax, edi; je poll; mov eax, ebx; ret
+        emu.write(IMAGE_BASE + CODE_RVA, code)
+        emu.start()
+        assert emu.run(max_blocks=1_000_000).reason is StopReason.RETURNED
+        assert 2 <= emu.reg("eax") <= emu.CLOCK_READS_PER_MS + 1
+        before = emu.clock_ms()
+        API_HANDLERS["Sleep"].func(emu, [50])
+        assert emu.clock_ms() - before >= 50
+
+
 class TestImportWrappers(unittest.TestCase):
     def test_trace_to_api(self):
         emu = emulator(b"\xc3")
