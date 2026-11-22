@@ -866,6 +866,17 @@ class TestFakeModule(unittest.TestCase):
                     emu.load_module(stem + ".dll")
         return emu
 
+    def test_com_api_sets_are_combase(self):
+        emu = self._importing_emulator({"combase": {"RoInitialize": 1}, "kernel32": {"Sleep": 1}})
+        combase, kernel32 = emu.modules["combase.dll"], emu.modules["kernel32.dll"]
+        assert emu.load_module("api-ms-win-core-winrt-l1-1-0.dll") is combase
+        assert emu.load_module("API-MS-Win-Core-Com-L1-1-0") is combase
+        # serial ports, not COM
+        assert emu.load_module("api-ms-win-core-comm-l1-1-0.dll") is kernel32
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        handle = call("LoadLibraryA", emu.alloc_cstr("api-ms-win-core-winrt-string-l1-1-0.dll"))
+        assert call("GetProcAddress", handle, emu.alloc_cstr("RoInitialize")) == combase.exports["RoInitialize"]
+
     def test_static_imports_are_exported(self):
         # a third-party DLL without an export list still exports what the image's import directory names
         emu = self._importing_emulator({})

@@ -63,6 +63,8 @@ _NTDLL_PREFIXES = ("Nt", "Zw", "Rtl", "Ldr", "Dbg", "Ki", "Csr", "Etw")
 _WIN32_LOWERCASE_PREFIXES = ("lstr", "wsprintf", "wvsprintf")
 _CDECL_MODULE_PREFIXES = ("msvcr", "msvcp", "ucrtbase", "vcruntime", "crtdll", "api-ms-win-crt")
 _PRELOADED = ("ntdll.dll", "kernel32.dll", "kernelbase.dll")
+# API sets that combase.dll implements (COM and the Windows Runtime); the other API sets go to kernel32
+_COMBASE_API_SETS = ("api-ms-win-core-com-", "api-ms-win-core-winrt-")
 # static imports of Windows 7 system DLLs that pull in other DLLs: loading one maps these too, as the Windows
 # loader does (a program importing shell32 has user32 mapped)
 _DLL_DEPENDENCIES = {
@@ -795,6 +797,8 @@ class WindowsEmulator:
             name += ".dll"
         if name.startswith(("api-ms-win-crt", "ext-ms-win-crt")):
             return "ucrtbase.dll"
+        if name.startswith(_COMBASE_API_SETS):
+            return "combase.dll"
         if name.startswith(("api-ms-", "ext-ms-")):
             return "kernel32.dll"
         return name
