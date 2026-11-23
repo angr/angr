@@ -11,6 +11,7 @@ from collections import OrderedDict
 import angr
 from angr import default_cc
 from angr.sim_type import (
+    PointerDisposition,
     SimStruct,
     SimTypeArray,
     SimTypeChar,
@@ -222,6 +223,29 @@ class TestDecompilerTypes(unittest.TestCase):
             else:
                 # the write in the loop writes the struct's first member
                 assert re.search(r"\bv\d+\.a = \w+;", dec.codegen.text) is not None, dec.codegen.text
+
+    def test_stack_struct_referenced_in_loop_keeps_struct_type(self):
+        # callee reads the whole struct (PointerDisposition.IN), so the stack struct is one variable that goes through
+        # a phi at the loop head; the reference passed to callee must still type it as S
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "struct_ref_after_call")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=False)
+        arch = proj.arch
+        struct = SimStruct(
+            {"a": SimTypeLongLong(), "b": SimTypeLongLong(), "c": SimTypeLongLong(), "d": SimTypeLongLong()}, name="S"
+        ).with_arch(arch)
+        proj.kb.functions["callee"].prototype = SimTypeFunction(
+            [SimTypePointer(struct, disposition=PointerDisposition.IN)], SimTypeLongLong()
+        ).with_arch(arch)
+
+        dec = proj.analyses.Decompiler(proj.kb.functions["loop"], cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        m = re.search(r"^\s+S (v\d+);", dec.codegen.text, re.MULTILINE)
+        assert m is not None, dec.codegen.text
+        assert re.search(rf"\b{m.group(1)}\.a = \w+;", dec.codegen.text) is not None, dec.codegen.text
+        assert f"callee(&{m.group(1)})" in dec.codegen.text
 
     def test_mutually_recursive_known_structs_are_defined_once(self):
         # a known struct is rendered as defined: one typedef per name, with the recursive references intact
