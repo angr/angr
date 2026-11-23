@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.unpacker"  # pylint:disable=redefined-builtin
 
 import json
+import ntpath
 import os
 import struct
 import tempfile
@@ -163,6 +164,35 @@ class TestApiHandlers(unittest.TestCase):
         # the sample finds itself
         assert call("FindFirstFileA", emu.alloc_cstr(emu.image_path), buf) != -1
         assert emu.read_cstr(buf + 44) == "sample.exe"
+        # system files that can be opened are listed too, and so are the system directories
+        for pattern, expected in (
+            (
+                "C:\\Windows\\*.exe",
+                ["explorer.exe", "hh.exe", "notepad.exe", "regedit.exe", "winhlp32.exe", "write.exe"],
+            ),
+            ("C:\\Windows\\System32\\c*.exe", ["calc.exe", "cmd.exe", "conhost.exe", "csrss.exe"]),
+            ("C:\\Windows\\Sys*", ["System32"]),
+        ):
+            find = call("FindFirstFileA", emu.alloc_cstr(pattern), buf)
+            assert find != -1
+            names = [emu.read_cstr(buf + 44)]
+            while call("FindNextFileA", find, buf):
+                names.append(emu.read_cstr(buf + 44))
+            assert names == expected, names
+            for name in names:
+                path = emu.alloc_cstr(ntpath.join(ntpath.dirname(pattern), name))
+                assert call("GetFileAttributesA", path) == (0x10 if name == "System32" else 0x20)
+        with tempfile.TemporaryDirectory() as lists:
+            for name in ("kernel32.json", "kernel32.ordinals.json", "version.json"):
+                with open(os.path.join(lists, name), "w", encoding="utf-8") as f:
+                    f.write('{"1": "A"}' if "ordinals" in name else '{"A": 0}')
+            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": lists}):
+                emu = emulator(b"\xc3")
+            buf = emu.alloc(0x1000)
+            find = call("FindFirstFileW", emu.alloc_cstr("C:\\Windows\\system32\\*.DLL", wide=True), buf)
+            assert find != -1 and emu.read_wstr(buf + 44) == "kernel32.dll" and emu.read_u32(buf) == 0x20
+            assert call("FindNextFileW", find, buf) == 1 and emu.read_wstr(buf + 44) == "version.dll"
+            assert call("FindNextFileW", find, buf) == 0
 
     def test_values_that_are_not_zero(self):
         emu = emulator(b"\xc3")

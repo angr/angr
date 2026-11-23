@@ -1537,6 +1537,18 @@ def _stub_image(is_64bit: bool) -> bytes:
     return bytes(image)
 
 
+def _system_files(emu: WindowsEmulator, directory: str) -> list[str]:
+    """
+    The names of the stand-in system files in a directory, given its absolute path in lower case.
+    """
+    windows = WINDOWS_DIRECTORY.lower()
+    if directory == windows:
+        return sorted(_WINDOWS_FILES)
+    if directory in (SYSTEM_DIRECTORY.lower(), windows + "\\syswow64"):
+        return sorted({*_SYSTEM32_FILES, *emu.export_list_dlls()})
+    return []
+
+
 def _system_file(emu: WindowsEmulator, path: str) -> bytes | None:
     """
     The stand-in for a system file, given its absolute path in lower case.
@@ -1926,6 +1938,14 @@ def _find_entries(emu: WindowsEmulator, pattern: str) -> list[tuple[str, int, in
     known = [(emu.image_path, FILE_ATTRIBUTE_ARCHIVE, len(emu.image_file))]
     known += [(name, FILE_ATTRIBUTE_ARCHIVE, len(data)) for name, data in emu.files.values()]
     known += [(name, FILE_ATTRIBUTE_DIRECTORY, 0) for name in emu.directories.values()]
+    # what CreateFile and GetFileAttributes find without the program having made it: system directories and files
+    present = {name.lower() for name, _, _ in known}
+    system = [(name, FILE_ATTRIBUTE_DIRECTORY, 0) for name in (WINDOWS_DIRECTORY, SYSTEM_DIRECTORY, TEMP_DIRECTORY)]
+    stub_size = len(_stub_image(emu.is_64bit))
+    system += [
+        (directory + "\\" + name, FILE_ATTRIBUTE_ARCHIVE, stub_size) for name in _system_files(emu, directory.lower())
+    ]
+    known += [entry for entry in system if entry[0].lower() not in present]
     # "*.*" matches names without a dot too; brackets are ordinary characters
     mask = "*" if mask == "*.*" else mask.lower().replace("[", "[[]")
     return [

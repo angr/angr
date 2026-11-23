@@ -272,6 +272,7 @@ class WindowsEmulator:
             ]
         )
         self._export_db_dir = os.environ.get("ANGR_UNPACKER_EXPORTS") or angr_data.get_path("unpacker", "win_exports")
+        self._export_list_dlls: list[str] | None = None
         self._export_db: dict[str, dict[str, int | None]] = {}
         self._api_sets = self._load_api_sets()
         self.unlisted_exports: list[UnlistedExport] = []
@@ -984,6 +985,22 @@ class WindowsEmulator:
         Whether name is a DLL that ships with Windows (one with an export list).
         """
         return bool(self._known_exports(name))
+
+    def export_list_dlls(self) -> list[str]:
+        """
+        The DLLs that ship with Windows: those that have an export list.
+        """
+        if self._export_list_dlls is None:
+            try:
+                lists = os.listdir(self._export_db_dir)
+            except OSError:
+                lists = []
+            self._export_list_dlls = sorted(
+                name[:-5] + ".dll"
+                for name in lists
+                if name.endswith(".json") and not name.endswith((".ordinals.json", ".ordinal_args.json"))
+            )
+        return self._export_list_dlls
 
     def _known_ordinals(self, name: str) -> dict[int, str | None]:
         """
