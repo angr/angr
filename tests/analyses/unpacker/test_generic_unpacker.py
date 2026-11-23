@@ -12,7 +12,7 @@ import pefile
 import angr
 from angr.analyses.unpacker import VMProtectUnpacker
 from angr.analyses.unpacker.emulation import StopReason
-from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
+from angr.analyses.unpacker.generic_unpacker import Engine, GenericUnpackerCore
 from angr.analyses.unpacker.protected_unpackers import vmprotect_original_sections
 from tests.common import bin_location
 
@@ -22,6 +22,7 @@ from .test_vmprotect_static import CODE
 TEXT_RVA, STUB_RVA = 0x1000, 0x3000
 OEP_RVA = TEXT_RVA + 0x800
 XOR_KEY = 0x5A
+ENGINES: tuple[Engine, ...] = ("unicorn", "icicle")
 
 
 def xor_packed_code(name: str) -> bytes:
@@ -43,16 +44,17 @@ class TestGenericUnpacker(unittest.TestCase):
     def _check(self, name: str):
         code = xor_packed_code(name)
         proj = angr.Project(sample_path(name), auto_load_libs=False)
-        unpacker = proj.analyses.GenericUnpacker(timeout=30, settle_timeout=5)
+        for engine in ENGINES:
+            unpacker = proj.analyses.GenericUnpacker(timeout=30, settle_timeout=5, engine=engine)
 
-        assert unpacker.oep == IMAGE_BASE + OEP_RVA
-        assert len(unpacker.layers) == 1
-        assert unpacker.stop is not None
-        assert unpacker.stop.reason is StopReason.RETURNED
-        assert unpacker.unpacked is not None
-        pe = pefile.PE(data=unpacker.unpacked)
-        assert pe.OPTIONAL_HEADER.AddressOfEntryPoint == OEP_RVA
-        assert pe.sections[0].get_data()[: len(code)] == code
+            assert unpacker.oep == IMAGE_BASE + OEP_RVA
+            assert len(unpacker.layers) == 1
+            assert unpacker.stop is not None
+            assert unpacker.stop.reason is StopReason.RETURNED
+            assert unpacker.unpacked is not None
+            pe = pefile.PE(data=unpacker.unpacked)
+            assert pe.OPTIONAL_HEADER.AddressOfEntryPoint == OEP_RVA
+            assert pe.sections[0].get_data()[: len(code)] == code
 
     def test_entry_point_in_packed_section(self):
         # the entry stub sits inside the packed .text; the loader decrypts .text, restores the original entry code,
@@ -61,23 +63,26 @@ class TestGenericUnpacker(unittest.TestCase):
         cell = IMAGE_BASE + STUB_RVA + 0x100
         oep = IMAGE_BASE + OEP_RVA
         assert vmprotect_original_sections(sample(name)) == {0}
-        core = GenericUnpackerCore(sample_path(name), {0})
-        api = core.emu.resolve_export(core.emu.load_module("kernel32.dll"), "GetTickCount")
-        assert api is not None
-        core.emu.write_u32(cell, api)
-        core.run(timeout=30, settle_timeout=0)
-        assert [layer.oep for layer in core.layers] == [oep]
+        for engine in ENGINES:
+            core = GenericUnpackerCore(sample_path(name), {0}, engine=engine)
+            api = core.emu.resolve_export(core.emu.load_module("kernel32.dll"), "GetTickCount")
+            assert api is not None
+            core.emu.write_u32(cell, api)
+            core.run(timeout=30, settle_timeout=0)
+            assert [layer.oep for layer in core.layers] == [oep]
 
     def test_snapshot_without_transfer(self):
         # the stub decrypts .text but returns instead of jumping to the OEP
         name = "xor_packed_no_transfer.exe"
         code = xor_packed_code(name)
-        unpacker = angr.Project(sample_path(name), auto_load_libs=False).analyses.GenericUnpacker(timeout=30)
-        assert unpacker.oep is None
-        assert unpacker.unpacked is not None
-        pe = pefile.PE(data=unpacker.unpacked)
-        assert pe.OPTIONAL_HEADER.AddressOfEntryPoint == STUB_RVA
-        assert pe.sections[0].get_data()[: len(code)] == code
+        proj = angr.Project(sample_path(name), auto_load_libs=False)
+        for engine in ENGINES:
+            unpacker = proj.analyses.GenericUnpacker(timeout=30, engine=engine)
+            assert unpacker.oep is None
+            assert unpacker.unpacked is not None
+            pe = pefile.PE(data=unpacker.unpacked)
+            assert pe.OPTIONAL_HEADER.AddressOfEntryPoint == STUB_RVA
+            assert pe.sections[0].get_data()[: len(code)] == code
 
 
 class TestUnpackerFacade(unittest.TestCase):
@@ -126,7 +131,7 @@ class TestVirtualizedProgram(unittest.TestCase):
         # VMProtect's start-up and the virtualized code run until the program shows its dialog and exits
         with open(self.PATH, "rb") as f:
             watch = vmprotect_original_sections(f.read())
-        core = GenericUnpackerCore(self.PATH, watch)
+        core = GenericUnpackerCore(self.PATH, watch, engine="icicle")
         core.run(timeout=60, settle_timeout=0)
         assert core.stop is not None
         assert core.stop.reason is StopReason.EXITED

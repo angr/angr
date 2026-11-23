@@ -64,7 +64,7 @@ class GenericUnpackerCore:
     bytes were produced at run time. The last such transfer is reported as the original entry point.
     """
 
-    def __init__(self, path: str, watch_sections: set[int] | None = None, engine: Engine = "icicle"):
+    def __init__(self, path: str, watch_sections: set[int] | None = None, engine: Engine = "unicorn"):
         self.project = Project(path, auto_load_libs=False, selfmodifying_code=True, simos=SimWindowsEmulated)
         if engine == "icicle":
             from .emulation.icicle_environment import IcicleWindowsEmulator  # pylint:disable=import-outside-toplevel
@@ -307,7 +307,7 @@ class EmulatingUnpacker(Analysis):
     :param engine:  The emulator that runs the program: "icicle" (the Rust run loop on Icicle) or "unicorn".
     """
 
-    def __init__(self, timeout: float = 300.0, settle_timeout: float = 20.0, engine: Engine = "icicle"):
+    def __init__(self, timeout: float = 300.0, settle_timeout: float = 20.0, engine: Engine = "unicorn"):
         binary = self.project.loader.main_object.binary
         if binary is None:
             raise ValueError("Unpacking requires a file-backed main object")

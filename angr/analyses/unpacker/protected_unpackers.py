@@ -66,7 +66,7 @@ class VMProtectUnpacker(EmulatingUnpacker):
     `method` is "emulation", "static", or None when both failed.
     """
 
-    def __init__(self, timeout: float = 600.0, static_only: bool = False, engine: Engine = "icicle"):
+    def __init__(self, timeout: float = 600.0, static_only: bool = False, engine: Engine = "unicorn"):
         self.method: str | None = None
         self.static_result: VMProtectStaticResult | None = None
         self._static_only = static_only
@@ -98,7 +98,7 @@ class ThemidaUnpacker(EmulatingUnpacker):
     without being mistaken for an unpacked layer.
     """
 
-    def __init__(self, timeout: float = 1800.0, engine: Engine = "icicle"):
+    def __init__(self, timeout: float = 1800.0, engine: Engine = "unicorn"):
         super().__init__(timeout=timeout, settle_timeout=0.0, engine=engine)
 
     def _sections_to_watch(self) -> set[int] | None:
@@ -112,7 +112,7 @@ class Unpacker(EmulatingUnpacker):
     `info` holds the identification, `unpacker` the analysis that did the work (None if the file is not packed).
     """
 
-    def __init__(self, timeout: float | None = None, engine: Engine = "icicle"):
+    def __init__(self, timeout: float | None = None, engine: Engine = "unicorn"):
         self.info: PackerInfo | None = None
         self.unpacker: EmulatingUnpacker | None = None
         self._timeout = timeout
