@@ -4,7 +4,6 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.unpacker"  # pylint:disable=redefined-builtin
 
-import os
 import struct
 import unittest
 from unittest import mock
@@ -219,8 +218,8 @@ class TestUntouchedPages(unittest.TestCase):
     def test_protect_and_query(self):
         # memory that was allocated but never touched answers like any other, on both engines
         answers = []
-        for engine in ("unicorn", "rust"):
-            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": engine}):
+        for engine in ("unicorn", "icicle"):
+            with mock.patch.object(test_emulation, "ENGINE", engine):
                 emu = emulator(b"\xc3")
             buf = emu.alloc(0x1000)
             addr = API_HANDLERS["VirtualAlloc"].func(emu, [0, 0x3000, 0x3000, 0x40])
@@ -237,7 +236,7 @@ class TestUntouchedPages(unittest.TestCase):
         assert answers[0] == answers[1] == (0x40, 0x40, 2, 1, 7), answers
 
 
-@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+@mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleExceptions(test_emulation.TestExceptions):
     """
     The exception tests of the Unicorn engine, on Icicle.
@@ -275,42 +274,42 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
         assert emu.read(IMAGE_BASE + CODE_RVA, 1) == b"\xb8"
 
 
-@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+@mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleApiHandlers(test_emulation.TestApiHandlers):
     """
     The API handler tests, on Icicle.
     """
 
 
-@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+@mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleThreads(test_emulation.TestThreads):
     """
     The scheduler tests, on Icicle.
     """
 
 
-@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+@mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleComObjects(test_emulation.TestComObjects):
     """
     The COM object tests, on Icicle.
     """
 
 
-@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+@mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleWindowMessages(test_emulation.TestWindowMessages):
     """
     The window message tests, on Icicle.
     """
 
 
-@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+@mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleBrokenImages(test_emulation.TestBrokenImages):
     """
     The broken image tests, on Icicle.
     """
 
 
-@mock.patch.dict(os.environ, {"ANGR_UNPACKER_ENGINE": "rust"})
+@mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleTimers(test_emulation.TestTimers):
     """
     The timer tests on Icicle.

@@ -6,7 +6,7 @@ import pefile
 
 from angr.analyses.analysis import AnalysesHub
 
-from .generic_unpacker import EmulatingUnpacker
+from .generic_unpacker import EmulatingUnpacker, Engine
 from .packer_identifier import PackerInfo, identify_packer
 from .pe_rebuilder import rebuild_pe
 from .vmprotect_static import VMProtectStaticError, VMProtectStaticResult, unpack_vmprotect_static
@@ -66,11 +66,11 @@ class VMProtectUnpacker(EmulatingUnpacker):
     `method` is "emulation", "static", or None when both failed.
     """
 
-    def __init__(self, timeout: float = 600.0, static_only: bool = False):
+    def __init__(self, timeout: float = 600.0, static_only: bool = False, engine: Engine = "icicle"):
         self.method: str | None = None
         self.static_result: VMProtectStaticResult | None = None
         self._static_only = static_only
-        super().__init__(timeout=timeout, settle_timeout=0.0)
+        super().__init__(timeout=timeout, settle_timeout=0.0, engine=engine)
 
     def _sections_to_watch(self) -> set[int] | None:
         return vmprotect_original_sections(self.data)
@@ -98,8 +98,8 @@ class ThemidaUnpacker(EmulatingUnpacker):
     without being mistaken for an unpacked layer.
     """
 
-    def __init__(self, timeout: float = 1800.0):
-        super().__init__(timeout=timeout, settle_timeout=0.0)
+    def __init__(self, timeout: float = 1800.0, engine: Engine = "icicle"):
+        super().__init__(timeout=timeout, settle_timeout=0.0, engine=engine)
 
     def _sections_to_watch(self) -> set[int] | None:
         return themida_original_sections(self.data)
@@ -112,17 +112,19 @@ class Unpacker(EmulatingUnpacker):
     `info` holds the identification, `unpacker` the analysis that did the work (None if the file is not packed).
     """
 
-    def __init__(self, timeout: float | None = None):
+    def __init__(self, timeout: float | None = None, engine: Engine = "icicle"):
         self.info: PackerInfo | None = None
         self.unpacker: EmulatingUnpacker | None = None
         self._timeout = timeout
-        super().__init__()
+        super().__init__(engine=engine)
 
     def _emulate(self, watch_sections: set[int] | None, timeout: float, settle_timeout: float) -> None:
         self.info = identify_packer(self.data)
         if self.info.packed is False:
             return
-        kwargs = {} if self._timeout is None else {"timeout": self._timeout}
+        kwargs: dict[str, float | Engine] = {"engine": self.engine}
+        if self._timeout is not None:
+            kwargs["timeout"] = self._timeout
         if self.info.protector == "VMProtect" and self.info.outer_packer is None:
             self.unpacker = self.project.analyses.VMProtectUnpacker(**kwargs)
         elif self.info.protector in ("Themida", "Themida+VMProtect"):

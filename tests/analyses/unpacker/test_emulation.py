@@ -18,13 +18,17 @@ from angr.analyses.unpacker.emulation import StopReason
 from angr.analyses.unpacker.emulation.apis import API_HANDLERS, GdiObject
 from angr.analyses.unpacker.emulation.modules import FakeModule
 from angr.analyses.unpacker.emulation.syscalls import WIN7_X64_SYSCALLS, WIN7_X86_SYSCALLS
-from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
+from angr.analyses.unpacker.generic_unpacker import Engine, GenericUnpackerCore
 from angr.errors import SimSegfaultException
 
 from .pe_builder import IMAGE_BASE, IMAGE_BASE_64, build_pe
 
 CODE_RVA = 0x1000
 HANDLE = 0x1234
+
+
+# the engine of the tests in this module; test_icicle_engine reruns some of them on Icicle
+ENGINE: Engine = "unicorn"
 
 
 def emulator(code: bytes, is_64bit: bool = False, directories: dict[int, tuple[int, int]] | None = None):
@@ -34,7 +38,7 @@ def emulator(code: bytes, is_64bit: bool = False, directories: dict[int, tuple[i
         path = os.path.join(tmpdir, "sample.exe")
         with open(path, "wb") as f:
             f.write(packed)
-        return GenericUnpackerCore(path, watch_sections=set()).emu
+        return GenericUnpackerCore(path, watch_sections=set(), engine=ENGINE).emu
 
 
 class TestApiHandlers(unittest.TestCase):
@@ -1385,7 +1389,7 @@ class TestImportRecovery(unittest.TestCase):
             path = os.path.join(tmpdir, "sample.exe")
             with open(path, "wb") as f:
                 f.write(packed)
-            core = GenericUnpackerCore(path)
+            core = GenericUnpackerCore(path, engine=ENGINE)
         emu = core.emu
         emu.start()
         kernel32 = emu.load_module("kernel32.dll")
@@ -1423,7 +1427,7 @@ class TestImportRecovery(unittest.TestCase):
             path = os.path.join(tmpdir, "sample.exe")
             with open(path, "wb") as f:
                 f.write(packed)
-            core = GenericUnpackerCore(path)
+            core = GenericUnpackerCore(path, engine=ENGINE)
         emu = core.emu
         emu.start()
         kernel32 = emu.load_module("kernel32.dll")
@@ -1478,7 +1482,7 @@ class TestImageLayout(unittest.TestCase):
             path = os.path.join(tmpdir, "sample.exe")
             with open(path, "wb") as f:
                 f.write(packed)
-            emu = GenericUnpackerCore(path, watch_sections=set()).emu
+            emu = GenericUnpackerCore(path, watch_sections=set(), engine=ENGINE).emu
         assert emu.read(IMAGE_BASE + 0x2000, 0x48) == raw
         # past the raw data (padded to the file alignment) and in the gap after .text: zero
         assert emu.read(IMAGE_BASE + 0x2048, 0xFB8) == bytes(0xFB8)
@@ -1623,7 +1627,7 @@ class TestFakeModule(unittest.TestCase):
                 with open(os.path.join(tmpdir, "api_sets.json"), "w", encoding="ascii") as f:
                     json.dump(api_sets, f)
             with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": exports_dir}):
-                emu = GenericUnpackerCore(path, watch_sections=set()).emu
+                emu = GenericUnpackerCore(path, watch_sections=set(), engine=ENGINE).emu
                 for stem in lists:
                     if "." not in stem:
                         emu.load_module(stem + ".dll")

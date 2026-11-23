@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import bisect
 import logging
-import os
 import re
 import struct
 import time
 from dataclasses import dataclass, field
+from typing import Literal
 
 import capstone
 import pefile
@@ -19,6 +19,8 @@ from .packer_identifier import call_target_score, entropy, section_name
 from .pe_rebuilder import RecoveredImport, rebuild_pe
 
 _l = logging.getLogger(__name__)
+
+Engine = Literal["icicle", "unicorn"]
 
 PAGE = 0x1000
 _MIN_CODE_CALLS = 20
@@ -62,14 +64,16 @@ class GenericUnpackerCore:
     bytes were produced at run time. The last such transfer is reported as the original entry point.
     """
 
-    def __init__(self, path: str, watch_sections: set[int] | None = None):
+    def __init__(self, path: str, watch_sections: set[int] | None = None, engine: Engine = "icicle"):
         self.project = Project(path, auto_load_libs=False, selfmodifying_code=True, simos=SimWindowsEmulated)
-        if os.environ.get("ANGR_UNPACKER_ENGINE") == "rust":
+        if engine == "icicle":
             from .emulation.icicle_environment import IcicleWindowsEmulator  # pylint:disable=import-outside-toplevel
 
             self.emu = IcicleWindowsEmulator(self.project)
-        else:
+        elif engine == "unicorn":
             self.emu = WindowsEmulator(self.project)
+        else:
+            raise ValueError(f"Unknown emulation engine {engine!r}")
         self.layers: list[UnpackedLayer] = []
         self.stop: EmulationStop | None = None
         self._initial: dict[int, bytes] = {}
@@ -299,13 +303,16 @@ class EmulatingUnpacker(Analysis):
 
     `unpacked` is a rebuilt PE for the reported layer (None if the binary never ran written code), `oep` is its
     entry point, and `layers` lists every layer seen.
+
+    :param engine:  The emulator that runs the program: "icicle" (the Rust run loop on Icicle) or "unicorn".
     """
 
-    def __init__(self, timeout: float = 300.0, settle_timeout: float = 20.0):
+    def __init__(self, timeout: float = 300.0, settle_timeout: float = 20.0, engine: Engine = "icicle"):
         binary = self.project.loader.main_object.binary
         if binary is None:
             raise ValueError("Unpacking requires a file-backed main object")
         self.binary: str = binary
+        self.engine: Engine = engine
         with open(binary, "rb") as f:
             self.data: bytes = f.read()
         self.layers: list[UnpackedLayer] = []
@@ -324,7 +331,7 @@ class EmulatingUnpacker(Analysis):
         return None
 
     def _emulate(self, watch_sections: set[int] | None, timeout: float, settle_timeout: float) -> None:
-        core = GenericUnpackerCore(self.binary, watch_sections)
+        core = GenericUnpackerCore(self.binary, watch_sections, self.engine)
         core.run(timeout=timeout, settle_timeout=settle_timeout)
         self.core = core
         self.layers = core.layers
