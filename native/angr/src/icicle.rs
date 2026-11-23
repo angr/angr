@@ -58,6 +58,8 @@ pub enum VmExit {
     Interrupted,
     /// The VM has halted.
     Halt,
+    /// The VM was shutdown.
+    Shutdown,
     /// Killed by an environment specific mechanism.
     Killed,
     /// A deadlock was detected.
@@ -66,6 +68,10 @@ pub enum VmExit {
     OutOfMemory,
     /// Internal error where the emulator reached unimplemented code.
     Unimplemented,
+    /// Some unknown error occurred.
+    Unknown,
+    /// Custom user-defined exit code.
+    Custom,
     /// The VM exited due to a unhandled exception.
     UnhandledException,
 }
@@ -85,10 +91,13 @@ impl From<icicle_vm::VmExit> for VmExit {
             icicle_vm::VmExit::Breakpoint => VmExit::Breakpoint,
             icicle_vm::VmExit::Interrupted => VmExit::Interrupted,
             icicle_vm::VmExit::Halt => VmExit::Halt,
+            icicle_vm::VmExit::Shutdown => VmExit::Shutdown,
             icicle_vm::VmExit::Killed => VmExit::Killed,
             icicle_vm::VmExit::Deadlock => VmExit::Deadlock,
             icicle_vm::VmExit::OutOfMemory => VmExit::OutOfMemory,
             icicle_vm::VmExit::Unimplemented => VmExit::Unimplemented,
+            icicle_vm::VmExit::Unknown => VmExit::Unknown,
+            icicle_vm::VmExit::Custom(..) => VmExit::Custom,
             icicle_vm::VmExit::UnhandledException(..) => VmExit::UnhandledException,
         }
     }
@@ -104,6 +113,7 @@ pub enum ExceptionCode {
     Halt,
     Sleep,
     SoftwareBreakpoint,
+    Shutdown,
     Syscall,
     CpuStateChanged,
     DivisionException,
@@ -121,6 +131,7 @@ pub enum ExceptionCode {
     ExecUnaligned,
     OutOfMemory,
     AddressOverflow,
+    BadMapping,
     InvalidInstruction,
     UnknownInterrupt,
     UnknownCpuID,
@@ -136,6 +147,8 @@ pub enum ExceptionCode {
     JitError,
     InternalError,
     UnmappedRegister,
+    RecursiveAccess,
+    Unsupported,
     UnknownError,
 }
 
@@ -161,6 +174,7 @@ impl From<icicle_vm::cpu::ExceptionCode> for ExceptionCode {
             Halt => ExceptionCode::Halt,
             Sleep => ExceptionCode::Sleep,
             SoftwareBreakpoint => ExceptionCode::SoftwareBreakpoint,
+            Shutdown => ExceptionCode::Shutdown,
             Syscall => ExceptionCode::Syscall,
             CpuStateChanged => ExceptionCode::CpuStateChanged,
             DivisionException => ExceptionCode::DivisionException,
@@ -178,6 +192,7 @@ impl From<icicle_vm::cpu::ExceptionCode> for ExceptionCode {
             ExecUnaligned => ExceptionCode::ExecUnaligned,
             OutOfMemory => ExceptionCode::OutOfMemory,
             AddressOverflow => ExceptionCode::AddressOverflow,
+            BadMapping => ExceptionCode::BadMapping,
             InvalidInstruction => ExceptionCode::InvalidInstruction,
             UnknownInterrupt => ExceptionCode::UnknownInterrupt,
             UnknownCpuID => ExceptionCode::UnknownCpuID,
@@ -193,6 +208,8 @@ impl From<icicle_vm::cpu::ExceptionCode> for ExceptionCode {
             JitError => ExceptionCode::JitError,
             InternalError => ExceptionCode::InternalError,
             UnmappedRegister => ExceptionCode::UnmappedRegister,
+            RecursiveAccess => ExceptionCode::RecursiveAccess,
+            Unsupported => ExceptionCode::Unsupported,
             UnknownError => ExceptionCode::UnknownError,
         }
     }
@@ -237,6 +254,8 @@ struct Icicle {
     path_tracer: Option<PathTracerRef>,
     edge_count_hitmap: Option<Hitmap>,
     snapshot: Option<icicle_vm::Snapshot>,
+    /// The value carried by the last run's exit, if it was `VmExit::Custom`.
+    custom_exit_value: Option<u64>,
 }
 
 #[pymethods]
@@ -250,7 +269,7 @@ impl Icicle {
     ) -> PyResult<Self> {
         let mut config =
             icicle_vm::cpu::Config::from_target_triple(format!("{architecture}-none").as_str());
-        config.enable_shadow_stack = false;
+        config.shadow_stack = icicle_vm::cpu::ShadowStackState::Disabled;
         let mut vm = icicle_vm::build_with_path(&config, &PathBuf::from(processors_path))
             .map_err(|e| PyRuntimeError::new_err(format!("Failed to build VM: {e}")))?;
 
@@ -303,6 +322,7 @@ impl Icicle {
             path_tracer,
             edge_count_hitmap,
             snapshot: None,
+            custom_exit_value: None,
         })
     }
 
@@ -451,7 +471,7 @@ impl Icicle {
         self.vm
             .code
             .disasm
-            .retain(|&vaddr, _| vaddr < addr || vaddr >= end);
+            .retain(|key, _| key.vaddr < addr || key.vaddr >= end);
     }
 
     // Specialized state accessors
@@ -527,7 +547,12 @@ impl Icicle {
         // allow other threads to run while the VM is executing. This allows
         // using multiple engines in parallel within a single Python process.
         let mut wrapped = SendWrapper::new(&mut self.vm);
-        py.detach(|| (*wrapped).run().into())
+        let exit = py.detach(|| (*wrapped).run());
+        self.custom_exit_value = match exit {
+            icicle_vm::VmExit::Custom(value) => Some(value),
+            _ => None,
+        };
+        exit.into()
     }
 
     #[getter]
@@ -538,6 +563,11 @@ impl Icicle {
     #[getter]
     pub fn get_exception_value(&self) -> u64 {
         self.vm.cpu.exception.value
+    }
+
+    #[getter]
+    pub fn get_custom_exit_value(&self) -> Option<u64> {
+        self.custom_exit_value
     }
 
     // Tracing

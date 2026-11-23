@@ -13,10 +13,13 @@ class VmExit:
     Breakpoint: VmExit
     Interrupted: VmExit
     Halt: VmExit
+    Shutdown: VmExit
     Killed: VmExit
     Deadlock: VmExit
     OutOfMemory: VmExit
     Unimplemented: VmExit
+    Unknown: VmExit
+    Custom: VmExit
     UnhandledException: VmExit
 
     @override
@@ -32,6 +35,7 @@ class ExceptionCode:
     Halt: ExceptionCode
     Sleep: ExceptionCode
     SoftwareBreakpoint: ExceptionCode
+    Shutdown: ExceptionCode
     Syscall: ExceptionCode
     CpuStateChanged: ExceptionCode
     DivisionException: ExceptionCode
@@ -49,6 +53,7 @@ class ExceptionCode:
     ExecUnaligned: ExceptionCode
     OutOfMemory: ExceptionCode
     AddressOverflow: ExceptionCode
+    BadMapping: ExceptionCode
     InvalidInstruction: ExceptionCode
     UnknownInterrupt: ExceptionCode
     UnknownCpuID: ExceptionCode
@@ -64,6 +69,8 @@ class ExceptionCode:
     JitError: ExceptionCode
     InternalError: ExceptionCode
     UnmappedRegister: ExceptionCode
+    RecursiveAccess: ExceptionCode
+    Unsupported: ExceptionCode
     UnknownError: ExceptionCode
 
     @override
@@ -169,7 +176,11 @@ class Icicle:
 
     @property
     def exception_value(self) -> int:
-        """The exception code from the last run, if any."""
+        """The exception value from the last run, if any."""
+
+    @property
+    def custom_exit_value(self) -> int | None:
+        """The value carried by the last run's exit if it was ``VmExit.Custom``, otherwise None."""
 
     @property
     def recent_blocks(self) -> list[tuple[int, int]]:

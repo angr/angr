@@ -13,15 +13,15 @@ dependencies = [
 
 [[package]]
 name = "addr2line"
-version = "0.26.1"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59317f77929f0e679d39364702289274de2f0f0b22cbf50b2b8cff2169a0b27a"
+checksum = "e567177890eb1617b1f774005b66b26b2377afd138a2ca37aae7d8f0c81429d4"
 dependencies = [
  "cpp_demangle",
  "fallible-iterator",
- "gimli 0.33.0",
+ "gimli 0.34.0",
  "memmap2",
- "object 0.39.1",
+ "object 0.40.0",
  "rustc-demangle",
  "smallvec",
  "typed-arena",
@@ -133,12 +133,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "base64"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
-
-[[package]]
 name = "bincode"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -177,9 +171,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.13.1"
+version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
+checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 dependencies = [
  "serde_core",
 ]
@@ -362,9 +356,9 @@ dependencies = [
 
 [[package]]
 name = "cranelift"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bdf52c60935374adffd78561409189eef357c77033f44b1be472d835fcc8201"
+checksum = "e68395f43fcfaa5f3e46458e9f9b6d408d8ade86a32a70e7a57aeb78200fbd14"
 dependencies = [
  "cranelift-codegen",
  "cranelift-frontend",
@@ -373,45 +367,46 @@ dependencies = [
 
 [[package]]
 name = "cranelift-assembler-x64"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b242b4c3675139f52f0b55624fb92571551a344305c5998f55ad20fa527bc55"
+checksum = "c19fba13ee427c4dd29488ea51127e945bf07fd9d79093f14c9cc57f74acf757"
 dependencies = [
  "cranelift-assembler-x64-meta",
 ]
 
 [[package]]
 name = "cranelift-assembler-x64-meta"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "499715f19799219f32641b14f2a162f91e50bc1b61c2d2184c2be971716f5c56"
+checksum = "dd88c766346fcc14bbadbd68cb11e9bc1e555e99f7e8f6b1f4c27a73ca659bec"
 dependencies = [
  "cranelift-srcgen",
 ]
 
 [[package]]
 name = "cranelift-bforest"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ebca2ea7c62c56feb88a5b23ec380460fe6d7c18134520f6ddf4bfa35cbea68"
+checksum = "f19d43d75dd963d6b1a653f2e03d4eed4365ca2e598ec57e52c15afdad6c3276"
 dependencies = [
  "cranelift-entity",
+ "wasmtime-internal-core",
 ]
 
 [[package]]
 name = "cranelift-bitset"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe11f154b62d7421d909503a746e89995393b1b71926e6f12b08a2076396d7fb"
+checksum = "45d0b93e50856858c89c61cbe3f6d4b07596da22eb5a03a95b19420e1d08a275"
 dependencies = [
  "wasmtime-internal-core",
 ]
 
 [[package]]
 name = "cranelift-codegen"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f2d0da3d51979dc0183fac3076a535477eab794716b063143ecb16632408664"
+checksum = "efbdff32d3b6b4f33f1ba8a4ac747b97ce569b1d6834c3089c1c0933b94e618c"
 dependencies = [
  "bumpalo",
  "cranelift-assembler-x64",
@@ -423,7 +418,7 @@ dependencies = [
  "cranelift-entity",
  "cranelift-isle",
  "gimli 0.33.0",
- "hashbrown 0.15.5",
+ "hashbrown 0.17.1",
  "libm",
  "log",
  "regalloc2",
@@ -436,9 +431,9 @@ dependencies = [
 
 [[package]]
 name = "cranelift-codegen-meta"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "483b2c94a1b7f6fba0714387ba34ca56d114b2214a80be018acbb2ed40e09a1e"
+checksum = "67fd11ff24916a2c1ff852ce4bb664fcf2c2970ed551de44dd5b573321123703"
 dependencies = [
  "cranelift-assembler-x64-meta",
  "cranelift-codegen-shared",
@@ -448,24 +443,24 @@ dependencies = [
 
 [[package]]
 name = "cranelift-codegen-shared"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4aae718c336a52d90d4ebe9a2d8c3cf0906a4bee78f0e6867e777eebbe554fe"
+checksum = "ba5d321229c3e00a17d7bb3633529ffdf97a13bcf4962fd2e92f1e0fd39360aa"
 
 [[package]]
 name = "cranelift-control"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a18e94519070dc56cddb71906a08cea6a28a1d7c58ed501b88f273fa6b45fa07"
+checksum = "71cd63450256d0f80f7a0527e133452f84fa6e1ca73c7db6ca2a9e8cc89d1c18"
 dependencies = [
  "arbitrary",
 ]
 
 [[package]]
 name = "cranelift-entity"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0ab4e0eff1045ff2f5ddd8195bf3c97d7b5ef9b780cb044e0cce76e4d352057"
+checksum = "18d2f259130db1bbb89500d26944971a9beeb410de91ff14039203f055d7f9f0"
 dependencies = [
  "cranelift-bitset",
  "wasmtime-internal-core",
@@ -473,11 +468,12 @@ dependencies = [
 
 [[package]]
 name = "cranelift-frontend"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7645a236e1ec49e660f09ec9fa979a1c5d0b612c419db7610573d4d58a03b7c"
+checksum = "cf37a38d982d45fe2c065d55e4de76e596b443b6acceb3ca726c2072c8ba6d7b"
 dependencies = [
  "cranelift-codegen",
+ "hashbrown 0.17.1",
  "log",
  "smallvec",
  "target-lexicon",
@@ -485,15 +481,15 @@ dependencies = [
 
 [[package]]
 name = "cranelift-isle"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57e0b4a1a0ea01cc19084ff01aaeb640dfe22905d47d83037a419b81ba587ed0"
+checksum = "8ce8f84e2d44326879e18016d763457a2cb5d775e4a5822cd7473fc171fca063"
 
 [[package]]
 name = "cranelift-jit"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c68c397bbf844f50828b66c315844331404d89e93592515d56837cb9b2b97cf3"
+checksum = "36996b28ed0fe97465130e49c5ba068ecde6b928d93d39a3799fb2825de79c39"
 dependencies = [
  "anyhow",
  "cranelift-codegen",
@@ -503,6 +499,7 @@ dependencies = [
  "cranelift-native",
  "libc",
  "log",
+ "memmap2",
  "region",
  "target-lexicon",
  "wasmtime-internal-jit-icache-coherence",
@@ -511,20 +508,21 @@ dependencies = [
 
 [[package]]
 name = "cranelift-module"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a58a82190e7ecd36b8d55880eadff59f045d20a491dacfaecc11aac24453092"
+checksum = "2f51acd08932adc735e0cda54d34468a8accca00b8de4afa54498ae9dd3bce70"
 dependencies = [
  "anyhow",
  "cranelift-codegen",
  "cranelift-control",
+ "hashbrown 0.17.1",
 ]
 
 [[package]]
 name = "cranelift-native"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bdec40b396eb630ecfb0e7a81766d7287f464a7631b9eb5862f7711f1020012"
+checksum = "df64a0392edac7b38fb2965ce8e205e7c5e219e4c531ed3cd1929c782f21853d"
 dependencies = [
  "cranelift-codegen",
  "libc",
@@ -533,9 +531,9 @@ dependencies = [
 
 [[package]]
 name = "cranelift-srcgen"
-version = "0.129.2"
+version = "0.136.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a1a001a9dc4557d9e2be324bc932621c0aa9bf33b74dfefa2338f0bf8913329"
+checksum = "3748e3c77c0717359cd4c089e1dc057221eb8598a9c18b0b5afccb5685975abb"
 
 [[package]]
 name = "crc32fast"
@@ -548,9 +546,9 @@ dependencies = [
 
 [[package]]
 name = "crepe"
-version = "0.1.8"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a572c5a5165c71c6a34cd5391521faf590f0e216031574375149fd9666ec5cad"
+checksum = "0d6bb2d4233a2b6b6e72b1cfbf5190dd329a37325d6be25c23536d5cc9b0b0df"
 dependencies = [
  "petgraph 0.6.5",
  "proc-macro-error",
@@ -807,6 +805,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gimli"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1033caf0b349c518623b5396bfb2cf0bddf44f0306d543a250e5743297aafd10"
+dependencies = [
+ "fnv",
+ "hashbrown 0.17.1",
+ "indexmap",
+ "stable_deref_trait",
+]
+
+[[package]]
 name = "half"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -837,9 +847,6 @@ name = "hashbrown"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
-dependencies = [
- "foldhash 0.2.0",
-]
 
 [[package]]
 name = "hashbrown"
@@ -871,18 +878,18 @@ dependencies = [
 
 [[package]]
 name = "icicle-cpu"
-version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+version = "0.2.0"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 dependencies = [
- "addr2line 0.26.1",
+ "addr2line 0.27.1",
  "ahash",
  "anyhow",
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "bytemuck",
- "gimli 0.33.0",
+ "gimli 0.34.0",
  "half",
  "icicle-mem",
- "object 0.38.1",
+ "object 0.40.0",
  "pcode",
  "sleigh-runtime",
  "target-lexicon",
@@ -892,11 +899,11 @@ dependencies = [
 [[package]]
 name = "icicle-fuzzing"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 dependencies = [
  "ahash",
  "anyhow",
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "bytemuck",
  "crepe",
  "icicle-vm",
@@ -911,9 +918,11 @@ dependencies = [
 
 [[package]]
 name = "icicle-jit"
-version = "0.2.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+version = "0.3.0"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 dependencies = [
+ "ahash",
+ "bitflags 2.13.2",
  "cranelift",
  "cranelift-codegen",
  "cranelift-jit",
@@ -930,13 +939,13 @@ dependencies = [
 [[package]]
 name = "icicle-linux"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "bstr",
  "bytemuck",
  "icicle-cpu",
- "object 0.38.1",
+ "object 0.40.0",
  "pcode",
  "sleigh-runtime",
  "target-lexicon",
@@ -946,7 +955,7 @@ dependencies = [
 [[package]]
 name = "icicle-mem"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 dependencies = [
  "ahash",
  "tracing",
@@ -954,19 +963,18 @@ dependencies = [
 
 [[package]]
 name = "icicle-vm"
-version = "0.2.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+version = "0.3.0"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 dependencies = [
  "anyhow",
  "icicle-cpu",
  "icicle-jit",
  "icicle-linux",
  "ihex",
- "object 0.38.1",
+ "object 0.40.0",
  "pcode",
  "ron",
  "serde",
- "serde-xml-rs",
  "sleigh-compile",
  "sleigh-runtime",
  "target-lexicon",
@@ -1288,7 +1296,7 @@ version = "0.31.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "cfg-if",
  "cfg_aliases",
  "libc",
@@ -1380,23 +1388,14 @@ dependencies = [
 
 [[package]]
 name = "object"
-version = "0.38.1"
+version = "0.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "271638cd5fa9cca89c4c304675ca658efc4e64a66c716b7cfe1afb4b9611dbbc"
+checksum = "dd229a0361b9d0d4396176e02d65897f487eebeab7caa6d443855ee152ca0b9c"
 dependencies = [
  "crc32fast",
- "hashbrown 0.16.1",
- "indexmap",
- "memchr",
-]
-
-[[package]]
-name = "object"
-version = "0.39.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b"
-dependencies = [
  "flate2",
+ "hashbrown 0.17.1",
+ "indexmap",
  "memchr",
  "ruzstd",
 ]
@@ -1444,7 +1443,7 @@ dependencies = [
 [[package]]
 name = "pcode"
 version = "0.2.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 
 [[package]]
 name = "petgraph"
@@ -1630,18 +1629,18 @@ version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
 ]
 
 [[package]]
 name = "regalloc2"
-version = "0.13.5"
+version = "0.15.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08effbc1fa53aaebff69521a5c05640523fab037b34a4a2c109506bc938246fa"
+checksum = "34f923657880712029496c2e68bb40bef163806b2011adde559b28bbcedc82ea"
 dependencies = [
  "allocator-api2",
  "bumpalo",
- "hashbrown 0.15.5",
+ "hashbrown 0.17.1",
  "log",
  "rustc-hash",
  "smallvec",
@@ -1690,14 +1689,14 @@ dependencies = [
 
 [[package]]
 name = "ron"
-version = "0.11.0"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db09040cc89e461f1a265139777a2bde7f8d8c67c4936f700c63ce3e2904d468"
+checksum = "97b3fe97c18ff24299ea56f802c5693eb34266fb0bc8317f4e101debc8a3ceaf"
 dependencies = [
- "base64",
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "serde",
  "serde_derive",
+ "typeid",
  "unicode-ident",
 ]
 
@@ -1719,7 +1718,7 @@ version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -1734,9 +1733,9 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "ruzstd"
-version = "0.8.3"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7c1c839d570d835527c9a5e4db7cb2198683a988cb9d7293fc8674e6bd58fc8"
+checksum = "69e4ce4a039f42bf25920b95667e4d789e98749ab11bbb8d2c2936f788421bb5"
 dependencies = [
  "twox-hash",
 ]
@@ -1904,7 +1903,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 [[package]]
 name = "sleigh-compile"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 dependencies = [
  "pcode",
  "serde",
@@ -1917,12 +1916,12 @@ dependencies = [
 [[package]]
 name = "sleigh-parse"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 
 [[package]]
 name = "sleigh-runtime"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=638508b72f480f9be6fe2e267ef09de8f1541f9a#638508b72f480f9be6fe2e267ef09de8f1541f9a"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
 dependencies = [
  "ahash",
  "pcode",
@@ -2217,20 +2216,20 @@ dependencies = [
 
 [[package]]
 name = "wasmtime-internal-core"
-version = "42.0.2"
+version = "49.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be7c68311d6220c20cefdf334e0c8021e16a050383c67edc5be42e5661ddf265"
+checksum = "e6e13ab3aa598d863643ef9ec043d63fde7effca4465270446d5b868936b27a6"
 dependencies = [
+ "hashbrown 0.17.1",
  "libm",
 ]
 
 [[package]]
 name = "wasmtime-internal-jit-icache-coherence"
-version = "42.0.2"
+version = "49.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f52c0779e711777b915d017b3f54049e658057a77df99e0e7958406b3c5d7d07"
+checksum = "52c641b9e1bab449c7316896f01d4a0c426e2a502a5a8098e1af4a0392053e7a"
 dependencies = [
- "cfg-if",
  "libc",
  "wasmtime-internal-core",
  "windows-sys 0.61.2",
