@@ -335,8 +335,10 @@ class WindowsEmulator:
         self.handles: dict[int, object] = {}
         self.window_classes: dict[str, WindowClass] = {}
         self.timers: list[TimerObject] = []
-        # (predefined key, lower-case path) -> value name -> (type, data)
-        self.registry: dict[tuple[int, str], dict[str, tuple[int, bytes]]] = {}
+        # (predefined key, lower-case path) -> lower-case value name -> (name, type, data)
+        self.registry: dict[tuple[int, str], dict[str, tuple[str, int, bytes]]] = {}
+        # the path of each key as it was written when the key was created
+        self.registry_names: dict[tuple[int, str], str] = {}
         self.threads: list[Thread] = []
         self.current_thread = 0
         self._api_frame = (0, 0)

@@ -2426,27 +2426,42 @@ class RegistryKey:
         self.key = key
 
 
-def _registry_key(emu: WindowsEmulator, parent: int, subkey: int, wide: bool) -> tuple[int, str] | None:
+def _registry_path(emu: WindowsEmulator, parent: int, subkey: int, wide: bool) -> tuple[int, str] | None:
+    """
+    The predefined key and the path below it that a key handle and a subkey name stand for, in the case given.
+    """
     path = (emu.read_wstr(subkey) if wide else emu.read_cstr(subkey)) if subkey else ""
     opened = emu.handles.get(parent)
     if isinstance(opened, RegistryKey):
-        root, base = opened.key
-        path = base + "\\" + path
+        root = opened.key[0]
+        path = emu.registry_names.get(opened.key, opened.key[1]) + "\\" + path
     elif parent & 0xFFFFFFFF in (0x80000000, 0x80000001, 0x80000002, 0x80000003, 0x80000005):
         root = parent & 0xFFFFFFFF
     else:
         return None
-    return root, "\\".join(part for part in path.lower().split("\\") if part)
+    return root, "\\".join(part for part in path.split("\\") if part)
+
+
+def _registry_key(emu: WindowsEmulator, parent: int, subkey: int, wide: bool) -> tuple[int, str] | None:
+    found = _registry_path(emu, parent, subkey, wide)
+    return None if found is None else (found[0], found[1].lower())
 
 
 def _reg_open(emu: WindowsEmulator, parent: int, subkey: int, result: int, wide: bool, create: bool) -> int:
-    key = _registry_key(emu, parent, subkey, wide)
-    if key is None:
+    found = _registry_path(emu, parent, subkey, wide)
+    if found is None:
         return ERROR_INVALID_HANDLE
+    key = (found[0], found[1].lower())
     if key not in emu.registry:
         if not create:
             return ERROR_FILE_NOT_FOUND
-        emu.registry[key] = {}
+        # the key and the missing keys above it; names keep the case they were created with, lookups ignore it
+        parts = found[1].split("\\")
+        for depth in range(1, len(parts) + 1):
+            written = "\\".join(parts[:depth])
+            if (key[0], written.lower()) not in emu.registry:
+                emu.registry[key[0], written.lower()] = {}
+                emu.registry_names[key[0], written.lower()] = written
     emu.write_ptr(result, emu.new_handle(RegistryKey(key)))
     return 0
 
@@ -2500,7 +2515,7 @@ def reg_create_key_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
     return _reg_create_ex(emu, args, True)
 
 
-def _reg_values(emu: WindowsEmulator, handle: int) -> dict[str, tuple[int, bytes]] | None:
+def _reg_values(emu: WindowsEmulator, handle: int) -> dict[str, tuple[str, int, bytes]] | None:
     opened = emu.handles.get(handle)
     return emu.registry.get(opened.key) if isinstance(opened, RegistryKey) else None
 
@@ -2510,7 +2525,12 @@ def _reg_set(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
     if values is None:
         return ERROR_INVALID_HANDLE
     name = (emu.read_wstr(args[1]) if wide else emu.read_cstr(args[1])) if args[1] else ""
-    values[name.lower()] = (args[3], emu.read(args[4], min(args[5], 1 << 20)))
+    existing = values.get(name.lower())
+    values[name.lower()] = (
+        name if existing is None else existing[0],
+        args[3],
+        emu.read(args[4], min(args[5], 1 << 20)),
+    )
     return 0
 
 
@@ -2532,7 +2552,7 @@ def _reg_query(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
     value = values.get(name.lower())
     if value is None:
         return ERROR_FILE_NOT_FOUND
-    kind, data = value
+    _, kind, data = value
     if args[2]:
         emu.write_u32(args[2], kind)
     if not args[4]:
@@ -2583,8 +2603,7 @@ def _reg_enum_value(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
         return ERROR_INVALID_HANDLE
     if args[1] >= len(values):
         return ERROR_NO_MORE_ITEMS
-    # names are kept in lower case
-    name, (kind, data) = list(values.items())[args[1]]
+    name, kind, data = list(values.values())[args[1]]
     status = _reg_name(emu, args[2], args[3], name, wide)
     if status:
         return status
@@ -2613,12 +2632,13 @@ def reg_enum_value_w(emu: WindowsEmulator, args: list[int]) -> int:
 def _reg_subkeys(emu: WindowsEmulator, key: tuple[int, str]) -> list[str]:
     root, path = key
     prefix = path + "\\" if path else ""
-    names = {
-        other[len(prefix) :].split("\\")[0]
-        for other_root, other in emu.registry
-        if other_root == root and other != path and other.startswith(prefix)
-    }
-    return sorted(names)
+    depth = len(prefix.split("\\")) - 1
+    names: dict[str, str] = {}
+    for other_root, other in emu.registry:
+        if other_root == root and other != path and other.startswith(prefix):
+            written = emu.registry_names.get((other_root, other), other).split("\\")[depth]
+            names.setdefault(written.lower(), written)
+    return [names[lower] for lower in sorted(names)]
 
 
 def _reg_enum_key(emu: WindowsEmulator, handle: int, index: int, buf: int, size_ptr: int, wide: bool) -> int:
@@ -2684,6 +2704,7 @@ def _reg_delete_key(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
     if _reg_subkeys(emu, key):
         return ERROR_ACCESS_DENIED
     del emu.registry[key]
+    emu.registry_names.pop(key, None)
     return 0
 
 

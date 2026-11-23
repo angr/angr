@@ -505,15 +505,34 @@ class TestApiHandlers(unittest.TestCase):
         # the value the sample wrote is enumerated, with its type and data
         emu.write_u32(buf + 0x304, 0x10)
         assert call("RegEnumValueA", key, 0, buf + 0x200, buf + 0x300, 0, buf + 0x308, buf + 0x400, buf + 0x304) == 0
-        assert emu.read_cstr(buf + 0x200).lower() == "count"
+        # in the case it was written with; writing it again in another case keeps the name
+        assert emu.read_cstr(buf + 0x200) == "Count"
+        emu.write(buf + 0x60, b"COUNT\0")
+        assert call("RegSetValueExA", key, buf + 0x60, 0, 4, buf + 0x80, 4) == 0
+        emu.write_u32(buf + 0x300, 0x40)
+        emu.write_u32(buf + 0x304, 0x10)
+        assert call("RegEnumValueA", key, 0, buf + 0x200, buf + 0x300, 0, buf + 0x308, buf + 0x400, buf + 0x304) == 0
+        assert emu.read_cstr(buf + 0x200) == "Count"
         assert struct.unpack("<4I", emu.read(buf + 0x300, 12) + emu.read(buf + 0x400, 4)) == (5, 4, 4, 7)
         assert call("RegEnumValueA", key, 1, buf + 0x200, buf + 0x300, 0, 0, 0, 0) == 259
         # its key is a subkey of Software
         emu.write(buf, b"Software\0")
         assert call("RegCreateKeyA", hkcu, buf, buf + 0x104) == 0
         assert call("RegEnumKeyA", emu.read_u32(buf + 0x104), 0, buf + 0x200, 0x40) == 0
-        assert emu.read_cstr(buf + 0x200) == "demo"
+        assert emu.read_cstr(buf + 0x200) == "Demo"
         assert call("RegEnumKeyA", emu.read_u32(buf + 0x104), 1, buf + 0x200, 0x40) == 259
+        # a key below a key opened in another case, and a lookup in yet another
+        emu.write(buf + 0x500, b"SOFTWARE\0Inner\\Leaf\0software\\demo\\INNER\0")
+        assert call("RegOpenKeyA", hkcu, buf + 0x500, buf + 0x10C) == 0
+        upper = emu.read_u32(buf + 0x10C)
+        assert call("RegCreateKeyA", key, buf + 0x509, buf + 0x110) == 0
+        assert call("RegOpenKeyA", hkcu, buf + 0x514, buf + 0x114) == 0
+        assert call("RegEnumKeyA", emu.read_u32(buf + 0x114), 0, buf + 0x200, 0x40) == 0
+        assert emu.read_cstr(buf + 0x200) == "Leaf"
+        assert call("RegEnumKeyA", upper, 0, buf + 0x200, 0x40) == 0
+        assert emu.read_cstr(buf + 0x200) == "Demo"
+        assert call("RegDeleteKeyA", key, buf + 0x509) == 0
+        assert call("RegDeleteKeyA", hkcu, buf + 0x514) == 0
         # deleting: the value, then the key (a key with subkeys stays)
         assert call("RegDeleteKeyA", hkcu, buf) == 5
         assert call("RegDeleteValueA", key, buf + 0x40) == 0
