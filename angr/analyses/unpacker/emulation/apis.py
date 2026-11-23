@@ -1060,6 +1060,78 @@ def _object_type_name(obj: object) -> str:
     return "Event"
 
 
+# The object types of Windows 7 SP1 in the order of their index (2 upwards): name, valid access mask, generic
+# mapping (read, write, execute, all), and how many objects and handles of the type an idle desktop session has.
+# The system has no debug objects; the program's own are added.
+_GENERIC = (0x20000, 0x20000, 0x20000)
+_WAITABLE = (0x20001, 0x20002, 0x120000)
+_OBJECT_TYPES: tuple[tuple[str, int, tuple[int, int, int, int], int, int], ...] = (
+    ("Type", 0x1F0001, (*_GENERIC, 0xF0001), 42, 0),
+    ("Directory", 0xF000F, (0x20003, 0x2000C, 0x20003, 0xF000F), 38, 141),
+    ("SymbolicLink", 0xF0001, (0x20001, 0x20000, 0x20001, 0xF0001), 251, 9),
+    ("Token", 0x1F01FF, (0x20008, 0x200E0, 0x20000, 0xF01FF), 1012, 228),
+    ("Job", 0x1F001F, (0x20004, 0x2000B, 0x120000, 0x1F001F), 4, 6),
+    ("Process", 0x1FFFFF, (0x20410, 0x20BEA, 0x121001, 0x1FFFFF), 41, 215),
+    ("Thread", 0x1FFFFF, (0x20048, 0x20437, 0x121800, 0x1FFFFF), 583, 760),
+    ("UserApcReserve", 0xF0003, (0x20001, 0x20002, 0x20000, 0xF0003), 0, 0),
+    ("IoCompletionReserve", 0xF0003, (0x20001, 0x20002, 0x20000, 0xF0003), 1, 1),
+    ("DebugObject", 0x1F000F, (*_WAITABLE, 0x1F000F), 0, 0),
+    ("Event", 0x1F0003, (*_WAITABLE, 0x1F0003), 4311, 3190),
+    ("EventPair", 0x1F0000, (0x120000, 0x120000, 0x120000, 0x1F0000), 0, 0),
+    ("Mutant", 0x1F0001, (0x20001, 0x20000, 0x120000, 0x1F0001), 419, 448),
+    ("Callback", 0x1F0001, (*_GENERIC, 0x1F0001), 19, 0),
+    ("Semaphore", 0x1F0003, (*_WAITABLE, 0x1F0003), 867, 741),
+    ("Timer", 0x1F0003, (*_WAITABLE, 0x1F0003), 141, 139),
+    ("Profile", 0xF0001, (0x20001, 0x20001, 0x20001, 0xF0001), 0, 0),
+    ("KeyedEvent", 0x1F0003, (0x20001, 0x20002, 0x20000, 0xF0003), 44, 42),
+    ("WindowStation", 0xF037F, (0x20303, 0x2001C, 0x20060, 0xF037F), 6, 79),
+    ("Desktop", 0xF01FF, (0x20041, 0x200BE, 0x20100, 0xF01FF), 9, 71),
+    ("TpWorkerFactory", 0xF00FF, (0x20008, 0x20004, 0x20002, 0xF00FF), 172, 172),
+    ("Adapter", 0x1F01FF, (0x120089, 0x120116, 0x1200A0, 0x1F01FF), 6, 0),
+    ("Controller", 0x1F01FF, (0x120089, 0x120116, 0x1200A0, 0x1F01FF), 0, 0),
+    ("Device", 0x1F01FF, (0x120089, 0x120116, 0x1200A0, 0x1F01FF), 348, 0),
+    ("Driver", 0x1F01FF, (0x120089, 0x120116, 0x1200A0, 0x1F01FF), 131, 0),
+    ("IoCompletion", 0x1F0003, (*_WAITABLE, 0x1F0003), 211, 209),
+    ("File", 0x1F01FF, (0x120089, 0x120116, 0x1200A0, 0x1F01FF), 3916, 2470),
+    ("TmTm", 0xF003F, (0x20001, 0x2001C, 0x20000, 0xF003F), 3, 4),
+    ("TmTx", 0x1F007F, (0x120001, 0x12003E, 0x120018, 0x1F007F), 0, 0),
+    ("TmRm", 0x1F007F, (0x120001, 0x12007E, 0x12005C, 0x1F007F), 3, 5),
+    ("TmEn", 0xF001F, (0x20001, 0x2001E, 0x2001C, 0xF001F), 0, 0),
+    ("Section", 0x1F001F, (0x20005, 0x20002, 0x20008, 0xF001F), 2613, 1105),
+    ("Session", 0xF0003, (0x20001, 0x20002, 0x20001, 0xF0003), 2, 0),
+    ("Key", 0x1F003F, (0x20019, 0x20006, 0x20019, 0xF003F), 1408, 1401),
+    ("ALPC Port", 0x1F0001, (0x20001, 0x10001, 0, 0x1F0001), 611, 398),
+    ("PowerRequest", 0x1F0003, (*_GENERIC, 0x1F0003), 2, 2),
+    ("WmiGuid", 0x120FFF, (0x12, 0x20, 0x10, 0x120FFF), 1162, 181),
+    ("EtwRegistration", 0x804, (0x804, 0x804, 0x804, 0x804), 3105, 3105),
+    ("EtwConsumer", 0x1F0001, (*_GENERIC, 0x1F0001), 3, 3),
+    ("FilterConnectionPort", 0x1F0001, (0x20001, 0x10001, 0, 0x1F0001), 3, 1),
+    ("FilterCommunicationPort", 0x1F0001, (0x20001, 0x10001, 0, 0x1F0001), 2, 2),
+    ("PcwObject", 0x1, (0x1, 0x1, 0x1, 0x1), 1, 1),
+)
+_OBJECT_TYPE_BY_NAME = {entry[0]: entry for entry in _OBJECT_TYPES}
+
+
+def _object_type_information(emu: WindowsEmulator, name: str, addr: int) -> bytes:
+    """
+    An OBJECT_TYPE_INFORMATION for the address it will be stored at; the name follows the structure, and the whole
+    is padded to a multiple of the pointer size.
+    """
+    ptr = emu.ptr_size
+    _, access, mapping, objects, handles = _OBJECT_TYPE_BY_NAME[name]
+    if name == "DebugObject":
+        own = [obj for obj in emu.handles.values() if isinstance(obj, DebugObject)]
+        objects, handles = len({id(obj) for obj in own}), len(own)
+    text = name.encode("utf-16-le")
+    header = 0x68 if emu.is_64bit else 0x60
+    string = struct.pack("<HH", len(text), len(text) + 2).ljust(ptr, b"\0") + (addr + header).to_bytes(ptr, "little")
+    counts = struct.pack("<II", objects, handles) + bytes(16)
+    # the high-water marks, no invalid attributes, the mapping and mask, no security or handle counting, the pool
+    body = counts + counts + struct.pack("<I4II2B2xIII", 0, *mapping, access, 0, 0, 0, 0, 0)
+    data = string + body + text + b"\0\0"
+    return data.ljust((len(data) + ptr - 1) & ~(ptr - 1), b"\0")
+
+
 @api("NtQueryObject", "ZwQueryObject", nargs=5)
 def nt_query_object(emu: WindowsEmulator, args: list[int]) -> int:
     handle, info_class, buf, length, return_length = args
@@ -1068,23 +1140,28 @@ def nt_query_object(emu: WindowsEmulator, args: list[int]) -> int:
         status = _probe_for_write(emu, return_length, 4, 1)
     if status is not None:
         return status
+    ptr = emu.ptr_size
+    if info_class == 3:  # ObjectTypesInformation: every object type of the system; the handle is not used
+        data = struct.pack("<I", len(_OBJECT_TYPES)).ljust(ptr, b"\0")
+        for entry in _OBJECT_TYPES:
+            data += _object_type_information(emu, entry[0], buf + len(data))
+        if return_length:
+            emu.write_u32(return_length, len(data))
+        if length < len(data):
+            if length >= 4:
+                emu.write(buf, data[:4])
+            return STATUS_INFO_LENGTH_MISMATCH
+        emu.write(buf, data)
+        return STATUS_SUCCESS
     obj = emu.handles.get(handle)
     if obj is None:
         return STATUS_INVALID_HANDLE
-    ptr = emu.ptr_size
     if info_class == 0:  # ObjectBasicInformation: attributes, access, one handle, two references
         data = struct.pack("<IIII", 0, 0x1F0003, 1, 2).ljust(0x38, b"\0")
         if length != len(data):
             return STATUS_INFO_LENGTH_MISMATCH
     elif info_class == 2:  # ObjectTypeInformation: the type's name, then how many objects and handles of it exist
-        name = _object_type_name(obj).encode("utf-16-le")
-        header = 0x68 if emu.is_64bit else 0x60
-        text = buf + header
-        string = struct.pack("<HH", len(name), len(name) + 2).ljust(ptr, b"\0") + text.to_bytes(ptr, "little")
-        # the program's own object is the only one: a debugger would hold another debug object
-        counts = struct.pack("<II", 1, 1) + bytes(16) + struct.pack("<II", 1, 1)
-        data = (string + counts).ljust(header, b"\0") + name + b"\0\0"
-        data = data.ljust((len(data) + ptr - 1) & ~(ptr - 1), b"\0")
+        data = _object_type_information(emu, _object_type_name(obj), buf)
         if return_length:
             emu.write_u32(return_length, len(data))
         if length < len(data):

@@ -745,6 +745,55 @@ class TestApiHandlers(unittest.TestCase):
             assert query(0, buf + 2, 0x40, 0) == 0x80000002
             assert query(0, buf, 0x40, 0) == 0
 
+    def test_object_types(self):
+        # NtQueryObject(ObjectTypesInformation), walked the way programs that look for debug objects do
+        for is_64bit in (False, True):
+            emu = emulator(b"\xc3", is_64bit)
+            buf = emu.alloc(0x4000)
+            ptr = emu.ptr_size
+            call = lambda name, *args, emu=emu: API_HANDLERS[name].func(emu, list(args))
+
+            def types(emu=emu, buf=buf, ptr=ptr, call=call):
+                emu.write(buf, b"\xcc" * 0x100)
+                assert call("NtQueryObject", 0, 3, buf, 0x100, buf + 0x3FF8) == 0xC0000004
+                size = emu.read_u32(buf + 0x3FF8)
+                # the number of types is there already
+                assert emu.read_u32(buf) == 42 and emu.read(buf + 4, 4) == b"\xcc" * 4
+                assert call("NtQueryObject", 0, 3, buf + 1, size, 0) == 0x80000002
+                assert call("NtQueryObject", 0, 3, buf, size, buf + 0x3FF8) == 0
+                assert emu.read_u32(buf + 0x3FF8) == size
+                found = {}
+                entry = buf + ptr
+                for _ in range(emu.read_u32(buf)):
+                    length, maximum = struct.unpack("<HH", emu.read(entry, 4))
+                    text = emu.read_ptr(entry + ptr)
+                    assert text == entry + (0x68 if ptr == 8 else 0x60) and maximum == length + 2
+                    name = emu.read(text, maximum).decode("utf-16-le")
+                    assert name[-1] == "\0"
+                    objects, handles = struct.unpack("<II", emu.read(entry + 2 * ptr, 8))
+                    mapping = struct.unpack("<5I", emu.read(entry + 2 * ptr + 52, 20))
+                    found[name[:-1]] = (objects, handles, mapping)
+                    entry = (text + maximum + ptr - 1) & ~(ptr - 1)
+                assert entry == buf + size
+                return found
+
+            found = types()
+            assert list(found)[:10] == [
+                "Type", "Directory", "SymbolicLink", "Token", "Job", "Process", "Thread", "UserApcReserve",
+                "IoCompletionReserve", "DebugObject",
+            ]  # fmt: skip
+            assert found["DebugObject"] == (0, 0, (0x20001, 0x20002, 0x120000, 0x1F000F, 0x1F000F))
+            assert found["File"][2] == (0x120089, 0x120116, 0x1200A0, 0x1F01FF, 0x1F01FF)
+            assert found["Process"][0] > 10 and found["Event"][1] > 100
+            # the program's own debug objects are the only ones
+            assert call("NtCreateDebugObject", buf + 0x3F00, 0x1F000F, 0, 0) == 0
+            assert call("NtCreateDebugObject", buf + 0x3F10, 0x1F000F, 0, 0) == 0
+            assert types()["DebugObject"][:2] == (2, 2)
+            assert call("NtQueryObject", emu.read_ptr(buf + 0x3F00), 2, buf, 0x200, 0) == 0
+            assert struct.unpack("<II", emu.read(buf + 2 * ptr, 8)) == (2, 2)
+            assert call("NtClose", emu.read_ptr(buf + 0x3F00)) == 0
+            assert types()["DebugObject"][:2] == (1, 1)
+
     def test_debug_object_count(self):
         # NtCreateDebugObject, then NtQueryObject(ObjectTypeInformation): the program's object is the only one
         for is_64bit in (False, True):
