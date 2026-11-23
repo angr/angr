@@ -762,21 +762,21 @@ api("CoUninitialize", "OleUninitialize", nargs=0)(_succeed)
 #
 
 
+# blocks come from the process heap, as CoTaskMemAlloc's do: a region of their own each would cost 64 KB of
+# address space per block
+
+
 def _task_alloc(emu: WindowsEmulator, size: int) -> int:
-    return emu.alloc(max(size, 1))
+    return emu.heap_alloc(size)
 
 
 def _task_realloc(emu: WindowsEmulator, block: int, size: int) -> int:
     if not block:
         return _task_alloc(emu, size)
     if not size:
+        emu.heap_free(block)
         return 0
-    old_size = emu.allocations.get(block, 0)
-    if size <= old_size:
-        return block
-    new = emu.alloc(size)
-    emu.write(new, emu.read(block, old_size))
-    return new
+    return emu.heap_realloc(block, size)
 
 
 @api("CoTaskMemAlloc", nargs=1)
@@ -790,7 +790,8 @@ def co_task_mem_realloc(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 @api("CoTaskMemFree", nargs=1)
-def co_task_mem_free(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
+def co_task_mem_free(emu: WindowsEmulator, args: list[int]) -> int:
+    emu.heap_free(args[0])
     return 0
 
 
@@ -818,6 +819,7 @@ def malloc_realloc(emu: WindowsEmulator, obj: ComObject, this: int, args: list[i
 
 @method("IMalloc", "Free")
 def malloc_free(emu: WindowsEmulator, obj: ComObject, this: int, args: list[int]) -> int:  # pylint:disable=unused-argument
+    emu.heap_free(args[0])
     return 0
 
 

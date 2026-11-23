@@ -947,6 +947,23 @@ class TestComObjects(unittest.TestCase):
         assert emu.api_counts["IPersistFile::Save"] == 1 and emu.api_counts["IShellLinkA::SetPath"] == 1
         assert [request[3] for request in emu.com.requests] == [0, 0x80040154, 0x80004002]
 
+    def test_task_allocator_uses_the_heap(self):
+        emu = emulator(b"\xc3")
+        call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
+        blocks = [call("CoTaskMemAlloc", 0x20) for _ in range(64)]
+        # neighbours on the heap, not a 64 KB region each
+        assert max(blocks) - min(blocks) < 0x10000 and len(set(blocks)) == 64
+        emu.write(blocks[0], b"task memory")
+        grown = call("CoTaskMemRealloc", blocks[0], 0x4000)
+        assert grown != blocks[0] and emu.read(grown, 11) == b"task memory"
+        assert blocks[0] not in emu.allocations and emu.allocations[grown] == 0x4000
+        call("CoTaskMemFree", blocks[1])
+        assert blocks[1] not in emu.allocations
+        # the freed block is used again, and it is zeroed like every heap block here
+        assert call("CoTaskMemAlloc", 0x20) in blocks[:2]
+        assert call("CoTaskMemRealloc", grown, 0) == 0 and grown not in emu.allocations
+        assert call("CoTaskMemFree", 0) == 0
+
     def test_allocator_stream_and_wmi(self):
         prog = _ComProgram()
         malloc, stream, locator, services, block = (prog.put(b"\xee" * 4) for _ in range(5))
