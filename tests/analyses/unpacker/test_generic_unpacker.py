@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.unpacker"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
 
 import pefile
@@ -13,6 +14,7 @@ from angr.analyses.unpacker import VMProtectUnpacker
 from angr.analyses.unpacker.emulation import StopReason
 from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
 from angr.analyses.unpacker.protected_unpackers import vmprotect_original_sections
+from tests.common import bin_location
 
 from .samples import IMAGE_BASE, sample, sample_path
 from .test_vmprotect_static import CODE
@@ -102,6 +104,42 @@ class TestUnpackerFacade(unittest.TestCase):
         unpacker = self._project("not_packed.exe").analyses.Unpacker()
         assert unpacker.unpacker is None
         assert unpacker.unpacked is None
+
+
+class TestVirtualizedProgram(unittest.TestCase):
+    """
+    A program that VMProtect virtualized without packing it: the entry point is in .vmp1, the original sections are
+    readable on disk.
+    """
+
+    PATH = os.path.join(bin_location, "tests", "x86_64", "windows", "Project1.vmp.exe")
+
+    def test_nothing_to_unpack(self):
+        unpacker = angr.Project(self.PATH, auto_load_libs=False).analyses.Unpacker()
+        assert unpacker.info is not None
+        assert unpacker.info.protector == "VMProtect"
+        assert unpacker.info.packed is False
+        assert unpacker.unpacker is None
+        assert unpacker.unpacked is None
+
+    def test_runs_to_its_exit(self):
+        # VMProtect's start-up and the virtualized code run until the program shows its dialog and exits
+        with open(self.PATH, "rb") as f:
+            watch = vmprotect_original_sections(f.read())
+        core = GenericUnpackerCore(self.PATH, watch)
+        core.run(timeout=60, settle_timeout=0)
+        assert core.stop is not None
+        assert core.stop.reason is StopReason.EXITED
+        assert core.stop.detail == "ExitProcess(0x0)"
+        emu = core.emu
+        assert emu.exceptions.count == 0
+        # the start-up makes .rdata writable with system calls of its own, not through ntdll
+        assert emu.api_counts["NtProtectVirtualMemory"] == 6
+        # WinMain: DialogBoxParamA(hInstance, 101, NULL, DialogProc, 0)
+        dialogs = [args for name, _, args in emu.api_trace if name == "DialogBoxParamA"]
+        assert dialogs == [(IMAGE_BASE, 101, 0, IMAGE_BASE + 0x1000, 0)]
+        # no section was written and then run: there is no unpacked layer
+        assert core.layers == []
 
 
 if __name__ == "__main__":
