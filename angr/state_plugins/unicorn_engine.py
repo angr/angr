@@ -936,6 +936,10 @@ class Unicorn(SimStatePlugin, SupportsMerge):
             )
         elif arch == "i386":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
+            # without a hook, Unicorn enters ring 0 at the address in the SYSENTER MSR
+            self.uc.hook_add(
+                unicorn.UC_HOOK_INSN, self._hook_sysenter_i386, None, aux1=self._uc_const.UC_X86_INS_SYSENTER
+            )
         elif arch == "mips" or arch == "mipsel":
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
         elif arch == "arm":
@@ -996,6 +1000,13 @@ class Unicorn(SimStatePlugin, SupportsMerge):
         self._syscall_pc = pc
         if not self._quick_syscall(sysno):
             self._handle_syscall(uc, user_data)
+
+    def _hook_sysenter_i386(self, uc, user_data):  # pylint:disable=unused-argument
+        pc = uc.reg_read(self._uc_regs["eip"])
+        l.debug("hit sysenter at %#x", pc)
+        self._syscall_pc = pc + 2  # skip the sysenter instruction
+        self.jumpkind = "Ijk_Sys_sysenter"
+        _UC_NATIVE.stop(self._uc_state, STOP.STOP_SYSCALL)
 
     def _quick_syscall(self, sysno):
         if sysno in self.syscall_hooks:
