@@ -645,6 +645,24 @@ class TestUnicorn(unittest.TestCase):
         assert successors.description.startswith("Unicorn")
         assert successors.successors[0].addr == 0x10005
 
+    def test_sysenter_stops_as_syscall(self):
+        """
+        Unicorn must hand a 32-bit sysenter back as a system call. Without an instruction hook it enters ring 0 at
+        the address in the SYSENTER MSR, and no system call is ever made.
+        """
+        # mov eax, 0x14; mov ebx, 7; sysenter; inc ebx; ret
+        code = bytes.fromhex("b814000000 bb07000000 0f34 43 c3")
+        p = angr.load_shellcode(code, "x86", load_address=0x400000)
+        state = p.factory.blank_state(addr=0x400000, add_options=so.unicorn)
+        successors = state.step()
+        assert successors.description.startswith("Unicorn")
+        (successor,) = successors.successors
+        assert successor.history.jumpkind == "Ijk_Sys_sysenter"
+        # stopped behind the instruction, with nothing after it executed
+        assert successor.addr == 0x40000C
+        assert successor.solver.eval_one(successor.regs.eax) == 0x14
+        assert successor.solver.eval_one(successor.regs.ebx) == 7
+
     def test_vex_archinfo_ctypes_mirror_matches_native(self):
         """
         The ctypes mirror of VexArchInfo is passed by value into unicornlib, which lifts with it. If it
