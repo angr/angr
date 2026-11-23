@@ -4,9 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.unpacker"  # pylint:disable=redefined-builtin
 
-import lzma
 import os
-import struct
 import unittest
 
 import pefile
@@ -17,56 +15,19 @@ from angr.analyses.unpacker.pe_rebuilder import RecoveredImport, rebuild_pe
 from angr.analyses.unpacker.vmprotect_static import VMProtectStaticError, unpack_vmprotect_static
 from tests.common import bin_location
 
-from .pe_builder import IMAGE_BASE, build_pe, fake_code
+from .samples import IMAGE_BASE, sample
 
-LZMA_PROPS = bytes([0x5D, 0x00, 0x00, 0x00, 0x04])
-TEXT_RVA, RDATA_RVA, VMP0_RVA, VMP1_RVA = 0x1000, 0x3000, 0x4000, 0x5000
-CODE = fake_code(0x1800, IMAGE_BASE + TEXT_RVA)
+TEXT_RVA, RDATA_RVA = 0x1000, 0x3000
+# what the VMProtect-like samples hold compressed: the .text of not_packed.exe, .rdata and .vmp0
+CODE = pefile.PE(data=sample("not_packed.exe")).sections[0].get_data()[:0x1800]
 RDATA = b"imported strings and constants " * 64
 VMP0 = bytes(range(256)) * 4
 
 
-def _compress(data: bytes) -> bytes:
-    filters = [{"id": lzma.FILTER_LZMA1, "lc": 3, "lp": 0, "pb": 2, "dict_size": 1 << 26}]
-    compressor = lzma.LZMACompressor(lzma.FORMAT_RAW, filters=filters)
-    return compressor.compress(data) + compressor.flush()
-
-
-def _rol32(value: int, count: int) -> int:
-    count &= 31
-    return ((value << count) | (value >> (32 - count))) & 0xFFFFFFFF
-
-
-def build_vmprotect_like(encrypted_table: bool) -> bytes:
-    """
-    A PE laid out like a VMProtect-packed file: empty original sections, compressed blocks and PACKER_INFO in .vmp1.
-    """
-    blocks = [(TEXT_RVA, _compress(CODE)), (RDATA_RVA, _compress(RDATA)), (VMP0_RVA, _compress(VMP0))]
-    table_size = 8 * (len(blocks) + 1)
-    loader = b"\x68\x78\x56\x34\x12\xe8\x00\x00\x00\x00".ljust(0x20, b"\xcc")
-    payload_off = len(loader) + len(LZMA_PROPS) + table_size
-    table = struct.pack("<II", VMP1_RVA + len(loader), 0)
-    stream = bytearray()
-    key = 0x5A17C3D9
-    for idx, (dst, block) in enumerate(blocks):
-        stored = dst ^ _rol32(key, 7 * idx) if encrypted_table else dst
-        table += struct.pack("<II", VMP1_RVA + payload_off + len(stream), stored)
-        stream += block
-    vmp1 = loader + LZMA_PROPS + table + bytes(stream)
-    return build_pe(
-        [
-            (b".text", TEXT_RVA, 0x1800, b"", 0x60000020),
-            (b".rdata", RDATA_RVA, len(RDATA), b"", 0x40000040),
-            (b".vmp0", VMP0_RVA, len(VMP0), b"", 0x60000060),
-            (b".vmp1", VMP1_RVA, len(vmp1), vmp1, 0xE0000060),
-        ],
-        entry_rva=VMP1_RVA,
-    )
-
-
 class TestVMProtectStatic(unittest.TestCase):
-    def _check(self, encrypted_table: bool, kind: str):
-        packed = build_vmprotect_like(encrypted_table)
+    def _check(self, kind: str):
+        # laid out like a VMProtect-packed file: empty original sections, compressed blocks and PACKER_INFO in .vmp1
+        packed = sample(f"vmprotect_like_{kind}_table.exe")
         info = identify_packer(packed)
         assert info.protector == "VMProtect"
         assert info.packed is True
@@ -83,13 +44,13 @@ class TestVMProtectStatic(unittest.TestCase):
         assert identify_packer(rebuilt).packed is False
 
     def test_plain_table(self):
-        self._check(False, "plain")
+        self._check("plain")
 
     def test_encrypted_table(self):
-        self._check(True, "encrypted")
+        self._check("encrypted")
 
     def test_not_packed(self):
-        plain = build_pe([(b".text", TEXT_RVA, len(CODE), CODE, 0x60000020)], entry_rva=TEXT_RVA)
+        plain = sample("not_packed.exe")
         assert identify_packer(plain).protector is None
         with self.assertRaises(VMProtectStaticError):
             unpack_vmprotect_static(plain)
@@ -116,7 +77,7 @@ class TestVMProtectStatic(unittest.TestCase):
 class TestPERebuilder(unittest.TestCase):
     def test_import_section(self):
         image = bytearray(0x3000)
-        plain = build_pe([(b".text", TEXT_RVA, 0x2000, CODE, 0x60000020)], entry_rva=TEXT_RVA)
+        plain = sample("not_packed_0x2000.exe")
         image[:0x400] = plain[:0x400]
         image[TEXT_RVA : TEXT_RVA + len(CODE)] = CODE
         imports = [

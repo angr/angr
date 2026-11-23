@@ -4,9 +4,6 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.unpacker"  # pylint:disable=redefined-builtin
 
-import os
-import struct
-import tempfile
 import unittest
 
 import pefile
@@ -17,62 +14,34 @@ from angr.analyses.unpacker.emulation import StopReason
 from angr.analyses.unpacker.generic_unpacker import GenericUnpackerCore
 from angr.analyses.unpacker.protected_unpackers import vmprotect_original_sections
 
-from .pe_builder import IMAGE_BASE, build_pe, fake_code
-from .test_vmprotect_static import CODE, build_vmprotect_like
+from .samples import IMAGE_BASE, sample, sample_path
+from .test_vmprotect_static import CODE
 
 TEXT_RVA, STUB_RVA = 0x1000, 0x3000
 OEP_RVA = TEXT_RVA + 0x800
 XOR_KEY = 0x5A
 
 
-def build_xor_packed(use_seh: bool = False) -> tuple[bytes, bytes]:
+def xor_packed_code(name: str) -> bytes:
     """
-    A PE whose .text is XOR-encrypted on disk; the entry stub decrypts it in place and jumps to the OEP.
-
-    With use_seh, the stub first faults on purpose and relies on its SEH handler to skip the faulting instruction.
+    The code that the XOR-packed sample holds encrypted in its .text section.
     """
-    code = bytearray(fake_code(0x1000, IMAGE_BASE + TEXT_RVA))
-    code[OEP_RVA - TEXT_RVA : OEP_RVA - TEXT_RVA + 3] = b"\x31\xc0\xc3"  # xor eax, eax; ret
-    encrypted = bytes(b ^ XOR_KEY for b in code)
-    stub = b""
-    if use_seh:
-        handler_rva = STUB_RVA + 0x80
-        stub += b"\x68" + struct.pack("<I", IMAGE_BASE + handler_rva)  # push handler
-        stub += bytes.fromhex("64ff3500000000 64892500000000")  # push fs:[0]; mov fs:[0], esp
-        stub += bytes.fromhex("31c0 8900")  # xor eax, eax; mov [eax], eax
-        stub += bytes.fromhex("648f0500000000 83c404")  # pop fs:[0]; add esp, 4
-    stub += b"\xbe" + struct.pack("<I", IMAGE_BASE + TEXT_RVA)  # mov esi, .text
-    stub += b"\xb9" + struct.pack("<I", len(code))  # mov ecx, size
-    stub += bytes([0x80, 0x36, XOR_KEY, 0x46, 0xE2, 0xFA])  # xor byte [esi], key; inc esi; loop
-    stub += b"\xe9" + struct.pack("<i", OEP_RVA - (STUB_RVA + len(stub) + 5))  # jmp OEP
-    if use_seh:
-        # handler: ctx = [esp+0xc]; ctx->Eip += 2; return ExceptionContinueExecution
-        stub = stub.ljust(0x80, b"\xcc") + bytes.fromhex("8b44240c 8380b800000002 31c0 c3")
-    packed = build_pe(
-        [
-            (b".text", TEXT_RVA, len(code), encrypted, 0xE0000020),
-            (b".stub", STUB_RVA, len(stub), stub, 0x60000020),
-        ],
-        entry_rva=STUB_RVA,
-    )
-    return packed, bytes(code)
+    return bytes(b ^ XOR_KEY for b in pefile.PE(data=sample(name)).sections[0].get_data()[:0x1000])
 
 
 class TestGenericUnpacker(unittest.TestCase):
     def test_xor_packed(self):
-        self._check(use_seh=False)
+        # .text is XOR-encrypted on disk; the entry stub decrypts it in place and jumps to the OEP
+        self._check("xor_packed.exe")
 
     def test_xor_packed_with_seh(self):
-        self._check(use_seh=True)
+        # the stub first faults on purpose and relies on its SEH handler to skip the faulting instruction
+        self._check("xor_packed_seh.exe")
 
-    def _check(self, use_seh: bool):
-        packed, code = build_xor_packed(use_seh)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "packed.exe")
-            with open(path, "wb") as f:
-                f.write(packed)
-            proj = angr.Project(path, auto_load_libs=False)
-            unpacker = proj.analyses.GenericUnpacker(timeout=30, settle_timeout=5)
+    def _check(self, name: str):
+        code = xor_packed_code(name)
+        proj = angr.Project(sample_path(name), auto_load_libs=False)
+        unpacker = proj.analyses.GenericUnpacker(timeout=30, settle_timeout=5)
 
         assert unpacker.oep == IMAGE_BASE + OEP_RVA
         assert len(unpacker.layers) == 1
@@ -86,31 +55,11 @@ class TestGenericUnpacker(unittest.TestCase):
     def test_entry_point_in_packed_section(self):
         # the entry stub sits inside the packed .text; the loader decrypts .text, restores the original entry code,
         # calls an API and jumps back to the entry point
-        code = bytearray(fake_code(0x1000, IMAGE_BASE + TEXT_RVA))
-        code[OEP_RVA - TEXT_RVA : OEP_RVA - TEXT_RVA + 3] = b"\x31\xc0\xc3"  # xor eax, eax; ret
-        encrypted = bytearray(b ^ XOR_KEY for b in code)
-        encrypted[OEP_RVA - TEXT_RVA : OEP_RVA - TEXT_RVA + 5] = b"\xe9" + struct.pack("<i", STUB_RVA - OEP_RVA - 5)
+        name = "xor_packed_entry_in_text.exe"
         cell = IMAGE_BASE + STUB_RVA + 0x100
-        stub = b"\xbe" + struct.pack("<I", IMAGE_BASE + TEXT_RVA)  # mov esi, .text
-        stub += b"\xb9" + struct.pack("<I", len(code))  # mov ecx, size
-        stub += bytes([0x80, 0x36, XOR_KEY, 0x46, 0xE2, 0xFA])  # xor byte [esi], key; inc esi; loop
         oep = IMAGE_BASE + OEP_RVA
-        stub += b"\xc7\x05" + struct.pack("<II", oep, 0x90C3C031)  # mov dword [oep], xor eax, eax; ret
-        stub += b"\xff\x15" + struct.pack("<I", cell)  # call [GetTickCount]
-        stub += b"\xe9" + struct.pack("<i", OEP_RVA - (STUB_RVA + len(stub) + 5))  # jmp oep
-        packed = build_pe(
-            [
-                (b".text", TEXT_RVA, len(code), bytes(encrypted), 0xE0000020),
-                (b" 0", STUB_RVA, 0x200, stub, 0xE0000020),
-            ],
-            entry_rva=OEP_RVA,
-        )
-        assert vmprotect_original_sections(packed) == {0}
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "packed.exe")
-            with open(path, "wb") as f:
-                f.write(packed)
-            core = GenericUnpackerCore(path, {0})
+        assert vmprotect_original_sections(sample(name)) == {0}
+        core = GenericUnpackerCore(sample_path(name), {0})
         api = core.emu.resolve_export(core.emu.load_module("kernel32.dll"), "GetTickCount")
         assert api is not None
         core.emu.write_u32(cell, api)
@@ -119,13 +68,9 @@ class TestGenericUnpacker(unittest.TestCase):
 
     def test_snapshot_without_transfer(self):
         # the stub decrypts .text but returns instead of jumping to the OEP
-        packed, code = build_xor_packed()
-        packed = packed.replace(b"\xe2\xfa\xe9", b"\xe2\xfa\xc3")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "packed.exe")
-            with open(path, "wb") as f:
-                f.write(packed)
-            unpacker = angr.Project(path, auto_load_libs=False).analyses.GenericUnpacker(timeout=30)
+        name = "xor_packed_no_transfer.exe"
+        code = xor_packed_code(name)
+        unpacker = angr.Project(sample_path(name), auto_load_libs=False).analyses.GenericUnpacker(timeout=30)
         assert unpacker.oep is None
         assert unpacker.unpacked is not None
         pe = pefile.PE(data=unpacker.unpacked)
@@ -134,25 +79,18 @@ class TestGenericUnpacker(unittest.TestCase):
 
 
 class TestUnpackerFacade(unittest.TestCase):
-    def _project(self, tmpdir: str, data: bytes) -> angr.Project:
-        path = os.path.join(tmpdir, "sample.exe")
-        with open(path, "wb") as f:
-            f.write(data)
-        return angr.Project(path, auto_load_libs=False)
+    def _project(self, name: str) -> angr.Project:
+        return angr.Project(sample_path(name), auto_load_libs=False)
 
     def test_generic(self):
-        packed, _ = build_xor_packed()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            unpacker = self._project(tmpdir, packed).analyses.Unpacker(timeout=30)
+        unpacker = self._project("xor_packed.exe").analyses.Unpacker(timeout=30)
         assert unpacker.info is not None
         assert unpacker.info.protector is None
         assert unpacker.oep == IMAGE_BASE + OEP_RVA
 
     def test_vmprotect_falls_back_to_static(self):
         # the synthetic loader stub cannot run, so only the static unpacker can succeed
-        packed = build_vmprotect_like(encrypted_table=False)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            unpacker = self._project(tmpdir, packed).analyses.Unpacker(timeout=30)
+        unpacker = self._project("vmprotect_like_plain_table.exe").analyses.Unpacker(timeout=30)
         assert unpacker.info is not None
         assert unpacker.info.protector == "VMProtect"
         assert isinstance(unpacker.unpacker, VMProtectUnpacker)
@@ -161,9 +99,7 @@ class TestUnpackerFacade(unittest.TestCase):
         assert pefile.PE(data=unpacker.unpacked).sections[0].get_data()[: len(CODE)] == CODE
 
     def test_not_packed(self):
-        plain = build_pe([(b".text", TEXT_RVA, len(CODE), CODE, 0x60000020)], entry_rva=TEXT_RVA)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            unpacker = self._project(tmpdir, plain).analyses.Unpacker()
+        unpacker = self._project("not_packed.exe").analyses.Unpacker()
         assert unpacker.unpacker is None
         assert unpacker.unpacked is None
 

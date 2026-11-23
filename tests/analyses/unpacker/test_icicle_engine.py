@@ -15,7 +15,7 @@ from angr.rustylib import winemu
 from angr.rustylib.winemu import WinVm
 
 from . import test_emulation
-from .pe_builder import IMAGE_BASE
+from .samples import IMAGE_BASE
 from .test_emulation import CODE_RVA, emulator
 
 CODE = 0x400000
@@ -220,7 +220,7 @@ class TestUntouchedPages(unittest.TestCase):
         answers = []
         for engine in ("unicorn", "icicle"):
             with mock.patch.object(test_emulation, "ENGINE", engine):
-                emu = emulator(b"\xc3")
+                emu = emulator()
             buf = emu.alloc(0x1000)
             addr = API_HANDLERS["VirtualAlloc"].func(emu, [0, 0x3000, 0x3000, 0x40])
             assert addr and emu.is_mapped(addr + 0x1000)
@@ -243,12 +243,12 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
     """
 
     def test_engine(self):
-        assert isinstance(emulator(b"\xc3"), IcicleWindowsEmulator)
+        assert isinstance(emulator(), IcicleWindowsEmulator)
 
     def test_cli_and_port_io_raise(self):
         # nop; cli / in al, dx / out dx, al: STATUS_PRIVILEGED_INSTRUCTION at the instruction
-        for opcode in (0xFA, 0xFB, 0xEC, 0xEE):
-            emu = emulator(bytes((0x90, opcode, 0xC3)))
+        for name in ("cli.exe", "sti.exe", "in.exe", "out.exe"):
+            emu = emulator(name)
             emu.start()
             stop = emu.run(max_blocks=1000)
             assert stop.reason is StopReason.ERROR
@@ -257,7 +257,7 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
     def test_tracing_zeroed_data_is_cheap(self):
         # pointers into zeroed memory are tried as import wrappers by the thousand: none may leave thousands of
         # translated instructions behind
-        emu = emulator(b"\xc3")
+        emu = emulator()
         emu.start()
         region = emu.alloc(0x100000)
         emu.write(region + 0x8000, b"\x90\x90\x40")
@@ -267,7 +267,8 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
         assert len(emu.vm.lifted_instructions()) - before < 200
 
     def test_returns(self):
-        emu = emulator(b"\xb8\x07\x00\x00\x00\xc3")
+        # mov eax, 7; ret
+        emu = emulator("mov_eax_7.exe")
         emu.start()
         assert emu.run(max_blocks=1000).reason is StopReason.RETURNED
         assert emu.reg("eax") == 7

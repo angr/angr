@@ -21,29 +21,28 @@ from angr.analyses.unpacker.emulation.syscalls import WIN7_X64_SYSCALLS, WIN7_X8
 from angr.analyses.unpacker.generic_unpacker import Engine, GenericUnpackerCore
 from angr.errors import SimSegfaultException
 
-from .pe_builder import IMAGE_BASE, IMAGE_BASE_64, build_pe
+from .samples import IMAGE_BASE, IMAGE_BASE_64, sample_path
 
 CODE_RVA = 0x1000
 HANDLE = 0x1234
+# the DLL that imports_api_set.exe imports from
+IMPORTED_API_SET = "api-ms-win-core-synch-l1-2-0.dll"
 
 
 # the engine of the tests in this module; test_icicle_engine reruns some of them on Icicle
 ENGINE: Engine = "unicorn"
 
 
-def emulator(code: bytes, is_64bit: bool = False, directories: dict[int, tuple[int, int]] | None = None):
-    sections = [(b".text", CODE_RVA, 0x1000, code, 0xE0000020)]
-    packed = build_pe(sections, entry_rva=CODE_RVA, is_64bit=is_64bit, directories=directories)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "sample.exe")
-        with open(path, "wb") as f:
-            f.write(packed)
-        return GenericUnpackerCore(path, watch_sections=set(), engine=ENGINE).emu
+def emulator(name: str = "host.exe", is_64bit: bool = False):
+    """
+    The emulator for a sample. host.exe is one writable, executable page of code at CODE_RVA that only returns.
+    """
+    return GenericUnpackerCore(sample_path(name, is_64bit), watch_sections=set(), engine=ENGINE).emu
 
 
 class TestApiHandlers(unittest.TestCase):
     def test_wvsprintf(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         emu.write(buf, b"%s=%d %05u 0x%08X %c%% %-4sx %ls\0")
         emu.write(buf + 0x100, b"key\0ab\0" + "wide".encode("utf-16-le") + b"\0\0")
@@ -55,7 +54,7 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read_cstr(buf + 0x400) == expected
 
     def test_current_directory(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         desktop = "C:\\Users\\admin\\Desktop"
@@ -68,7 +67,7 @@ class TestApiHandlers(unittest.TestCase):
         assert call("GetCurrentDirectoryW", 0x100, buf) == len("C:\\Windows\\System32")
         assert emu.read_wstr(buf) == "C:\\Windows\\System32"
         # the process parameters in the PEB say the same
-        for emu64 in (emu, emulator(b"\xc3", True)):
+        for emu64 in (emu, emulator(is_64bit=True)):
             assert API_HANDLERS["SetCurrentDirectoryA"].func(emu64, [emu64.alloc_cstr("C:\\Windows\\System32")]) == 1
             params = emu64.read_ptr(emu64.peb + (0x20 if emu64.is_64bit else 0x10))
             dos_path = params + (0x38 if emu64.is_64bit else 0x24)
@@ -81,7 +80,7 @@ class TestApiHandlers(unittest.TestCase):
         assert length == len(emu.read_cstr(buf)) and emu.read_cstr(buf).endswith("\\Temp\\")
 
     def test_created_files_read_back(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         invalid = -1
@@ -126,7 +125,7 @@ class TestApiHandlers(unittest.TestCase):
         assert call("GetFileAttributesA", path) == invalid
 
     def test_native_created_files(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         name = "\\??\\C:\\Windows\\Temp\\a.tmp".encode("utf-16-le")
@@ -147,7 +146,7 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read(data + 0x10, 4) == b"abcd"
 
     def test_find_files(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         # nothing found is INVALID_HANDLE_VALUE, not NULL
@@ -167,7 +166,7 @@ class TestApiHandlers(unittest.TestCase):
         assert call("FindClose", find) == 1
         # the sample finds itself
         assert call("FindFirstFileA", emu.alloc_cstr(emu.image_path), buf) != -1
-        assert emu.read_cstr(buf + 44) == "sample.exe"
+        assert emu.read_cstr(buf + 44) == "host.exe"
         # system files that can be opened are listed too, and so are the system directories
         for pattern, expected in (
             (
@@ -191,7 +190,7 @@ class TestApiHandlers(unittest.TestCase):
                 with open(os.path.join(lists, name), "w", encoding="utf-8") as f:
                     f.write('{"1": "A"}' if "ordinals" in name else '{"A": 0}')
             with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": lists}):
-                emu = emulator(b"\xc3")
+                emu = emulator()
             buf = emu.alloc(0x1000)
             find = call("FindFirstFileW", emu.alloc_cstr("C:\\Windows\\system32\\*.DLL", wide=True), buf)
             assert find != -1 and emu.read_wstr(buf + 44) == "kernel32.dll" and emu.read_u32(buf) == 0x20
@@ -199,7 +198,7 @@ class TestApiHandlers(unittest.TestCase):
             assert call("FindNextFileW", find, buf) == 0
 
     def test_values_that_are_not_zero(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         assert call("GetUserDefaultUILanguage") == 0x409
@@ -223,7 +222,7 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read_wstr(buf) == "xy"
 
     def test_environment_variables(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         name, value = emu.alloc_cstr("WLNumDLLsProt"), emu.alloc_cstr("3")
@@ -245,7 +244,7 @@ class TestApiHandlers(unittest.TestCase):
         assert b"WLNumDLLsProt" not in emu.read(call("GetEnvironmentStrings"), 0x800)
 
     def test_legacy_file_calls_and_sockets(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         hfile_error = -1
@@ -271,7 +270,7 @@ class TestApiHandlers(unittest.TestCase):
 
     def test_global_memory_handles(self):
         # GlobalAlloc/LocalAlloc hand out the block's address as its handle; locking it yields the same address
-        emu = emulator(b"\xc3")
+        emu = emulator()
         handle = API_HANDLERS["GlobalAlloc"].func(emu, [0x2002, 0x100])
         assert handle
         assert API_HANDLERS["GlobalLock"].func(emu, [handle]) == handle
@@ -282,7 +281,7 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read(bigger, 4) == b"data"
 
     def test_raise_hard_error_message(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         for idx, text in enumerate(("Entry point missing", "sample.exe")):
             data = text.encode("utf-16-le")
@@ -296,7 +295,7 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read_u32(buf + 0x80) == 6
 
     def test_memory_queries(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         ntdll = emu.load_module("ntdll.dll")
         query = API_HANDLERS["VirtualQuery"].func
@@ -319,7 +318,7 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read_u32(buf + 0x10) == 3
 
     def test_native_file_mapping(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         path = ("\\??\\" + emu.image_path).encode("utf-16-le")
         emu.write(buf + 0x100, path)
@@ -341,7 +340,7 @@ class TestApiHandlers(unittest.TestCase):
     def test_entry_point_stack(self):
         # the entry point returns into kernel32 and finds BaseThreadInitThunk's frame and arguments where Windows 7
         # puts them: edx = [ebp + 0x60] = entry, [ebp + 8] = PEB
-        emu = emulator(b"\xc3")
+        emu = emulator()
         emu.start()
         entry = IMAGE_BASE + CODE_RVA
         kernel32 = emu.load_module("kernel32.dll")
@@ -353,7 +352,7 @@ class TestApiHandlers(unittest.TestCase):
 
     def test_stdcall_handlers_pop_their_arguments(self):
         # a handler popping the wrong number of bytes shifts the caller's saved registers
-        emu = emulator(b"\xc3")
+        emu = emulator()
         for dll, name, nargs in (
             ("kernel32.dll", "SetHandleCount", 1),
             ("kernel32.dll", "HeapDestroy", 1),
@@ -374,7 +373,7 @@ class TestApiHandlers(unittest.TestCase):
     def test_stack_pointer_before_start(self):
         # both engines: the main thread is on its own stack as soon as the process exists
         for is_64bit in (False, True):
-            emu = emulator(b"\xc3", is_64bit)
+            emu = emulator(is_64bit=is_64bit)
             sp = emu.sp
             assert sp == emu.thread.stack_base - 0x2000
             assert emu.space.find(sp) == (emu.thread.stack_base - emu.STACK_SIZE, emu.thread.stack_base)
@@ -384,12 +383,12 @@ class TestApiHandlers(unittest.TestCase):
             assert sp - 0x80 <= emu.sp < sp
 
     def test_static_dll_dependencies(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         emu.load_module("shell32.dll")
         assert {"user32.dll", "gdi32.dll", "shlwapi.dll"} <= set(emu.modules)
 
     def test_toolhelp_threads_and_affinity(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         snapshot = call("CreateToolhelp32Snapshot", 4, 0)  # TH32CS_SNAPTHREAD
@@ -407,14 +406,14 @@ class TestApiHandlers(unittest.TestCase):
 
     def test_loader_name_buffers(self):
         # the character after a short BaseDllName is the next heap block's header, never a terminator
-        emu = emulator(b"\xc3")
+        emu = emulator()
         ntdll = emu._ldr_entries["ntdll.dll"]  # pylint:disable=protected-access
         buf = emu.read_ptr(ntdll + emu._layout.entry_base_name + emu.ptr_size)  # pylint:disable=protected-access
         assert emu.read(buf, 20) == "ntdll.dll\0".encode("utf-16-le")
         assert emu.read(buf + 24, 2) != b"\0\0"
 
     def test_heap(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         # small blocks share a segment; a freed block is reused zeroed; HeapSize reports the requested size
         blocks = [call("HeapAlloc", emu.process_heap, 0, 0x20) for _ in range(1000)]
@@ -433,7 +432,7 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.reg("eax") == 0
 
     def test_pagefile_mapping(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         emu.write(buf, b"Local\\demo\0")
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
@@ -447,7 +446,7 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.read(call("MapViewOfFile", second, 6, 0, 0, 0), 6) == b"shared"
 
     def test_system_files(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         assert call("GetWindowsDirectoryA", buf, 0x100) == 10
@@ -462,7 +461,7 @@ class TestApiHandlers(unittest.TestCase):
         assert call("CreateFileA", buf, 0x80000000, 1, 0, 3, 0x80, 0) == -1
 
     def test_virtual_protect_into_unmapped_memory(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         perms = emu.perms(buf)
         # the range runs past the allocation: nothing changes and the call fails
@@ -471,7 +470,7 @@ class TestApiHandlers(unittest.TestCase):
         assert emu.perms(buf) == perms
 
     def _process_list(self, is_64bit: bool, name_offset: int, size: int) -> None:
-        emu = emulator(b"\xc3", is_64bit=is_64bit)
+        emu = emulator(is_64bit=is_64bit)
         entry = emu.alloc(0x1000)
         first, following = API_HANDLERS["Process32FirstW"].func, API_HANDLERS["Process32NextW"].func
         snapshot = API_HANDLERS["CreateToolhelp32Snapshot"].func(emu, [2, 0])
@@ -486,7 +485,7 @@ class TestApiHandlers(unittest.TestCase):
             processes.append((emu.read_wstr(entry + name_offset), pid, parent))
             ok = following(emu, [snapshot, entry])
         explorer = next(pid for name, pid, _ in processes if name == "explorer.exe")
-        assert processes[-1] == ("sample.exe", emu.PID, explorer)
+        assert processes[-1] == ("host.exe", emu.PID, explorer)
         assert len(processes) > 10
 
     def test_process_snapshot(self):
@@ -494,7 +493,7 @@ class TestApiHandlers(unittest.TestCase):
         self._process_list(True, 0x2C, 0x238)
 
     def test_registry_keeps_what_the_sample_writes(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         emu.write(buf, "Software\\Trial".encode("utf-16-le") + b"\0\0")
@@ -520,7 +519,7 @@ class TestApiHandlers(unittest.TestCase):
         assert call("RegOpenKeyExW", 0x80000002, buf, 0, 0x20019, buf + 0x100) == 2
 
     def test_registry_enumeration_and_deletion(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         hkcu = 0x80000001
@@ -577,7 +576,7 @@ class TestApiHandlers(unittest.TestCase):
 
     def test_splash_picture(self):
         # CreateStreamOnHGlobal + OleLoadPicture on a 600x400 BMP, then IPicture::get_Width through its vtable
-        emu = emulator(b"\xc3")
+        emu = emulator()
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         image = call("GlobalAlloc", 2, 0x40)
         assert call("GlobalLock", image) == image
@@ -596,7 +595,7 @@ class TestApiHandlers(unittest.TestCase):
         assert "IPicture::get_Width" not in emu.load_module("kernel32.dll").exports
 
     def test_message_box_ex(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         emu.write(buf, "text".encode("utf-16-le") + b"\0\0")
         emu.write(buf + 0x100, "title".encode("utf-16-le") + b"\0\0")
@@ -605,7 +604,7 @@ class TestApiHandlers(unittest.TestCase):
 
     def test_splash_window_and_dib_section(self):
         # what Themida's splash screen does: a window, a DC and a DIB section whose bits it fills
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         emu.write(buf + 0x100, b"Splash\0")
@@ -627,7 +626,7 @@ class TestApiHandlers(unittest.TestCase):
         assert call("SetDIBColorTable", dc, 0, 0xFF, buf + 0x400) == 0xFF
 
     def test_check_sum_mapped_file(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         data = bytearray(emu.image_file)
         pe = pefile.PE(data=bytes(data))
         pe.OPTIONAL_HEADER.CheckSum = 0x12345678
@@ -647,7 +646,7 @@ class TestApiHandlers(unittest.TestCase):
     def test_query_information_process_argument_checks(self):
         # protectors pass bad arguments to the debug queries and compare the statuses with what the kernel answers
         for is_64bit in (False, True):
-            emu = emulator(b"\xc3", is_64bit)
+            emu = emulator(is_64bit=is_64bit)
             buf = emu.alloc(0x1000)
             ptr = emu.ptr_size
             query = lambda *args, emu=emu: API_HANDLERS["NtQueryInformationProcess"].func(emu, [0xFFFFFFFF, *args])
@@ -686,7 +685,7 @@ class TestApiHandlers(unittest.TestCase):
 
     def test_thread_information_argument_checks(self):
         for is_64bit in (False, True):
-            emu = emulator(b"\xc3", is_64bit)
+            emu = emulator(is_64bit=is_64bit)
             emu.start()
             buf = emu.alloc(0x1000)
             ptr = emu.ptr_size
@@ -732,7 +731,7 @@ class TestApiHandlers(unittest.TestCase):
 
     def test_query_system_information_argument_checks(self):
         for is_64bit in (False, True):
-            emu = emulator(b"\xc3", is_64bit)
+            emu = emulator(is_64bit=is_64bit)
             buf = emu.alloc(0x1000)
             query = lambda *args, emu=emu: API_HANDLERS["NtQuerySystemInformation"].func(emu, list(args))
             # SystemKernelDebuggerInformation: two bytes at any address; a larger buffer is fine
@@ -752,7 +751,7 @@ class TestApiHandlers(unittest.TestCase):
     def test_object_types(self):
         # NtQueryObject(ObjectTypesInformation), walked the way programs that look for debug objects do
         for is_64bit in (False, True):
-            emu = emulator(b"\xc3", is_64bit)
+            emu = emulator(is_64bit=is_64bit)
             buf = emu.alloc(0x4000)
             ptr = emu.ptr_size
             call = lambda name, *args, emu=emu: API_HANDLERS[name].func(emu, list(args))
@@ -801,7 +800,7 @@ class TestApiHandlers(unittest.TestCase):
     def test_debug_object_count(self):
         # NtCreateDebugObject, then NtQueryObject(ObjectTypeInformation): the program's object is the only one
         for is_64bit in (False, True):
-            emu = emulator(b"\xc3", is_64bit)
+            emu = emulator(is_64bit=is_64bit)
             buf = emu.alloc(0x1000)
             call = lambda name, *args, emu=emu: API_HANDLERS[name].func(emu, list(args))
             assert call("NtCreateDebugObject", buf, 0x1F000F, 0, 0) == 0
@@ -823,20 +822,8 @@ class TestThreads(unittest.TestCase):
         # main: CreateThread(worker); 3 x Sleep(50); cell[1] = GetTickCount(); Sleep(60000); ret
         # worker: Sleep(60000); cell[0] = 1; ret 4
         base = IMAGE_BASE + CODE_RVA
-        iat, cell, worker = base + 0x200, base + 0x300, base + 0x80
-        p32 = lambda value: struct.pack("<I", value)
-        call = lambda idx: b"\xff\x15" + p32(iat + 4 * idx)
-        sleep_60s = b"\x68" + p32(60000) + call(0)
-        main = (
-            b"\x6a\x00\x6a\x00\x6a\x00\x68" + p32(worker) + b"\x6a\x00\x6a\x00" + call(1)
-            + b"\xbe" + p32(3) + b"\x6a\x32" + call(0) + b"\x4e\x75\xf5"
-            + call(2) + b"\xa3" + p32(cell + 4) + sleep_60s + b"\xc3"
-        )  # fmt: skip
-        code = bytearray(0x400)
-        code[: len(main)] = main
-        body = sleep_60s + b"\xc7\x05" + p32(cell) + p32(1) + b"\xc2\x04\x00"
-        code[0x80 : 0x80 + len(body)] = body
-        emu = emulator(bytes(code))
+        iat, cell = base + 0x200, base + 0x300
+        emu = emulator("sleep_poll_long_sleeper.exe")
         kernel32 = emu.load_module("kernel32.dll")
         for idx, name in enumerate(("Sleep", "CreateThread", "GetTickCount")):
             addr = emu.resolve_export(kernel32, name)
@@ -854,17 +841,8 @@ class TestThreads(unittest.TestCase):
     def test_long_sleep_poll_loop(self):
         # main: CreateThread(worker); while (!flag) Sleep(50); ret        worker: Sleep(60000); flag = 1; ret 4
         base = IMAGE_BASE + CODE_RVA
-        iat, flag, worker = base + 0x200, base + 0x300, base + 0x80
-        p32 = lambda value: struct.pack("<I", value)
-        call = lambda idx: b"\xff\x15" + p32(iat + 4 * idx)
-        loop = b"\x6a\x32" + call(0) + b"\x83\x3d" + p32(flag) + b"\x00"
-        main = b"\x6a\x00\x6a\x00\x6a\x00\x68" + p32(worker) + b"\x6a\x00\x6a\x00" + call(1)
-        main += loop + b"\x74" + bytes([0x100 - len(loop) - 2]) + b"\xc3"
-        body = b"\x68" + p32(60000) + call(0) + b"\xc7\x05" + p32(flag) + p32(1) + b"\xc2\x04\x00"
-        code = bytearray(0x400)
-        code[: len(main)] = main
-        code[0x80 : 0x80 + len(body)] = body
-        emu = emulator(bytes(code))
+        iat, flag = base + 0x200, base + 0x300
+        emu = emulator("sleep_poll_loop.exe")
         kernel32 = emu.load_module("kernel32.dll")
         for idx, name in enumerate(("Sleep", "CreateThread")):
             addr = emu.resolve_export(kernel32, name)
@@ -885,7 +863,7 @@ class TestThreads(unittest.TestCase):
             assert emu.tick - start == 60000
 
     def test_sleep_poll_streak_resets(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         worker = emu.spawn_thread(IMAGE_BASE + CODE_RVA, 0)
         worker.wake_tick = emu.tick + 60000
         get_tick_count = emu.resolve_export(emu.load_module("kernel32.dll"), "GetTickCount")
@@ -915,7 +893,7 @@ class TestThreads(unittest.TestCase):
         call = lambda idx: b"\xff\x15" + p32(iat + 4 * idx)
         # the worker sleeps past the timeout, or signals the event after 100 ms
         for signals, result, low, high in ((False, 0x102, 5000, 5100), (True, 0, 100, 200)):
-            emu = emulator(bytes(0x400))
+            emu = emulator("blank_0x400.exe")
             event = API_HANDLERS["CreateEventA"].func(emu, [0, 0, 0, 0])
             assert event is not None
             main = (
@@ -940,7 +918,7 @@ class TestThreads(unittest.TestCase):
             assert emu.read_u32(cell) == result
             assert low <= emu.read_u32(cell + 4) - start < high
         # alone: the wait elapses at once, and the clock shows it
-        emu = emulator(b"\xc3")
+        emu = emulator()
         event = API_HANDLERS["CreateEventA"].func(emu, [0, 0, 0, 0])
         start = emu.tick
         assert API_HANDLERS["WaitForSingleObject"].func(emu, [event, 3000]) == 0x102
@@ -952,11 +930,7 @@ class TestThreads(unittest.TestCase):
         # 2 x GetTickCount, then copy KUSER_SHARED_DATA's TickCount, InterruptTime and SystemTime (low parts)
         base = IMAGE_BASE + CODE_RVA
         iat, cell = base + 0x200, base + 0x300
-        p32 = lambda value: struct.pack("<I", value)
-        main = (b"\xff\x15" + p32(iat)) * 2
-        for idx, offset in enumerate((0x320, 0x08, 0x14, 0x04)):
-            main += b"\xa1" + p32(0x7FFE0000 + offset) + b"\xa3" + p32(cell + 4 * idx)
-        emu = emulator(main + b"\xc3")
+        emu = emulator("shared_data_time.exe")
         addr = emu.resolve_export(emu.load_module("kernel32.dll"), "GetTickCount")
         assert addr is not None
         emu.write_u32(iat, addr)
@@ -977,97 +951,43 @@ def _guid(text: str) -> bytes:
     return struct.pack("<IHH", int(first, 16), int(second, 16), int(third, 16)) + bytes.fromhex(fourth + fifth)
 
 
-class _ComProgram:
+def _run_com_program(name: str, apis: tuple[tuple[str, str], ...], calls: int):
     """
-    x86 guest code that calls APIs and COM methods, storing eax and esp after each call.
+    Run a sample that calls APIs and COM methods and stores eax and esp after each call. Returns the emulator and
+    the values the calls returned.
     """
-
-    BASE = IMAGE_BASE + CODE_RVA
-    IAT, RESULTS, DATA = BASE + 0x600, BASE + 0x700, BASE + 0x900
-
-    def __init__(self):
-        self.code = b""
-        self.data = b""
-        self.apis: list[tuple[str, str]] = []
-        self.calls = 0
-
-    def put(self, data: bytes) -> int:
-        addr = self.DATA + len(self.data)
-        self.data += data + bytes(-len(data) % 4)
-        return addr
-
-    def _record(self) -> int:
-        p32 = lambda value: struct.pack("<I", value)
-        # mov [results + 8n], eax; mov [results + 8n + 4], esp
-        self.code += b"\xa3" + p32(self.RESULTS + 8 * self.calls) + b"\x89\x25" + p32(self.RESULTS + 8 * self.calls + 4)
-        self.calls += 1
-        return self.calls - 1
-
-    def _push(self, args: tuple[int, ...]) -> None:
-        for arg in reversed(args):
-            self.code += b"\x68" + struct.pack("<I", arg)
-
-    def api(self, dll: str, name: str, *args: int) -> int:
-        if (dll, name) not in self.apis:
-            self.apis.append((dll, name))
-        self._push(args)
-        self.code += b"\xff\x15" + struct.pack("<I", self.IAT + 4 * self.apis.index((dll, name)))
-        return self._record()
-
-    def method(self, cell: int, index: int, *args: int) -> int:
-        # mov eax, [cell]; push eax; mov ecx, [eax]; call [ecx + 4 * index]
-        self._push(args)
-        self.code += b"\xa1" + struct.pack("<I", cell) + b"\x50\x8b\x08\xff\x91" + struct.pack("<I", 4 * index)
-        return self._record()
-
-    def run(self):
-        code = bytearray(0x1000)
-        code[: len(self.code) + 1] = self.code + b"\xc3"
-        assert len(self.code) < 0x600 and len(self.data) < 0x700
-        code[0x900 : 0x900 + len(self.data)] = self.data
-        emu = emulator(bytes(code))
-        for idx, (dll, name) in enumerate(self.apis):
-            addr = emu.resolve_export(emu.load_module(dll), name)
-            assert addr is not None
-            emu.write_u32(self.IAT + 4 * idx, addr)
-        emu.start()
-        esp = emu.sp
-        assert emu.run(max_blocks=100000).reason is StopReason.RETURNED
-        results = [struct.unpack("<II", emu.read(self.RESULTS + 8 * idx, 8)) for idx in range(self.calls)]
-        # every call left the stack as a stdcall callee must
-        assert [stack for _, stack in results] == [esp] * self.calls
-        return emu, [value for value, _ in results]
+    base = IMAGE_BASE + CODE_RVA
+    iat, results_at = base + 0x600, base + 0x700
+    emu = emulator(name)
+    for idx, (dll, api) in enumerate(apis):
+        addr = emu.resolve_export(emu.load_module(dll), api)
+        assert addr is not None
+        emu.write_u32(iat + 4 * idx, addr)
+    emu.start()
+    esp = emu.sp
+    assert emu.run(max_blocks=100000).reason is StopReason.RETURNED
+    results = [struct.unpack("<II", emu.read(results_at + 8 * idx, 8)) for idx in range(calls)]
+    # every call left the stack as a stdcall callee must
+    assert [stack for _, stack in results] == [esp] * calls
+    return emu, [value for value, _ in results]
 
 
 class TestComObjects(unittest.TestCase):
-    SHELL_LINK = "00021401-0000-0000-c000-000000000046"
-    IID_SHELL_LINK_A = "000214ee-0000-0000-c000-000000000046"
-    IID_PERSIST_FILE = "0000010b-0000-0000-c000-000000000046"
-    IID_UNKNOWN = "00000000-0000-0000-c000-000000000046"
     OTHER = "12345678-9abc-def0-1122-334455667788"
+    # where the samples keep their data
+    DATA = IMAGE_BASE + CODE_RVA + 0x900
 
     def test_shell_link_object(self):
-        prog = _ComProgram()
-        clsid, iid_link, iid_file = (
-            prog.put(_guid(g)) for g in (self.SHELL_LINK, self.IID_SHELL_LINK_A, self.IID_PERSIST_FILE)
-        )
-        iid_unknown, other = prog.put(_guid(self.IID_UNKNOWN)), prog.put(_guid(self.OTHER))
-        link, file, unknown, none = (prog.put(b"\xee" * 4) for _ in range(4))
-        text = prog.put(b"C:\\x.lnk\0")
-        init = prog.api("ole32.dll", "CoInitialize", 0)
-        created = prog.api("ole32.dll", "CoCreateInstance", clsid, 0, 1, iid_link, link)
-        queried = prog.method(link, 0, iid_file, file)
-        save = prog.method(file, 6, text, 1)  # IPersistFile::Save
-        set_path = prog.method(link, 20, text)  # IShellLinkA::SetPath
-        resolve = prog.method(link, 19, 0, 0)  # IShellLinkA::Resolve
-        as_unknown = prog.method(file, 0, iid_unknown, unknown)
-        refused = prog.method(link, 0, other, none)
-        add_ref = prog.method(link, 1)
-        releases = [prog.method(cell, 2) for cell in (file, unknown, link, link)]
-        # neither the class nor the interface is known: no object rather than one with guessed methods
-        missing = prog.api("ole32.dll", "CoCreateInstance", other, 0, 1, other, none)
-        unsupported = prog.api("ole32.dll", "CoCreateInstance", clsid, 0, 1, other, none)
-        emu, results = prog.run()
+        # CoInitialize; CoCreateInstance(ShellLink, IShellLinkA) into link; link->QueryInterface(IPersistFile) into
+        # file; file->Save; link->SetPath; link->Resolve; file->QueryInterface(IUnknown) into unknown;
+        # link->QueryInterface(other) into none; link->AddRef; Release of file, unknown, link, link;
+        # CoCreateInstance(other class) and CoCreateInstance(ShellLink, other interface) into none
+        link, file, unknown, none = (self.DATA + 0x50 + 4 * idx for idx in range(4))
+        init, created, queried, save, set_path, resolve, as_unknown, refused, add_ref = range(9)
+        releases = [9, 10, 11, 12]
+        missing, unsupported = 13, 14
+        apis = (("ole32.dll", "CoInitialize"), ("ole32.dll", "CoCreateInstance"))
+        emu, results = _run_com_program("com_shell_link.exe", apis, 15)
         assert [results[idx] for idx in (init, created, queried, as_unknown)] == [0, 0, 0, 0]
         assert [results[idx] for idx in (save, set_path, resolve)] == [0x80004001] * 3  # E_NOTIMPL
         assert results[refused] == 0x80004002 and emu.read_u32(none) == 0  # E_NOINTERFACE
@@ -1080,7 +1000,7 @@ class TestComObjects(unittest.TestCase):
         assert [request[3] for request in emu.com.requests] == [0, 0x80040154, 0x80004002]
 
     def test_task_allocator_uses_the_heap(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         blocks = [call("CoTaskMemAlloc", 0x20) for _ in range(64)]
         # neighbours on the heap, not a 64 KB region each
@@ -1097,25 +1017,19 @@ class TestComObjects(unittest.TestCase):
         assert call("CoTaskMemFree", 0) == 0
 
     def test_allocator_stream_and_wmi(self):
-        prog = _ComProgram()
-        malloc, stream, locator, services, block = (prog.put(b"\xee" * 4) for _ in range(5))
-        buf, count = prog.put(b"hello" + bytes(11)), prog.put(bytes(4))
-        wbem = prog.put(_guid("4590f811-1d3a-11d0-891f-00aa004b2e24"))
-        iid_locator = prog.put(_guid("dc12a687-737f-11cf-884d-00aa004b2e24"))
-        get_malloc = prog.api("shell32.dll", "SHGetMalloc", malloc)
-        alloc = prog.method(malloc, 3, 0x20)
-        prog.code += b"\xa3" + struct.pack("<I", block)
-        size = prog.method(malloc, 6, 0)  # GetSize(NULL)
-        task = prog.api("ole32.dll", "CoTaskMemAlloc", 0x10)
-        prog.api("ole32.dll", "CoTaskMemFree", 0)
-        make = prog.api("ole32.dll", "CreateStreamOnHGlobal", 0, 1, stream)
-        write = prog.method(stream, 4, buf, 5, 0)
-        seek = prog.method(stream, 5, 1, 0, 0, 0)  # Seek(1, STREAM_SEEK_SET, NULL): a 64-bit argument
-        read = prog.method(stream, 3, buf + 8, 8, count)
-        lock = prog.method(stream, 10, 0, 0, 1, 0, 1)  # LockRegion: two 64-bit arguments
-        create = prog.api("ole32.dll", "CoCreateInstance", wbem, 0, 1, iid_locator, locator)
-        connect = prog.method(locator, 3, 0, 0, 0, 0, 0, 0, 0, services)
-        emu, results = prog.run()
+        # SHGetMalloc; malloc->Alloc(0x20); malloc->GetSize(NULL); CoTaskMemAlloc(0x10); CoTaskMemFree(NULL);
+        # CreateStreamOnHGlobal; stream->Write(buf, 5); stream->Seek(1); stream->Read(buf + 8, 8, &count);
+        # stream->LockRegion; CoCreateInstance(WbemLocator); locator->ConnectServer(..., &services)
+        services, buf, count = self.DATA + 0xC, self.DATA + 0x14, self.DATA + 0x24
+        get_malloc, alloc, size, task, _, make, write, seek, read, lock, create, connect = range(12)
+        apis = (
+            ("shell32.dll", "SHGetMalloc"),
+            ("ole32.dll", "CoTaskMemAlloc"),
+            ("ole32.dll", "CoTaskMemFree"),
+            ("ole32.dll", "CreateStreamOnHGlobal"),
+            ("ole32.dll", "CoCreateInstance"),
+        )
+        emu, results = _run_com_program("com_allocator_stream_wmi.exe", apis, 12)
         assert [results[idx] for idx in (get_malloc, make, write, seek, create)] == [0] * 5
         assert results[alloc] in emu.allocations and results[task] in emu.allocations
         assert results[size] == 0xFFFFFFFF
@@ -1126,7 +1040,7 @@ class TestComObjects(unittest.TestCase):
 
     def test_x64_object_of_unknown_interface(self):
         # x64 callees pop nothing, so an unknown interface gets an object whose methods all fail
-        emu = emulator(b"\xc3", True)
+        emu = emulator(is_64bit=True)
         buf = emu.alloc(0x1000)
         emu.write(buf, _guid(self.OTHER))
         assert API_HANDLERS["CoCreateInstance"].func(emu, [buf, 0, 1, buf, buf + 0x40]) == 0
@@ -1143,7 +1057,7 @@ class TestComObjects(unittest.TestCase):
         assert emu.com.slots[emu.read_ptr(emu.read_ptr(folder) + 8 * 12)].name == "IShellFolder::SetNameOf"
 
     def test_picture_from_stream(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         buf = emu.alloc(0x1000)
         image = call("GlobalAlloc", 0, 0x100)
@@ -1168,7 +1082,7 @@ class TestComObjects(unittest.TestCase):
 
     def test_ole_picture_loading_fails_cleanly(self):
         # nothing to load a picture from: the out pointer is NULL and the HRESULT a failure, so callers skip the picture
-        emu = emulator(b"\xc3")
+        emu = emulator()
         buf = emu.alloc(0x1000)
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         emu.write(buf, b"\xff" * 16)
@@ -1181,24 +1095,17 @@ class TestComObjects(unittest.TestCase):
 
 
 class TestWindowMessages(unittest.TestCase):
-    # RegisterClassExA, CreateWindowExA(style), then GetMessageA/DispatchMessageA until WM_QUIT; returns its wParam
-    MAIN = (
-        "6800194000ff15001840006a0068000040006a006a006a646a646a006a0068{style}6a0068001a40006a08ff1504184000"
-        "a3041c40006a006a006a0068001b4000ff150818400085c0740d68001b4000ff150c184000ebdea1081b4000c3"
-    )
+    # the samples: RegisterClassExA, CreateWindowExA, then GetMessageA/DispatchMessageA until WM_QUIT; they return
+    # its wParam
     APIS = ("RegisterClassExA", "CreateWindowExA", "GetMessageA", "DispatchMessageA", "SetTimer", "DestroyWindow",
             "PostQuitMessage", "ValidateRect")  # fmt: skip
 
-    def _run(self, style: int, wndproc: bytes, more_apis: tuple[tuple[str, str], ...] = ()):
-        code = bytearray(0x1000)
-        main = bytes.fromhex(self.MAIN.format(style=struct.pack("<I", style).hex()))
-        code[: len(main)] = main
-        code[0x200 : 0x200 + len(wndproc)] = wndproc
-        emu = emulator(bytes(code))
+    def _run(self, name: str, more_apis: tuple[tuple[str, str], ...] = ()):
+        emu = emulator(name)
         text = IMAGE_BASE + CODE_RVA
-        apis = (*(("user32.dll", name) for name in self.APIS), *more_apis)
-        for idx, (dll, name) in enumerate(apis):
-            emu.write_u32(text + 0x800 + 4 * idx, emu.resolve_export(emu.load_module(dll), name))
+        apis = (*(("user32.dll", api) for api in self.APIS), *more_apis)
+        for idx, (dll, api) in enumerate(apis):
+            emu.write_u32(text + 0x800 + 4 * idx, emu.resolve_export(emu.load_module(dll), api))
         # WNDCLASSEXA: cbSize, style, lpfnWndProc, ..., lpszClassName
         emu.write(text + 0x900, struct.pack("<12I", 48, 0, text + 0x200, 0, 0, IMAGE_BASE, 0, 0, 0, 0, text + 0xA00, 0))
         emu.write(text + 0xA00, b"Splash\0")
@@ -1211,12 +1118,7 @@ class TestWindowMessages(unittest.TestCase):
     def test_timer_and_destroy(self):
         # a hidden window: the procedure sets a timer on WM_CREATE, destroys the window on the third WM_TIMER and
         # posts WM_QUIT(42) on WM_DESTROY
-        wndproc = bytes.fromhex(
-            "8b4424083d81000000741683f80174193d13010000742783f802744031c0c21000b801000000c210006a006a326a07ff7424"
-            "10ff151018400031c0c21000ff05001c4000833d001c400003720aff742404ff151418400031c0c210006a2aff151818400031"
-            "c0c21000"
-        )
-        emu, elapsed = self._run(0x80000000, wndproc)
+        emu, elapsed = self._run("window_timer_and_destroy.exe")
         text = IMAGE_BASE + CODE_RVA
         assert emu.reg("eax") == 42
         assert emu.read_u32(text + 0xC00) == 3
@@ -1226,28 +1128,15 @@ class TestWindowMessages(unittest.TestCase):
 
     def test_splash_closed_by_a_click(self):
         # a visible window that validates itself on WM_PAINT and posts WM_QUIT(7) when clicked
-        wndproc = bytes.fromhex(
-            "8b4424083d8100000074113d01020000742383f80f740d31c0c21000b801000000c210006a00ff742408ff151c18400031c0"
-            "c210006a07ff151818400031c0c21000"
-        )
-        emu, elapsed = self._run(0x90000000, wndproc)
+        emu, elapsed = self._run("window_closed_by_click.exe")
         assert emu.reg("eax") == 7
         assert elapsed >= 3000
 
     def test_quit_posted_for_another_threads_window(self):
         # the procedure starts a thread on WM_CREATE; the thread sends WM_USER to the window, and the procedure
         # answers it with PostQuitMessage(5), which must end the message loop of the window's thread
-        wndproc = bytearray(0x100)
-        body = bytes.fromhex(
-            "8b4424083d81000000741183f80174143d00040000742931c0c21000b801000000c210006a006a00ff74240c68801240006a00"
-            "6a00ff152018400031c0c210006a05ff151818400031c0c21000"
-        )
-        # the thread: SendMessageA(hwnd, WM_USER, 0, 0); return 0
-        worker = bytes.fromhex("6a006a006800040000ff742410ff152418400031c0c20400")
-        wndproc[: len(body)] = body
-        wndproc[0x80 : 0x80 + len(worker)] = worker
         emu, _ = self._run(
-            0x80000000, bytes(wndproc), (("kernel32.dll", "CreateThread"), ("user32.dll", "SendMessageA"))
+            "window_quit_from_thread.exe", (("kernel32.dll", "CreateThread"), ("user32.dll", "SendMessageA"))
         )
         assert emu.reg("eax") == 5
         assert len(emu.threads) == 2
@@ -1256,28 +1145,8 @@ class TestWindowMessages(unittest.TestCase):
         # a splash window at a position the system picks, waiting for a click: WM_CREATE on creation, then
         # GetMessage/DispatchMessage until the window procedure posts WM_QUIT on WM_LBUTTONDOWN
         base = IMAGE_BASE + CODE_RVA
-        slots, cell, wc, msg = base + 0x300, base + 0x320, base + 0x340, base + 0x380
-        code = bytearray(0x400)
-
-        def put(offset: int, data: str | bytes) -> None:
-            data = bytes.fromhex(data) if isinstance(data, str) else data
-            code[offset : offset + len(data)] = data
-
-        call = lambda idx: "ff15" + struct.pack("<I", slots + 4 * idx).hex()  # call [slot]
-        imm = lambda value: struct.pack("<I", value).hex()
-        default = "68" + imm(0x80000000)  # push CW_USEDEFAULT
-        # RegisterClassExA(&wc); CreateWindowExA(0, "S", 0, WS_VISIBLE, CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, 0, 0, 0, 0)
-        main = "68" + imm(wc) + call(0) + "6a00" * 4 + "6a00" + default + "6a00" + default
-        main += "68" + imm(0x10000000) + "6a00" + "68" + imm(wc + 0x30) + "6a00" + call(1)
-        # loop: GetMessageA(&msg, 0, 0, 0); test eax, eax; jz done; DispatchMessageA(&msg); jmp loop; done: ret
-        main += "6a006a006a00" + "68" + imm(msg) + call(2) + "85c0740d" + "68" + imm(msg) + call(3) + "ebde" + "c3"
-        put(0, main)
-        # wndproc: count WM_CREATE; on WM_LBUTTONDOWN set the cell and PostQuitMessage(0); the rest: DefWindowProcA
-        wndproc = "8b442408" + "83f801750b" + "ff05" + imm(cell + 4) + "31c0c21000"
-        wndproc += "3d010200007517" + "c705" + imm(cell) + imm(1) + "6a00" + call(4) + "31c0c21000"
-        wndproc += "ff25" + imm(slots + 4 * 5)
-        put(0x100, wndproc)
-        emu = emulator(bytes(code))
+        slots, cell, wc = base + 0x300, base + 0x320, base + 0x340
+        emu = emulator("window_splash_message_loop.exe")
         user32 = emu.load_module("user32.dll")
         for idx, name in enumerate(
             ("RegisterClassExA", "CreateWindowExA", "GetMessageA", "DispatchMessageA", "PostQuitMessage",
@@ -1294,7 +1163,7 @@ class TestWindowMessages(unittest.TestCase):
         assert emu.read_u32(cell) == 1 and emu.read_u32(cell + 4) == 1
 
     def test_window_rectangles(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         call = lambda name, *args: API_HANDLERS[name].func(emu, list(args))
         buf = emu.alloc(0x1000)
         emu.write(buf + 0x100, b"Plain\0")
@@ -1316,7 +1185,7 @@ class TestWindowMessages(unittest.TestCase):
 class TestTimers(unittest.TestCase):
     def test_time_get_time_polling(self):
         # count the polls until timeGetTime changes, as WinLicense does
-        emu = emulator(bytes(0x40))
+        emu = emulator("blank_0x40.exe")
         slot = emu.resolve_export(emu.load_module("winmm.dll"), "timeGetTime")
         assert slot is not None
         code = (
@@ -1333,7 +1202,7 @@ class TestTimers(unittest.TestCase):
         assert emu.clock_ms() - before >= 50
 
     def test_time_get_time_and_tick_count_are_one_clock(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         call = lambda name: API_HANDLERS[name].func(emu, [])
         # GetTickCount alone steps as before
         first = call("GetTickCount")
@@ -1358,7 +1227,7 @@ class TestTimers(unittest.TestCase):
 
 class TestImportWrappers(unittest.TestCase):
     def test_trace_to_api(self):
-        emu = emulator(b"\xc3")
+        emu = emulator()
         emu.start()
         sleep = emu.resolve_export(emu.load_module("kernel32.dll"), "Sleep")
         assert sleep is not None
@@ -1380,16 +1249,8 @@ class TestImportWrappers(unittest.TestCase):
 
 class TestImportRecovery(unittest.TestCase):
     def test_wrapped_imports_and_rewritten_calls(self):
-        sections = [
-            (b".text", CODE_RVA, 0x1000, bytes(0x1000), 0xE0000020),
-            (b".stub", 0x3000, 0x10, b"\xc3", 0x60000020),
-        ]
-        packed = build_pe(sections, entry_rva=0x3000)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "sample.exe")
-            with open(path, "wb") as f:
-                f.write(packed)
-            core = GenericUnpackerCore(path, engine=ENGINE)
+        # an empty writable .text and an entry stub in a section of its own
+        core = GenericUnpackerCore(sample_path("import_recovery_wrapped.exe"), engine=ENGINE)
         emu = core.emu
         emu.start()
         kernel32 = emu.load_module("kernel32.dll")
@@ -1417,17 +1278,8 @@ class TestImportRecovery(unittest.TestCase):
         assert code[0x20] == 0xE8
 
     def test_constants_are_not_imports(self):
-        sections = [
-            (b".text", CODE_RVA, 0x1000, bytes(0x1000), 0xE0000020),
-            (b".data", 0x2000, 0x8000, bytes(0x8000), 0xC0000040),
-            (b".stub", 0xA000, 0x10, b"\xc3", 0x60000020),
-        ]
-        packed = build_pe(sections, entry_rva=0xA000)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "sample.exe")
-            with open(path, "wb") as f:
-                f.write(packed)
-            core = GenericUnpackerCore(path, engine=ENGINE)
+        # an empty .text, 0x8000 bytes of .data and an entry stub in a section of its own
+        core = GenericUnpackerCore(sample_path("import_recovery_constants.exe"), engine=ENGINE)
         emu = core.emu
         emu.start()
         kernel32 = emu.load_module("kernel32.dll")
@@ -1476,13 +1328,7 @@ class TestImageLayout(unittest.TestCase):
     def test_raw_data_past_virtual_size(self):
         # VirtualSize 0x45, SizeOfRawData 0x200: the loader keeps the raw bytes up to the end of the page
         raw = bytes((i * 7 + 1) & 0xFF or 1 for i in range(0x48))
-        sections = [(b".text", CODE_RVA, 0x10, b"\xc3", 0xE0000020), (b".data", 0x2000, 0x45, raw, 0xC0000040)]
-        packed = build_pe(sections, entry_rva=CODE_RVA)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "sample.exe")
-            with open(path, "wb") as f:
-                f.write(packed)
-            emu = GenericUnpackerCore(path, watch_sections=set(), engine=ENGINE).emu
+        emu = emulator("raw_data_past_virtual_size.exe")
         assert emu.read(IMAGE_BASE + 0x2000, 0x48) == raw
         # past the raw data (padded to the file alignment) and in the gap after .text: zero
         assert emu.read(IMAGE_BASE + 0x2048, 0xFB8) == bytes(0xFB8)
@@ -1493,7 +1339,7 @@ class TestFakeModule(unittest.TestCase):
     def test_scan_for_dos_stub(self):
         # packers find kernel32 by walking down from an address inside it until the DOS stub's text shows at 0x4E:
         # and ebx, ~0xfff; again: cmp dword [ebx + 0x4e], "This"; je done; sub ebx, 0x100; jmp again; done: ret
-        emu = emulator(bytes.fromhex("81e300f0ffff 817b4e54686973 7408 81eb00010000 ebef c3"))
+        emu = emulator("scan_for_dos_stub.exe")
         kernel32 = emu.load_module("kernel32.dll")
         emu.start()
         emu.set_reg("ebx", kernel32.exports["GetProcAddress"])
@@ -1528,7 +1374,7 @@ class TestFakeModule(unittest.TestCase):
                 with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
                     json.dump(dict.fromkeys(names), f)
             with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
-                emu = emulator(b"\xc3")
+                emu = emulator()
             ntdll = emu.load_module("ntdll.dll")
         pe = pefile.PE(data=ntdll.image)
         names = {sym.name for sym in pe.DIRECTORY_ENTRY_EXPORT.symbols}
@@ -1546,7 +1392,7 @@ class TestFakeModule(unittest.TestCase):
                 with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
                     json.dump(names, f)
             with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
-                emu = emulator(b"\xc3")
+                emu = emulator()
             kernel32, ntdll = emu.load_module("kernel32.dll"), emu.load_module("ntdll.dll")
             # a DLL with an export list exports that list, not every handler
             assert {b"Sleep", b"RegCloseKey"} <= export_names(kernel32)
@@ -1558,7 +1404,7 @@ class TestFakeModule(unittest.TestCase):
             assert {b"VirtualAlloc", b"MessageBoxA"} <= export_names(emu.load_module("kernelbase.dll"))
         # no export data at all: the handlers are split between ntdll and kernel32, as before
         with tempfile.TemporaryDirectory() as tmpdir, mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
-            emu = emulator(b"\xc3")
+            emu = emulator()
         kernel32, ntdll = emu.load_module("kernel32.dll"), emu.load_module("ntdll.dll")
         assert {b"VirtualAlloc", b"Sleep", b"MessageBoxA", b"lstrlenA"} <= export_names(kernel32)
         assert {b"NtClose", b"RtlAllocateHeap", b"memcpy"} <= export_names(ntdll)
@@ -1571,12 +1417,12 @@ class TestFakeModule(unittest.TestCase):
                 with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
                     json.dump({name: None}, f)
             with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
-                emu = emulator(b"\xc3")
+                emu = emulator()
             assert "pthread_create" in emu.load_module("LIBWINPTHREAD-1.DLL").exports
             assert "unreachable" not in emu.load_module("pthread.dll").exports
 
     def test_shipped_export_lists_are_reachable(self):
-        directory = emulator(b"\xc3")._export_db_dir  # pylint:disable=protected-access
+        directory = emulator()._export_db_dir  # pylint:disable=protected-access
         if not os.path.isdir(directory):
             self.skipTest("no export lists installed")
         extensions = (".dll", ".exe", ".sys", ".drv", ".ocx", ".cpl")
@@ -1604,20 +1450,8 @@ class TestFakeModule(unittest.TestCase):
         An emulator for an image that imports ThirdParty@@ and ordinal 7 from a DLL, with the given export lists
         (and API set table) installed.
         """
-        idata = bytearray(0x200)
-        struct.pack_into("<5I", idata, 0, 0x2080, 0, 0, 0x2100, 0x2080)  # descriptor: ILT = IAT, DLL name
-        struct.pack_into("<II", idata, 0x80, 0x20C0, 0x80000007)  # ILT: hint/name, ordinal 7
-        idata[0xC2:0xCF] = b"ThirdParty@@\0"
-        idata[0x100 : 0x101 + len(dll)] = dll.encode() + b"\0"
-        sections = [
-            (b".text", CODE_RVA, 0x1000, b"\xc3", 0x60000020),
-            (b".idata", 0x2000, 0x200, bytes(idata), 0xC0000040),
-        ]
-        packed = build_pe(sections, entry_rva=CODE_RVA, directories={1: (0x2000, 0x28)})
+        path = sample_path({"thirdparty.dll": "imports_thirdparty.exe", IMPORTED_API_SET: "imports_api_set.exe"}[dll])
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "sample.exe")
-            with open(path, "wb") as f:
-                f.write(packed)
             exports_dir = os.path.join(tmpdir, "win_exports")
             os.mkdir(exports_dir)
             for stem, names in lists.items():
@@ -1678,7 +1512,7 @@ class TestFakeModule(unittest.TestCase):
             "ext-ms-win-nobody-l1-1-0": None,
         }
         lists = {"kernel32": {"Sleep": 1}, "kernelbase": {"SleepEx": 2}, "ntdll": {"NtClose": 1}}
-        imported = "api-ms-win-core-synch-l1-2-0.dll"
+        imported = IMPORTED_API_SET
         emu = self._importing_emulator(lists, imported, api_sets)
         kernel32, kernelbase = emu.modules["kernel32.dll"], emu.modules["kernelbase.dll"]
         # a set is its host, whatever follows the layer number; the layer number counts
@@ -1798,7 +1632,7 @@ class TestFakeModule(unittest.TestCase):
         # as in ntdll: the Zw stubs sorted by address are in the order of their system call numbers, and the name
         # table stays sorted by name
         for is_64bit in (False, True):
-            emu = emulator(b"\xc3", is_64bit)
+            emu = emulator(is_64bit=is_64bit)
             ntdll = emu.load_module("ntdll.dll")
             table = WIN7_X64_SYSCALLS if is_64bit else WIN7_X86_SYSCALLS
             assert len(table) == 401
@@ -1822,16 +1656,9 @@ class TestFakeModule(unittest.TestCase):
 class TestBrokenImages(unittest.TestCase):
     def test_tls_directory_outside_the_image(self):
         # IMAGE_TLS_DIRECTORY32 at +0x100: raw data start and end, index, callbacks, zero fill, characteristics
-        base = IMAGE_BASE + CODE_RVA
-        for what, fields in (
-            ("raw data", (0x59190000, 0x59190100, base + 0x200, 0)),
-            ("index", (base + 0x300, base + 0x310, 0x30D26308, 0)),
-            ("callback list", (0, 0, base + 0x200, 0x7FFE0000)),
-        ):
-            code = bytearray(0x400)
-            code[0] = 0xC3
-            code[0x100:0x118] = struct.pack("<6I", *fields, 0, 0)
-            emu = emulator(bytes(code), directories={9: (CODE_RVA + 0x100, 0x18)})
+        # the raw data, the index or the callback list lies outside the image
+        for what in ("raw data", "index", "callback list"):
+            emu = emulator(f"tls_bad_{what.replace(' ', '_')}.exe")
             emu.start()
             stop = emu.run(max_blocks=1000)
             # no Python exception while the process is set up: a clean stop that names the directory
@@ -1839,33 +1666,17 @@ class TestBrokenImages(unittest.TestCase):
             assert "TLS directory" in stop.detail and what in stop.detail
 
     def test_tls_directory_inside_the_image(self):
-        base = IMAGE_BASE + CODE_RVA
-        code = bytearray(0x400)
-        code[0] = 0xC3
-        code[0x100:0x118] = struct.pack("<6I", base + 0x300, base + 0x310, base + 0x200, 0, 0, 0)
-        emu = emulator(bytes(code), directories={9: (CODE_RVA + 0x100, 0x18)})
+        emu = emulator("tls_inside_image.exe")
         emu.start()
         assert emu.run(max_blocks=1000).reason is StopReason.RETURNED
 
 
 class TestExceptions(unittest.TestCase):
-    def _single_step(self, stepped: str):
-        code = bytearray(0x200)
-        main = bytes.fromhex(
-            "b9 e8 03 00 00 49 75 fd"  # spin, so the rest runs natively
-            "9c 81 0c 24 00 01 00 00 9d" + stepped + "90 c3"  # pushfd; or dword [esp], 0x100; popfd
-        )
-        code[: len(main)] = main
+    def _single_step(self, name: str, stepped_size: int):
+        # a spin loop (so the rest runs natively); pushfd; or dword [esp], 0x100; popfd; the stepped instruction;
+        # nop; ret. The vectored handler at +0x80 stores the exception code and address and continues.
         cell = IMAGE_BASE + CODE_RVA + 0x100
-        # vectored handler: store the exception code and address, continue execution
-        code[0x80:0x9E] = (
-            bytes.fromhex("8b 44 24 04 8b 08 8b 11 89 15")
-            + struct.pack("<I", cell)
-            + bytes.fromhex("8b 51 0c 89 15")
-            + struct.pack("<I", cell + 4)
-            + bytes.fromhex("83 c8 ff c2 04 00")
-        ).ljust(0x1E, b"\x90")
-        emu = emulator(bytes(code))
+        emu = emulator(name)
         emu.exceptions.vectored.append(IMAGE_BASE + CODE_RVA + 0x80)
         emu.start()
         stop = emu.run(max_blocks=100000)
@@ -1873,10 +1684,11 @@ class TestExceptions(unittest.TestCase):
         assert emu.exceptions.count == 1
         assert emu.read_u32(cell) == 0x80000004
         # the trap is taken after the instruction that follows popfd
-        assert emu.read_u32(cell + 4) == IMAGE_BASE + CODE_RVA + len(main) - 2
+        assert emu.read_u32(cell + 4) == IMAGE_BASE + CODE_RVA + 17 + stepped_size
 
     def test_hlt_faults_at_the_instruction(self):
-        emu = emulator(b"\x90\xf4\xc3")
+        # nop; hlt; ret
+        emu = emulator("hlt.exe")
         emu.start()
         stop = emu.run(max_blocks=1000)
         assert stop.reason is StopReason.ERROR
@@ -1885,13 +1697,10 @@ class TestExceptions(unittest.TestCase):
     def test_unhandled_exception_filter(self):
         # entry: push 0x1234; call [UnhandledExceptionFilter]; ret
         slot = IMAGE_BASE + CODE_RVA + 0x100
-        code = bytearray(0x200)
-        code[:12] = b"\x68" + struct.pack("<I", 0x1234) + b"\xff\x15" + struct.pack("<I", slot) + b"\xc3"
-        # top-level filter: mov [cell], arg; mov eax, -1 (EXCEPTION_CONTINUE_EXECUTION); ret 4
+        # top-level filter at +0x80: mov [cell], arg; mov eax, -1 (EXCEPTION_CONTINUE_EXECUTION); ret 4
         cell = slot + 4
-        code[0x80:0x92] = bytes.fromhex("8b442404 a3") + struct.pack("<I", cell) + bytes.fromhex("b8ffffffff c20400")
         for top_level, expected in ((0, 1), (IMAGE_BASE + CODE_RVA + 0x80, 0xFFFFFFFF)):
-            emu = emulator(bytes(code))
+            emu = emulator("unhandled_exception_filter.exe")
             api = emu.resolve_export(emu.load_module("kernel32.dll"), "UnhandledExceptionFilter")
             assert api is not None
             emu.write_u32(slot, api)
@@ -1905,20 +1714,9 @@ class TestExceptions(unittest.TestCase):
     def test_x86_seh_handler_leaves_through_nested_frame(self):
         # the handler never returns: like ntdll's ExecuteHandler2 callers expect, fs:[0] points at a frame whose
         # next link is the faulting function's frame, which it unlinks itself
-        base = IMAGE_BASE + CODE_RVA
-        main = bytes.fromhex(
-            "68"
-            + struct.pack("<I", base + 0x40).hex()  # push handler
-            + "64ff3500000000 64892500000000"  # push fs:[0]; mov fs:[0], esp
-            + "31c0 8900 cc"  # xor eax, eax; mov [eax], eax; int3
-        )
-        resume = bytes.fromhex("648f0500000000 83c404 b807000000 c3")  # pop fs:[0]; add esp, 4; mov eax, 7; ret
-        code = bytearray(0x100)
-        code[: len(main)] = main
-        code[0x20 : 0x20 + len(resume)] = resume
-        # handler: mov eax, fs:[0]; mov esp, [eax]; jmp resume
-        code[0x40:0x4D] = bytes.fromhex("64a100000000 8b20 e9") + struct.pack("<i", 0x20 - 0x4D)
-        emu = emulator(bytes(code))
+        # main: push an SEH frame, fault, int3; handler: mov eax, fs:[0]; mov esp, [eax]; jmp resume;
+        # resume: pop fs:[0]; add esp, 4; mov eax, 7; ret
+        emu = emulator("seh_nested_frame.exe")
         emu.start()
         chain = emu.read_u32(emu.teb)
         stop = emu.run(max_blocks=100000)
@@ -1927,41 +1725,19 @@ class TestExceptions(unittest.TestCase):
         assert emu.read_u32(emu.teb) == chain
 
     def test_trap_flag_single_step(self):
-        self._single_step("90")
+        self._single_step("trap_flag_nop.exe", 1)
 
     def test_trap_flag_single_step_over_cpuid(self):
         # protectors time the trap against cpuid, which the native engine does not execute itself
-        self._single_step("0f a2")
+        self._single_step("trap_flag_cpuid.exe", 2)
 
     def test_x86_rtl_unwind(self):
         base = IMAGE_BASE + CODE_RVA
-        cell, slot, handler_a, handler_b = base + 0x300, base + 0x2F0, base + 0x100, base + 0x120
-        p32 = lambda value: struct.pack("<I", value)
-        push_frame = lambda handler: b"\x68" + p32(handler) + bytes.fromhex("64ff3500000000 64892500000000")
-        main = (
-            push_frame(handler_a)
-            + bytes.fromhex("89e3")  # mov ebx, esp: the target frame
-            + push_frame(handler_b)
-            + bytes.fromhex("6a55 6a00")  # ReturnValue, ExceptionRecord
-        )
-        after = base + len(main) + 1 + 4 + 1 + 6
-        main += b"\x68" + p32(after) + b"\x53" + b"\xff\x15" + p32(slot)  # TargetIp, TargetFrame; call [RtlUnwind]
-        main += (
-            b"\xa3" + p32(cell + 8)  # mov [cell+8], eax
-            + bytes.fromhex("64a100000000")  # mov eax, fs:[0]
-            + b"\xa3" + p32(cell + 4)
-            + b"\x89\x1d" + p32(cell + 16)  # mov [cell+16], ebx
-            + bytes.fromhex("8b03 64a300000000 8d6308 c3")  # pop frame A, restore esp, ret
-        )  # fmt: skip
-        code = bytearray(0x400)
-        code[: len(main)] = main
-        code[0x100:0x106] = bytes.fromhex("b801000000c3")
-        # handler B: record the ExceptionFlags and the call count, return ExceptionContinueSearch
-        code[0x120:0x13A] = (
-            bytes.fromhex("8b442404 8b4004") + b"\xa3" + p32(cell) + b"\xff\x05" + p32(cell + 12)
-            + bytes.fromhex("b801000000 c3")
-        )  # fmt: skip
-        emu = emulator(bytes(code))
+        # main: push frames A and B; RtlUnwind(frame A, after, NULL, 0x55); after: cell[2] = eax; cell[1] = fs:[0];
+        # cell[4] = frame A; pop frame A; ret. Handler B records the ExceptionFlags (cell[0]) and counts its calls
+        # (cell[3]).
+        cell, slot = base + 0x300, base + 0x2F0
+        emu = emulator("rtl_unwind.exe")
         unwind = emu.resolve_export(emu.load_module("ntdll.dll"), "RtlUnwind")
         assert unwind is not None
         emu.write_ptr(slot, unwind)
@@ -1976,17 +1752,10 @@ class TestExceptions(unittest.TestCase):
 
     def test_fault_on_small_heap_stack(self):
         # Themida's VM runs on an 8 KB heap block: the exception frame goes right below esp, as on Windows
-        code = bytearray(0x200)
-        cell = IMAGE_BASE + CODE_RVA + 0x100
         # mov ebp, esp; mov esp, top; xor eax, eax; mov [eax], eax; mov esp, ebp; ret
-        main = bytes.fromhex("89 e5 bc 00 00 00 00 31 c0 89 00 89 ec c3")
-        code[: len(main)] = main
-        # vectored handler: save CONTEXT.EFlags, skip the faulting mov, continue execution
-        code[0x80:0x9C] = bytes.fromhex(
-            "8b 44 24 04 8b 40 04 8b 88 c0 00 00 00 89 0d" + struct.pack("<I", cell).hex()
-            + "83 80 b8 00 00 00 02 83 c8 ff c2 04 00"
-        )  # fmt: skip
-        emu = emulator(bytes(code))
+        # vectored handler at +0x80: save CONTEXT.EFlags, skip the faulting mov, continue execution
+        cell = IMAGE_BASE + CODE_RVA + 0x100
+        emu = emulator("fault_on_small_stack.exe")
         block = emu.alloc(0x2000)
         emu.write(IMAGE_BASE + CODE_RVA + 3, struct.pack("<I", block + 0x1FF0))
         emu.exceptions.vectored.append(IMAGE_BASE + CODE_RVA + 0x80)
@@ -1998,28 +1767,10 @@ class TestExceptions(unittest.TestCase):
         assert emu.read_u32(cell) & 0x202 == 0x202
 
     def test_x64_try_except(self):
-        code = bytearray(0x400)
-
-        def put(offset: int, data: str | bytes) -> None:
-            data = bytes.fromhex(data) if isinstance(data, str) else data
-            code[offset : offset + len(data)] = data
-
-        # main: sub rsp, 0x28; mov rbx, 0x7777; call faulting; nop; xor eax, eax; add rsp, 0x28; ret
-        put(0x00, "48 83 ec 28 48 c7 c3 77 77 00 00 e8 20 00 00 00 90 31 c0 48 83 c4 28 c3")
-        # __except block: mov [code], eax; mov [saved_rbx], rbx; add rsp, 0x28; ret
-        put(0x18, "89 05 ea 00 00 00 48 89 1d eb 00 00 00 48 83 c4 28 c3")
-        # faulting: push rbx; sub rsp, 0x20; mov rbx, 0x1111; xor eax, eax; mov [rax], eax; add rsp, 0x20; pop rbx; ret
-        put(0x30, "53 48 83 ec 20 48 c7 c3 11 11 00 00 31 c0 89 00 48 83 c4 20 5b c3")
-        put(0x50, "b8 01 00 00 00 c3")  # filter: EXCEPTION_EXECUTE_HANDLER
-        put(0x60, "ff 25 9a 00 00 00")  # jmp [__imp___C_specific_handler]
+        # main calls a function that faults, inside a __try whose filter returns EXCEPTION_EXECUTE_HANDLER; the
+        # __except block stores the exception code and rbx. The exception directory holds both functions.
         rva = CODE_RVA
-        put(0x200, struct.pack("<6I", rva, rva + 0x2A, rva + 0x300, rva + 0x30, rva + 0x46, rva + 0x340))
-        # main: handler flag, sub rsp 0x28; one scope around the call, with a filter
-        put(0x300, bytes.fromhex("09 04 01 00 04 42 00 00"))
-        put(0x308, struct.pack("<6I", rva + 0x60, 1, rva + 0x0B, rva + 0x11, rva + 0x50, rva + 0x18))
-        # faulting: sub rsp 0x20, push rbx
-        put(0x340, bytes.fromhex("01 05 02 00 05 32 01 30"))
-        emu = emulator(bytes(code), is_64bit=True, directories={3: (rva + 0x200, 24)})
+        emu = emulator("try_except.exe", is_64bit=True)
         handler = emu.resolve_export(emu.load_module("ntdll.dll"), "__C_specific_handler")
         assert handler is not None
         base = IMAGE_BASE_64 + rva
@@ -2035,9 +1786,7 @@ class TestSystemCallStubs(unittest.TestCase):
     def test_x86_stub_called_past_its_first_instruction(self):
         # entry: mov eax, [ZwClose + 1]; push HANDLE; call rest; ret
         # rest:  mov edx, 0x7ffe0300; call [edx]; ret 4          (a copy of the stub minus its first instruction)
-        code = bytearray(b"\xa1\0\0\0\0\x68" + struct.pack("<I", HANDLE) + b"\xe8\x01\0\0\0\xc3")
-        code += bytes.fromhex("ba0003fe7f ff12 c20400")
-        emu = emulator(bytes(code))
+        emu = emulator("syscall_stub_tail.exe")
         ntdll = emu.load_module("ntdll.dll")
         close, query = ntdll.resolve("ZwClose"), ntdll.resolve("NtQueryInformationProcess")
         assert close is not None and query is not None
