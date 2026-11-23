@@ -384,7 +384,8 @@ class TestVexEnumParity(unittest.TestCase):
     def test_hardcoded_vex_enum_values_match_libvex(self):
         ffi_path = os.path.join(self.RUST_SRC, "vex_ffi.rs")
         conv_path = os.path.join(self.RUST_SRC, "convert_vex.rs")
-        if not (os.path.exists(ffi_path) and os.path.exists(conv_path)):
+        vexlift_path = os.path.join(self.RUST_SRC, "..", "vexlift.rs")
+        if not all(os.path.exists(p) for p in (ffi_path, conv_path, vexlift_path)):
             self.skipTest("Rust sources not available")
 
         by_upper = {}
@@ -400,6 +401,15 @@ class TestVexEnumParity(unittest.TestCase):
         with open(conv_path, encoding="utf-8") as f:
             for value, name in re.findall(r'(0x1[0-9A-Fa-f]{3}) => "(I[A-Za-z0-9_]+)"', f.read()):
                 checked[name.upper()] = int(value, 0)
+        # the direct lifter's IRJumpKind constants and its name table, indexed from Ijk_INVALID
+        with open(vexlift_path, encoding="utf-8") as f:
+            src = f.read()
+        for name, value in re.findall(r"pub const (I[A-Z0-9_]+): u32 = (0x[0-9A-Fa-f]+|\d+);", src):
+            checked[name] = int(value, 0)
+        table = re.search(r"pub const JUMPKIND_NAMES: \[&str; \d+\] = \[(.*?)\];", src, re.DOTALL)
+        assert table is not None
+        for i, name in enumerate(re.findall(r'"(Ijk_[A-Za-z0-9_]+)"', table.group(1))):
+            checked[name.upper()] = checked["IJK_INVALID"] + i
 
         for name, value in sorted(checked.items()):
             vex_values = by_upper.get(name)

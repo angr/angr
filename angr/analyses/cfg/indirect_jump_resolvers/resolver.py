@@ -9,6 +9,9 @@ if typing.TYPE_CHECKING:
 
 
 class IndirectJumpResolver:
+    # set to False on an instance to keep it on the Python implementation when CFGFast has a Rust one for its class
+    use_rust = True
+
     def __init__(self, project, timeless=False, base_state=None):
         self.project: Project = project
         self.timeless = timeless

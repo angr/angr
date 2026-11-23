@@ -118,7 +118,8 @@ class FunctionParser:
             flavored.flavor = flavor
             flavored.prototype = FunctionParser._serialize_prototype(proto, function.prototype_libname)
             flavored.prototype_source = function.prototype_sources[flavor].value
-        obj.info = function.info.to_json().encode("utf-8") if function.info else b""
+        info = function._info_data()
+        obj.info = json.dumps(info).encode("utf-8") if info else b""
         obj.ran_cca = function.ran_cca
         obj.previous_names.extend(function.previous_names)
 
@@ -147,6 +148,41 @@ class FunctionParser:
         from angr.angrdb.v1 import AngrDbV1  # pylint:disable=import-outside-toplevel
 
         return AngrDbV1.local_block_addrs(cmsg)
+
+    @staticmethod
+    def local_block_specs_from_serialized(
+        data: bytes, function_manager, project
+    ) -> list[tuple[int, int, bytes | None]]:
+        """
+        Function.local_block_specs() of a serialized function. Only the graph fields are parsed unless it is a legacy
+        angrDb v1 record, which is parsed in full (without being added to any function cache).
+        """
+        fields = function_pb2.FunctionGraphFields()
+        fields.ParseFromString(data)
+        if fields.graph_blob:
+            graph = FunctionGraph.from_bytes(fields.graph_blob)
+            if graph.func_addr != fields.ea:
+                raise ValueError(f"Function graph of {graph.func_addr:#x} stored under {fields.ea:#x}")
+            # a freshly parsed Function has no CodeNode objects, hence no user-supplied bytes in Function.blocks
+            return [(addr, graph.node_size(idx), None) for addr, idx in graph.local_items()]
+        cmsg = function_pb2.Function()
+        cmsg.ParseFromString(data)
+        func = FunctionParser.parse_from_cmsg(cmsg, function_manager=function_manager, project=project)
+        return func.local_block_specs()
+
+    @staticmethod
+    def local_block_source_from_serialized(
+        data: bytes, function_manager, project
+    ) -> tuple[bytes, int] | tuple[list[tuple[int, int, bytes | None]], None]:
+        """
+        (graph blob, function address) of a serialized function, or (local_block_specs(), None) for a legacy angrDb
+        v1 record. The blob's blocks have no user-supplied bytes (see local_block_specs_from_serialized).
+        """
+        fields = function_pb2.FunctionGraphFields()
+        fields.ParseFromString(data)
+        if fields.graph_blob:
+            return fields.graph_blob, fields.ea
+        return FunctionParser.local_block_specs_from_serialized(data, function_manager, project), None
 
     @staticmethod
     def _serialize_prototype(proto: SimTypeFunction | None, libname: str | None) -> bytes:
@@ -227,7 +263,7 @@ class FunctionParser:
         obj.normalized = cmsg.normalized
         if cmsg.info:
             info = _decode_info(cmsg.info)
-            obj._info.data = info
+            obj.info.data = info
             if function_manager is not None:
                 for key, value in info.items():
                     if key.startswith("is_") and value is True:

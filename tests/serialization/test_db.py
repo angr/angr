@@ -247,10 +247,9 @@ class TestDb(unittest.TestCase):
             assert new_func.block_addrs_set == func.block_addrs_set
             assert len(new_func.transition_graph.edges()) == len(func.transition_graph.edges())
 
-    def test_angrdb_fast_load_spilled_cfg_nodes(self):
-        # When the database contains more CFG nodes than the CFG node cache may keep in memory, the serialized node
-        # bytes are moved directly into the LMDB backing store on load without being deserialized, and the graph
-        # structure is built without materializing CFGNode objects.
+    def test_angrdb_load_paged_cfg(self):
+        # Loading into a paged graph builds the node records straight from the segment blobs; no CFGNode object is
+        # created until a node is accessed, and every node field round-trips.
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -261,19 +260,15 @@ class TestDb(unittest.TestCase):
 
         AngrDB(proj, nullpool=True).dump(db_file)
 
-        # force the fast path by using tiny CFG node/edge cache limits
-        with (
-            mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
-        ):
+        with mock.patch.object(angr.Project, "get_cfg_segment_budget", return_value=1):
             new_proj = AngrDB(nullpool=True).load(db_file)
 
         new_cfg = new_proj.kb.cfgs["CFGFast"]
-        assert new_cfg.graph.spilled_count > 0
+        assert new_cfg.graph.paged and new_cfg.graph.segment_stats()["resident_segments"] <= 1
 
         assert new_cfg.graph.number_of_nodes() == cfg.model.graph.number_of_nodes()
         assert new_cfg.graph.number_of_edges() == cfg.model.graph.number_of_edges()
 
-        # on-demand access must fully deserialize each node, and node content must round-trip
         def _node_rec(n):
             return (
                 n.addr,
@@ -293,7 +288,6 @@ class TestDb(unittest.TestCase):
             _node_rec(n) for n in cfg.model.graph.nodes()
         )
 
-        # edge content (including edge data) must round-trip
         def _edge_recs(model):
             return sorted(
                 (src.addr, src.size, dst.addr, dst.size, data.get("jumpkind"), data.get("ins_addr"))
@@ -302,7 +296,6 @@ class TestDb(unittest.TestCase):
 
         assert _edge_recs(new_cfg) == _edge_recs(cfg.model)
 
-        # get_any_node must work and return nodes with the correct function addresses
         for func in proj.kb.functions.values():
             for block_addr in func.block_addrs_set:
                 node = new_cfg.get_any_node(block_addr)
@@ -311,9 +304,9 @@ class TestDb(unittest.TestCase):
                     assert node is not None
                     assert node.function_address == old_node.function_address
 
-    def test_angrdb_dump_byte_copies_clean_spilled_cfg_nodes(self):
-        # When dumping a spilling CFG whose nodes are spilled to LMDB and clean, the serialized node bytes are
-        # copied directly out of the LMDB backing store; only dirty cached nodes are re-serialized.
+    def test_angrdb_dump_paged_cfg_mutations(self):
+        # Node mutations made while a graph is paged land in the segment records (evicted segments are written back)
+        # and are carried by the dumped segment blobs.
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -325,46 +318,23 @@ class TestDb(unittest.TestCase):
 
         AngrDB(proj, nullpool=True).dump(db_file)
 
-        # force the load fast path so that all nodes end up spilled and clean
-        with (
-            mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
-        ):
+        with mock.patch.object(angr.Project, "get_cfg_segment_budget", return_value=1):
             loaded_proj = AngrDB(nullpool=True).load(db_file)
 
         loaded_cfg = loaded_proj.kb.cfgs["CFGFast"]
         num_nodes = loaded_cfg.graph.number_of_nodes()
 
-        # mutate a handful of nodes so they become cached and dirty. We toggle ``no_ret`` (rather than e.g.
-        # ``function_address``, which the load-time CFGNode.function_address fill legitimately restores on the
-        # non-fast load path this tiny binary takes).
         addrs = sorted(n.addr for n in loaded_cfg.graph.nodes())
         mutated = {}
         for addr in addrs[:4]:
             node = loaded_cfg.get_any_node(addr)
             node.no_ret = not bool(node.no_ret)
-            node.dirty = True
             mutated[addr] = node.no_ret
+        loaded_cfg.graph._graph.evict_all()
+        assert loaded_cfg.graph.segment_stats()["writebacks"] > 0
 
-        # count byte-copied vs re-serialized nodes during the dump
-        spilling_cfg_cls = angr.knowledge_plugins.cfg.spilling_cfg.SpillingCFG
-        orig_export = spilling_cfg_cls.export_serialized_nodes
-        stats = {}
+        AngrDB(loaded_proj, nullpool=True).dump(db_file2)
 
-        def counting_export(self):
-            result = orig_export(self)
-            stats["copied"] = sum(1 for _, _, copied in result if copied)
-            stats["serialized"] = sum(1 for _, _, copied in result if not copied)
-            return result
-
-        with mock.patch.object(spilling_cfg_cls, "export_serialized_nodes", counting_export):
-            AngrDB(loaded_proj, nullpool=True).dump(db_file2)
-
-        assert stats["copied"] + stats["serialized"] == num_nodes
-        # the mutated nodes are re-serialized; everything else must have been byte-copied
-        assert stats["serialized"] >= len(mutated)
-        assert stats["copied"] >= num_nodes - len(mutated) - 2
-
-        # the dumped database must round-trip both the mutations and the byte-copied nodes
         reloaded_proj = AngrDB(nullpool=True).load(db_file2)
         reloaded_cfg = reloaded_proj.kb.cfgs["CFGFast"]
         assert reloaded_cfg.graph.number_of_nodes() == num_nodes

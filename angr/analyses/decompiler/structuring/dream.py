@@ -30,10 +30,12 @@ from angr.analyses.decompiler.structurer_nodes import (
 )
 from angr.analyses.decompiler.utils import (
     extract_jump_targets,
+    find_dispatch_jump_target,
     first_nonlabel_nonphi_node,
     get_ast_subexprs,
     remove_last_statement,
     switch_extract_cmp_bounds,
+    switch_jumptable_first_case,
 )
 from angr.knowledge_plugins.cfg import IndirectJumpType
 from angr.utils.graph import GraphUtils
@@ -560,7 +562,7 @@ class DreamStructurer(StructurerBase):
         cmp = switch_extract_cmp_bounds(last_stmt)
         if not cmp:
             return False
-        cmp_expr, cmp_lb, _cmp_ub = cmp  # pylint:disable=unused-variable
+        cmp_expr, cmp_lb, cmp_ub = cmp
 
         # the real indirect jump
         if len(addr2nodes[target]) != 1:
@@ -576,8 +578,16 @@ class DreamStructurer(StructurerBase):
 
         # build switch-cases
         assert jump_table.jumptable_entries is not None
+        first_case = switch_jumptable_first_case(
+            jump_table,
+            find_dispatch_jump_target(node_a, jump_table.addr),
+            cmp_expr,
+            cmp_lb,
+            cmp_ub,
+            self._is_mapped,
+        )
         cases, node_default, to_remove = self._switch_build_cases(
-            seq, cmp_lb, jump_table.jumptable_entries, i, node_b_addr, addr2nodes
+            seq, first_case, jump_table.jumptable_entries, i, node_b_addr, addr2nodes
         )
         # if we don't know what the end address of this switch-case structure is, let's figure it out
         switch_end_addr = (
@@ -631,7 +641,7 @@ class DreamStructurer(StructurerBase):
         cmp = switch_extract_cmp_bounds(last_stmt)
         if not cmp:
             return False
-        cmp_expr, cmp_lb, _cmp_ub = cmp  # pylint:disable=unused-variable
+        cmp_expr, cmp_lb, cmp_ub = cmp
 
         jumptable_entries = jump_table.jumptable_entries
         assert jumptable_entries is not None
@@ -642,8 +652,12 @@ class DreamStructurer(StructurerBase):
         else:
             return False
 
+        jump_target = (
+            last_stmt.false_target if isinstance(last_stmt.true_target, ailment.Expr.Const) else last_stmt.true_target
+        )
+        first_case = switch_jumptable_first_case(jump_table, jump_target, cmp_expr, cmp_lb, cmp_ub, self._is_mapped)
         cases, node_default, to_remove = self._switch_build_cases(
-            seq, cmp_lb, jumptable_entries, i, default_addr, addr2nodes
+            seq, first_case, jumptable_entries, i, default_addr, addr2nodes
         )
         if node_default is None:
             # there must be a default case
@@ -906,10 +920,13 @@ class DreamStructurer(StructurerBase):
             node = successor
         return None
 
+    def _is_mapped(self, addr: int) -> bool:
+        return self.project.loader.find_object_containing(addr) is not None
+
     def _switch_build_cases(
         self,
         seq: SequenceNode,
-        cmp_lb: int,
+        first_case: int,
         jumptable_entries: list[int],
         head_node_idx: int,
         node_b_addr: int,
@@ -919,7 +936,7 @@ class DreamStructurer(StructurerBase):
         Discover all cases for the switch-case structure and build the switch-cases dict.
 
         :param seq:                 The original Sequence node.
-        :param cmp_lb:              The lower bound of the jump table comparison.
+        :param first_case:          The case number of the first jump table entry.
         :param jumptable_entries:   Addresses of indirect jump targets in the jump table.
         :param head_node_addr:      The index of the head block of this jump table in `seq`.
         :param node_b_addr:         Address of node B. Potentially, node B is the default node.
@@ -938,7 +955,7 @@ class DreamStructurer(StructurerBase):
         entry_addr_to_ids = defaultdict(set)
 
         for j, entry_addr in enumerate(jumptable_entries):
-            cases_idx = cmp_lb + j
+            cases_idx = first_case + j
             if entry_addr == node_b_addr:
                 # jump to default or end of the switch-case structure - ignore this case
                 continue

@@ -52,3 +52,10 @@ message Function {
                                      // external_blocks and call_sites are empty when this is set
     repeated FlavoredPrototype flavored_prototypes = 31; // prototypes of decompilation flavors other than "pseudocode"
 }
+
+// The fields of Function that locate its graph (same field numbers), for reading a stored Function's blocks without
+// parsing the rest of it
+message FunctionGraphFields {
+    uint64          ea = 1;
+    bytes           graph_blob = 30;
+}
