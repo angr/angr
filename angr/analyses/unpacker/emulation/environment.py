@@ -357,6 +357,7 @@ class WindowsEmulator:
 
         self._clock = self.tick
         self._clock_reads = 0
+        self._clock_work_in_tick = 0
         self._next_handle = 0x100
         self._stop_points: set[int] = set()
         self._continuations: dict[int, Callable[[int], None]] = {}
@@ -387,10 +388,23 @@ class WindowsEmulator:
         clock. Polling it in a tight loop returns the same value several times, as on a real machine.
         """
         self._clock_reads += 1
-        self._clock = max(
-            self._clock, self.tick + self.blocks // self.WORK_PER_MS + self._clock_reads // self.CLOCK_READS_PER_MS
-        )
+        self._clock = max(self._clock, self.tick + self._clock_work() - self._clock_work_in_tick)
         return self._clock
+
+    def _clock_work(self) -> int:
+        return self.blocks // self.WORK_PER_MS + self._clock_reads // self.CLOCK_READS_PER_MS
+
+    def tick_ms(self, step: int) -> int:
+        """
+        The tick count after another `step` milliseconds. It is the same clock as clock_ms(): neither ever reads
+        less than the other has returned.
+        """
+        self.tick += step
+        if self.tick < self._clock:
+            # catch up with the work clock_ms() has counted; that work is part of the tick count from here on
+            self.tick = self._clock
+            self._clock_work_in_tick = self._clock_work()
+        return self.tick
 
     def read(self, addr: int, size: int) -> bytes:
         """

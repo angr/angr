@@ -1200,6 +1200,29 @@ class TestTimers(unittest.TestCase):
         API_HANDLERS["Sleep"].func(emu, [50])
         assert emu.clock_ms() - before >= 50
 
+    def test_time_get_time_and_tick_count_are_one_clock(self):
+        emu = emulator(b"\xc3")
+        call = lambda name: API_HANDLERS[name].func(emu, [])
+        # GetTickCount alone steps as before
+        first = call("GetTickCount")
+        assert call("GetTickCount") == first + 16
+        # work that timeGetTime counts: a later GetTickCount is not behind it
+        emu.blocks += 300 * emu.WORK_PER_MS
+        worked = call("timeGetTime")
+        assert worked >= first + 16 + 300
+        assert call("timeGetTime") == worked
+        tick = call("GetTickCount")
+        assert worked <= tick <= worked + 16
+        # ... and the work is not counted a second time
+        assert tick <= call("timeGetTime") <= tick + 1
+        last = 0
+        for step in range(200):
+            emu.blocks += (step % 7) * emu.WORK_PER_MS
+            now = call(("timeGetTime", "GetTickCount", "timeGetTime", "GetTickCount64")[step % 4])
+            assert now >= last, (step, now, last)
+            last = now
+        assert last - tick < 200 * 16 + 200 * 6 + 16
+
 
 class TestImportWrappers(unittest.TestCase):
     def test_trace_to_api(self):

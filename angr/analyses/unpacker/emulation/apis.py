@@ -1075,14 +1075,12 @@ def nt_query_object(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("GetTickCount", nargs=0)
 def get_tick_count(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    emu.tick += 16
-    return emu.tick & 0xFFFFFFFF
+    return emu.tick_ms(16) & 0xFFFFFFFF
 
 
 @api("GetTickCount64", nargs=0)
 def get_tick_count64(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    emu.tick += 16
-    return emu.tick
+    return emu.tick_ms(16)
 
 
 # the calls that count as polls of a Sleep loop; they share _sleep()
