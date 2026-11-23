@@ -1147,10 +1147,13 @@ class TestImportWrappers(unittest.TestCase):
         # junk, then a jump past the API's first instruction
         emu.write(wrapper + 0x100, b"\x8b\xff\x90\xe9" + struct.pack("<i", sleep + 2 - (wrapper + 0x108)))
         emu.write(wrapper + 0x200, b"\x31\xc0\xc3")
+        # push eax; jmp Sleep: the API would not return to the caller, so this is not a wrapper
+        emu.write(wrapper + 0x300, b"\x50\xe9" + struct.pack("<i", sleep - (wrapper + 0x306)))
         pc = emu.pc
         assert emu.trace_to_api(wrapper) == sleep
         assert emu.trace_to_api(wrapper + 0x100) == sleep
         assert emu.trace_to_api(wrapper + 0x200) is None
+        assert emu.trace_to_api(wrapper + 0x300) is None
         assert emu.pc == pc
 
 
@@ -1219,6 +1222,9 @@ class TestImportRecovery(unittest.TestCase):
         for addr in (wrapper, heap, emu.process_heap):
             assert addr >> 24 < 0x20 and addr >> 24 not in (0, 9, 10, 13), hex(addr)
         emu.write(wrapper, emu.read(close, 12))
+        # two places that reach an API but are not wrappers: push eax; jmp API
+        for offset, api in ((0x300, close), (0x310, sleep)):
+            emu.write(wrapper + offset, b"\x50\xe9" + struct.pack("<i", api - (wrapper + offset + 6)))
         data = IMAGE_BASE + 0x2000
         emu.write(data, struct.pack("<II", sleep, wrapper))
         # a table of multiples of 0x100 that runs through all DLLs and allocations
@@ -1231,11 +1237,12 @@ class TestImportRecovery(unittest.TestCase):
         ]
         assert len(table) < 0x1800
         emu.write(data + 0x100, struct.pack(f"<{len(table)}I", *table))
-        # text, 16-bit values read at an odd offset and floats
+        # text, 16-bit values read at an odd offset, floats, and pointers into the middle of the wrappers
         tail = data + 0x6400
         emu.write(tail, b"Requested SSL level failed. OpenSSL DSA method v u w x  " * 4)
         emu.write(tail + 0x100, bytes.fromhex("00b40070007f0070008c0075001100760037007700") * 4)
         emu.write(tail + 0x200, struct.pack("<8f", 1e30, 3e33, 7e35, 2e36, float("inf"), 3.4e38, 1e31, 5e34))
+        emu.write(tail + 0x300, struct.pack("<II", wrapper + 0x300, wrapper + 0x310))
 
         layer = core._snapshot(None, IMAGE_BASE + CODE_RVA)  # pylint:disable=protected-access
         assert [(imp.iat_rva, imp.dll, imp.name) for imp in layer.imports] == [

@@ -591,7 +591,9 @@ class IcicleWindowsEmulator(WindowsEmulator):
                 slot = self.api_slots.get(pc)
                 if slot is not None:
                     if slot[1] != "KiFastSystemCall":
-                        return pc
+                        return pc if self.sp == sp else None
+                    if self.sp != sp - self.ptr_size:
+                        return None
                     number = self.reg("eax") & 0xFFFF
                     name = self._syscall_names.get(number)
                     return slot[0].resolve(name, create=False) if name is not None else None

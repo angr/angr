@@ -1314,6 +1314,10 @@ class WindowsEmulator:
         """
         Run the code at addr on a throw-away copy of the process until it reaches an API. Returns the API's trap
         address, or None if it gets anywhere else. Used to see through import wrappers; the process is not changed.
+
+        A wrapper stands in for the API: it enters it with the stack as it found it (its caller's return address on
+        top). Code that reaches an API any other way is not one - for example the middle of a wrapper, or data,
+        that a constant in the image happens to point at.
         """
         state = self.state.copy()
         state.unicorn.max_steps = max_blocks
@@ -1325,8 +1329,11 @@ class WindowsEmulator:
             pc = state.addr
             slot = self.api_slots.get(pc)
             if slot is not None:
+                reached_sp = state.solver.eval(state.registers.load(self.project.arch.sp_offset, self.ptr_size))
                 if slot[1] != "KiFastSystemCall":
-                    return pc
+                    return pc if reached_sp == sp else None
+                if reached_sp != sp - self.ptr_size:
+                    return None
                 # entered through a copied system-call stub: the number names the API
                 number = state.solver.eval(state.registers.load(self.project.arch.registers["eax"][0], 4)) & 0xFFFF
                 name = self._syscall_names.get(number)
