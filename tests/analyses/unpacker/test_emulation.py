@@ -665,6 +665,85 @@ class TestApiHandlers(unittest.TestCase):
             assert query(7, buf, ptr, 0) == 0 and emu.read_ptr(buf) == 0
             assert query(0x1F, buf, 4, 0) == 0 and emu.read_u32(buf) == 1
             assert query(0x55, buf, 4, 0) == 0xC0000003
+            # the buffer is not touched by the probe: a bad address fails only once the length and the handle are
+            # right, and then nothing is stored through the length pointer
+            emu.write_u32(buf + 0x200, 0xDEADBEEF)
+            assert query(0x1E, 0, ptr - 1, buf + 0x200) == 0xC0000004
+            assert query(0x1E, 0x0BADBEA0, ptr + 1, buf + 0x200) == 0xC0000004
+            assert query(0x1E, 0, ptr, buf + 0x200) == 0xC0000005
+            assert query(0x1E, 0x0BADBEA0, ptr, buf + 0x200) == 0xC0000005
+            assert query(0x1E, buf + 1, 1, 0xDEADBEA0) == 0x80000002
+            assert query(0x1E, buf, 0, 0xDEADBEA1) == 0xC0000005
+            process = API_HANDLERS["NtQueryInformationProcess"].func
+            assert process(emu, [0, 0x1E, 0, 0, buf + 0x200]) == 0xC0000004
+            assert process(emu, [0, 0x1E, 0, ptr, buf + 0x200]) == 0xC0000008
+            assert process(emu, [0, 0x1E, buf, ptr, 0]) == 0xC0000008
+            assert emu.read_u32(buf + 0x200) == 0xDEADBEEF
+
+    def test_thread_information_argument_checks(self):
+        for is_64bit in (False, True):
+            emu = emulator(b"\xc3", is_64bit)
+            emu.start()
+            buf = emu.alloc(0x1000)
+            ptr = emu.ptr_size
+            call = lambda name, *args, emu=emu: API_HANDLERS[name].func(emu, list(args))
+            current = 0xFFFFFFFE if not is_64bit else 0xFFFFFFFFFFFFFFFE
+            other = call("CreateThread", 0, 0, IMAGE_BASE + CODE_RVA, 0, 4, 0)
+            event = call("CreateEventA", 0, 0, 0, 0)
+            # ThreadHideFromDebugger takes no data and a real thread
+            assert call("NtSetInformationThread", current, 0x11, buf, 4) == 0xC0000004
+            assert call("NtSetInformationThread", current, 0x11, buf, 1) == 0xC0000004
+            assert call("NtSetInformationThread", 0xDEADBEEF, 0x11, 0, 0) == 0xC0000008
+            assert call("NtSetInformationThread", event, 0x11, 0, 0) == 0xC0000024
+            assert call("NtQueryInformationThread", current, 0x11, buf, 1, 0) == 0 and emu.read(buf, 1) == b"\0"
+            assert call("NtSetInformationThread", current, 0x11, 0, 0) == 0
+            # the query wants one byte; the length is checked before the handle
+            assert call("NtQueryInformationThread", current, 0x11, buf, 4, 0) == 0xC0000004
+            assert call("NtQueryInformationThread", 0xDEADBEEF, 0x11, buf, 4, 0) == 0xC0000004
+            emu.write_u32(buf + 0x10, 0xDEADBEEF)
+            assert call("NtQueryInformationThread", 0xDEADBEEF, 0x11, buf, 1, buf + 0x10) == 0xC0000008
+            assert call("NtQueryInformationThread", current, 0x11, buf, 0, buf + 0x10) == 0xC0000004
+            assert emu.read_u32(buf + 0x10) == 0xDEADBEEF
+            assert call("NtQueryInformationThread", current, 0x11, buf + 1, 1, buf + 0x10) == 0
+            assert emu.read(buf + 1, 1) == b"\x01" and emu.read_u32(buf + 0x10) == 1
+            # only that thread is hidden
+            assert call("NtQueryInformationThread", other, 0x11, buf, 1, 0) == 0 and emu.read(buf, 1) == b"\0"
+            assert call("NtSetInformationThread", other, 0x11, 0, 0) == 0
+            assert call("NtQueryInformationThread", other, 0x11, buf, 1, 0) == 0 and emu.read(buf, 1) == b"\x01"
+            # the length pointer is probed before the length is compared
+            assert call("NtQueryInformationThread", current, 0x11, buf, 1, 1) == 0xC0000005
+            assert call("NtQueryInformationThread", current, 0x11, buf, 0, 1) == 0xC0000005
+            # ThreadBasicInformation: 0x1C or 0x30 bytes, a ULONG-aligned buffer, written only when all else is right
+            size = 0x30 if is_64bit else 0x1C
+            assert call("NtQueryInformationThread", 0, 0, 0, 0, 0) == 0xC0000004
+            assert call("NtQueryInformationThread", 0, 0, buf, size, 0) == 0xC0000008
+            assert call("NtQueryInformationThread", current, 0, buf, size - 4, 0) == 0xC0000004
+            assert call("NtQueryInformationThread", current, 0, 0, size, 0) == 0xC0000005
+            assert call("NtQueryInformationThread", current, 0, buf + 1, 0, 0) == 0xC0000004
+            assert call("NtQueryInformationThread", current, 0, buf + 1, size, 0) == 0x80000002
+            assert call("NtQueryInformationThread", current, 0, buf + 2, size, 0) == 0x80000002
+            assert call("NtQueryInformationThread", current, 0, buf, size, buf + 0x10) == 0
+            assert emu.read_ptr(buf + ptr) == emu.teb and emu.read_ptr(buf + 3 * ptr) == emu.thread.tid
+            assert emu.read_u32(buf + 0x10) == size
+
+    def test_query_system_information_argument_checks(self):
+        for is_64bit in (False, True):
+            emu = emulator(b"\xc3", is_64bit)
+            buf = emu.alloc(0x1000)
+            query = lambda *args, emu=emu: API_HANDLERS["NtQuerySystemInformation"].func(emu, list(args))
+            # SystemKernelDebuggerInformation: two bytes at any address; a larger buffer is fine
+            assert query(0x23, buf, 0, buf + 0x10) == 0xC0000004 and emu.read_u32(buf + 0x10) == 2
+            assert query(0x23, buf + 1, 2, buf + 0x10) == 0 and emu.read(buf + 1, 2) == b"\x00\x01"
+            assert query(0x23, buf, 4, buf + 0x10) == 0 and emu.read_u32(buf + 0x10) == 2
+            assert query(0x23, buf, 1, 0) == 0xC0000004
+            # the buffer is probed for writing before the length is looked at, then the length pointer
+            assert query(0x23, 0, 1, 0) == 0xC0000005
+            assert query(0x23, 0, 2, 0) == 0xC0000005
+            assert query(0x23, buf, 2, 1) == 0xC0000005
+            assert query(0x23, 0, 0, 0) == 0xC0000004
+            # other classes want a ULONG-aligned buffer
+            assert query(0, buf + 2, 0x40, 0) == 0x80000002
+            assert query(0, buf, 0x40, 0) == 0
 
     def test_debug_object_count(self):
         # NtCreateDebugObject, then NtQueryObject(ObjectTypeInformation): the program's object is the only one

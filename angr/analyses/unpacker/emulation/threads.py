@@ -27,6 +27,8 @@ class Thread:
     messages: list[tuple[int, int, int, int]] = field(default_factory=list)
     # threads of the windows whose procedures this thread is running through SendMessage and the like, innermost last
     window_owners: list[Thread] = field(default_factory=list)
+    # set through NtSetInformationThread(ThreadHideFromDebugger)
+    hide_from_debugger: bool = False
 
 
 @dataclass

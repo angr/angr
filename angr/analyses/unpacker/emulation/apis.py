@@ -33,6 +33,7 @@ STATUS_OBJECT_NAME_COLLISION = 0xC0000035
 STATUS_NOT_IMPLEMENTED = 0xC0000002
 STATUS_PORT_NOT_SET = 0xC0000353
 STATUS_INVALID_INFO_CLASS = 0xC0000003
+STATUS_OBJECT_TYPE_MISMATCH = 0xC0000024
 STATUS_DLL_NOT_FOUND = 0xC0000135
 STATUS_ORDINAL_NOT_FOUND = 0xC0000138
 STATUS_ENTRYPOINT_NOT_FOUND = 0xC0000139
@@ -622,7 +623,6 @@ def set_handle_count(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 _const(("InitializeCriticalSectionEx",), 3, 1)
-_const(("NtSetInformationThread", "ZwSetInformationThread"), 4, STATUS_SUCCESS)
 
 
 @api("AddVectoredExceptionHandler", "RtlAddVectoredExceptionHandler", nargs=2)
@@ -957,28 +957,46 @@ def check_remote_debugger_present(emu: WindowsEmulator, args: list[int]) -> int:
     return 1
 
 
-def _probe_for_write(emu: WindowsEmulator, addr: int, length: int, alignment: int) -> int | None:
+def _probe_for_read(emu: WindowsEmulator, addr: int, length: int, alignment: int) -> int | None:
     """
-    The kernel's ProbeForWrite on a system call's output pointer: the status the call fails with, or None. Nothing
-    is checked for an empty range.
+    The kernel's ProbeForRead on a system call's buffer: the status the call fails with, or None. Only the
+    alignment and the address range are checked; the memory is not touched (a bad address faults when it is used).
+    Nothing is checked for an empty range.
     """
     if not length:
         return None
     if addr & (alignment - 1):
         return STATUS_DATATYPE_MISALIGNMENT
-    for page in range(addr & ~0xFFF, addr + length, 0x1000):
-        if not emu.is_mapped(page) or not emu.perms(page) & 2:
-            return STATUS_ACCESS_VIOLATION
+    if addr + length > emu.space.limit:
+        return STATUS_ACCESS_VIOLATION
     return None
+
+
+def _writable(emu: WindowsEmulator, addr: int, length: int) -> bool:
+    return all(emu.is_mapped(page) and emu.perms(page) & 2 for page in range(addr & ~0xFFF, addr + length, 0x1000))
+
+
+def _probe_for_write(emu: WindowsEmulator, addr: int, length: int, alignment: int) -> int | None:
+    """
+    The kernel's ProbeForWrite on a system call's output pointer: as ProbeForRead, and every page is written to.
+    """
+    status = _probe_for_read(emu, addr, length, alignment)
+    if status is None and length and not _writable(emu, addr, length):
+        status = STATUS_ACCESS_VIOLATION
+    return status
+
+
+def _pseudo_handle(emu: WindowsEmulator, handle: int, value: int) -> bool:
+    return handle == value & ((1 << (8 * emu.ptr_size)) - 1) or handle == value & 0xFFFFFFFF
 
 
 @api("NtQueryInformationProcess", "ZwQueryInformationProcess", nargs=5)
 def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
     info_class, buf, length, return_length = args[1], args[2], args[3], args[4]
-    # the kernel first probes the buffer (aligned as a ULONG) and the length pointer (any address that can be
-    # written), then checks the length against the class; protectors pass each kind of bad argument and compare
-    # the status to catch faked answers
-    status = _probe_for_write(emu, buf, length, 4)
+    # The order of the kernel's checks; protectors pass each kind of bad argument and compare the status to catch
+    # faked answers. The buffer is probed without being touched (aligned as a ULONG), the length pointer by writing
+    # to it (any alignment), then come the class, the length, the handle, and only then the write to the buffer.
+    status = _probe_for_read(emu, buf, length, 4)
     if status is None and return_length:
         status = _probe_for_write(emu, return_length, 4, 1)
     if status is not None:
@@ -989,6 +1007,11 @@ def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
         return STATUS_INVALID_INFO_CLASS
     if length != sizes[info_class]:
         return STATUS_INFO_LENGTH_MISMATCH
+    if not _pseudo_handle(emu, args[0], -1):
+        # no handle here stands for a process
+        return STATUS_OBJECT_TYPE_MISMATCH if args[0] in emu.handles else STATUS_INVALID_HANDLE
+    if not _writable(emu, buf, length):
+        return STATUS_ACCESS_VIOLATION
     status = STATUS_SUCCESS
     if info_class == 7:  # ProcessDebugPort
         emu.write_ptr(buf, 0)
@@ -1001,7 +1024,8 @@ def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
         emu.write(buf, bytes(length))
         emu.write_ptr(buf + ptr, emu.peb)
         emu.write_ptr(buf + 4 * ptr, emu.PID)
-    # the kernel stores the length after the data even on failure; protectors overlap the two to catch fakes
+    # the kernel stores the length after the data, also with STATUS_PORT_NOT_SET; protectors overlap the two to
+    # catch fakes
     if return_length:
         emu.write_u32(return_length, length)
     return status
@@ -2383,6 +2407,13 @@ def nt_delay_execution(emu: WindowsEmulator, args: list[int]) -> None:  # pylint
 @api("NtQuerySystemInformation", "ZwQuerySystemInformation", "RtlGetNativeSystemInformation", nargs=4)
 def nt_query_system_information(emu: WindowsEmulator, args: list[int]) -> int:
     info_class, buf, length, ret_length = args
+    # the buffer is probed for writing (aligned as a ULONG; SystemKernelDebuggerInformation as a BOOLEAN), then the
+    # length pointer; the size a class needs is stored also when the buffer is too small
+    status = _probe_for_write(emu, buf, length, 1 if info_class == 0x23 else 4)
+    if status is None and ret_length:
+        status = _probe_for_write(emu, ret_length, 4, 1)
+    if status is not None:
+        return status
     if info_class == 0:  # SystemBasicInformation
         top = 0x7FFFFFFEFFFF if emu.is_64bit else 0x7FFEFFFF
         ptr_fmt = "Q" if emu.is_64bit else "I"
@@ -2407,25 +2438,66 @@ def nt_query_system_information(emu: WindowsEmulator, args: list[int]) -> int:
 _const(("NtSetInformationProcess", "ZwSetInformationProcess"), 4, STATUS_SUCCESS)
 
 
+def _thread_of_handle(emu: WindowsEmulator, handle: int) -> Thread | int:
+    """
+    The thread a handle stands for, or the status a system call fails with.
+    """
+    if _pseudo_handle(emu, handle, -2):
+        return emu.thread
+    obj = emu.handles.get(handle)
+    if isinstance(obj, Thread):
+        return obj
+    return STATUS_INVALID_HANDLE if obj is None else STATUS_OBJECT_TYPE_MISMATCH
+
+
 @api("NtQueryInformationThread", "ZwQueryInformationThread", nargs=5)
 def nt_query_information_thread(emu: WindowsEmulator, args: list[int]) -> int:
-    info_class, buf, length = args[1], args[2], args[3]
-    if info_class == 0x11:  # ThreadHideFromDebugger: report that hiding took effect
-        data = b"\x01"
-    elif info_class == 0:  # ThreadBasicInformation
-        ptr = emu.ptr_size
-        data = bytearray(6 * ptr)
-        data[ptr : 2 * ptr] = emu.teb.to_bytes(ptr, "little")
+    info_class, buf, length, return_length = args[1], args[2], args[3], args[4]
+    # checked in the kernel's order, as for NtQueryInformationProcess: buffer alignment, length pointer, length,
+    # handle, and then the write
+    status = _probe_for_read(emu, buf, length, 1 if info_class == 0x11 else 4)
+    if status is None and return_length:
+        status = _probe_for_write(emu, return_length, 4, 1)
+    if status is not None:
+        return status
+    ptr = emu.ptr_size
+    # ThreadBasicInformation, ThreadHideFromDebugger (a BOOLEAN)
+    sizes = {0: 0x30 if emu.is_64bit else 0x1C, 0x11: 1}
+    if info_class in sizes and length != sizes[info_class]:
+        return STATUS_INFO_LENGTH_MISMATCH
+    thread = _thread_of_handle(emu, args[0])
+    if not isinstance(thread, Thread):
+        return thread
+    if info_class == 0x11:
+        data = bytes((thread.hide_from_debugger,))
+    elif info_class == 0:
+        data = bytearray(length)
+        data[ptr : 2 * ptr] = thread.teb.to_bytes(ptr, "little")
         data[2 * ptr : 3 * ptr] = emu.PID.to_bytes(ptr, "little")
-        data[3 * ptr : 4 * ptr] = emu.thread.tid.to_bytes(ptr, "little")
+        data[3 * ptr : 4 * ptr] = thread.tid.to_bytes(ptr, "little")
         data = bytes(data)
     else:
         data = bytes(min(length, 0x100))
-    if length < len(data):
-        return STATUS_INFO_LENGTH_MISMATCH
+    if not _writable(emu, buf, len(data)):
+        return STATUS_ACCESS_VIOLATION
     emu.write(buf, data)
-    if args[4]:
-        emu.write_u32(args[4], len(data))
+    if return_length:
+        emu.write_u32(return_length, len(data))
+    return STATUS_SUCCESS
+
+
+@api("NtSetInformationThread", "ZwSetInformationThread", nargs=4)
+def nt_set_information_thread(emu: WindowsEmulator, args: list[int]) -> int:
+    if args[1] != 0x11:
+        return STATUS_SUCCESS
+    # ThreadHideFromDebugger takes no data: programs pass a length, or a handle that is none, to see whether the
+    # call is answered by something that always succeeds
+    if args[3]:
+        return STATUS_INFO_LENGTH_MISMATCH
+    thread = _thread_of_handle(emu, args[0])
+    if not isinstance(thread, Thread):
+        return thread
+    thread.hide_from_debugger = True
     return STATUS_SUCCESS
 
 
