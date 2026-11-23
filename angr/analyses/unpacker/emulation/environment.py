@@ -1467,6 +1467,9 @@ class WindowsEmulator:
             previous = self.read(pc - 1, 1)[0] if pc > block_addr else 0
             if previous == 0xCC:
                 self.exceptions.dispatch(EXCEPTION_BREAKPOINT, pc - 1)
+            elif previous == 0xF4:
+                # hlt: a fault, reported at the instruction
+                self.exceptions.dispatch(EXCEPTION_PRIV_INSTRUCTION, pc - 1)
             else:
                 self.exceptions.dispatch(EXCEPTION_PRIV_INSTRUCTION, pc)
         elif jumpkind in ("Ijk_SigILL", "Ijk_NoDecode"):

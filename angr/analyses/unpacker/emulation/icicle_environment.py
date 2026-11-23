@@ -60,9 +60,8 @@ _IA_PATCHES = (
         " conditionalAssign(OF, count==1, CF ^ ((result << 1) s< 0), OF); ",
         " conditionalAssign(OF, count==0, OF, CF ^ ((result << 1) s< 0)); ",
     ),
-    # user mode (CPL 3, IOPL 0): popf leaves IF alone and IF stays set; cli is a no-op like sti
+    # user mode (CPL 3, IOPL 0): popf leaves IF alone and IF stays set
     ("  IF = (tmp & 0x0200) != 0;\n", ""),
-    (":CLI\t\t\tis vexMode=0 & byte=0xfa\t\t\t\t\t\t{ IF = 0; }", ":CLI\t\t\tis vexMode=0 & byte=0xfa\t\t\t\t\t\t{ }"),
 )
 # xchg m32, r32 in 64-bit mode: the register's upper half is cleared like for every 32-bit write
 _XCHG_M32 = (
@@ -294,6 +293,10 @@ _DOUBLE_SHIFTS = tuple(
 _CONSTRUCTOR_PATCHES = tuple(
     (name, r"trunc\((.*?)\);", r"trunc(round(\1));") for name in ("CVTPS2DQ", "CVTPD2DQ", "CVTPD2PI")
 )
+# instructions that need I/O privilege (CPL <= IOPL) fault in user mode. Their bodies become a call of a p-code
+# operation the VM answers with a privileged-instruction exception (invlpg, itself privileged; the spec defines it
+# before all of them). The string forms lose their rep handling, so nothing is counted down before the fault.
+_IO_PRIVILEGED = ("CLI", "STI", "IN", "OUT", "INSB", "INSW", "INSD", "OUTSB", "OUTSW", "OUTSD")
 _SLEIGH_PATCHES: tuple[tuple[str, str, str], ...] = (
     *(("ia.sinc", old, new) for old, new in _IA_PATCHES),
     *(("ia.sinc", old, new) for old, new in _STACK16),
@@ -314,7 +317,7 @@ def patched_processors() -> str:
     """
     A copy of pypcode's x86 SLEIGH files with _SLEIGH_PATCHES applied, made once per pypcode version.
     """
-    digest = hashlib.sha256(repr((_SLEIGH_PATCHES, _CONSTRUCTOR_PATCHES)).encode()).hexdigest()[:12]
+    digest = hashlib.sha256(repr((_SLEIGH_PATCHES, _CONSTRUCTOR_PATCHES, _IO_PRIVILEGED)).encode()).hexdigest()[:12]
     root = os.path.join(tempfile.gettempdir(), f"angr-unpacker-sleigh-{pypcode.__version__}-{digest}")
     languages = os.path.join(root, "x86", "data", "languages")
     if os.path.isdir(languages):
@@ -330,6 +333,16 @@ def patched_processors() -> str:
                 assert old in text, old
                 text = text.replace(old, new)
         if name == "ia.sinc":
+            for mnemonic in _IO_PRIVILEGED:
+                text, count = re.subn(
+                    rf"^:{mnemonic}(?:\^rep\^reptail)?(\s[^{{\n]*)\{{[^}}\n]*\}}",
+                    lambda m, mnemonic=mnemonic: (
+                        f":{mnemonic}{m.group(1).replace(' rep & reptail &', '')}{{ invlpg(0:1); }}"
+                    ),
+                    text,
+                    flags=re.MULTILINE,
+                )
+                assert count, mnemonic
             for mnemonic, pattern, repl in _CONSTRUCTOR_PATCHES:
                 text, count = re.subn(
                     rf"^:{mnemonic} .*?^\}}",

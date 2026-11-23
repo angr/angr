@@ -1596,6 +1596,13 @@ class TestExceptions(unittest.TestCase):
         # the trap is taken after the instruction that follows popfd
         assert emu.read_u32(cell + 4) == IMAGE_BASE + CODE_RVA + len(main) - 2
 
+    def test_hlt_faults_at_the_instruction(self):
+        emu = emulator(b"\x90\xf4\xc3")
+        emu.start()
+        stop = emu.run(max_blocks=1000)
+        assert stop.reason is StopReason.ERROR
+        assert stop.detail == f"unhandled exception 0xc0000096 at {IMAGE_BASE + CODE_RVA + 1:#x}", stop
+
     def test_unhandled_exception_filter(self):
         # entry: push 0x1234; call [UnhandledExceptionFilter]; ret
         slot = IMAGE_BASE + CODE_RVA + 0x100

@@ -187,11 +187,26 @@ class TestWinVm(unittest.TestCase):
         assert vm.reg_read("ecx") == 0
 
     def test_user_mode_interrupt_flag(self):
-        # push 0; popfd; cli; pushfd; pop eax: IF stays set, as for any user-mode thread
+        # push 0; popfd; pushfd; pop eax: IF stays set, as for any user-mode thread
         vm = _vm()
         vm.reg_write("if", 1)
-        assert _run(vm, bytes.fromhex("6a00 9d fa 9c 58"))[1] == winemu.FAULT_SYSCALL
+        assert _run(vm, bytes.fromhex("6a00 9d 9c 58"))[1] == winemu.FAULT_SYSCALL
         assert vm.reg_read("eax") == 0x202
+
+    def test_io_privileged_instructions(self):
+        # cli, sti, in, out and their string forms need I/O privilege: they fault and change nothing
+        for is_64bit in (False, True):
+            for code in ("fa", "fb", "ec", "ed", "e410", "e510", "ee", "ef", "e610", "e710", "6c", "6d", "6e", "6f"):
+                for prefix in ("", "f3"):
+                    if prefix and code[0] != "6":
+                        continue
+                    vm = _vm(is_64bit)
+                    vm.reg_write("if", 1)
+                    vm.reg_write("ecx", 5)
+                    assert _run(vm, bytes.fromhex(prefix + code))[0] == winemu.EXIT_PRIVILEGED, (is_64bit, code)
+                    assert vm.pc == CODE
+                    assert vm.reg_read("ecx") == 5
+                    assert vm.reg_read("if") == 1
 
     def test_cpuid_and_privileged(self):
         vm = _vm()
@@ -230,6 +245,15 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
 
     def test_engine(self):
         assert isinstance(emulator(b"\xc3"), IcicleWindowsEmulator)
+
+    def test_cli_and_port_io_raise(self):
+        # nop; cli / in al, dx / out dx, al: STATUS_PRIVILEGED_INSTRUCTION at the instruction
+        for opcode in (0xFA, 0xFB, 0xEC, 0xEE):
+            emu = emulator(bytes((0x90, opcode, 0xC3)))
+            emu.start()
+            stop = emu.run(max_blocks=1000)
+            assert stop.reason is StopReason.ERROR
+            assert stop.detail == f"unhandled exception 0xc0000096 at {IMAGE_BASE + CODE_RVA + 1:#x}", stop
 
     def test_returns(self):
         emu = emulator(b"\xb8\x07\x00\x00\x00\xc3")
