@@ -10,7 +10,7 @@ from unittest import mock
 
 from angr.analyses.unpacker.emulation import StopReason
 from angr.analyses.unpacker.emulation.apis import API_HANDLERS
-from angr.analyses.unpacker.emulation.icicle_environment import IcicleWindowsEmulator, patched_processors
+from angr.analyses.unpacker.emulation.icicle_environment import PROCESSORS_DIR, IcicleWindowsEmulator
 from angr.rustylib import winemu
 from angr.rustylib.winemu import WinVm
 
@@ -22,7 +22,7 @@ CODE = 0x400000
 
 
 def _vm(is_64bit: bool = False) -> WinVm:
-    vm = WinVm(is_64bit, patched_processors())
+    vm = WinVm(is_64bit, PROCESSORS_DIR)
     vm.mem_map(CODE, 0x2000, 7)
     vm.mem_map(0x500000, 0x1000, 3)
     vm.reg_write("rsp" if is_64bit else "esp", 0x500F00)

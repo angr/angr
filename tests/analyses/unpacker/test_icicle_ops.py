@@ -8,7 +8,7 @@ import functools
 import struct
 import unittest
 
-from angr.analyses.unpacker.emulation.icicle_environment import patched_processors
+from angr.analyses.unpacker.emulation.icicle_environment import PROCESSORS_DIR
 from angr.rustylib import winemu
 from angr.rustylib.winemu import WinVm
 
@@ -22,7 +22,7 @@ State = tuple[list[int], int, list[int], bytes]
 
 @functools.cache
 def _vm(is_64bit: bool, jit: bool) -> WinVm:
-    vm = WinVm(is_64bit, patched_processors(), jit)
+    vm = WinVm(is_64bit, PROCESSORS_DIR, jit)
     # compile on first use, so that the JIT's path to the helpers is the one tested
     vm.jit_threshold = 0
     vm.mem_map(CODE, 0x1000, 7)
@@ -376,7 +376,7 @@ class TestBitScans(unittest.TestCase):
 
 class TestMemory(unittest.TestCase):
     def test_untouched_pages_are_mapped(self):
-        vm = WinVm(False, patched_processors(), False)
+        vm = WinVm(False, PROCESSORS_DIR, False)
         vm.mem_map(0x600000, 0x2000, 5)
         assert vm.mem_perm(0x600000) == 5
         assert vm.mem_perm(0x601FFF) == 5
@@ -386,7 +386,7 @@ class TestMemory(unittest.TestCase):
 
     def test_write_after_failed_lift(self):
         # an undecodable instruction leaves the page marked as code without a block; writes must still go through
-        vm = WinVm(False, patched_processors(), False)
+        vm = WinVm(False, PROCESSORS_DIR, False)
         vm.mem_map(CODE, 0x1000, 7)
         vm.mem_write(CODE, bytes.fromhex("0f0b"))
         vm.pc = CODE
