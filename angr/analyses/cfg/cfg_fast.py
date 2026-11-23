@@ -4026,9 +4026,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                 and target_func_addr == current_function_addr
                                 and cfg_node.addr == current_function_addr
                             ):
-                                # an indirect jump at a function entry is a thunk that jumps to the start of another
-                                # function. elsewhere, obfuscators may replace direct jumps with jumps through constant
-                                # slots (e.g., `jmp [0x441a7c]`), which resume the current function.
+                                # This is a function thunk only if it is at the start of the function.
+                                # This check corrects situations where such indirect jumps appear at the middle of
+                                # a function, but we incorrectly mark them as starting new functions.
                                 target_func_addr = resolved_target
                             edge = FunctionTransitionEdge(
                                 cfg_node,

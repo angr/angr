@@ -42,10 +42,6 @@ class SimSlicer:
         include_imarks: bool = True,
         tyenv: pyvex.IRTypeEnv | None = None,
     ):
-        """
-        :param tyenv:   Type environment of the IRSB that the statements belong to. Without it, a write to a part of a
-                        register (e.g., `cl`) is treated as overwriting the entire base register (e.g., `ecx`).
-        """
         self._arch = arch
         self._statements = statements
         self._tyenv = tyenv

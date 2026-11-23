@@ -1133,8 +1133,9 @@ class JumpTableResolver(IndirectJumpResolver):
             l.debug("Deferring unbounded jump table at %#x until data references are complete.", addr)
             self.deferred = True
             return False, None
-        # without the expected predecessor shape, the block of the indirect jump must bound the index by itself (e.g.,
-        # `setb al; jmp [eax*4+table]`). we check it with a block-local slice and accept two-way tables only.
+        # Without the expected predecessor if-else shape, the indirect jump must bound the index (e.g.,
+        # `setb al; jmp [eax*4+table]`). We check it with a block-local slice and only accept indirect
+        # jumps with two targets.
         needs_block_local_bound = False
         if func_graph_complete and not is_arm and not potential_call_table and pred_endaddrs and not niche_index:
             # on ARM you can do a single-block jump table...
@@ -2194,8 +2195,9 @@ class JumpTableResolver(IndirectJumpResolver):
         # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
         # the current function) and vtables (where each entry is a function).
         if block_local_slice and jumptable_addr.cardinality == 1:
-            # the block itself pins the index to a single value, e.g., `setb` on a comparison that always holds. across
-            # blocks, a single value may only be the index on one path, so it is not trusted there.
+            # The block itself bounds the index to a single value, e.g., `setb` on a comparison that always holds.
+            # We do not accept cases if the slice contains more than one block, otherwise we may resolve indirect jumps
+            # to fewer targets because the switch expr is constrained to one value along one or some incoming paths.
             stride = load_size
             total_cases = 1
             sort = "jumptable"
