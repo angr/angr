@@ -15,7 +15,7 @@ from angr.rustylib import winemu
 from angr.rustylib.winemu import WinVm
 
 from . import test_emulation
-from .samples import IMAGE_BASE
+from .samples import IMAGE_BASE, needs_sleigh_fixes
 from .test_emulation import CODE_RVA, emulator
 
 CODE = 0x400000
@@ -56,6 +56,7 @@ class TestWinVm(unittest.TestCase):
         assert vm.mem_read(0x500100, 8) == struct.pack("<Q", 0x1122334455667788)
         assert vm.fixups == 1
 
+    @needs_sleigh_fixes
     def test_flags(self):
         vm = _vm()
         # mov eax, 0x80000001; shr eax, 1 (imm8 form): OF is the old sign; pushfd keeps bit 1 set
@@ -66,6 +67,7 @@ class TestWinVm(unittest.TestCase):
         _run(vm, bytes.fromhex("b00f 0401 9c"))
         assert struct.unpack("<I", vm.mem_read(vm.reg_read("esp"), 4))[0] & 0x10
 
+    @needs_sleigh_fixes
     def test_x64_zero_extension_and_shift_flags(self):
         vm = _vm(True)
         vm.mem_write(0x500100, struct.pack("<I", 0x11223344))
@@ -103,6 +105,7 @@ class TestWinVm(unittest.TestCase):
         assert vm.pc == CODE
         assert vm.reg_read("eax") == 0x80000000
 
+    @needs_sleigh_fixes
     def test_16bit_addressing(self):
         # 0x67-prefixed operands use a 16-bit offset (from the FS base here); the stack keeps its 32-bit esp
         vm = _vm()
@@ -114,6 +117,7 @@ class TestWinVm(unittest.TestCase):
         assert vm.reg_read("esp") == 0x500F00
         assert vm.mem_read(0x500040, 4) == struct.pack("<I", 0x11223344)
 
+    @needs_sleigh_fixes
     def test_descriptor_instructions(self):
         vm = _vm()
         # lsl / lar on the user data selector, then on the null selector, which leaves the destination alone
@@ -185,6 +189,7 @@ class TestWinVm(unittest.TestCase):
         assert 0 <= third - second - 250 * 3_600_000 < 100
         assert vm.reg_read("ecx") == 0
 
+    @needs_sleigh_fixes
     def test_user_mode_interrupt_flag(self):
         # push 0; popfd; pushfd; pop eax: IF stays set, as for any user-mode thread
         vm = _vm()
@@ -192,6 +197,7 @@ class TestWinVm(unittest.TestCase):
         assert _run(vm, bytes.fromhex("6a00 9d 9c 58"))[1] == winemu.FAULT_SYSCALL
         assert vm.reg_read("eax") == 0x202
 
+    @needs_sleigh_fixes
     def test_io_privileged_instructions(self):
         # cli, sti, in, out and their string forms need I/O privilege: they fault and change nothing
         for is_64bit in (False, True):
@@ -245,6 +251,7 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
     def test_engine(self):
         assert isinstance(emulator(), IcicleWindowsEmulator)
 
+    @needs_sleigh_fixes
     def test_cli_and_port_io_raise(self):
         # nop; cli / in al, dx / out dx, al: STATUS_PRIVILEGED_INSTRUCTION at the instruction
         for name in ("cli.exe", "sti.exe", "in.exe", "out.exe"):

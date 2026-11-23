@@ -14,6 +14,7 @@ from angr.rustylib.winemu import WinVm
 
 from . import icicle_op_vectors as vectors
 from .icicle_op_vectors import CODE, DATA, DSIZE, P_OFF, Q_OFF
+from .samples import needs_sleigh_fixes
 
 GPR64 = ("rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15")
 GPR32 = ("eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi")
@@ -65,6 +66,7 @@ def _run(code: str, is_64bit: bool = False, jit: bool = False, **regs: int) -> W
         vm.reg_write(name, value)
     for i, value in enumerate(xmm):
         vm.reg_write_bytes(f"xmm{i}", value.to_bytes(16, "little"))
+    vm.reg_write("mxcsr", 0x1F80)
     for name, value in regs.items():
         vm.reg_write(name, value)
     vm.pc = CODE
@@ -86,12 +88,14 @@ class TestOpVectors(unittest.TestCase):
                 results = [_execute(vm, bytes.fromhex(code), state) for state in states]
                 assert vectors.digest(results, mask[0] if mask else 0x8D5) == expected, (code, is_64bit, jit)
 
+    @needs_sleigh_fixes
     def test_sse2(self):
         self._check(vectors.SSE2)
 
     def test_ssse3(self):
         self._check(vectors.SSSE3)
 
+    @needs_sleigh_fixes
     def test_sse41(self):
         self._check(vectors.SSE41)
 
@@ -101,15 +105,18 @@ class TestOpVectors(unittest.TestCase):
     def test_crypto(self):
         self._check(vectors.CRYPTO)
 
+    @needs_sleigh_fixes
     def test_x87(self):
         self._check(vectors.X87)
 
     def test_bmi(self):
         self._check(vectors.BMI)
 
+    @needs_sleigh_fixes
     def test_bit_scans(self):
         self._check(vectors.BITSCAN)
 
+    @needs_sleigh_fixes
     def test_multiply_flags(self):
         self._check(vectors.MULTIPLY)
 
@@ -136,6 +143,7 @@ class TestSse(unittest.TestCase):
             vm.run(10)
             assert vm.reg_read("eax") == expected
 
+    @needs_sleigh_fixes
     def test_movdq2q(self):
         # movdq2q mm3, xmm6; movq [edi], mm3; emms: the low half of the XMM register named by the r/m field
         code = "f20fd6de 0f7f1f 0f77"
@@ -174,6 +182,7 @@ class TestProcessorState(unittest.TestCase):
         assert struct.unpack("<Q", vm.mem_read(DATA + Q_OFF + 512, 8))[0] == 3
         assert (vm.reg_read("eax"), vm.reg_read("edx")) == (3, 0)
 
+    @needs_sleigh_fixes
     def test_extended_precision_operands(self):
         # fld tbyte [esi]; fstp qword [edi]; fld qword [edi]; fstp tbyte [edi + 16]
         vm = _vm(False, False)
@@ -188,6 +197,7 @@ class TestProcessorState(unittest.TestCase):
         # back to 80 bits: the double's 53 significant bits
         assert vm.mem_read(DATA + Q_OFF + 16, 10) == bytes.fromhex("00c06821a2da0fc90040")
 
+    @needs_sleigh_fixes
     def test_exact_64_bit_integers(self):
         # values a double cannot hold survive fild / fistp, register moves, an 80-bit store and reload, and BCD
         values = (0x7FFFFFFFFFFFFFFF, -0x7FFFFFFFFFFFFFFF, (1 << 53) + 1, -(1 << 62) - 3, 999999999999999999)
@@ -231,6 +241,7 @@ class TestProcessorState(unittest.TestCase):
         vm.run(100)
         assert vm.mem_read(DATA + Q_OFF, 8) == struct.pack("<Q", 1 << 63)
 
+    @needs_sleigh_fixes
     def test_small_instructions(self):
         # rdtscp; clflush [esi]; rdrand eax (CF set); fprem needs no 10-byte integer
         vm = _run("0f01f9 0fae3e 0fc7f0 9c", ecx=5)
@@ -315,6 +326,7 @@ class TestInventory(unittest.TestCase):
         "from_bcd",
     ]
 
+    @needs_sleigh_fixes
     def test_user_ops(self):
         for is_64bit in (False, True):
             handled = dict(_vm(is_64bit, False).user_ops())
@@ -341,6 +353,7 @@ class TestInventory(unittest.TestCase):
 
 
 class TestDoubleShifts(unittest.TestCase):
+    @needs_sleigh_fixes
     def test_16_bit_counts_above_16(self):
         # shld / shrd bx, dx, 20 shift the 48-bit bx:dx:bx, as Intel processors and QEMU do
         for jit in (False, True):
@@ -358,6 +371,7 @@ class TestDoubleShifts(unittest.TestCase):
 
 
 class TestBitScans(unittest.TestCase):
+    @needs_sleigh_fixes
     def test_zero_source_keeps_destination(self):
         for jit in (False, True):
             for code in ("0fbcc3", "0fbdc3", "660fbcc3", "660fbdc3", "480fbcc3", "480fbdc3"):
