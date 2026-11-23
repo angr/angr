@@ -3349,14 +3349,46 @@ class TestJumpTableResolver(unittest.TestCase):
         )
         proj = angr.Project(bin_path)
         cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
-        # the first jump table; we happen to resolve it because its shape is the same as a regular, cmp-based one
+        # xor eax, eax; test esi, esi; sete al; jmp [eax*4+0x441bb0]: the index is either 0 or 1
         jt0 = cfg.model.jump_tables[0x415530]
         assert len(jt0.jumptables) == 1
         assert jt0.jumptables[0].addr == 0x441BB0
         assert jt0.jumptables[0].entry_size == 4
-        assert jt0.jumptables[0].size == 4 * 5
-        assert jt0.jumptables[0].entries_guessed is True
-        assert jt0.jumptables[0].entries == [0x4154DA, 0x4154F0, 0x4154F0, 0x4154F0, 0x4154F0]
+        assert jt0.jumptables[0].size == 4 * 2
+        assert jt0.jumptables[0].entries_guessed is False
+        assert jt0.jumptables[0].entries == [0x4154DA, 0x4154F0]
+        # the index (edi) is defined before a call, which the slice does not cross, so the table size is guessed
+        jt1 = cfg.model.jump_tables[0x40F278]
+        assert len(jt1.jumptables) == 1
+        assert jt1.jumptables[0].addr == 0x441648
+        assert jt1.jumptables[0].size == 4 * 2
+        assert jt1.jumptables[0].entries_guessed is True
+        assert jt1.jumptables[0].entries == [0x40F286, 0x40F28F]
+
+    def test_x86_setcc_indexed_jumptables(self):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "50e5f670700243535f8ff558831dbbc314b215092f523355aa7a1c26205ece37"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            function_starts=[0x40ED70],
+            regions=[(0x40ED70, 0x415000)],
+            symbols=False,
+            function_prologues=False,
+            start_at_entry=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+        )
+        # xor ecx, ecx; cmp esi, eax; setb cl; jmp [ecx*4+0x441a70]. eax >= 0x10 and esi == 0, so the index is always 1
+        assert set(cfg.indirect_jumps[0x414247].resolved_targets) == {0x4144C1}
+        # inc esi; xor eax, eax; cmp esi, [esp+0xc]; setb al; jmp [eax*4+0x441a70]
+        assert set(cfg.indirect_jumps[0x4144B0].resolved_targets) == {0x414265, 0x4144C1}
+        # jumps through constant slots in .data (e.g., jmp [0x441a7c] at 0x4144c1) do not split the function
+        func = cfg.kb.functions[0x40ED70]
+        for block_addr in (0x414247, 0x4144B0, 0x4144C7, 0x414265):
+            assert block_addr in func.block_addrs_set
+            assert block_addr not in cfg.kb.functions
 
 
 class TestJumpTableResolverCallTables(unittest.TestCase):

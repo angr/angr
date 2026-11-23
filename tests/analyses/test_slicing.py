@@ -9,7 +9,10 @@ import os
 import time
 import unittest
 
+import pyvex
+
 import angr
+from angr.slicer import SimSlicer
 from angr.utils.constants import DEFAULT_STATEMENT
 from tests.common import bin_location, broken
 
@@ -158,6 +161,26 @@ class TestSlicing(unittest.TestCase):
 
         # Make sure dbg_repr() works
         log.debug(bs.dbg_repr())
+
+    def test_simslicer_partial_register_write_keeps_base_register_live(self):
+        # xor ecx, ecx; cmp esi, eax; setb cl; jmp [ecx*4+0x441a70]
+        # `setb cl` only writes the lowest byte of ecx, so the slice must still include `xor ecx, ecx`
+        code = bytes.fromhex("31c939c60f92c1ff248d701a4400")
+        proj = angr.load_shellcode(code, arch="x86", load_address=0x400000)
+        irsb = proj.factory.block(0x400000).vex
+        assert isinstance(irsb.next, pyvex.IRExpr.RdTmp)
+        ecx = proj.arch.registers["ecx"][0]
+        xor_stmt_idx = next(
+            idx
+            for idx, stmt in enumerate(irsb.statements)
+            if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == ecx and isinstance(stmt.data, pyvex.IRExpr.Const)
+        )
+
+        slicer = SimSlicer(proj.arch, irsb.statements, target_tmps={irsb.next.tmp}, tyenv=irsb.tyenv)
+
+        assert xor_stmt_idx in slicer.stmt_indices
+        assert ecx not in slicer.final_regs
+        assert {proj.arch.registers["eax"][0], proj.arch.registers["esi"][0]} == slicer.final_regs
 
 
 if __name__ == "__main__":

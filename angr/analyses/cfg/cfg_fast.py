@@ -4021,9 +4021,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             to_outside, target_func_addr = self._is_branching_to_outside(
                                 cfg_node, resolved_target, current_function_addr, jumpkind, all_successors, irsb
                             )
-                            if jumpkind == "Ijk_Boring" and target_func_addr == current_function_addr:
-                                # an indirect jump should be jumping to the start of a function instead of resuming
-                                # the current one
+                            if (
+                                jumpkind == "Ijk_Boring"
+                                and target_func_addr == current_function_addr
+                                and cfg_node.addr == current_function_addr
+                            ):
+                                # This is a function thunk only if it is at the start of the function.
+                                # This check corrects situations where such indirect jumps appear at the middle of
+                                # a function, but we incorrectly mark them as starting new functions.
                                 target_func_addr = resolved_target
                             edge = FunctionTransitionEdge(
                                 cfg_node,
