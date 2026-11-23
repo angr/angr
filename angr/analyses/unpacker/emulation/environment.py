@@ -1319,6 +1319,9 @@ class WindowsEmulator:
         top). Code that reaches an API any other way is not one - for example the middle of a wrapper, or data,
         that a constant in the image happens to point at.
         """
+        if self.read(addr, 16) == bytes(16):
+            # zeroed data, not code
+            return None
         state = self.state.copy()
         state.unicorn.max_steps = max_blocks
         sp = self.sp - 0x400

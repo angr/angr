@@ -255,6 +255,18 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
             assert stop.reason is StopReason.ERROR
             assert stop.detail == f"unhandled exception 0xc0000096 at {IMAGE_BASE + CODE_RVA + 1:#x}", stop
 
+    def test_tracing_zeroed_data_is_cheap(self):
+        # pointers into zeroed memory are tried as import wrappers by the thousand: none may leave thousands of
+        # translated instructions behind
+        emu = emulator(b"\xc3")
+        emu.start()
+        region = emu.alloc(0x100000)
+        emu.write(region + 0x8000, b"\x90\x90\x40")
+        before = len(emu.vm.lifted_instructions())
+        for offset in (*range(0x1000, 0x41000, 0x1000), 0x8000):
+            assert emu.trace_to_api(region + offset) is None
+        assert len(emu.vm.lifted_instructions()) - before < 200
+
     def test_returns(self):
         emu = emulator(b"\xb8\x07\x00\x00\x00\xc3")
         emu.start()

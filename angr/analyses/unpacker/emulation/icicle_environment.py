@@ -576,6 +576,8 @@ class IcicleWindowsEmulator(WindowsEmulator):
         pass
 
     def trace_to_api(self, addr: int, max_blocks: int = 20000) -> int | None:
+        if self.read(addr, 16) == bytes(16):
+            return None
         vm = self.vm
         vm.save_snapshot()
         # short runs over mostly new code: compiling each block costs more than interpreting it
@@ -608,17 +610,20 @@ class IcicleWindowsEmulator(WindowsEmulator):
             vm.restore_snapshot()
 
     def _trace_run(self, budget: int) -> int:
-        # values that point at zeroed data slide through `add [eax], al` until the budget ends; translating each
-        # new instruction is what costs here, so give up on such slides early
+        # values that point at zeroed data slide through `add [eax], al` until the budget ends. Every instruction
+        # translated on the way stays in the code cache (about 1 KB each), so look for such slides before running
+        # and often at first: thousands of them cost gigabytes otherwise
         vm = self.vm
+        step = 64
         while budget > 0:
-            step = min(budget, 4096)
+            if self.read(vm.pc, 16) == bytes(16):
+                return winemu.EXIT_OTHER
+            step = min(budget, step)
             kind, _, _ = vm.run(step)
             if kind != winemu.EXIT_LIMIT:
                 return kind
             budget -= step
-            if vm.mem_read(vm.pc, 16) == bytes(16):
-                return winemu.EXIT_OTHER
+            step = min(4 * step, 4096)
         return winemu.EXIT_LIMIT
 
     def run(self, max_blocks: int | None = None, timeout: float | None = None) -> EmulationStop:
