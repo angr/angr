@@ -141,6 +141,20 @@ class TestVirtualizedProgram(unittest.TestCase):
         # no section was written and then run: there is no unpacked layer
         assert core.layers == []
 
+    def test_system_calls_of_its_own_on_unicorn(self):
+        # the start-up changes page protections with sysenter instructions of its own before it writes .rdata;
+        # running to the exit takes Unicorn too long for a test
+        with open(self.PATH, "rb") as f:
+            watch = vmprotect_original_sections(f.read())
+        emu = GenericUnpackerCore(self.PATH, watch, engine="unicorn").emu
+        emu.start()
+        stop = emu.run(max_blocks=10_000)
+        while stop.reason is StopReason.BUDGET and emu.api_counts["NtProtectVirtualMemory"] < 3 and emu.blocks < 10**7:
+            stop = emu.run(max_blocks=10_000)
+        assert stop.reason is StopReason.BUDGET, stop
+        assert emu.api_counts["NtProtectVirtualMemory"] >= 3
+        assert emu.exceptions.count == 0
+
 
 if __name__ == "__main__":
     unittest.main()
