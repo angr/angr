@@ -17,6 +17,9 @@ _X86_NTDLL_BODIES = {
 }
 
 _HEADER_SIZE = 0x1000
+# 32-bit slots start at odd addresses, as many exports of the 32-bit system DLLs do: tables of aligned constants in
+# an unpacked image (multiples of 0x100 are common) then never hold a value that is also the address of an API
+_X86_SLOT_OFFSET = 5
 _SPARE_SLOTS = 512
 
 
@@ -58,6 +61,7 @@ class FakeModule:
         self.exports: dict[str, int] = {}
         self.slot_names: dict[int, str] = {}
         self._code_rva = _HEADER_SIZE
+        self._slot_rva = self._code_rva + (0 if is_64bit else _X86_SLOT_OFFSET)
         self._next_spare = 0
 
         ordinals = ordinals or {}
@@ -95,12 +99,13 @@ class FakeModule:
                 self._slot_ordinals[idx] = next_ordinal
                 next_ordinal += 1
         self._static_count = slot_count
-        code_size = _align((slot_count + _SPARE_SLOTS) * SLOT_SIZE, 0x1000)
+        slots_size = (slot_count + _SPARE_SLOTS) * SLOT_SIZE
+        code_size = _align(self._slot_rva - self._code_rva + slots_size, 0x1000)
         self._export_rva = self._code_rva + code_size
         export_data = self._build_export_directory(names)
         self.size = _align(self._export_rva + len(export_data), 0x10000)
         code = bytearray()
-        for addr in range(base + self._code_rva, base + self._code_rva + code_size, SLOT_SIZE):
+        for addr in range(base + self._slot_rva, base + self._slot_rva + slots_size, SLOT_SIZE):
             code += self._slot(addr)
         if syscalls:
             # system-call stubs must look real: protectors read the number out of them, compare neighbouring stubs,
@@ -116,8 +121,11 @@ class FakeModule:
                     idx = slot_of.get(export)
                     if idx is not None:
                         code[idx * SLOT_SIZE : (idx + 1) * SLOT_SIZE] = body.ljust(SLOT_SIZE, b"\x90")
+        padding = b"\x90" * (self._slot_rva - self._code_rva)
         self.image = (
-            self._build_header(code_size, len(export_data)).ljust(_HEADER_SIZE, b"\0") + bytes(code) + export_data
+            self._build_header(code_size, len(export_data)).ljust(_HEADER_SIZE, b"\0")
+            + (padding + bytes(code)).ljust(code_size, b"\x90")
+            + export_data
         ).ljust(self.size, b"\0")
 
     def _slot(self, addr: int) -> bytes:
@@ -136,7 +144,7 @@ class FakeModule:
         return (b"\xb8" + struct.pack("<I", number) + b"\xba\x00\x03\xfe\x7f\xff\x12" + ret).ljust(SLOT_SIZE, b"\x90")
 
     def _register(self, name: str, idx: int) -> int:
-        addr = self.base + self._code_rva + idx * SLOT_SIZE
+        addr = self.base + self._slot_rva + idx * SLOT_SIZE
         self.exports[name] = addr
         self.slot_names[addr] = name
         return addr
@@ -167,7 +175,7 @@ class FakeModule:
         Get the trap address of the export with a known ordinal. Any other ordinal gets a spare slot of its own.
         """
         if ordinal in self._known_ordinals:
-            return self.base + self._code_rva + self._ordinal_slots[ordinal] * SLOT_SIZE
+            return self.base + self._slot_rva + self._ordinal_slots[ordinal] * SLOT_SIZE
         return self.resolve(f"ordinal_{ordinal}", create)
 
     def unnamed_ordinal(self, addr: int) -> int | None:
@@ -209,7 +217,7 @@ class FakeModule:
         )
         eat = bytearray(4 * functions)
         for ordinal, idx in self._ordinal_slots.items():
-            struct.pack_into("<I", eat, 4 * (ordinal - self.ordinal_base), self._code_rva + idx * SLOT_SIZE)
+            struct.pack_into("<I", eat, 4 * (ordinal - self.ordinal_base), self._slot_rva + idx * SLOT_SIZE)
         npt = b"".join(struct.pack("<I", rva) for rva in name_rvas)
         name_ordinals = b"".join(
             struct.pack("<H", self._slot_ordinals[self._name_slots[export]] - self.ordinal_base) for export in names

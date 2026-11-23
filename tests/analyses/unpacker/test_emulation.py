@@ -1192,6 +1192,57 @@ class TestImportRecovery(unittest.TestCase):
         assert code[0x10:0x16] == b"\xff\x25" + struct.pack("<I", iat + 4)
         assert code[0x20] == 0xE8
 
+    def test_constants_are_not_imports(self):
+        sections = [
+            (b".text", CODE_RVA, 0x1000, bytes(0x1000), 0xE0000020),
+            (b".data", 0x2000, 0x8000, bytes(0x8000), 0xC0000040),
+            (b".stub", 0xA000, 0x10, b"\xc3", 0x60000020),
+        ]
+        packed = build_pe(sections, entry_rva=0xA000)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "sample.exe")
+            with open(path, "wb") as f:
+                f.write(packed)
+            core = GenericUnpackerCore(path)
+        emu = core.emu
+        emu.start()
+        kernel32 = emu.load_module("kernel32.dll")
+        emu.load_module("user32.dll")
+        sleep, close = emu.resolve_export(kernel32, "Sleep"), emu.resolve_export(kernel32, "CloseHandle")
+        assert sleep is not None and close is not None
+        # where DLLs and allocations lie: no aligned constant, text or float is the address of an API, and text
+        # does not point into an allocation
+        for addr in emu.api_slots:
+            assert addr & 1 and (addr >> 16) & 0x80 and 0x70 <= addr >> 24 < 0x7F, hex(addr)
+        wrapper = emu.alloc(0x10000)
+        heap = emu.heap_alloc(0x100)
+        for addr in (wrapper, heap, emu.process_heap):
+            assert addr >> 24 < 0x20 and addr >> 24 not in (0, 9, 10, 13), hex(addr)
+        emu.write(wrapper, emu.read(close, 12))
+        data = IMAGE_BASE + 0x2000
+        emu.write(data, struct.pack("<II", sleep, wrapper))
+        # a table of multiples of 0x100 that runs through all DLLs and allocations
+        lo = min(m.base for m in emu.module_order)
+        hi = max(m.base + m.size for m in emu.module_order)
+        table = [
+            *range(lo, hi, 0x100),
+            *range(wrapper, wrapper + 0x1000, 0x100),
+            *range(heap & ~0xFF, heap + 0x400, 0x100),
+        ]
+        assert len(table) < 0x1800
+        emu.write(data + 0x100, struct.pack(f"<{len(table)}I", *table))
+        # text, 16-bit values read at an odd offset and floats
+        tail = data + 0x6400
+        emu.write(tail, b"Requested SSL level failed. OpenSSL DSA method v u w x  " * 4)
+        emu.write(tail + 0x100, bytes.fromhex("00b40070007f0070008c0075001100760037007700") * 4)
+        emu.write(tail + 0x200, struct.pack("<8f", 1e30, 3e33, 7e35, 2e36, float("inf"), 3.4e38, 1e31, 5e34))
+
+        layer = core._snapshot(None, IMAGE_BASE + CODE_RVA)  # pylint:disable=protected-access
+        assert [(imp.iat_rva, imp.dll, imp.name) for imp in layer.imports] == [
+            (0x2000, "kernel32.dll", "Sleep"),
+            (0x2004, "kernel32.dll", "CloseHandle"),
+        ]
+
 
 class TestImageLayout(unittest.TestCase):
     def test_raw_data_past_virtual_size(self):

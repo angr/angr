@@ -98,6 +98,14 @@ _KUSER_SHARED_DATA = 0x7FFE0000
 # KUSER_SHARED_DATA.TickCountMultiplier of a 15.625 ms clock: milliseconds = TickCount * multiplier >> 24
 _TICK_MULTIPLIER = 0x0FA00000
 SYSTEM_TIME_BASE = 0x01DB3A0000000000
+# Where 32-bit DLLs and allocations go. Import recovery takes aligned values in the dumped image that are API
+# addresses, or point into an allocation, for import cells, so those addresses must not be values that data holds
+# anyway: DLLs lie where the address's third byte is 0x80 or more and its top byte is not 0x7F (no text, no UTF-16
+# text or 16-bit table read at an odd offset, no float), allocations where the top byte is a control character that
+# text does not use.
+_X86_DLL_BASE = 0x75A30000
+_X86_DLL_WINDOW = 0x00800000
+_X86_ALLOC_BASE = 0x13A70000
 _HEAP_GRANULARITY = 16
 _HEAP_SEGMENT = 0x100000
 # the NT heap hands blocks from this size on to VirtualAlloc
@@ -357,8 +365,8 @@ class WindowsEmulator:
         self._stop: EmulationStop | None = None
         self.trap_pending = False
         self._nargs_cache: dict[tuple[str, str], int | None] = {}
-        self._next_dll_base = 0x7FF800000000 if self.is_64bit else 0x70000000
-        self._next_alloc = 0x20000000 if not self.is_64bit else 0x200000000
+        self._next_dll_base = 0x7FF800000000 if self.is_64bit else _X86_DLL_BASE
+        self._next_alloc = _X86_ALLOC_BASE if not self.is_64bit else 0x200000000
         self._ldr_entries: dict[str, int] = {}
         self.com = ComRuntime(self)
 
@@ -1026,8 +1034,7 @@ class WindowsEmulator:
                 self._syscall_names[number] = nt_name
         ordinals = self._known_ordinals(name)
         probe = FakeModule(name, 0, sorted(exports), self.is_64bit, ordinals)
-        base = self.space.reserve(probe.size, self._next_dll_base)
-        self._next_dll_base = base + probe.size
+        base = self._reserve_module(probe.size)
         stack_bytes: dict[str, int] = {}
         if syscalls and not self.is_64bit:
             known_nargs = self._known_exports(name)
@@ -1061,6 +1068,22 @@ class WindowsEmulator:
                 if target is not None:
                     self.write_ptr(_KUSER_SHARED_DATA + offset, target)
         return module
+
+    def _reserve_module(self, size: int) -> int:
+        hint = self._next_dll_base
+        if not self.is_64bit:
+            # stay inside the upper half of a 16 MB block (see _X86_DLL_BASE); the last block is the one below 0x7F
+            while hint < 0x7E000000 and not (
+                hint & _X86_DLL_WINDOW
+                and (hint + size - 1) & _X86_DLL_WINDOW
+                and (hint + size - 1) >> 24 == hint >> 24
+                and self.space.is_free(hint, size)
+            ):
+                step = hint + 0x10000
+                hint = step if step & _X86_DLL_WINDOW else step | _X86_DLL_WINDOW
+        base = self.space.reserve(size, hint)
+        self._next_dll_base = base + size
+        return base
 
     def is_image(self, base: int) -> bool:
         """
