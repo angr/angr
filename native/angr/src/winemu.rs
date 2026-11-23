@@ -6,7 +6,8 @@
 use std::{cell::Cell, collections::HashMap, path::PathBuf, rc::Rc};
 
 use icicle_vm::cpu::{
-    BlockKey, Cpu, Exception, ExceptionCode, Regs, ValueSource,
+    Cpu, Exception, ExceptionCode, Regs, ValueSource,
+    lifter::BlockKey,
     mem::{Mapping, perm},
 };
 use pyo3::{
@@ -710,6 +711,9 @@ pub struct WinVm {
     fixups: u64,
     code_pages: std::collections::HashSet<u64>,
     scanned_blocks: usize,
+    /// Guest permissions (1 r, 2 w, 4 x) of every mapped page. Icicle takes the write permission off bytes
+    /// it has lifted, so its own permissions are not the guest's.
+    page_perms: HashMap<u64, u8>,
 }
 
 fn reg_var(vm: &icicle_vm::Vm, name: &str) -> Option<pcode::VarNode> {
@@ -758,7 +762,7 @@ impl WinVm {
         self.vm
             .code
             .disasm
-            .retain(|&vaddr, _| vaddr < addr || vaddr >= end);
+            .retain(|key, _| key.vaddr < addr || key.vaddr >= end);
     }
 
     /// Whether code was ever lifted from the page at addr. Icicle's per-page `executed` mark is lost when a page
@@ -776,6 +780,33 @@ impl WinVm {
         self.code_pages.contains(&(addr & !(PAGE - 1)))
     }
 
+    /// Give the page at addr its guest permissions again, without Icicle's code-cache marks.
+    fn reset_page_perms(&mut self, page: u64) {
+        if let Some(&perms) = self.page_perms.get(&page) {
+            let _ = self.vm.cpu.mem.update_perm(page, PAGE, perms_to_icicle(perms));
+        }
+    }
+
+    /// Whether a write fault at addr is a store into lifted code on a page the guest may write.
+    fn is_code_store(&self, addr: u64) -> bool {
+        (addr..addr.saturating_add(16)).any(|a| {
+            self.page_perms.get(&(a & !(PAGE - 1))).is_some_and(|p| p & 2 != 0)
+                && self.vm.cpu.mem.get_perm(a) & perm::IN_CODE_CACHE != 0
+        })
+    }
+
+    fn record_page_perms(&mut self, addr: u64, size: u64, perms: Option<u8>) {
+        let mut page = addr & !(PAGE - 1);
+        let end = addr.saturating_add(size);
+        while page < end {
+            match perms {
+                Some(perms) => self.page_perms.insert(page, perms),
+                None => self.page_perms.remove(&page),
+            };
+            page += PAGE;
+        }
+    }
+
     /// Drop the code of the pages in [addr, addr + size) that ran, and clear their code-cache marks.
     fn forget_code_pages(&mut self, addr: u64, size: u64, keep_current: bool) {
         let start = addr & !(PAGE - 1);
@@ -784,8 +815,7 @@ impl WinVm {
         while page < end {
             if self.page_executed(page) {
                 self.invalidate_code(page, PAGE, keep_current);
-                let p = self.vm.cpu.mem.get_perm(page) & (perm::READ | perm::WRITE | perm::EXEC);
-                let _ = self.vm.cpu.mem.update_perm(page, PAGE, p);
+                self.reset_page_perms(page);
             }
             page += PAGE;
         }
@@ -904,7 +934,7 @@ impl WinVm {
     pub fn new(is_64bit: bool, processors_path: String, enable_jit: bool) -> PyResult<Self> {
         let triple = if is_64bit { "x86_64-none" } else { "i686-none" };
         let mut config = icicle_vm::cpu::Config::from_target_triple(triple);
-        config.enable_shadow_stack = false;
+        config.shadow_stack = icicle_vm::cpu::ShadowStackState::Disabled;
         config.enable_jit = enable_jit;
         // the lifter's optimizers cost more than they save on code that runs a few times (4x on Themida);
         // ANGR_WINEMU_LIFT_OPT=1 turns them back on
@@ -1057,6 +1087,7 @@ impl WinVm {
             fixups: 0,
             code_pages: std::collections::HashSet::new(),
             scanned_blocks: 0,
+            page_perms: HashMap::new(),
         })
     }
 
@@ -1198,6 +1229,7 @@ impl WinVm {
                 "Failed to map {size:#x} bytes at {addr:#x}"
             )));
         }
+        self.record_page_perms(addr, size, Some(perms));
         Ok(())
     }
 
@@ -1208,6 +1240,7 @@ impl WinVm {
                 "Failed to unmap {size:#x} bytes at {addr:#x}"
             )));
         }
+        self.record_page_perms(addr, size, None);
         Ok(())
     }
 
@@ -1227,6 +1260,7 @@ impl WinVm {
             .mem
             .update_perm(start, end - start, perms_to_icicle(perms))
             .map_err(|e| PyRuntimeError::new_err(format!("Failed to protect {addr:#x}: {e}")))?;
+        self.record_page_perms(start, end - start, Some(perms));
         let pc = self.vm.cpu.read_pc();
         self.vm.cpu.write_pc(pc);
         Ok(())
@@ -1234,14 +1268,7 @@ impl WinVm {
 
     /// Permission bits (1 r, 2 w, 4 x) of the page at addr, or None if it is not mapped.
     pub fn mem_perm(&self, addr: u64) -> Option<u8> {
-        // perm::MAP only appears once a page is backed: ask the mapping itself
-        self.vm.cpu.mem.mapping.get(addr)?;
-        let p = self.vm.cpu.mem.get_perm(addr);
-        Some(
-            (if p & perm::READ != 0 { 1 } else { 0 })
-                | (if p & perm::WRITE != 0 { 2 } else { 0 })
-                | (if p & perm::EXEC != 0 { 4 } else { 0 }),
-        )
+        self.page_perms.get(&(addr & !(PAGE - 1))).copied()
     }
 
     /// Read guest memory; unmapped bytes read as zero.
@@ -1296,8 +1323,7 @@ impl WinVm {
             let mut page = start;
             while page < addr + len {
                 self.invalidate_code(page, PAGE, false);
-                let p = self.vm.cpu.mem.get_perm(page) & !perm::IN_CODE_CACHE;
-                let _ = self.vm.cpu.mem.update_perm(page, PAGE, p);
+                self.reset_page_perms(page);
                 page += PAGE;
             }
             result = self.vm.cpu.mem.write_bytes(addr, &data, perm::NONE);
@@ -1343,7 +1369,13 @@ impl WinVm {
                 icicle_vm::VmExit::Breakpoint => return (EXIT_BREAKPOINT, 0, 0),
                 icicle_vm::VmExit::Halt => return (EXIT_HALT, 0, 0),
                 icicle_vm::VmExit::UnhandledException((code, value)) => match code {
+                    // Icicle reports a store into lifted code either way, depending on its TLB state
                     ExceptionCode::SelfModifyingCode => {
+                        pending = self.on_smc(value, limit);
+                        self.vm.icount_limit = u64::MAX;
+                        continue;
+                    }
+                    ExceptionCode::WritePerm if self.is_code_store(value) => {
                         pending = self.on_smc(value, limit);
                         self.vm.icount_limit = u64::MAX;
                         continue;
@@ -1494,6 +1526,9 @@ fn other_code(exit: icicle_vm::VmExit) -> u32 {
         icicle_vm::VmExit::OutOfMemory => 7,
         icicle_vm::VmExit::Unimplemented => 8,
         icicle_vm::VmExit::UnhandledException(_) => 9,
+        icicle_vm::VmExit::Shutdown => 10,
+        icicle_vm::VmExit::Unknown => 11,
+        icicle_vm::VmExit::Custom(_) => 12,
     }
 }
 
