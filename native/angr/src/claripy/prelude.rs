@@ -7,7 +7,7 @@ pub use crate::claripy::ast::{
     bits::Bits,
     bool::Bool,
     bv::BV,
-    coerce::{CoerceBV, CoerceBase, CoerceBool, CoerceFP, CoerceString},
+    coerce::{CoerceBV, CoerceBase, CoerceFP, CoerceString},
     fp::FP,
     opstring::ToOpString,
     string::PyAstString,

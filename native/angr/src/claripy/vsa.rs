@@ -59,18 +59,18 @@ pub fn reduce<'py>(
 
 /// Check if a Bool expression is definitely true via VSA.
 #[pyfunction]
-pub fn is_true(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
+pub fn is_true(expr: Bool) -> Result<bool, ClaripyError> {
     Ok(matches!(
-        expr.get().inner.simplify()?.reduce()?.into_bool()?,
+        expr.inner.simplify()?.reduce()?.into_bool()?,
         ComparisonResult::True
     ))
 }
 
 /// Check if a Bool expression is definitely false via VSA.
 #[pyfunction]
-pub fn is_false(expr: Bound<'_, Bool>) -> Result<bool, ClaripyError> {
+pub fn is_false(expr: Bool) -> Result<bool, ClaripyError> {
     Ok(matches!(
-        expr.get().inner.simplify()?.reduce()?.into_bool()?,
+        expr.inner.simplify()?.reduce()?.into_bool()?,
         ComparisonResult::False
     ))
 }

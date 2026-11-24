@@ -23,9 +23,9 @@ class PrivilegedPagingMixin(PagedMemoryMixin):
     def _get_page(self, pageno: int, writing: bool, priv: bool = False, **kwargs):
         page = super()._get_page(pageno, writing, **kwargs)
         if self.category == "mem" and not priv and o.STRICT_PAGE_ACCESS in self.state.options:
-            if writing and not self.state.solver.is_true(page.perm_write):
+            if writing and not self.state.solver.is_true(page.perm_write != 0):
                 raise SimSegfaultException(pageno * self.page_size, "non-writable")
-            if not writing and not self.state.solver.is_true(page.perm_read):
+            if not writing and not self.state.solver.is_true(page.perm_read != 0):
                 raise SimSegfaultException(pageno * self.page_size, "non-readable")
 
         return page

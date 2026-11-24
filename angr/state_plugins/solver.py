@@ -606,10 +606,10 @@ class SimSolver(SimStatePlugin, SupportsMerge):
         Note that returning False doesn't necessarily mean that the expression can be false, just that we couldn't
         figure that out easily.
 
-        :param e:                   An expression (an AST) to evaluate
+        :param e:                   A boolean expression (a claripy Bool or a Python bool) to evaluate
         :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
         :param exact:               If False, return approximate solutions.
-        :return:                    True if `v` is definitely true, False otherwise
+        :return:                    True if `e` is definitely true, False otherwise
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.is_true(e, extra_constraints=extra_constraints, exact=False)
@@ -629,10 +629,10 @@ class SimSolver(SimStatePlugin, SupportsMerge):
         Note that returning False doesn't necessarily mean that the expression can be true, just that we couldn't
         figure that out easily.
 
-        :param e:                   An expression (an AST) to evaluate
+        :param e:                   A boolean expression (a claripy Bool or a Python bool) to evaluate
         :param extra_constraints:   Extra constraints (as ASTs) to add to the solver for this solve.
         :param exact:               If False, return approximate solutions.
-        :return:                    True if `v` is definitely false, False otherwise
+        :return:                    True if `e` is definitely false, False otherwise
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             ar = self._solver.is_false(e, extra_constraints=extra_constraints, exact=False)
