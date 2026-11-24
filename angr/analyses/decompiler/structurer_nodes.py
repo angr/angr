@@ -427,8 +427,8 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
     # ``getattr(stmt, "kind", None)``. The chosen tag is distinct from
     # every rustlib variant so the kind-keyed dispatch sites land in
     # their default branch.
-    kind = "IncompleteSwitchCaseHead"
-    pykind = "IncompleteSwitchCaseHead"
+    kind = "IncompleteSwitchCaseHead"  # type: ignore
+    pykind = "IncompleteSwitchCaseHead"  # type: ignore
 
     def __init__(self, idx, switch_variable, case_addrs, peephole_optimized: bool = False, **kwargs):
         super().__init__(idx, **kwargs)
@@ -455,7 +455,7 @@ class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
         return self._cached_hash
 
     def replace(self, old_expr, new_expr):  # pylint:disable=unused-argument
-        return self
+        return False, self
 
     @property
     def depth(self) -> int:
