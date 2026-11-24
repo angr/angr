@@ -1320,8 +1320,7 @@ class IncompleteSwitchCaseHeadStatement(Statement):
 
     switch_variable: Expression
     @property
-    def case_addrs(self) -> list[SwitchCase]:
-        """Materializes a fresh list on each read, so update a case by assigning a whole new list."""
+    def case_addrs(self) -> list[SwitchCase]: ...
     @case_addrs.setter
     def case_addrs(self, value: Sequence[SwitchCase]) -> None: ...
     def __init__(
