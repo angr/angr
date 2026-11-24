@@ -97,6 +97,12 @@ class TestCfgFastEhFrameBoundaries(unittest.TestCase):
         assert all(cfg.kb.functions[addr].returning for addr in TABLE_HANDLERS)
         assert not cfg.kb.functions[TABLE_DECODE].block_addrs_set & TABLE_HANDLERS
 
+    def test_functions_dispatched_through_a_table_need_trusted_fdes(self):
+        # the handlers are only known to be functions through their FDEs
+        for kwargs in ({"eh_frame": False}, {"eh_frame_boundaries": False}):
+            cfg = self._cfg("tailcall_table_dispatch", **kwargs)
+            assert not TABLE_HANDLERS & set(cfg.kb.functions)
+
 
 if __name__ == "__main__":
     unittest.main()

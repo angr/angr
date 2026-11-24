@@ -2933,6 +2933,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return next_expr.con.value
         return None
 
+    def _eh_frame_function_starts(self) -> set[int]:
+        # PE exception records describe function chunks as well as functions, so only ELF FDEs are trusted
+        if self._use_eh_frame and self._eh_frame_boundaries and isinstance(self._binary, cle.ELF):
+            return set(self._function_addresses_from_eh_frame)
+        return set()
+
     def _absorb_eh_frame_chunks(self) -> None:
         """
         Cold parts (.text.unlikely) get their own FDEs but are chunks of the function that jumps into them, not

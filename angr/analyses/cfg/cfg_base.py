@@ -2326,7 +2326,7 @@ class CFGBase(Analysis):
             return set()
 
         # only .eh_frame function starts can be function pointers dispatched through a table
-        fde_starts = set(self._function_addresses_from_eh_frame) & jumptable_entries
+        fde_starts = self._eh_frame_function_starts() & jumptable_entries
         dispatched_entries: set[int] = set()
         if fde_starts:
             is_tail_dispatched: dict[int, bool] = {}
@@ -2374,6 +2374,16 @@ class CFGBase(Analysis):
                 del blockaddr_to_funcaddr[to_remove]
 
         return functions_to_remove
+
+    def _eh_frame_function_starts(self) -> set[int]:
+        """
+        Function starts recorded in .eh_frame that this analysis trusts as function boundaries. Nothing by default;
+        CFGFast trusts ELF FDEs when eh_frame and eh_frame_boundaries are enabled.
+
+        :return:    A set of function start addresses.
+        """
+
+        return set()
 
     def _is_tail_dispatched_function(self, functions, func_addr: int, owners: set[int]) -> bool:
         """
