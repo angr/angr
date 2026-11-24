@@ -64,12 +64,19 @@ class GenericUnpackerCore:
     bytes were produced at run time. The last such transfer is reported as the original entry point.
     """
 
-    def __init__(self, path: str, watch_sections: set[int] | None = None, engine: Engine = "unicorn"):
+    def __init__(
+        self,
+        path: str,
+        watch_sections: set[int] | None = None,
+        engine: Engine = "unicorn",
+        icicle_jit: bool = True,
+        icicle_jit_threshold: int = 32,
+    ):
         self.project = Project(path, auto_load_libs=False, selfmodifying_code=True, simos=SimWindowsEmulated)
         if engine == "icicle":
             from .emulation.icicle_environment import IcicleWindowsEmulator  # pylint:disable=import-outside-toplevel
 
-            self.emu = IcicleWindowsEmulator(self.project)
+            self.emu = IcicleWindowsEmulator(self.project, jit=icicle_jit, jit_threshold=icicle_jit_threshold)
         elif engine == "unicorn":
             self.emu = WindowsEmulator(self.project)
         else:
@@ -304,15 +311,27 @@ class EmulatingUnpacker(Analysis):
     `unpacked` is a rebuilt PE for the reported layer (None if the binary never ran written code), `oep` is its
     entry point, and `layers` lists every layer seen.
 
-    :param engine:  The emulator that runs the program: "icicle" (the Rust run loop on Icicle) or "unicorn".
+    :param engine:               The emulator that runs the program: "icicle" (the Rust run loop on Icicle) or
+                                 "unicorn".
+    :param icicle_jit:           Whether Icicle compiles hot blocks to native code or interprets everything.
+    :param icicle_jit_threshold: The number of times Icicle runs a block before it compiles the block.
     """
 
-    def __init__(self, timeout: float = 300.0, settle_timeout: float = 20.0, engine: Engine = "unicorn"):
+    def __init__(
+        self,
+        timeout: float = 300.0,
+        settle_timeout: float = 20.0,
+        engine: Engine = "unicorn",
+        icicle_jit: bool = True,
+        icicle_jit_threshold: int = 32,
+    ):
         binary = self.project.loader.main_object.binary
         if binary is None:
             raise ValueError("Unpacking requires a file-backed main object")
         self.binary: str = binary
         self.engine: Engine = engine
+        self.icicle_jit = icicle_jit
+        self.icicle_jit_threshold = icicle_jit_threshold
         with open(binary, "rb") as f:
             self.data: bytes = f.read()
         self.layers: list[UnpackedLayer] = []
@@ -331,7 +350,7 @@ class EmulatingUnpacker(Analysis):
         return None
 
     def _emulate(self, watch_sections: set[int] | None, timeout: float, settle_timeout: float) -> None:
-        core = GenericUnpackerCore(self.binary, watch_sections, self.engine)
+        core = GenericUnpackerCore(self.binary, watch_sections, self.engine, self.icicle_jit, self.icicle_jit_threshold)
         core.run(timeout=timeout, settle_timeout=settle_timeout)
         self.core = core
         self.layers = core.layers

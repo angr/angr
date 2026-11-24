@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+from typing import TYPE_CHECKING
 
 import pypcode
 
@@ -20,6 +21,9 @@ from .exceptions import (
 )
 from .stops import EmulationStop, StopReason
 from .threads import Thread
+
+if TYPE_CHECKING:
+    from angr.project import Project
 
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
 
@@ -52,6 +56,10 @@ class _StopPoints(set[int]):
             self._vm.remove_breakpoint(addr)
 
 
+# protector code mostly runs a few times after it is decrypted; compiling it all costs ~1 ms per block
+DEFAULT_JIT_THRESHOLD = 32
+
+
 class IcicleWindowsEmulator(WindowsEmulator):
     """
     WindowsEmulator on an Icicle VM driven from Rust (angr.rustylib.winemu). Guest code runs natively until it
@@ -67,10 +75,24 @@ class IcicleWindowsEmulator(WindowsEmulator):
     WORK_PER_MS = 1_000_000
     CLOCK_READS_PER_MS = 1000
 
+    def __init__(
+        self,
+        project: Project,
+        image_path: str | None = None,
+        jit: bool = True,
+        jit_threshold: int = DEFAULT_JIT_THRESHOLD,
+    ):
+        """
+        :param jit:           Whether hot blocks are compiled to native code; otherwise everything is interpreted.
+        :param jit_threshold: The number of times a block runs before it is compiled.
+        """
+        self.jit = jit
+        self.jit_threshold = jit_threshold
+        super().__init__(project, image_path)
+
     def _init_machine(self) -> None:
-        self.vm = WinVm(self.is_64bit, PROCESSORS_DIR, os.environ.get("ANGR_UNPACKER_ICICLE_JIT", "1") != "0")
-        # protector code mostly runs a few times after it is decrypted; compiling it all costs ~1 ms per block
-        self.vm.jit_threshold = int(os.environ.get("ANGR_UNPACKER_ICICLE_JIT_THRESHOLD", "32"))
+        self.vm = WinVm(self.is_64bit, PROCESSORS_DIR, self.jit)
+        self.vm.jit_threshold = self.jit_threshold
         self._stop_points = _StopPoints(self.vm)
         self.vm.pc = self.project.entry
         self.instructions = 0

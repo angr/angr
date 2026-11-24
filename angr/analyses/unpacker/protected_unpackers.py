@@ -66,11 +66,24 @@ class VMProtectUnpacker(EmulatingUnpacker):
     `method` is "emulation", "static", or None when both failed.
     """
 
-    def __init__(self, timeout: float = 600.0, static_only: bool = False, engine: Engine = "unicorn"):
+    def __init__(
+        self,
+        timeout: float = 600.0,
+        static_only: bool = False,
+        engine: Engine = "unicorn",
+        icicle_jit: bool = True,
+        icicle_jit_threshold: int = 32,
+    ):
         self.method: str | None = None
         self.static_result: VMProtectStaticResult | None = None
         self._static_only = static_only
-        super().__init__(timeout=timeout, settle_timeout=0.0, engine=engine)
+        super().__init__(
+            timeout=timeout,
+            settle_timeout=0.0,
+            engine=engine,
+            icicle_jit=icicle_jit,
+            icicle_jit_threshold=icicle_jit_threshold,
+        )
 
     def _sections_to_watch(self) -> set[int] | None:
         return vmprotect_original_sections(self.data)
@@ -98,8 +111,20 @@ class ThemidaUnpacker(EmulatingUnpacker):
     without being mistaken for an unpacked layer.
     """
 
-    def __init__(self, timeout: float = 1800.0, engine: Engine = "unicorn"):
-        super().__init__(timeout=timeout, settle_timeout=0.0, engine=engine)
+    def __init__(
+        self,
+        timeout: float = 1800.0,
+        engine: Engine = "unicorn",
+        icicle_jit: bool = True,
+        icicle_jit_threshold: int = 32,
+    ):
+        super().__init__(
+            timeout=timeout,
+            settle_timeout=0.0,
+            engine=engine,
+            icicle_jit=icicle_jit,
+            icicle_jit_threshold=icicle_jit_threshold,
+        )
 
     def _sections_to_watch(self) -> set[int] | None:
         return themida_original_sections(self.data)
@@ -112,17 +137,27 @@ class Unpacker(EmulatingUnpacker):
     `info` holds the identification, `unpacker` the analysis that did the work (None if the file is not packed).
     """
 
-    def __init__(self, timeout: float | None = None, engine: Engine = "unicorn"):
+    def __init__(
+        self,
+        timeout: float | None = None,
+        engine: Engine = "unicorn",
+        icicle_jit: bool = True,
+        icicle_jit_threshold: int = 32,
+    ):
         self.info: PackerInfo | None = None
         self.unpacker: EmulatingUnpacker | None = None
         self._timeout = timeout
-        super().__init__(engine=engine)
+        super().__init__(engine=engine, icicle_jit=icicle_jit, icicle_jit_threshold=icicle_jit_threshold)
 
     def _emulate(self, watch_sections: set[int] | None, timeout: float, settle_timeout: float) -> None:
         self.info = identify_packer(self.data)
         if self.info.packed is False:
             return
-        kwargs: dict[str, float | Engine] = {"engine": self.engine}
+        kwargs: dict[str, float | Engine] = {
+            "engine": self.engine,
+            "icicle_jit": self.icicle_jit,
+            "icicle_jit_threshold": self.icicle_jit_threshold,
+        }
         if self._timeout is not None:
             kwargs["timeout"] = self._timeout
         if self.info.protector == "VMProtect" and self.info.outer_packer is None:

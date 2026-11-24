@@ -12,6 +12,7 @@ import pefile
 import angr
 from angr.analyses.unpacker import VMProtectUnpacker
 from angr.analyses.unpacker.emulation import StopReason
+from angr.analyses.unpacker.emulation.icicle_environment import IcicleWindowsEmulator
 from angr.analyses.unpacker.generic_unpacker import Engine, GenericUnpackerCore
 from angr.analyses.unpacker.protected_unpackers import vmprotect_original_sections
 from tests.common import bin_location
@@ -94,6 +95,19 @@ class TestUnpackerFacade(unittest.TestCase):
         assert unpacker.info is not None
         assert unpacker.info.protector is None
         assert unpacker.oep == IMAGE_BASE + OEP_RVA
+
+    def test_icicle_jit_options(self):
+        project = self._project("xor_packed.exe")
+        for jit, threshold in ((True, 32), (False, 32), (True, 1)):
+            unpacker = project.analyses.Unpacker(
+                timeout=30, engine="icicle", icicle_jit=jit, icicle_jit_threshold=threshold
+            )
+            assert unpacker.core is not None
+            emu = unpacker.core.emu
+            assert isinstance(emu, IcicleWindowsEmulator)
+            assert emu.vm.jit is jit
+            assert emu.vm.jit_threshold == threshold
+            assert unpacker.oep == IMAGE_BASE + OEP_RVA
 
     def test_vmprotect_falls_back_to_static(self):
         # the synthetic loader stub cannot run, so only the static unpacker can succeed
