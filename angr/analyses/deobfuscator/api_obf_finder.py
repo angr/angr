@@ -21,8 +21,8 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CVariable,
 )
 from angr.calling_conventions import SimRegArg
-from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_plugins.key_definitions.atoms import Register
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.procedures import SIM_LIBRARIES
 from angr.procedures.definitions import SimSyscallLibrary
@@ -224,12 +224,7 @@ class APIObfuscationFinder(Analysis):
                     # FIXME: stack-passing arguments are used
                     if isinstance(func_arg, SimRegArg):
                         reg_offset, reg_size = arch.registers[func_arg.reg_name]
-                        try:
-                            mv = observ.registers.load(reg_offset, size=reg_size)
-                        except SimMemoryMissingError:
-                            args.append((arg_idx, claripy.BVV(0xDEADBEEF, self.project.arch.bits)))
-                            continue
-                        arg_value = mv.one_value()
+                        arg_value = observ.get_one_value(Register(reg_offset, reg_size))
                         if arg_value is None:
                             arg_value = claripy.BVV(0xDEADBEEF, self.project.arch.bits)
                         args.append((arg_idx, arg_value))
