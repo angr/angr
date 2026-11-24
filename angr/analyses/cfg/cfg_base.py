@@ -2308,8 +2308,10 @@ class CFGBase(Analysis):
 
         A jump table may also be a table of function pointers that is dispatched with a tail call, such as a decoder
         that ends every handler in `return table[byte](d)`. Its targets are ordinary functions: they return on their
-        own and never jump back into the body of the function that owns the table. Such functions are kept; a cold
-        part either does not return or jumps back into that body.
+        own and never jump back into the body of the function that owns the table, while a cold part either does not
+        return or jumps back into that body. Once one target of a jump table is such a function, every target of that
+        table that .eh_frame records as a function start is a function start too, and is kept (or created). Targets
+        without an FDE are left alone: they are blocks, such as the cases of a switch.
         """
 
         jumptable_entries: set[int] = set()
@@ -2323,21 +2325,26 @@ class CFGBase(Analysis):
         if not jumptable_entries:
             return set()
 
-        # a jump table that tail-calls one of its targets is a table of function pointers: every function it reaches
-        # is a function start, not a cold part
+        # only .eh_frame function starts can be function pointers dispatched through a table
+        fde_starts = set(self._function_addresses_from_eh_frame) & jumptable_entries
         dispatched_entries: set[int] = set()
-        is_tail_dispatched: dict[int, bool] = {}
-        for jt in self.model.jump_tables.values():
-            assert jt.jumptable_entries is not None
-            entries = set(jt.jumptable_entries)
-            for entry in entries:
-                if entry not in is_tail_dispatched:
-                    is_tail_dispatched[entry] = functions.contains_addr(entry) and self._is_tail_dispatched_function(
-                        functions, entry, jumptable_owners[entry]
-                    )
-                if is_tail_dispatched[entry]:
-                    dispatched_entries |= entries
-                    break
+        if fde_starts:
+            is_tail_dispatched: dict[int, bool] = {}
+            for jt in self.model.jump_tables.values():
+                assert jt.jumptable_entries is not None
+                entries = set(jt.jumptable_entries) & fde_starts
+                for entry in entries:
+                    if entry not in is_tail_dispatched:
+                        is_tail_dispatched[entry] = functions.contains_addr(
+                            entry
+                        ) and self._is_tail_dispatched_function(functions, entry, jumptable_owners[entry])
+                    if is_tail_dispatched[entry]:
+                        dispatched_entries |= entries
+                        break
+            # a target that tracing folded into its dispatcher becomes a function start
+            for entry in dispatched_entries:
+                if not functions.contains_addr(entry) and self.model.get_any_node(entry, force_fastpath=True):
+                    functions.function(addr=entry, create=True)
 
         functions_to_remove = set()
 
