@@ -1226,13 +1226,22 @@ class PhoenixStructurer(StructurerBase):
                                 and last_stmt.true_target.value == continue_node.addr
                             ):
                                 new_cont_node = ConditionNode(
-                                    last_stmt.tags["ins_addr"], None, last_stmt.condition, new_cont_node
+                                    last_stmt.tags["ins_addr"],
+                                    None,
+                                    self.cond_proc.claripy_ast_from_ail_condition(
+                                        last_stmt.condition, must_bool=True, ins_addr=last_stmt.tags["ins_addr"]
+                                    ),
+                                    new_cont_node,
                                 )
                             else:
                                 new_cont_node = ConditionNode(
                                     last_stmt.tags["ins_addr"],
                                     None,
-                                    UnaryOp(self.ail_manager.next_atom(), "Not", last_stmt.condition),
+                                    claripy.Not(
+                                        self.cond_proc.claripy_ast_from_ail_condition(
+                                            last_stmt.condition, must_bool=True, ins_addr=last_stmt.tags["ins_addr"]
+                                        )
+                                    ),
                                     new_cont_node,
                                 )
                         elif isinstance(last_stmt, Jump):
@@ -3928,11 +3937,17 @@ class PhoenixStructurer(StructurerBase):
         remove_src_last_stmt = False
         if isinstance(last_stmt, ConditionalJump):
             if isinstance(last_stmt.true_target, Const) and last_stmt.true_target.value == target_addr:
-                goto0_condition = last_stmt.condition
+                goto0_condition = self.cond_proc.claripy_ast_from_ail_condition(
+                    last_stmt.condition, must_bool=True, ins_addr=last_stmt.tags["ins_addr"]
+                )
                 goto0_target = last_stmt.true_target
                 goto1_target = last_stmt.false_target
             elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == target_addr:
-                goto0_condition = UnaryOp(self.ail_manager.next_atom(), "Not", last_stmt.condition)
+                goto0_condition = claripy.Not(
+                    self.cond_proc.claripy_ast_from_ail_condition(
+                        last_stmt.condition, must_bool=True, ins_addr=last_stmt.tags["ins_addr"]
+                    )
+                )
                 goto0_target = last_stmt.false_target
                 goto1_target = last_stmt.true_target
             else:
