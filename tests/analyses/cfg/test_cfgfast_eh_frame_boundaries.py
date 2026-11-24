@@ -9,6 +9,9 @@ jumps. Without a boundary at each target, CFGFast absorbs all of them into ``key
 - ``tailcall_dispatch_nocet``: .eh_frame FDEs, no endbr64. Only the FDE boundaries split the targets.
 - ``tailcall_dispatch_cet_nofde``: endbr64, no FDEs for the functions. Only the endbr64 heuristic splits them.
 - ``tailcall_dispatch_cet``: both.
+
+``tailcall_table_dispatch`` is a stripped PIE build of tests_src/tailcall_table_dispatch.c: eight handlers are reached
+only through a table of function pointers, and ``decode`` and every handler end in an indirect jump through that table.
 """
 
 from __future__ import annotations
@@ -27,6 +30,9 @@ NOCET_TARGETS = {0x4011C0, 0x401250, 0x4012E0, 0x401380, 0x401410, 0x4014A0}
 KEY_VERIFY_COLD = 0x401050
 CET_KEY_VERIFY = 0x401540
 NOCET_KEY_VERIFY = 0x401530
+# op_done, op_seg, op_bad, op_vex, op_lock, op_rep, op_size, op_rex
+TABLE_HANDLERS = {0x401170, 0x401180, 0x4011D0, 0x4011E0, 0x401210, 0x401250, 0x401290, 0x4012D0}
+TABLE_DECODE = 0x401320
 
 
 class TestCfgFastEhFrameBoundaries(unittest.TestCase):
@@ -82,6 +88,14 @@ class TestCfgFastEhFrameBoundaries(unittest.TestCase):
         assert cfg.kb.functions[sftp_server_main].returning is False
         assert sftp_server_main not in cfg.kb.functions[main].block_addrs_set
         assert len(cfg.kb.functions[main].block_addrs_set) < 10
+
+    def test_functions_dispatched_through_a_table_are_kept(self):
+        # every handler is a jump table target with no call predecessor, like a cold part of a switch, but it returns
+        # on its own and never jumps back into the body of the function that owns the table
+        cfg = self._cfg("tailcall_table_dispatch")
+        assert set(cfg.kb.functions).issuperset(TABLE_HANDLERS)
+        assert all(cfg.kb.functions[addr].returning for addr in TABLE_HANDLERS)
+        assert not cfg.kb.functions[TABLE_DECODE].block_addrs_set & TABLE_HANDLERS
 
 
 if __name__ == "__main__":

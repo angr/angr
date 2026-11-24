@@ -2305,12 +2305,20 @@ class CFGBase(Analysis):
         The temporary solution is identifying functions that (a) have no call predecessors, and (b) are used as
         jump targets for identified jump tables. Remove these functions so that they can be treated as part of the
         source function where the corresponding jump table belongs.
+
+        A jump table may also be a table of function pointers that is dispatched with a tail call, such as a decoder
+        that ends every handler in `return table[byte](d)`. Its targets are ordinary functions: they return on their
+        own and never jump back into the body of the function that owns the table. Such functions are kept; a cold
+        part either does not return or jumps back into that body.
         """
 
         jumptable_entries: set[int] = set()
+        jumptable_owners: dict[int, set[int]] = defaultdict(set)
         for jt in self.model.jump_tables.values():
             assert jt.jumptable_entries is not None
             jumptable_entries |= set(jt.jumptable_entries)
+            for entry in jt.jumptable_entries:
+                jumptable_owners[entry].add(jt.func_addr)
 
         if not jumptable_entries:
             return set()
@@ -2332,7 +2340,11 @@ class CFGBase(Analysis):
                             has_transition_pred = True
                         else:
                             has_non_transition_pred = True
-                    if has_transition_pred is True and not has_non_transition_pred:
+                    if (
+                        has_transition_pred is True
+                        and not has_non_transition_pred
+                        and not self._is_tail_dispatched_function(functions, func_addr, jumptable_owners[func_addr])
+                    ):
                         # all predecessors are transition-only
                         # remove this function
                         functions_to_remove.add(func_addr)
@@ -2343,6 +2355,29 @@ class CFGBase(Analysis):
                 del blockaddr_to_funcaddr[to_remove]
 
         return functions_to_remove
+
+    def _is_tail_dispatched_function(self, functions, func_addr: int, owners: set[int]) -> bool:
+        """
+        Whether a function that jump tables reach is a function in its own right, tail-called through a table of
+        function pointers, rather than a cold part of the function that owns the table.
+
+        :param functions:   The function manager being rebuilt.
+        :param func_addr:   Address of the jump-table-targeted function.
+        :param owners:      Addresses of the functions that own the jump tables reaching it.
+        :return:            True if the function returns and none of its blocks jumps into the body of an owner.
+        """
+
+        func = functions.get_by_addr(func_addr)
+        if func.returning is not True:
+            return False
+        owners = owners - {func_addr}
+        for block_addr in func.block_addrs_set:
+            for node in self.model.nodes_by_addr(block_addr):
+                for succ, jumpkind in self.model.get_successors_and_jumpkinds(node):
+                    # jumping to another function's entry is a tail call, not a jump back into its body
+                    if jumpkind == "Ijk_Boring" and succ.function_address in owners and succ.addr not in functions:
+                        return False
+        return True
 
     @overload
     def _addr_to_funcaddr(
