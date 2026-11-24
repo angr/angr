@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .tagged_object import TaggedObject  # re-export for backward compat
-
 if TYPE_CHECKING:
     from angr.rustylib.ailment import (
         CAS,
@@ -271,6 +269,5 @@ __all__ = [
     "SideEffectStatement",
     "Statement",
     "Store",
-    "TaggedObject",
     "WeakAssignment",
 ]

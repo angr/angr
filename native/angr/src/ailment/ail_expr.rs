@@ -1744,8 +1744,7 @@ impl AilExpression {
     /// fields are cloned via Python ``copy.deepcopy``.
     pub fn deep_copy_ail(&self, manager: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
         let new_idx: i64 = manager.call_method0("next_atom")?.extract()?;
-        // Mirror master's TaggedObject._transfer_varmap: when the
-        // manager carries a VariableMap, copy any side-container entries
+        // When the manager carries a VariableMap, copy any side-container entries
         // (variable, variable_offset, variant, returnty, ...) from the
         // old idx to the new one so deep-copied atoms keep their
         // associations.

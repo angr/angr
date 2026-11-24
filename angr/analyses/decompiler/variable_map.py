@@ -12,13 +12,10 @@ from angr.sim_type import SimType
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
-    from angr.ailment.tagged_object import TaggedObject
     from angr.rustylib.ailment import Expression, Statement
 
-    # Anything carrying an ``.idx`` that the map can key on: the rustlib
-    # Expression / Statement pyclasses plus pure-Python TaggedObject
-    # subclasses (structurer helper nodes).
-    AILObject = TaggedObject | Expression | Statement
+    # Anything carrying an ``.idx`` that the map can key on.
+    AILObject = Expression | Statement
     from angr.calling_conventions import SimCC
     from angr.sim_type import SimTypeFunction
     from angr.sim_variable import SimVariable
@@ -268,7 +265,7 @@ class VariableMap:
         else:
             self._returntys[key] = returnty
 
-    def transfer(self, src: TaggedObject | int, dst: TaggedObject | int) -> None:
+    def transfer(self, src: AILObject | int, dst: AILObject | int) -> None:
         """
         Copy all variable information associated with ``src`` to ``dst``. Used when an AIL atom is deep-copied to a new
         ``.idx`` (e.g. during structuring/duplication) so that the new atom keeps the same variable association.

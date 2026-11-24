@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import angr
 import angr.ailment.utils
@@ -414,18 +414,13 @@ class IncompleteSwitchCaseNode(BaseNode):
 # The following classes are custom AIL statements (not nodes, unfortunately)
 #
 
-if TYPE_CHECKING:
-    from angr.ailment.tagged_object import TaggedObject as _IncompleteSwitchCaseHeadStatementBase
-else:
-    _IncompleteSwitchCaseHeadStatementBase = ailment.statement.Statement
 
-
-class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
+class IncompleteSwitchCaseHeadStatement(ailment.statement.Statement):
     """
     Describes a switch-case head. This is only created by LoweredSwitchSimplifier.
     """
 
-    __slots__ = ("_case_addrs_str", "addr", "case_addrs", "peephole_optimized", "switch_variable")
+    __slots__ = ("_cached_hash", "_case_addrs_str", "addr", "case_addrs", "peephole_optimized", "switch_variable")
 
     # Mirror the rustlib ``Statement.kind`` slot so downstream code that
     # dispatches on ``stmt.kind`` doesn't have to fall back to
@@ -444,6 +439,7 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
         # a string representation of the addresses of all cases, used for hashing
         self._case_addrs_str = str(sorted([c[0].addr for c in self.case_addrs if c[0] is not None]))
         self.peephole_optimized = peephole_optimized
+        self._cached_hash: int | None = None
 
     def __repr__(self):
         return f"SwitchCaseHead: switch {self.switch_variable} with {len(self.case_addrs)} cases"
@@ -451,10 +447,12 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
     def __str__(self):
         return f"switch ({self.switch_variable!s}): {len(self.case_addrs)} cases"
 
-    __hash__ = ailment.statement.TaggedObject.__hash__
-
-    def _hash_core(self):
-        return stable_hash((IncompleteSwitchCaseHeadStatement, self.idx, self.switch_variable, self._case_addrs_str))
+    def __hash__(self):
+        if self._cached_hash is None:
+            self._cached_hash = stable_hash(
+                (IncompleteSwitchCaseHeadStatement, self.idx, self.switch_variable, self._case_addrs_str)
+            )
+        return self._cached_hash
 
     def replace(self, old_expr, new_expr):  # pylint:disable=unused-argument
         return self
