@@ -35,6 +35,8 @@ TABLE_HANDLERS = {0x401170, 0x401180, 0x4011D0, 0x4011E0, 0x401210, 0x401250, 0x
 TABLE_DECODE = 0x401320
 # op_halt, op_inc, op_dec, op_dbl, op_neg: labels of run(), aligned to 16 bytes like function entries
 COMPUTED_GOTO_LABELS = {0x401160, 0x401190, 0x4011A0, 0x4011B0, 0x4011C0}
+# op1, op0: labels of dispatch() that only set the return value and return
+STATELESS_LABELS = {0x401150, 0x401160}
 
 
 class TestCfgFastEhFrameBoundaries(unittest.TestCase):
@@ -113,6 +115,11 @@ class TestCfgFastEhFrameBoundaries(unittest.TestCase):
         for kwargs in ({}, {"eh_frame": False}, {"eh_frame_boundaries": False}):
             cfg = self._cfg("computed_goto_label_table", **kwargs)
             assert not set(cfg.kb.functions) & COMPUTED_GOTO_LABELS
+
+    def test_computed_goto_labels_inside_an_fde_are_not_functions(self):
+        # these labels are entered like functions; only the FDE of dispatch(), which covers them, says they are not
+        cfg = self._cfg("computed_goto_stateless_labels")
+        assert not set(cfg.kb.functions) & STATELESS_LABELS
 
 
 if __name__ == "__main__":

@@ -2316,8 +2316,13 @@ class CFGBase(Analysis):
           start is one too. Targets without an FDE are left alone: they are blocks, such as the cases of a switch.
         - The table itself, without unwind data: a compiler writes a switch table as offsets, or as pointers that are
           not relocated; an array of function pointers written by the program is a table of pointers that the loader
-          relocates. Its targets must also start where functions start: aligned, and entered the way a function is
-          (see _entered_like_a_function), which rules out the labels of a computed goto.
+          relocates. Its targets must also start where functions start: aligned, entered the way a function is (see
+          _entered_like_a_function), and not inside a function that trusted .eh_frame records.
+
+        The labels of a computed goto are a relocated pointer table too. Most of them use the state of their function
+        and fail the entry check, and with trusted .eh_frame all of them lie inside their function's FDE. Without
+        unwind data, a label that is aligned like a function and uses no state of its function (`op: return 10;`) is
+        indistinguishable from a function, and is made one.
         """
 
         jumptable_entries: set[int] = set()
@@ -2352,18 +2357,23 @@ class CFGBase(Analysis):
 
         # without unwind data: a relocated table of pointers to function entries is an array of function pointers
         relocated_addrs: dict[Any, set[int]] = {}
-        checked_tables: set[int] = set()
+        checked_tables: set[tuple] = set()
         for ij in self.model.jump_tables.values():
             for info in ij.jumptables:
-                if info.addr is None or info.addr in checked_tables or info.entries_guessed:
+                if info.addr is None or info.entries_guessed:
                     continue
-                checked_tables.add(info.addr)
-                entries = set(info.entries)
+                entries = frozenset(info.entries)
+                # the same table may be resolved with different bounds at different jump sites
+                table_key = (info.addr, info.size, info.entry_size, entries)
+                if table_key in checked_tables:
+                    continue
+                checked_tables.add(table_key)
                 if (
                     len(entries) >= 2
                     and not entries <= dispatched_entries
                     and self._is_relocated_pointer_table(info, relocated_addrs)
                     and all(entry % self.FUNCTION_POINTER_TABLE_ALIGNMENT == 0 for entry in entries)
+                    and not any(self._inside_eh_frame_function(entry) for entry in entries)
                     and all(self._entered_like_a_function(entry, entered) for entry in entries)
                 ):
                     dispatched_entries |= entries
@@ -2403,7 +2413,8 @@ class CFGBase(Analysis):
         return functions_to_remove
 
     # Function starts in an array of function pointers are at least this aligned; GCC and Clang align functions to 16
-    # bytes by default. Requiring it costs some recall (e.g., -Os), never precision.
+    # bytes by default. This requirement only removes candidates, costing some recall (e.g., -Os); it does not make the
+    # rule exact, since labels can be aligned too (-falign-labels).
     FUNCTION_POINTER_TABLE_ALIGNMENT = 16
 
     def _is_relocated_pointer_table(self, info, relocated_addrs: dict) -> bool:
@@ -2441,7 +2452,9 @@ class CFGBase(Analysis):
 
         Stack arguments are part of the caller's stack, so a function that loads one before moving the stack pointer
         is rejected too, as is one that reads a register the calling convention does not list as an argument (the
-        vector count in `al` of a variadic AMD64 function, `t9` of MIPS PIC code). This costs recall, never precision.
+        vector count in `al` of a variadic AMD64 function, `t9` of MIPS PIC code). These rejections cost recall. The
+        check cannot reject a block that uses no state of the code that jumped to it, such as a label that only sets
+        the return value and returns.
 
         :param addr:    Address of the block.
         :param cache:   Results of earlier checks, by address.
@@ -2547,6 +2560,17 @@ class CFGBase(Analysis):
         """
 
         return set()
+
+    def _inside_eh_frame_function(self, addr: int) -> bool:
+        """
+        Checks if `addr` lies inside a function that trusted .eh_frame records, after its start. Never by default;
+        CFGFast trusts ELF FDEs when eh_frame and eh_frame_boundaries are enabled.
+
+        :param addr:    The address to check.
+        :return:        True if an FDE that this analysis trusts covers `addr` and does not start at it.
+        """
+
+        return False
 
     def _is_tail_dispatched_function(self, functions, func_addr: int, owners: set[int]) -> bool:
         """

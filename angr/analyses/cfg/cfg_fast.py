@@ -1044,6 +1044,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # function starts from .eh_frame that act as hard function boundaries during tracing
         self._eh_frame_boundary_addrs: set[int] = set()
         self._eh_frame_boundary_addrs_sorted: list[int] = []
+        # FDE starts that _absorb_eh_frame_chunks absorbed as cold parts, with the reasons it found
+        self._eh_frame_chunks: dict[int, frozenset[str]] = {}
+        # (start, end) of every FDE, sorted, while FDEs are trusted as function boundaries
+        self._eh_frame_ranges: list[tuple[int, int]] | None = None
         self._remaining_function_prologue_addrs: list[int] | None = None
         # all prologue hits; direct unconditional jumps onto one are treated as tail calls
         self._function_prologue_addrs: set[int] = set()
@@ -2933,15 +2937,37 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return next_expr.con.value
         return None
 
-    def _eh_frame_function_starts(self, candidates: set[int], entered: dict[int, bool]) -> set[int]:
+    def _trusts_eh_frame_boundaries(self) -> bool:
         # PE exception records describe function chunks as well as functions, so only ELF FDEs are trusted
-        if not (self._use_eh_frame and self._eh_frame_boundaries and isinstance(self._binary, cle.ELF)):
+        return self._use_eh_frame and self._eh_frame_boundaries and isinstance(self._binary, cle.ELF)
+
+    def _eh_frame_function_starts(self, candidates: set[int], entered: dict[int, bool]) -> set[int]:
+        if not self._trusts_eh_frame_boundaries():
             return set()
         trusted = self._eh_frame_boundary_addrs & candidates
-        # _absorb_eh_frame_chunks took these for cold parts; a function dispatched through a table looks the same to
-        # it, being only reached by jumps from its dispatcher, so it is taken back if it is entered like a function
-        absorbed = (set(self._function_addresses_from_eh_frame) & candidates) - self._eh_frame_boundary_addrs
-        return trusted | {addr for addr in absorbed if self._entered_like_a_function(addr, entered)}
+        # _absorb_eh_frame_chunks takes an FDE start for a cold part when every jump to it comes from a block with more
+        # than one successor. An indirect jump through a table is such a block, so a function dispatched through a
+        # table is absorbed for that reason alone; it is taken back if it is also entered like a function. A start
+        # absorbed for any other reason (it jumps back into its owner, or never returns) stays a chunk.
+        retaken = {
+            addr
+            for addr in candidates
+            if self._eh_frame_chunks.get(addr) == {"conditional_only"} and self._entered_like_a_function(addr, entered)
+        }
+        return trusted | retaken
+
+    def _inside_eh_frame_function(self, addr: int) -> bool:
+        if not self._trusts_eh_frame_boundaries():
+            return False
+        if self._eh_frame_ranges is None:
+            self._eh_frame_ranges = sorted(
+                (hint.addr, hint.addr + hint.size)
+                for hint in self._binary.function_hints
+                if hint.source == cle.FunctionHintSource.EH_FRAME and hint.size
+            )
+        idx = bisect.bisect_right(self._eh_frame_ranges, (addr, float("inf"))) - 1
+        # every FDE whose start is not after addr; FDEs do not nest, so only the closest can contain it
+        return idx >= 0 and self._eh_frame_ranges[idx][0] < addr < self._eh_frame_ranges[idx][1]
 
     def _absorb_eh_frame_chunks(self) -> None:
         """
@@ -2991,10 +3017,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 sum(1 for _, jumpkind in self.model.get_successors_and_jumpkinds(src) if jumpkind != "Ijk_FakeRet") > 1
                 for src, _ in preds
             )
-            if jumps_back or conditional_only or func.returning is False:
+            reasons = frozenset(
+                reason
+                for reason, found in (
+                    ("jumps_back", jumps_back),
+                    ("conditional_only", conditional_only),
+                    ("non_returning", func.returning is False),
+                )
+                if found
+            )
+            if reasons:
                 l.debug("FDE start %#x is a chunk of function %#x; absorbing it.", addr, owner)
                 del self.kb.functions[addr]
                 self._eh_frame_boundary_addrs.discard(addr)
+                self._eh_frame_chunks[addr] = reasons
         self._eh_frame_boundary_addrs_sorted = sorted(self._eh_frame_boundary_addrs)
 
     def _split_entry_tail_jump_targets(self) -> None:
@@ -7288,6 +7324,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         n._function_prologue_addrs = self._function_prologue_addrs.copy()
         n._eh_frame_boundary_addrs = self._eh_frame_boundary_addrs.copy()
         n._eh_frame_boundary_addrs_sorted = self._eh_frame_boundary_addrs_sorted[::]
+        n._eh_frame_chunks = dict(self._eh_frame_chunks)
 
         n._model = self._model.copy()
 
