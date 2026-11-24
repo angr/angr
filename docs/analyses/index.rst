@@ -8,3 +8,4 @@ Build-in Analyses
    backward_slice
    identifier
    decompiler
+   unpacker
