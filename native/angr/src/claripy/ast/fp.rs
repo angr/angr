@@ -8,8 +8,15 @@ use crate::claripy::prelude::*;
 
 static FPS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-#[pyclass(name = "RM", module = "angr.rustylib.claripy.fp", eq, from_py_object)]
-#[derive(Clone, PartialEq, Eq, Default)]
+#[pyclass(
+    name = "RM",
+    module = "angr.rustylib.claripy.fp",
+    frozen,
+    eq,
+    hash,
+    from_py_object
+)]
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
 #[allow(non_camel_case_types)]
 pub enum PyRM {
     #[default]
