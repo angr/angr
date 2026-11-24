@@ -33,6 +33,8 @@ NOCET_KEY_VERIFY = 0x401530
 # op_done, op_seg, op_bad, op_vex, op_lock, op_rep, op_size, op_rex
 TABLE_HANDLERS = {0x401170, 0x401180, 0x4011D0, 0x4011E0, 0x401210, 0x401250, 0x401290, 0x4012D0}
 TABLE_DECODE = 0x401320
+# op_halt, op_inc, op_dec, op_dbl, op_neg: labels of run(), aligned to 16 bytes like function entries
+COMPUTED_GOTO_LABELS = {0x401160, 0x401190, 0x4011A0, 0x4011B0, 0x4011C0}
 
 
 class TestCfgFastEhFrameBoundaries(unittest.TestCase):
@@ -104,6 +106,13 @@ class TestCfgFastEhFrameBoundaries(unittest.TestCase):
             cfg = self._cfg("tailcall_table_dispatch", **kwargs)
             assert set(cfg.kb.functions).issuperset(TABLE_HANDLERS)
             assert not cfg.kb.functions[TABLE_DECODE].block_addrs_set & TABLE_HANDLERS
+
+    def test_computed_goto_labels_are_not_functions(self):
+        # the label table of a computed goto is an array of relocated pointers too, but a label continues its
+        # function: it uses the registers that its function set up
+        for kwargs in ({}, {"eh_frame": False}, {"eh_frame_boundaries": False}):
+            cfg = self._cfg("computed_goto_label_table", **kwargs)
+            assert not set(cfg.kb.functions) & COMPUTED_GOTO_LABELS
 
 
 if __name__ == "__main__":

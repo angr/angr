@@ -1,7 +1,6 @@
 # pylint:disable=line-too-long,multiple-statements
 from __future__ import annotations
 
-import bisect
 import logging
 from collections import defaultdict
 from collections.abc import Callable
@@ -2333,9 +2332,10 @@ class CFGBase(Analysis):
             return set()
 
         dispatched_entries: set[int] = set()
+        entered: dict[int, bool] = {}
 
         # with unwind data: only .eh_frame function starts can be function pointers dispatched through a table
-        fde_starts = self._eh_frame_function_starts() & jumptable_entries
+        fde_starts = self._eh_frame_function_starts(jumptable_entries, entered)
         if fde_starts:
             is_tail_dispatched: dict[int, bool] = {}
             for jt in self.model.jump_tables.values():
@@ -2351,16 +2351,20 @@ class CFGBase(Analysis):
                         break
 
         # without unwind data: a relocated table of pointers to function entries is an array of function pointers
-        relocated_addrs: dict[Any, list[int]] = {}
+        relocated_addrs: dict[Any, set[int]] = {}
+        checked_tables: set[int] = set()
         for ij in self.model.jump_tables.values():
             for info in ij.jumptables:
+                if info.addr is None or info.addr in checked_tables or info.entries_guessed:
+                    continue
+                checked_tables.add(info.addr)
                 entries = set(info.entries)
                 if (
                     len(entries) >= 2
                     and not entries <= dispatched_entries
                     and self._is_relocated_pointer_table(info, relocated_addrs)
                     and all(entry % self.FUNCTION_POINTER_TABLE_ALIGNMENT == 0 for entry in entries)
-                    and all(self._entered_like_a_function(entry) for entry in entries)
+                    and all(self._entered_like_a_function(entry, entered) for entry in entries)
                 ):
                     dispatched_entries |= entries
 
@@ -2409,34 +2413,50 @@ class CFGBase(Analysis):
         pointers is an array written by the program.
 
         :param info:            The JumptableInfo to check.
-        :param relocated_addrs: A cache of sorted relocated addresses per loaded object.
-        :return:                True if the table holds pointer-sized entries and a relocation applies inside it.
+        :param relocated_addrs: A cache of relocated addresses per loaded object.
+        :return:                True if the table holds pointer-sized entries and every entry is relocated.
         """
 
         if info.addr is None or info.entry_size != self.project.arch.bytes:
+            return False
+        slots = info.size // info.entry_size
+        if slots < 1:
             return False
         obj = self.project.loader.find_object_containing(info.addr)
         if obj is None or not obj.pic:
             return False
         if obj not in relocated_addrs:
-            relocated_addrs[obj] = sorted(reloc.rebased_addr for reloc in obj.relocs)
+            relocated_addrs[obj] = {reloc.rebased_addr for reloc in obj.relocs}
         addrs = relocated_addrs[obj]
-        idx = bisect.bisect_left(addrs, info.addr)
-        return idx < len(addrs) and addrs[idx] < info.addr + info.size
+        return all(info.addr + i * info.entry_size in addrs for i in range(slots))
 
-    def _entered_like_a_function(self, addr: int) -> bool:
+    def _entered_like_a_function(self, addr: int, cache: dict[int, bool] | None = None) -> bool:
         """
-        Checks if the block at `addr` is entered the way a function is, rather than continuing the function that jumped
-        to it. Before writing or saving them, a function does not use callee-saved registers, and before moving the
-        stack pointer it loads nothing above its stack arguments; a switch case does both, because its function set
-        them up.
+        Checks if the block at `addr` is entered the way a function is, rather than continuing the code that jumped to
+        it. At its entry a function holds meaningful values only in its argument registers, the stack pointer and the
+        return address; it may store any other register (saving a callee-saved register, or pushing a scratch register
+        to align the stack) but uses none before writing it, and it loads none of its caller's stack before moving the
+        stack pointer. A switch case or the label of a computed goto continues its function, so it typically uses
+        values that its function left in registers or on the stack.
+
+        Stack arguments are part of the caller's stack, so a function that loads one before moving the stack pointer
+        is rejected too, as is one that reads a register the calling convention does not list as an argument (the
+        vector count in `al` of a variadic AMD64 function, `t9` of MIPS PIC code). This costs recall, never precision.
 
         :param addr:    Address of the block.
-        :return:        True if the block reads no callee-saved register (other than to store it) and no stack slot of
-                        its caller before it writes them or moves the stack pointer.
+        :param cache:   Results of earlier checks, by address.
+        :return:        True if the block is entered like a function.
         """
 
-        from angr.calling_conventions import default_cc_for_project  # pylint:disable=import-outside-toplevel
+        if cache is not None and addr in cache:
+            return cache[addr]
+        result = self._check_entered_like_a_function(addr)
+        if cache is not None:
+            cache[addr] = result
+        return result
+
+    def _check_entered_like_a_function(self, addr: int) -> bool:
+        from angr.calling_conventions import SimRegArg, default_cc_for_project  # pylint:disable=import-outside-toplevel
 
         arch = self.project.arch
         cc = default_cc_for_project(self.project)
@@ -2447,23 +2467,24 @@ class CFGBase(Analysis):
         except (SimEngineError, SimMemoryError, SimTranslationError):
             return False
 
-        caller_saved = {arch.registers[name][0] for name in cc.CALLER_SAVED_REGS if name in arch.registers}
-        callee_saved: list[tuple[int, int]] = []
-        for reg in arch.register_list:
-            if not reg.general_purpose or reg.vex_offset in caller_saved:
-                continue
-            if reg.vex_offset in (arch.sp_offset, arch.ip_offset):
-                continue
-            callee_saved.append((reg.vex_offset, reg.vex_offset + reg.size))
+        live_at_entry = {arch.sp_offset, arch.ip_offset}
+        live_at_entry |= {arch.registers[name][0] for name in cc.ARG_REGS if name in arch.registers}
+        if isinstance(cc.RETURN_ADDR, SimRegArg) and cc.RETURN_ADDR.reg_name in arch.registers:
+            live_at_entry.add(arch.registers[cc.RETURN_ADDR.reg_name][0])
+        tracked: list[tuple[int, int]] = [
+            (reg.vex_offset, reg.vex_offset + reg.size)
+            for reg in arch.register_list
+            if reg.general_purpose and reg.vex_offset not in live_at_entry
+        ]
 
-        def callee_saved_reg(offset: int) -> int | None:
-            for lo, hi in callee_saved:
+        def tracked_reg(offset: int) -> int | None:
+            for lo, hi in tracked:
                 if lo <= offset < hi:
                     return lo
             return None
 
         written: set[int] = set()
-        saved_values: dict[int, int] = {}  # tmp -> callee-saved register whose entry value it holds
+        entry_values: dict[int, int] = {}  # tmp -> tracked register whose value at entry it holds
         sp_values: dict[int, int] = {}  # tmp -> offset from the stack pointer at entry
         sp_moved = False
 
@@ -2476,16 +2497,16 @@ class CFGBase(Analysis):
             if isinstance(stmt, pyvex.stmt.WrTmp):
                 data = stmt.data
                 if isinstance(data, pyvex.expr.Get):
-                    reg = callee_saved_reg(data.offset)
+                    reg = tracked_reg(data.offset)
                     if data.offset == arch.sp_offset and not sp_moved:
                         sp_values[stmt.tmp] = 0
                     elif reg is not None and reg not in written:
-                        saved_values[stmt.tmp] = reg
+                        entry_values[stmt.tmp] = reg
                     continue
                 if isinstance(data, pyvex.expr.Load) and isinstance(data.addr, pyvex.expr.RdTmp):
                     offset = sp_values.get(data.addr.tmp)
-                    if offset is not None and offset > cc.STACKARG_SP_DIFF:
-                        # a slot of the caller's frame
+                    if offset is not None and offset >= cc.STACKARG_SP_DIFF:
+                        # the caller's stack: its locals, or the stack arguments it passed
                         return False
                 if (
                     isinstance(data, pyvex.expr.Binop)
@@ -2496,31 +2517,33 @@ class CFGBase(Analysis):
                 ):
                     delta = data.args[1].con.value
                     sp_values[stmt.tmp] = sp_values[data.args[0].tmp] + (delta if "Add" in data.op else -delta)
-                if any(tmp in saved_values for tmp in uses(data)):
+                if any(tmp in entry_values for tmp in uses(data)):
                     return False
             elif isinstance(stmt, pyvex.stmt.Put):
-                if any(tmp in saved_values for tmp in uses(stmt.data)):
+                if any(tmp in entry_values for tmp in uses(stmt.data)):
                     return False
                 if stmt.offset == arch.sp_offset:
                     sp_moved = True
                     sp_values.clear()
-                reg = callee_saved_reg(stmt.offset)
+                reg = tracked_reg(stmt.offset)
                 if reg is not None:
                     written.add(reg)
             elif isinstance(stmt, pyvex.stmt.Store):
-                # storing a callee-saved register is saving it; using it as an address is not
-                if any(tmp in saved_values for tmp in uses(stmt.addr)):
+                # storing a register's value at entry saves it; using it as an address is not
+                if any(tmp in entry_values for tmp in uses(stmt.addr)):
                     return False
-            elif isinstance(stmt, pyvex.stmt.Exit) and any(tmp in saved_values for tmp in uses(stmt.guard)):
+            elif isinstance(stmt, pyvex.stmt.Exit) and any(tmp in entry_values for tmp in uses(stmt.guard)):
                 return False
-        return not any(tmp in saved_values for tmp in uses(irsb.next))
+        return not any(tmp in entry_values for tmp in uses(irsb.next))
 
-    def _eh_frame_function_starts(self) -> set[int]:
+    def _eh_frame_function_starts(self, candidates: set[int], entered: dict[int, bool]) -> set[int]:
         """
-        Function starts recorded in .eh_frame that this analysis trusts as function boundaries. Nothing by default;
-        CFGFast trusts ELF FDEs when eh_frame and eh_frame_boundaries are enabled.
+        Function starts recorded in .eh_frame that this analysis trusts as function boundaries, among `candidates`.
+        Nothing by default; CFGFast trusts ELF FDEs when eh_frame and eh_frame_boundaries are enabled.
 
-        :return:    A set of function start addresses.
+        :param candidates:  Addresses to consider.
+        :param entered:     A cache for _entered_like_a_function.
+        :return:            A set of function start addresses.
         """
 
         return set()

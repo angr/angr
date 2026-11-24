@@ -2933,11 +2933,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return next_expr.con.value
         return None
 
-    def _eh_frame_function_starts(self) -> set[int]:
+    def _eh_frame_function_starts(self, candidates: set[int], entered: dict[int, bool]) -> set[int]:
         # PE exception records describe function chunks as well as functions, so only ELF FDEs are trusted
-        if self._use_eh_frame and self._eh_frame_boundaries and isinstance(self._binary, cle.ELF):
-            return set(self._function_addresses_from_eh_frame)
-        return set()
+        if not (self._use_eh_frame and self._eh_frame_boundaries and isinstance(self._binary, cle.ELF)):
+            return set()
+        trusted = self._eh_frame_boundary_addrs & candidates
+        # _absorb_eh_frame_chunks took these for cold parts; a function dispatched through a table looks the same to
+        # it, being only reached by jumps from its dispatcher, so it is taken back if it is entered like a function
+        absorbed = (set(self._function_addresses_from_eh_frame) & candidates) - self._eh_frame_boundary_addrs
+        return trusted | {addr for addr in absorbed if self._entered_like_a_function(addr, entered)}
 
     def _absorb_eh_frame_chunks(self) -> None:
         """
