@@ -1,6 +1,7 @@
 # pylint:disable=line-too-long,multiple-statements
 from __future__ import annotations
 
+import bisect
 import logging
 from collections import defaultdict
 from collections.abc import Callable
@@ -2309,9 +2310,15 @@ class CFGBase(Analysis):
         A jump table may also be a table of function pointers that is dispatched with a tail call, such as a decoder
         that ends every handler in `return table[byte](d)`. Its targets are ordinary functions: they return on their
         own and never jump back into the body of the function that owns the table, while a cold part either does not
-        return or jumps back into that body. Once one target of a jump table is such a function, every target of that
-        table that .eh_frame records as a function start is a function start too, and is kept (or created). Targets
-        without an FDE are left alone: they are blocks, such as the cases of a switch.
+        return or jumps back into that body. Two kinds of evidence say a table holds such functions, and its targets
+        are then kept as function starts, or created when tracing folded them into the dispatcher:
+
+        - .eh_frame: once one target of a table is such a function, every target that .eh_frame records as a function
+          start is one too. Targets without an FDE are left alone: they are blocks, such as the cases of a switch.
+        - The table itself, without unwind data: a compiler writes a switch table as offsets, or as pointers that are
+          not relocated; an array of function pointers written by the program is a table of pointers that the loader
+          relocates. Its targets must also start where functions start: aligned, and entered the way a function is
+          (see _entered_like_a_function), which rules out the labels of a computed goto.
         """
 
         jumptable_entries: set[int] = set()
@@ -2325,9 +2332,10 @@ class CFGBase(Analysis):
         if not jumptable_entries:
             return set()
 
-        # only .eh_frame function starts can be function pointers dispatched through a table
-        fde_starts = self._eh_frame_function_starts() & jumptable_entries
         dispatched_entries: set[int] = set()
+
+        # with unwind data: only .eh_frame function starts can be function pointers dispatched through a table
+        fde_starts = self._eh_frame_function_starts() & jumptable_entries
         if fde_starts:
             is_tail_dispatched: dict[int, bool] = {}
             for jt in self.model.jump_tables.values():
@@ -2341,10 +2349,25 @@ class CFGBase(Analysis):
                     if is_tail_dispatched[entry]:
                         dispatched_entries |= entries
                         break
-            # a target that tracing folded into its dispatcher becomes a function start
-            for entry in dispatched_entries:
-                if not functions.contains_addr(entry) and self.model.get_any_node(entry, force_fastpath=True):
-                    functions.function(addr=entry, create=True)
+
+        # without unwind data: a relocated table of pointers to function entries is an array of function pointers
+        relocated_addrs: dict[Any, list[int]] = {}
+        for ij in self.model.jump_tables.values():
+            for info in ij.jumptables:
+                entries = set(info.entries)
+                if (
+                    len(entries) >= 2
+                    and not entries <= dispatched_entries
+                    and self._is_relocated_pointer_table(info, relocated_addrs)
+                    and all(entry % self.FUNCTION_POINTER_TABLE_ALIGNMENT == 0 for entry in entries)
+                    and all(self._entered_like_a_function(entry) for entry in entries)
+                ):
+                    dispatched_entries |= entries
+
+        # a target that tracing folded into its dispatcher becomes a function start
+        for entry in dispatched_entries:
+            if not functions.contains_addr(entry) and self.model.get_any_node(entry, force_fastpath=True):
+                functions.function(addr=entry, create=True)
 
         functions_to_remove = set()
 
@@ -2374,6 +2397,123 @@ class CFGBase(Analysis):
                 del blockaddr_to_funcaddr[to_remove]
 
         return functions_to_remove
+
+    # Function starts in an array of function pointers are at least this aligned; GCC and Clang align functions to 16
+    # bytes by default. Requiring it costs some recall (e.g., -Os), never precision.
+    FUNCTION_POINTER_TABLE_ALIGNMENT = 16
+
+    def _is_relocated_pointer_table(self, info, relocated_addrs: dict) -> bool:
+        """
+        Checks if a jump table is a table of pointers that the loader relocates. A compiler writes a switch table as
+        offsets, or, in code that is not position-independent, as pointers that are not relocated; a relocated table of
+        pointers is an array written by the program.
+
+        :param info:            The JumptableInfo to check.
+        :param relocated_addrs: A cache of sorted relocated addresses per loaded object.
+        :return:                True if the table holds pointer-sized entries and a relocation applies inside it.
+        """
+
+        if info.addr is None or info.entry_size != self.project.arch.bytes:
+            return False
+        obj = self.project.loader.find_object_containing(info.addr)
+        if obj is None or not obj.pic:
+            return False
+        if obj not in relocated_addrs:
+            relocated_addrs[obj] = sorted(reloc.rebased_addr for reloc in obj.relocs)
+        addrs = relocated_addrs[obj]
+        idx = bisect.bisect_left(addrs, info.addr)
+        return idx < len(addrs) and addrs[idx] < info.addr + info.size
+
+    def _entered_like_a_function(self, addr: int) -> bool:
+        """
+        Checks if the block at `addr` is entered the way a function is, rather than continuing the function that jumped
+        to it. Before writing or saving them, a function does not use callee-saved registers, and before moving the
+        stack pointer it loads nothing above its stack arguments; a switch case does both, because its function set
+        them up.
+
+        :param addr:    Address of the block.
+        :return:        True if the block reads no callee-saved register (other than to store it) and no stack slot of
+                        its caller before it writes them or moves the stack pointer.
+        """
+
+        from angr.calling_conventions import default_cc_for_project  # pylint:disable=import-outside-toplevel
+
+        arch = self.project.arch
+        cc = default_cc_for_project(self.project)
+        if cc is None:
+            return False
+        try:
+            irsb = self.project.factory.block(addr).vex
+        except (SimEngineError, SimMemoryError, SimTranslationError):
+            return False
+
+        caller_saved = {arch.registers[name][0] for name in cc.CALLER_SAVED_REGS if name in arch.registers}
+        callee_saved: list[tuple[int, int]] = []
+        for reg in arch.register_list:
+            if not reg.general_purpose or reg.vex_offset in caller_saved:
+                continue
+            if reg.vex_offset in (arch.sp_offset, arch.ip_offset):
+                continue
+            callee_saved.append((reg.vex_offset, reg.vex_offset + reg.size))
+
+        def callee_saved_reg(offset: int) -> int | None:
+            for lo, hi in callee_saved:
+                if lo <= offset < hi:
+                    return lo
+            return None
+
+        written: set[int] = set()
+        saved_values: dict[int, int] = {}  # tmp -> callee-saved register whose entry value it holds
+        sp_values: dict[int, int] = {}  # tmp -> offset from the stack pointer at entry
+        sp_moved = False
+
+        def uses(expr) -> list[int]:
+            return [e.tmp for e in expr.child_expressions if isinstance(e, pyvex.expr.RdTmp)] + (
+                [expr.tmp] if isinstance(expr, pyvex.expr.RdTmp) else []
+            )
+
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.stmt.WrTmp):
+                data = stmt.data
+                if isinstance(data, pyvex.expr.Get):
+                    reg = callee_saved_reg(data.offset)
+                    if data.offset == arch.sp_offset and not sp_moved:
+                        sp_values[stmt.tmp] = 0
+                    elif reg is not None and reg not in written:
+                        saved_values[stmt.tmp] = reg
+                    continue
+                if isinstance(data, pyvex.expr.Load) and isinstance(data.addr, pyvex.expr.RdTmp):
+                    offset = sp_values.get(data.addr.tmp)
+                    if offset is not None and offset > cc.STACKARG_SP_DIFF:
+                        # a slot of the caller's frame
+                        return False
+                if (
+                    isinstance(data, pyvex.expr.Binop)
+                    and data.op.startswith(("Iop_Add", "Iop_Sub"))
+                    and isinstance(data.args[0], pyvex.expr.RdTmp)
+                    and data.args[0].tmp in sp_values
+                    and isinstance(data.args[1], pyvex.expr.Const)
+                ):
+                    delta = data.args[1].con.value
+                    sp_values[stmt.tmp] = sp_values[data.args[0].tmp] + (delta if "Add" in data.op else -delta)
+                if any(tmp in saved_values for tmp in uses(data)):
+                    return False
+            elif isinstance(stmt, pyvex.stmt.Put):
+                if any(tmp in saved_values for tmp in uses(stmt.data)):
+                    return False
+                if stmt.offset == arch.sp_offset:
+                    sp_moved = True
+                    sp_values.clear()
+                reg = callee_saved_reg(stmt.offset)
+                if reg is not None:
+                    written.add(reg)
+            elif isinstance(stmt, pyvex.stmt.Store):
+                # storing a callee-saved register is saving it; using it as an address is not
+                if any(tmp in saved_values for tmp in uses(stmt.addr)):
+                    return False
+            elif isinstance(stmt, pyvex.stmt.Exit) and any(tmp in saved_values for tmp in uses(stmt.guard)):
+                return False
+        return not any(tmp in saved_values for tmp in uses(irsb.next))
 
     def _eh_frame_function_starts(self) -> set[int]:
         """
