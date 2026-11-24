@@ -2323,10 +2323,26 @@ class CFGBase(Analysis):
         if not jumptable_entries:
             return set()
 
+        # a jump table that tail-calls one of its targets is a table of function pointers: every function it reaches
+        # is a function start, not a cold part
+        dispatched_entries: set[int] = set()
+        is_tail_dispatched: dict[int, bool] = {}
+        for jt in self.model.jump_tables.values():
+            assert jt.jumptable_entries is not None
+            entries = set(jt.jumptable_entries)
+            for entry in entries:
+                if entry not in is_tail_dispatched:
+                    is_tail_dispatched[entry] = functions.contains_addr(entry) and self._is_tail_dispatched_function(
+                        functions, entry, jumptable_owners[entry]
+                    )
+                if is_tail_dispatched[entry]:
+                    dispatched_entries |= entries
+                    break
+
         functions_to_remove = set()
 
         for func_addr in functions:
-            if func_addr in predetermined_function_addrs:
+            if func_addr in predetermined_function_addrs or func_addr in dispatched_entries:
                 continue
             if func_addr in jumptable_entries:
                 # is there any call edge pointing to it?
@@ -2340,11 +2356,7 @@ class CFGBase(Analysis):
                             has_transition_pred = True
                         else:
                             has_non_transition_pred = True
-                    if (
-                        has_transition_pred is True
-                        and not has_non_transition_pred
-                        and not self._is_tail_dispatched_function(functions, func_addr, jumptable_owners[func_addr])
-                    ):
+                    if has_transition_pred is True and not has_non_transition_pred:
                         # all predecessors are transition-only
                         # remove this function
                         functions_to_remove.add(func_addr)
@@ -2358,8 +2370,8 @@ class CFGBase(Analysis):
 
     def _is_tail_dispatched_function(self, functions, func_addr: int, owners: set[int]) -> bool:
         """
-        Whether a function that jump tables reach is a function in its own right, tail-called through a table of
-        function pointers, rather than a cold part of the function that owns the table.
+        Checks if a function, who is a jump table target, is dispatched by a tail-call. Such functions should not be
+        treated as a "cold" function thunk and merged into its caller.
 
         :param functions:   The function manager being rebuilt.
         :param func_addr:   Address of the jump-table-targeted function.
@@ -2367,15 +2379,19 @@ class CFGBase(Analysis):
         :return:            True if the function returns and none of its blocks jumps into the body of an owner.
         """
 
-        func = functions.get_by_addr(func_addr)
-        if func.returning is not True:
+        if functions.is_func_nonreturning(func_addr):
             return False
+        func = functions.get_by_addr(func_addr)
         owners = owners - {func_addr}
         for block_addr in func.block_addrs_set:
             for node in self.model.nodes_by_addr(block_addr):
                 for succ, jumpkind in self.model.get_successors_and_jumpkinds(node):
                     # jumping to another function's entry is a tail call, not a jump back into its body
-                    if jumpkind == "Ijk_Boring" and succ.function_address in owners and succ.addr not in functions:
+                    if (
+                        jumpkind == "Ijk_Boring"
+                        and succ.function_address in owners
+                        and not functions.contains_addr(succ.addr)
+                    ):
                         return False
         return True
 
