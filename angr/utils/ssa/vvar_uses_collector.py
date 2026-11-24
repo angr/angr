@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import TYPE_CHECKING, cast
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, Statement
 from angr.code_location import AILCodeLocation
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 
 
 class VVarUsesCollector(AILBlockViewer):
@@ -35,6 +39,13 @@ class VVarUsesCollector(AILBlockViewer):
         if expr.tags.get("extra_def", False):
             return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _stmt_top(self, stmt_idx: int, stmt: Statement, block: Block | None):
+        # no default handler walks the switch head LoweredSwitchSimplifier creates, but it reads its selector: a
+        # definition that only the switch head reads is not dead
+        if getattr(stmt, "pykind", None) == "IncompleteSwitchCaseHead":
+            switch_variable = cast("IncompleteSwitchCaseHeadStatement", stmt).switch_variable
+            self._handle_expr(0, switch_variable, stmt_idx, stmt, block)
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         dst = stmt.dst

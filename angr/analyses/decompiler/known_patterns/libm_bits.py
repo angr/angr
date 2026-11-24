@@ -141,8 +141,9 @@ def _build_fabsf(_ctx: PatternContext) -> KnownPattern:
 def _flip_sign(cap: str, sign: int) -> PChoice:
     """``x ^ sign``, the -x bit pattern: the 128-bit vector op, or the scalar
     XOR it is narrowed to. A scalar XOR with INT_MIN is also plain integer
-    code, so the narrowed arm is only accepted for an operand that lives in a
-    vector register (see ``_narrowed_in_vector_reg``)."""
+    code, so the narrowed arm is only accepted where integer code cannot have
+    produced it: an XOR wider than a general-purpose register, or an operand
+    that lives in a vector register (see ``_narrowed_in_vector_reg``)."""
     return PChoice(
         PBinOp("Xor", (_sse_operand(cap), PConst(sign, bits=128)), commutative=True),
         PBinOp("Xor", (PVVar(cap), _scalar_mask(sign)), commutative=True, name="narrowed"),
@@ -158,7 +159,12 @@ def _narrowed_in_vector_reg(ctx: PatternContext, cap: str) -> Callable[[dict[str
     offsets = _vector_register_offsets(ctx.arch_name)
 
     def where(bindings: dict[str, Expression]) -> bool:
-        if "narrowed" not in bindings:
+        narrowed = bindings.get("narrowed")
+        if narrowed is None:
+            return True
+        if narrowed.bits > ctx.bits:
+            # no general-purpose register is this wide (a 64-bit XOR on i386), so the XOR was done in a vector
+            # register, whatever its operand was loaded from: e.g. a float64 argument passed on the stack
             return True
         x = bindings[cap]
         return isinstance(x, VirtualVariable) and x.category == VirtualVariableCategory.REGISTER and x.oident in offsets

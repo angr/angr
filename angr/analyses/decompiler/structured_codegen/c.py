@@ -4188,13 +4188,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         fp_cls = _FP_TYPES_BY_BITS.get(operand.bits)
         return fp_cls().with_arch(self.project.arch) if fp_cls is not None else None
 
-    def _fp_view_of_int_lvalue(self, cexpr: CExpression, bits: int) -> CExpression:
+    def _fp_view_of_int_lvalue(self, cexpr: CExpression, bits: int, scalar: bool = True) -> CExpression:
         """
         An FP operation reads or writes its operand as a floating-point value. When variable typing left that operand
         an integer variable, view its bits as the FP type of the same width (see CReinterpret) instead of letting C
-        convert the integer value.
+        convert the integer value. An integer-typed memory read is viewed through a pointer to that FP type instead,
+        and only when ``scalar`` is set: a vector operand of the same width holds several narrower lanes.
         """
-        if not isinstance(cexpr, (CVariable, CIndexedVariable, CVariableField)):
+        is_deref = scalar and isinstance(cexpr, CUnaryOp) and cexpr.op == "Dereference"
+        if not is_deref and not isinstance(cexpr, (CVariable, CIndexedVariable, CVariableField)):
             return cexpr
         ty = unpack_typeref(cexpr.type)
         if not isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum)) or ty.size != bits:
@@ -4202,6 +4204,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         fp_cls = _FP_TYPES_BY_BITS.get(bits)
         if fp_cls is None:
             return cexpr
+        if is_deref:
+            # a memory read, e.g. the low lane of a wider variable read as *(unsigned long long *)&v: read the same
+            # bytes through an FP pointer instead, *(double *)&v
+            assert isinstance(cexpr, CUnaryOp)
+            ptr = cexpr.operand
+            if isinstance(ptr, CTypeCast) and isinstance(unpack_typeref(ptr.dst_type), SimTypePointer):
+                ptr = ptr.expr
+            if ptr.type is None:
+                return cexpr
+            fp_ptr = SimTypePointer(fp_cls()).with_arch(self.project.arch)
+            return CUnaryOp("Dereference", CTypeCast(None, fp_ptr, ptr, codegen=self), tags=cexpr.tags, codegen=self)
         return CReinterpret(ty, fp_cls(), cexpr, codegen=self)
 
     def _assign_converted(self, cdst: CExpression, csrc: CExpression, cast_other: bool = True, **kwargs) -> CAssignment:
@@ -5641,6 +5654,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return operand.operand
         if expr.op in {"Neg", "Not"} and not expr.floating_point:
             operand = self._fp_operand_bits(operand, expr.operand.bits)
+        elif expr.op in {"IsNaN", "IsInf", "IsFinite", "IsNormal"}:
+            # the classification macros read their operand as an FP value
+            operand = self._fp_view_of_int_lvalue(operand, expr.operand.bits)
         return CUnaryOp(
             expr.op,
             operand,
@@ -5730,10 +5746,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         if expr.floating_point:
             scalar = expr.vector_count is None
-            lhs = self._fp_view_of_int_lvalue(self._fp_constant(lhs, expr.operands[0], scalar), expr.operands[0].bits)
+            lhs = self._fp_view_of_int_lvalue(
+                self._fp_constant(lhs, expr.operands[0], scalar), expr.operands[0].bits, scalar
+            )
             if expr.op != "Scale":  # ldexp's exponent operand is an integer
                 rhs = self._fp_view_of_int_lvalue(
-                    self._fp_constant(rhs, expr.operands[1], scalar), expr.operands[1].bits
+                    self._fp_constant(rhs, expr.operands[1], scalar), expr.operands[1].bits, scalar
                 )
         else:
             # an integer operation on an FP-typed operand works on its bit pattern
