@@ -10,7 +10,6 @@ import os
 import struct
 import tempfile
 import unittest
-from unittest import mock
 
 import pefile
 
@@ -33,11 +32,13 @@ IMPORTED_API_SET = "api-ms-win-core-synch-l1-2-0.dll"
 ENGINE: Engine = "unicorn"
 
 
-def emulator(name: str = "host.exe", is_64bit: bool = False):
+def emulator(name: str = "host.exe", is_64bit: bool = False, exports_dir: str | None = None):
     """
     The emulator for a sample. host.exe is one writable, executable page of code at CODE_RVA that only returns.
     """
-    return GenericUnpackerCore(sample_path(name, is_64bit), watch_sections=set(), engine=ENGINE).emu
+    return GenericUnpackerCore(
+        sample_path(name, is_64bit), watch_sections=set(), engine=ENGINE, exports_dir=exports_dir
+    ).emu
 
 
 class TestApiHandlers(unittest.TestCase):
@@ -189,8 +190,7 @@ class TestApiHandlers(unittest.TestCase):
             for name in ("kernel32.json", "kernel32.ordinals.json", "version.json"):
                 with open(os.path.join(lists, name), "w", encoding="utf-8") as f:
                     f.write('{"1": "A"}' if "ordinals" in name else '{"A": 0}')
-            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": lists}):
-                emu = emulator()
+            emu = emulator(exports_dir=lists)
             buf = emu.alloc(0x1000)
             find = call("FindFirstFileW", emu.alloc_cstr("C:\\Windows\\system32\\*.DLL", wide=True), buf)
             assert find != -1 and emu.read_wstr(buf + 44) == "kernel32.dll" and emu.read_u32(buf) == 0x20
@@ -1373,8 +1373,7 @@ class TestFakeModule(unittest.TestCase):
             for stem, names in (("ntdll", ["NtClose"]), ("ntdllcrt", ["strcspn"])):
                 with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
                     json.dump(dict.fromkeys(names), f)
-            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
-                emu = emulator()
+            emu = emulator(exports_dir=tmpdir)
             ntdll = emu.load_module("ntdll.dll")
         pe = pefile.PE(data=ntdll.image)
         names = {sym.name for sym in pe.DIRECTORY_ENTRY_EXPORT.symbols}
@@ -1391,8 +1390,7 @@ class TestFakeModule(unittest.TestCase):
             for stem, names in lists.items():
                 with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
                     json.dump(names, f)
-            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
-                emu = emulator()
+            emu = emulator(exports_dir=tmpdir)
             kernel32, ntdll = emu.load_module("kernel32.dll"), emu.load_module("ntdll.dll")
             # a DLL with an export list exports that list, not every handler
             assert {b"Sleep", b"RegCloseKey"} <= export_names(kernel32)
@@ -1403,8 +1401,8 @@ class TestFakeModule(unittest.TestCase):
             # kernelbase has no list here, so the handlers still stand in for one
             assert {b"VirtualAlloc", b"MessageBoxA"} <= export_names(emu.load_module("kernelbase.dll"))
         # no export data at all: the handlers are split between ntdll and kernel32, as before
-        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
-            emu = emulator()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            emu = emulator(exports_dir=tmpdir)
         kernel32, ntdll = emu.load_module("kernel32.dll"), emu.load_module("ntdll.dll")
         assert {b"VirtualAlloc", b"Sleep", b"MessageBoxA", b"lstrlenA"} <= export_names(kernel32)
         assert {b"NtClose", b"RtlAllocateHeap", b"memcpy"} <= export_names(ntdll)
@@ -1416,8 +1414,7 @@ class TestFakeModule(unittest.TestCase):
             for stem, name in (("libwinpthread-1", "pthread_create"), ("pthread.dll", "unreachable")):
                 with open(os.path.join(tmpdir, stem + ".json"), "w", encoding="ascii") as f:
                     json.dump({name: None}, f)
-            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": tmpdir}):
-                emu = emulator()
+            emu = emulator(exports_dir=tmpdir)
             assert "pthread_create" in emu.load_module("LIBWINPTHREAD-1.DLL").exports
             assert "unreachable" not in emu.load_module("pthread.dll").exports
 
@@ -1460,11 +1457,10 @@ class TestFakeModule(unittest.TestCase):
             if api_sets is not None:
                 with open(os.path.join(tmpdir, "api_sets.json"), "w", encoding="ascii") as f:
                     json.dump(api_sets, f)
-            with mock.patch.dict(os.environ, {"ANGR_UNPACKER_EXPORTS": exports_dir}):
-                emu = GenericUnpackerCore(path, watch_sections=set(), engine=ENGINE).emu
-                for stem in lists:
-                    if "." not in stem:
-                        emu.load_module(stem + ".dll")
+            emu = GenericUnpackerCore(path, watch_sections=set(), engine=ENGINE, exports_dir=exports_dir).emu
+            for stem in lists:
+                if "." not in stem:
+                    emu.load_module(stem + ".dll")
         return emu
 
     def test_lookups_in_unknown_modules_and_of_empty_names(self):

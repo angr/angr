@@ -96,17 +96,22 @@ class TestUnpackerFacade(unittest.TestCase):
         assert unpacker.info.protector is None
         assert unpacker.oep == IMAGE_BASE + OEP_RVA
 
-    def test_icicle_jit_options(self):
+    def test_icicle_options(self):
         project = self._project("xor_packed.exe")
-        for jit, threshold in ((True, 32), (False, 32), (True, 1)):
+        for jit, threshold, thread_slice in ((True, 32, 4_000_000), (False, 32, 1000), (True, 1, 4_000_000)):
             unpacker = project.analyses.Unpacker(
-                timeout=30, engine="icicle", icicle_jit=jit, icicle_jit_threshold=threshold
+                timeout=30,
+                engine="icicle",
+                icicle_jit=jit,
+                icicle_jit_threshold=threshold,
+                icicle_thread_slice=thread_slice,
             )
             assert unpacker.core is not None
             emu = unpacker.core.emu
             assert isinstance(emu, IcicleWindowsEmulator)
             assert emu.vm.jit is jit
             assert emu.vm.jit_threshold == threshold
+            assert emu.thread_slice == thread_slice
             assert unpacker.oep == IMAGE_BASE + OEP_RVA
 
     def test_vmprotect_falls_back_to_static(self):

@@ -58,6 +58,7 @@ class _StopPoints(set[int]):
 
 # protector code mostly runs a few times after it is decrypted; compiling it all costs ~1 ms per block
 DEFAULT_JIT_THRESHOLD = 32
+DEFAULT_THREAD_SLICE = 4_000_000
 
 
 class IcicleWindowsEmulator(WindowsEmulator):
@@ -66,8 +67,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
     reaches a trap slot, a fault or the end of its budget; the API handlers and exception dispatch stay in Python.
     """
 
-    # instructions per time slice when several threads exist, and between deadline checks otherwise
-    SLICE = int(os.environ.get("ANGR_UNPACKER_ICICLE_SLICE", "4000000"))
+    # instructions between deadline checks when there is one thread
     CHUNK = 50_000_000
     # an API call costs microseconds here: Sleep loops run poll by poll
     SLEEP_POLL_FAST_FORWARD: bool = False
@@ -79,16 +79,20 @@ class IcicleWindowsEmulator(WindowsEmulator):
         self,
         project: Project,
         image_path: str | None = None,
+        exports_dir: str | None = None,
         jit: bool = True,
         jit_threshold: int = DEFAULT_JIT_THRESHOLD,
+        thread_slice: int = DEFAULT_THREAD_SLICE,
     ):
         """
         :param jit:           Whether hot blocks are compiled to native code; otherwise everything is interpreted.
         :param jit_threshold: The number of times a block runs before it is compiled.
+        :param thread_slice:  Instructions per time slice when several threads exist.
         """
         self.jit = jit
         self.jit_threshold = jit_threshold
-        super().__init__(project, image_path)
+        self.thread_slice = thread_slice
+        super().__init__(project, image_path, exports_dir)
 
     def _init_machine(self) -> None:
         self.vm = WinVm(self.is_64bit, PROCESSORS_DIR, self.jit)
@@ -338,7 +342,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
                 return EmulationStop(StopReason.EXEC_TRAP, addr)
             if (limit is not None and vm.icount >= limit) or (deadline is not None and time.monotonic() > deadline):
                 return EmulationStop(StopReason.BUDGET, addr)
-            budget = self.SLICE if len(self.threads) > 1 else self.CHUNK
+            budget = self.thread_slice if len(self.threads) > 1 else self.CHUNK
             if limit is not None:
                 budget = min(budget, limit - vm.icount)
             # the time-stamp counter follows the clock the API handlers keep

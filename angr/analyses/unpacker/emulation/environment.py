@@ -248,7 +248,10 @@ class WindowsEmulator:
     WORK_PER_MS = 200_000
     CLOCK_READS_PER_MS = 20
 
-    def __init__(self, project: Project, image_path: str | None = None):
+    def __init__(self, project: Project, image_path: str | None = None, exports_dir: str | None = None):
+        """
+        :param exports_dir: The directory of the DLLs' export lists; angr-data's lists by default.
+        """
         main = project.loader.main_object
         if not isinstance(main, cle.backends.pe.PE):
             raise TypeError("WindowsEmulator only supports PE binaries")
@@ -271,7 +274,7 @@ class WindowsEmulator:
                 pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_TLS"],
             ]
         )
-        self._export_db_dir = os.environ.get("ANGR_UNPACKER_EXPORTS") or angr_data.get_path("unpacker", "win_exports")
+        self._export_db_dir = exports_dir or angr_data.get_path("unpacker", "win_exports")
         self._export_list_dlls: list[str] | None = None
         self._export_db: dict[str, dict[str, int | None]] = {}
         self._api_sets = self._load_api_sets()

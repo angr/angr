@@ -73,6 +73,8 @@ class VMProtectUnpacker(EmulatingUnpacker):
         engine: Engine = "unicorn",
         icicle_jit: bool = True,
         icicle_jit_threshold: int = 32,
+        icicle_thread_slice: int = 4_000_000,
+        exports_dir: str | None = None,
     ):
         self.method: str | None = None
         self.static_result: VMProtectStaticResult | None = None
@@ -83,6 +85,8 @@ class VMProtectUnpacker(EmulatingUnpacker):
             engine=engine,
             icicle_jit=icicle_jit,
             icicle_jit_threshold=icicle_jit_threshold,
+            icicle_thread_slice=icicle_thread_slice,
+            exports_dir=exports_dir,
         )
 
     def _sections_to_watch(self) -> set[int] | None:
@@ -117,6 +121,8 @@ class ThemidaUnpacker(EmulatingUnpacker):
         engine: Engine = "unicorn",
         icicle_jit: bool = True,
         icicle_jit_threshold: int = 32,
+        icicle_thread_slice: int = 4_000_000,
+        exports_dir: str | None = None,
     ):
         super().__init__(
             timeout=timeout,
@@ -124,6 +130,8 @@ class ThemidaUnpacker(EmulatingUnpacker):
             engine=engine,
             icicle_jit=icicle_jit,
             icicle_jit_threshold=icicle_jit_threshold,
+            icicle_thread_slice=icicle_thread_slice,
+            exports_dir=exports_dir,
         )
 
     def _sections_to_watch(self) -> set[int] | None:
@@ -143,20 +151,30 @@ class Unpacker(EmulatingUnpacker):
         engine: Engine = "unicorn",
         icicle_jit: bool = True,
         icicle_jit_threshold: int = 32,
+        icicle_thread_slice: int = 4_000_000,
+        exports_dir: str | None = None,
     ):
         self.info: PackerInfo | None = None
         self.unpacker: EmulatingUnpacker | None = None
         self._timeout = timeout
-        super().__init__(engine=engine, icicle_jit=icicle_jit, icicle_jit_threshold=icicle_jit_threshold)
+        super().__init__(
+            engine=engine,
+            icicle_jit=icicle_jit,
+            icicle_jit_threshold=icicle_jit_threshold,
+            icicle_thread_slice=icicle_thread_slice,
+            exports_dir=exports_dir,
+        )
 
     def _emulate(self, watch_sections: set[int] | None, timeout: float, settle_timeout: float) -> None:
         self.info = identify_packer(self.data)
         if self.info.packed is False:
             return
-        kwargs: dict[str, float | Engine] = {
+        kwargs: dict[str, float | Engine | str | None] = {
             "engine": self.engine,
             "icicle_jit": self.icicle_jit,
             "icicle_jit_threshold": self.icicle_jit_threshold,
+            "icicle_thread_slice": self.icicle_thread_slice,
+            "exports_dir": self.exports_dir,
         }
         if self._timeout is not None:
             kwargs["timeout"] = self._timeout

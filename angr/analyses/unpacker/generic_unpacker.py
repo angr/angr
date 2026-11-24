@@ -71,14 +71,22 @@ class GenericUnpackerCore:
         engine: Engine = "unicorn",
         icicle_jit: bool = True,
         icicle_jit_threshold: int = 32,
+        icicle_thread_slice: int = 4_000_000,
+        exports_dir: str | None = None,
     ):
         self.project = Project(path, auto_load_libs=False, selfmodifying_code=True, simos=SimWindowsEmulated)
         if engine == "icicle":
             from .emulation.icicle_environment import IcicleWindowsEmulator  # pylint:disable=import-outside-toplevel
 
-            self.emu = IcicleWindowsEmulator(self.project, jit=icicle_jit, jit_threshold=icicle_jit_threshold)
+            self.emu = IcicleWindowsEmulator(
+                self.project,
+                exports_dir=exports_dir,
+                jit=icicle_jit,
+                jit_threshold=icicle_jit_threshold,
+                thread_slice=icicle_thread_slice,
+            )
         elif engine == "unicorn":
-            self.emu = WindowsEmulator(self.project)
+            self.emu = WindowsEmulator(self.project, exports_dir=exports_dir)
         else:
             raise ValueError(f"Unknown emulation engine {engine!r}")
         self.layers: list[UnpackedLayer] = []
@@ -315,6 +323,8 @@ class EmulatingUnpacker(Analysis):
                                  "unicorn".
     :param icicle_jit:           Whether Icicle compiles hot blocks to native code or interprets everything.
     :param icicle_jit_threshold: The number of times Icicle runs a block before it compiles the block.
+    :param icicle_thread_slice:  The number of instructions a thread runs on Icicle before the next thread's turn.
+    :param exports_dir:          The directory of the DLLs' export lists; angr-data's lists by default.
     """
 
     def __init__(
@@ -324,6 +334,8 @@ class EmulatingUnpacker(Analysis):
         engine: Engine = "unicorn",
         icicle_jit: bool = True,
         icicle_jit_threshold: int = 32,
+        icicle_thread_slice: int = 4_000_000,
+        exports_dir: str | None = None,
     ):
         binary = self.project.loader.main_object.binary
         if binary is None:
@@ -332,6 +344,8 @@ class EmulatingUnpacker(Analysis):
         self.engine: Engine = engine
         self.icicle_jit = icicle_jit
         self.icicle_jit_threshold = icicle_jit_threshold
+        self.icicle_thread_slice = icicle_thread_slice
+        self.exports_dir = exports_dir
         with open(binary, "rb") as f:
             self.data: bytes = f.read()
         self.layers: list[UnpackedLayer] = []
@@ -350,7 +364,15 @@ class EmulatingUnpacker(Analysis):
         return None
 
     def _emulate(self, watch_sections: set[int] | None, timeout: float, settle_timeout: float) -> None:
-        core = GenericUnpackerCore(self.binary, watch_sections, self.engine, self.icicle_jit, self.icicle_jit_threshold)
+        core = GenericUnpackerCore(
+            self.binary,
+            watch_sections,
+            self.engine,
+            icicle_jit=self.icicle_jit,
+            icicle_jit_threshold=self.icicle_jit_threshold,
+            icicle_thread_slice=self.icicle_thread_slice,
+            exports_dir=self.exports_dir,
+        )
         core.run(timeout=timeout, settle_timeout=settle_timeout)
         self.core = core
         self.layers = core.layers
