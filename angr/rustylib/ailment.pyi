@@ -131,6 +131,7 @@ class StatementKind:
     CAS: ClassVar[StatementKind]
     DirtyStatement: ClassVar[StatementKind]
     NoOp: ClassVar[StatementKind]
+    IncompleteSwitchCaseHeadStatement: ClassVar[StatementKind]
     @property
     def value(self) -> int: ...
     @property
@@ -1310,3 +1311,19 @@ class NoOp(Statement):
     stable until the block is compacted.
     """
     def __init__(self, idx: int | None, **tags: Any) -> None: ...
+
+# (cmp_node, value, target_addr, target_idx, next_addr)
+type SwitchCase = tuple[Block | None, int | str, int, int | None, int | None]
+
+class IncompleteSwitchCaseHeadStatement(Statement):
+    """Describes a switch-case head. This is only created by LoweredSwitchSimplifier."""
+
+    switch_variable: Expression
+    @property
+    def case_addrs(self) -> list[SwitchCase]:
+        """Materializes a fresh list on each read, so update a case by assigning a whole new list."""
+    @case_addrs.setter
+    def case_addrs(self, value: Sequence[SwitchCase]) -> None: ...
+    def __init__(
+        self, idx: int | None, switch_variable: Expression, case_addrs: Sequence[SwitchCase], **tags: Any
+    ) -> None: ...

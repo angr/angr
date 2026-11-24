@@ -7,8 +7,7 @@ import networkx as nx
 from angr import ailment
 from angr.ailment import Const
 from angr.ailment.block import Block
-from angr.ailment.statement import ConditionalJump, Jump, Statement
-from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
+from angr.ailment.statement import ConditionalJump, IncompleteSwitchCaseHeadStatement, Jump, Statement
 
 from .errors import UnsupportedAILNodeError
 

@@ -11,8 +11,7 @@ import networkx
 import angr
 from angr.ailment import Block, Manager
 from angr.ailment.expression import BinaryOp, Const, Register
-from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
-from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
+from angr.ailment.statement import Assignment, ConditionalJump, IncompleteSwitchCaseHeadStatement, Jump, Return
 from angr.analyses.decompiler.structuring import SAILRStructurer
 from angr.analyses.decompiler.utils import sequence_to_blocks
 

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         Assignment,
         ConditionalJump,
         DirtyStatement,
+        IncompleteSwitchCaseHeadStatement,
         Jump,
         Label,
         NoOp,
@@ -217,6 +218,14 @@ else:
         def __new__(cls, idx, **tags) -> _Statement:  # type: ignore[misc]
             return _Statement._new_no_op(idx, **tags)
 
+    class IncompleteSwitchCaseHeadStatement(metaclass=_AilStmtMarkerMeta):
+        """Describes a switch-case head. This is only created by LoweredSwitchSimplifier."""
+
+        _kind = SK.IncompleteSwitchCaseHeadStatement
+
+        def __new__(cls, idx, switch_variable, case_addrs, **tags) -> _Statement:  # type: ignore[misc]
+            return _Statement._new_incomplete_switch_case_head_statement(idx, switch_variable, case_addrs, **tags)
+
     class _StatementMeta(type):
         _MEMBERS = (
             Assignment,
@@ -230,26 +239,17 @@ else:
             DirtyStatement,
             Label,
             NoOp,
+            IncompleteSwitchCaseHeadStatement,
         )
 
         def __instancecheck__(cls, instance):
-            if cls.__dict__.get("_is_statement_marker"):
-                return isinstance(instance, cls._MEMBERS) or type.__instancecheck__(cls, instance)
-            return type.__instancecheck__(cls, instance)
+            return type(instance) is _Statement
 
         def __subclasscheck__(cls, subclass):
-            if cls.__dict__.get("_is_statement_marker"):
-                return subclass is cls or issubclass(subclass, cls._MEMBERS)
-            return type.__subclasscheck__(cls, subclass)
+            return subclass is cls or issubclass(subclass, cls._MEMBERS)
 
     class Statement(metaclass=_StatementMeta):
         """Marker for ``isinstance(x, Statement)`` checks."""
-
-        _is_statement_marker = True
-
-        def __init__(self, idx=None, *_extra, **tags):  # pylint:disable=keyword-arg-before-vararg
-            self.idx = idx
-            self.tags = tags
 
         @staticmethod
         def from_bytes(data: bytes):
@@ -262,6 +262,7 @@ __all__ = [
     "Assignment",
     "ConditionalJump",
     "DirtyStatement",
+    "IncompleteSwitchCaseHeadStatement",
     "Jump",
     "Label",
     "NoOp",

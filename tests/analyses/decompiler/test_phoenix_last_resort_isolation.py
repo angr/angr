@@ -13,9 +13,8 @@ import networkx
 from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import Const, Register
-from angr.ailment.statement import Jump
+from angr.ailment.statement import IncompleteSwitchCaseHeadStatement, Jump
 from angr.analyses.decompiler.structurer_nodes import (
-    IncompleteSwitchCaseHeadStatement,
     MultiNode,
     SequenceNode,
 )

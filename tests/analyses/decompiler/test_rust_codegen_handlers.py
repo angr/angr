@@ -20,7 +20,7 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import CAS, DirtyStatement, Jump, Store, WeakAssignment
+from angr.ailment.statement import CAS, DirtyStatement, IncompleteSwitchCaseHeadStatement, Jump, Store, WeakAssignment
 from angr.analyses import Decompiler
 from angr.analyses.decompiler.structured_codegen.rust import (
     RustExpression,
@@ -28,7 +28,6 @@ from angr.analyses.decompiler.structured_codegen.rust import (
     variable_display_name,
 )
 from angr.analyses.decompiler.structurer_nodes import (
-    IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     SequenceNode,
 )

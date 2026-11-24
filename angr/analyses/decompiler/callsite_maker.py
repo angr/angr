@@ -569,10 +569,7 @@ class CallSiteMaker:
             return stmt.dst
         if isinstance(stmt, Stmt.Store):
             return stmt.addr
-        l.warning(
-            "TODO: Unsupported statement type %s for definitions.",
-            getattr(stmt, "kind_name", None) or type(stmt).__name__,
-        )
+        l.warning("TODO: Unsupported statement type %s for definitions.", stmt.kind_name)
         return None
 
     def _x87_arg_offset(self, index: int, call_stmt: Stmt.Statement) -> int:

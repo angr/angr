@@ -41,38 +41,7 @@ message AilGraph {
     repeated uint32 block_refs = 3;  // indices into the shared pool, in node-insertion order
     // The modal edge-data value (excluding the per-edge ins_addr); edges with has_default_data reference it.
     optional AilEdgeData default_edge_data = 4;
-    // Python-only IncompleteSwitchCaseHeadStatements (created by LoweredSwitchSimplifier) cannot live inside a
-    // Block.to_bytes() payload; they are stripped from the payload and stored here, keyed by node index.
-    repeated AilIncompleteSwitchHead switch_heads = 5;
-}
-
-message AilSwitchCase {
-    // the original comparison node, by (addr, idx); absent when the statement carried None
-    optional uint64 cmp_node_addr = 1;
-    optional sint64 cmp_node_idx = 2;
-    reserved 3;  // was `sint64 int_value`, superseded by uint_value plus value_signed
-    // LoweredSwitchSimplifier records a case label as the unsigned value of the comparison constant, so `case -2:`
-    // on a 64-bit switch arrives as 0xfffffffffffffffe, while a label from elsewhere can be a small negative
-    // number. No 64-bit field spans [-2**63, 2**64), so uint_value holds the raw 64-bit value either way and
-    // value_signed says to read it back as negative. This is the encoding CSwitchCaseEntry.case_ids uses.
-    oneof case_value {
-        string str_value = 4;  // "default"
-        uint64 uint_value = 8;
-    }
-    bool value_signed = 9;  // read uint_value back as uint_value - 2**64
-    uint64 target_addr = 5;
-    optional sint64 target_idx = 6;
-    optional uint64 next_addr = 7;  // absent for the last case
-}
-
-message AilIncompleteSwitchHead {
-    uint32 node = 1;      // index into the graph's nodes (same numbering as AilEdge.src/dst)
-    uint32 stmt_idx = 2;  // position of the statement within the block
-    optional sint64 idx = 3;
-    bytes switch_variable = 4;  // ailment.Expression.to_bytes()
-    repeated AilSwitchCase cases = 5;
-    bool peephole_optimized = 6;
-    optional uint64 ins_addr = 7;
+    reserved 5;
 }
 
 //

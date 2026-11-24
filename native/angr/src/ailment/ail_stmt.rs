@@ -20,6 +20,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
+use crate::ailment::block::Block;
 use crate::ailment::enums::StatementKind;
 use crate::ailment::tags::{Tags, TagsView};
 use crate::ailment::{CachedHash, CmpMode, hash_of};
@@ -63,6 +64,56 @@ impl StmtHeader {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Switch cases
+// ---------------------------------------------------------------------------
+
+/// A case label: the compared constant (unsigned, so a 64-bit ``case -2`` is
+/// ``0xfffffffffffffffe``) or a symbolic label (``"default"``).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromPyObject, IntoPyObject)]
+pub enum SwitchCaseValue {
+    Int(i128),
+    Symbol(String),
+}
+
+/// The comparison block a case was recovered from. It is a live Python object that is usually
+/// no longer in the graph; the structurer puts it back when it has to undo the switch. It
+/// serializes as the block itself and takes no part in statement comparison.
+#[derive(Clone, Debug, FromPyObject, IntoPyObject)]
+pub struct SwitchCmpNode(Py<Block>);
+
+impl Serialize for SwitchCmpNode {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        Python::attach(|py| {
+            let bytes = self.0.borrow(py).to_bytes(py);
+            bytes
+                .map_err(serde::ser::Error::custom)?
+                .as_bytes()
+                .serialize(s)
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for SwitchCmpNode {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let data = Vec::<u8>::deserialize(d)?;
+        Python::attach(|py| Block::from_bytes(&py.get_type::<Block>(), py, &data))
+            .map(Self)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+/// ``(cmp_node, value, target_addr, target_idx, next_addr)``: the original comparison node, the
+/// case label, the address and index of the case node, and the address of the next comparison
+/// node.
+pub type SwitchCase = (
+    Option<SwitchCmpNode>,
+    SwitchCaseValue,
+    i64,
+    Option<i64>,
+    Option<i64>,
+);
 
 // ---------------------------------------------------------------------------
 // StmtInner -- fat enum, one arm per legacy Statement subclass
@@ -131,6 +182,12 @@ pub enum StmtInner {
     /// removal so the indices of surrounding statements stay stable
     /// until the block is compacted.
     NoOp,
+    /// The head of a switch-case that ``LoweredSwitchSimplifier`` recovered from a cascade of
+    /// comparisons, and that the structurer has yet to turn into a switch-case node.
+    IncompleteSwitchCaseHeadStatement {
+        switch_variable: Arc<AilExpression>,
+        cases: Vec<SwitchCase>,
+    },
 }
 
 impl StmtInner {
@@ -147,6 +204,9 @@ impl StmtInner {
             StmtInner::CAS { .. } => StatementKind::CAS,
             StmtInner::DirtyStatement { .. } => StatementKind::DirtyStatement,
             StmtInner::NoOp => StatementKind::NoOp,
+            StmtInner::IncompleteSwitchCaseHeadStatement { .. } => {
+                StatementKind::IncompleteSwitchCaseHeadStatement
+            }
         }
     }
 }
@@ -234,6 +294,9 @@ impl Hash for AilStatement {
                 dirty.cached_hash_or_compute().hash(h);
             }
             StmtInner::NoOp => {}
+            StmtInner::IncompleteSwitchCaseHeadStatement {
+                switch_variable, ..
+            } => switch_variable.cached_hash_or_compute().hash(h),
         }
     }
 }
@@ -364,6 +427,13 @@ impl AilStatement {
                 dirty: recurse(dirty)?,
             },
             StmtInner::NoOp => StmtInner::NoOp,
+            StmtInner::IncompleteSwitchCaseHeadStatement {
+                switch_variable,
+                cases,
+            } => StmtInner::IncompleteSwitchCaseHeadStatement {
+                switch_variable: recurse(switch_variable)?,
+                cases: cases.clone(),
+            },
         };
         Ok(AilStatement {
             header: new_header,
@@ -607,7 +677,8 @@ impl AilStatement {
                     },
                 )
             }
-            // Label has no expression subtrees to walk.
+            // Label has no expression subtrees to walk, and the variable of a switch-case head
+            // is not rewritten.
             _ => (false, self.clone()),
         }
     }
@@ -753,6 +824,19 @@ impl AilStatement {
             (StmtInner::DirtyStatement { dirty: a }, StmtInner::DirtyStatement { dirty: b }) => {
                 a.cmp_ail::<MODE>(b)
             }
+            (
+                StmtInner::IncompleteSwitchCaseHeadStatement {
+                    switch_variable: a_v,
+                    cases: a_c,
+                },
+                StmtInner::IncompleteSwitchCaseHeadStatement {
+                    switch_variable: b_v,
+                    cases: b_c,
+                },
+            ) => {
+                let key = |c: &'_ SwitchCase| (c.1.clone(), c.2, c.3, c.4);
+                a_v.cmp_ail::<MODE>(b_v) && a_c.iter().map(key).eq(b_c.iter().map(key))
+            }
             _ => false,
         }
     }
@@ -828,7 +912,7 @@ impl Clone for Statement {
 }
 
 /// See ``ail_expr::EXPR_PYKINDS`` for rationale.
-static STMT_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 11]> =
+static STMT_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 12]> =
     pyo3::sync::PyOnceLock::new();
 
 fn stmt_pykind_for(py: Python<'_>, kind: StatementKind) -> Py<pyo3::types::PyAny> {
@@ -1060,6 +1144,23 @@ impl Statement {
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::NoOp,
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, switch_variable, case_addrs, **kwargs))]
+    fn _new_incomplete_switch_case_head_statement(
+        idx: i64,
+        switch_variable: AilExpression,
+        case_addrs: Vec<SwitchCase>,
+        kwargs: Option<Tags>,
+    ) -> PyResult<Self> {
+        Ok(Self::wrap(AilStatement {
+            header: StmtHeader::new(idx, kwargs.unwrap_or_default()),
+            inner: StmtInner::IncompleteSwitchCaseHeadStatement {
+                switch_variable: Arc::new(switch_variable),
+                cases: case_addrs,
+            },
         }))
     }
 
@@ -1565,6 +1666,44 @@ impl Statement {
         }
     }
 
+    /// IncompleteSwitchCaseHeadStatement.switch_variable
+    #[getter]
+    fn switch_variable(&self) -> PyResult<&AilExpression> {
+        match &self.stmt.inner {
+            StmtInner::IncompleteSwitchCaseHeadStatement {
+                switch_variable, ..
+            } => Ok(&**switch_variable),
+            _ => Err(PyAttributeError::new_err(
+                "no 'switch_variable' on this Statement",
+            )),
+        }
+    }
+
+    /// IncompleteSwitchCaseHeadStatement.case_addrs -- materializes a fresh list on each read,
+    /// so update a case by assigning a whole new list.
+    #[getter]
+    fn case_addrs(&self) -> PyResult<Vec<SwitchCase>> {
+        match &self.stmt.inner {
+            StmtInner::IncompleteSwitchCaseHeadStatement { cases, .. } => Ok(cases.clone()),
+            _ => Err(PyAttributeError::new_err(
+                "no 'case_addrs' on this Statement",
+            )),
+        }
+    }
+
+    #[setter]
+    fn set_case_addrs(&mut self, value: Vec<SwitchCase>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::IncompleteSwitchCaseHeadStatement { cases, .. } => {
+                *cases = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'case_addrs' on this Statement",
+            )),
+        }
+    }
+
     /// SideEffectStatement.bits (derived from ``expr.bits``) /
     /// CAS.bits (sum of ``old_lo.bits`` + ``old_hi.bits``).
     #[getter]
@@ -1610,6 +1749,7 @@ impl Statement {
                 CFGTarget::Expr(e) => e.header.depth + 1,
                 CFGTarget::Symbol(_) => 1,
             }),
+            StmtInner::IncompleteSwitchCaseHeadStatement { .. } => Ok(1),
             _ => Err(PyAttributeError::new_err("no 'depth' on this Statement")),
         }
     }
@@ -1819,6 +1959,13 @@ impl Statement {
                 Ok(Expression::wrap((**dirty).clone()).__str__(py)?)
             }
             StmtInner::NoOp => Ok("NoOp".to_string()),
+            StmtInner::IncompleteSwitchCaseHeadStatement {
+                switch_variable,
+                cases,
+            } => {
+                let v = Expression::wrap((**switch_variable).clone()).__str__(py)?;
+                Ok(format!("switch ({}): {} cases", v, cases.len()))
+            }
         }
     }
 

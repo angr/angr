@@ -127,17 +127,11 @@ impl Block {
     fn deep_copy(&self, py: Python<'_>, manager: &Bound<'_, PyAny>) -> PyResult<Self> {
         let new_list = PyList::empty(py);
         for stmt in self.statements.bind(py).iter() {
-            // Native fast path: AIL statements deep-copy through Rust directly,
-            // skipping the Python `deep_copy` method dispatch. Non-Statement
-            // entries (e.g. IncompleteSwitchCaseHeadStatement) fall back to
-            // their Python ``deep_copy`` method.
-            if let Ok(st) = stmt.cast::<Statement>() {
-                let copied = st.borrow().stmt.deep_copy_ail_stmt(manager)?;
-                new_list.append(copied)?;
-            } else if stmt.is_none() {
+            if stmt.is_none() {
                 new_list.append(&stmt)?;
             } else {
-                new_list.append(stmt.call_method1("deep_copy", (manager,))?)?;
+                let st = stmt.cast::<Statement>()?;
+                new_list.append(st.borrow().stmt.deep_copy_ail_stmt(manager)?)?;
             }
         }
         Ok(Self {
@@ -281,7 +275,7 @@ impl Block {
     /// [`AilStatement`] payloads. ``cached_hash`` is transient and is
     /// recomputed after ``from_bytes``. Every statement must be an AIL
     /// ``Statement``; anything else raises ``TypeError``.
-    fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+    pub fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let stmt_list = self.statements.bind(py);
         let mut stmts: Vec<AilStatement> = Vec::with_capacity(stmt_list.len());
         for item in stmt_list.iter() {
@@ -301,7 +295,7 @@ impl Block {
 
     /// Inverse of ``to_bytes``.
     #[classmethod]
-    fn from_bytes<'py>(
+    pub fn from_bytes<'py>(
         _cls: &Bound<'_, pyo3::types::PyType>,
         py: Python<'py>,
         data: &[u8],

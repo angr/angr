@@ -24,6 +24,7 @@ from angr.ailment.expression import (
 from angr.ailment.expression import (
     RustEnum as AilRustEnum,
 )
+from angr.ailment.statement import IncompleteSwitchCaseHeadStatement
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.peephole_optimizations.cas_intrinsics import cas_intrinsic_name
 from angr.analyses.decompiler.region_identifier import MultiNode
@@ -34,7 +35,6 @@ from angr.analyses.decompiler.structurer_nodes import (
     ConditionalBreakNode,
     ConditionNode,
     ContinueNode,
-    IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     LoopNode,
     SequenceNode,

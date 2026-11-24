@@ -5,9 +5,9 @@ import os
 from unittest import TestCase, main
 
 import angr
+from angr.ailment.statement import IncompleteSwitchCaseHeadStatement
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.decompiler.decompilation_cache import DecompilationCache
-from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from angr.utils.ail_serialization import pack_graph, parse_graph
 from tests.common import bin_location, load_project_with_scoped_cfg
 
@@ -30,7 +30,8 @@ def _switch_heads(graph):
             block.idx,
             i,
             str(stmt.switch_variable),
-            [(c[0].addr if c[0] is not None else None, c[1], c[2], c[3], c[4]) for c in stmt.case_addrs],
+            # the comparison nodes keep their statements, which restoring the graph relies on
+            [((c[0].addr, c[0].statements) if c[0] is not None else None, *c[1:]) for c in stmt.case_addrs],
             stmt.tags.get("ins_addr"),
             hash(stmt),
         )
@@ -43,7 +44,7 @@ def _switch_heads(graph):
 class TestSwitchHeadSerialization(TestCase):
     def test_cache_with_incomplete_switch_head_round_trips(self):
         # LoweredSwitchSimplifier rewrites the if-else cascade in du's process_file into a switch head whose last
-        # statement is the Python-only IncompleteSwitchCaseHeadStatement; cc_graph keeps it, so the cache must
+        # statement is an IncompleteSwitchCaseHeadStatement; cc_graph keeps it, so the cache must
         # serialize it.
         proj = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "du.o"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)

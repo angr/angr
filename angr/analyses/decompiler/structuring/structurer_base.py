@@ -10,6 +10,7 @@ import networkx
 
 from angr import ailment, claripy
 from angr.ailment.manager import Manager
+from angr.ailment.statement import IncompleteSwitchCaseHeadStatement
 from angr.analyses.analysis import Analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.label_collector import LabelCollector
@@ -23,7 +24,6 @@ from angr.analyses.decompiler.structurer_nodes import (
     ConditionNode,
     ContinueNode,
     EmptyBlockNotice,
-    IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     LoopNode,
     MultiNode,
