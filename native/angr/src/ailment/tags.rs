@@ -1,6 +1,6 @@
 //! Tags storage for AIL objects.
 //!
-//! In the Python implementation `TaggedObject.tags` is an open dict containing
+//! In the Python implementation `.tags` is an open dict containing
 //! a handful of well-known keys (see `TagDict` in
 //! `angr/ailment/tagged_object.py`). The Rust implementation keeps only the
 //! four *hot* keys -- `ins_addr`, `vex_block_addr`, `vex_stmt_idx`,
