@@ -115,10 +115,6 @@ class ReturnDuplicatorBase:
         raise NotImplementedError
 
     def _region_identifier(self, graph: networkx.DiGraph) -> RegionIdentifier:
-        """
-        The region identifier describing ``graph`` before any duplication. Passes that do not get one from a
-        structurability probe override this to compute it on demand.
-        """
         assert self._ri is not None
         return self._ri
 
@@ -313,8 +309,6 @@ class ReturnDuplicatorBase:
         self, endnode_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
     ):
         updated_regions = endnode_regions.copy()
-        # the region block sets are only needed once a region has a candidate component; the first such check happens
-        # before any _copy_region call below, so the graph is still the one _find_endnode_regions saw
         all_region_block_addrs: list[set[int]] | None = None
         for region_head, (in_edges, region) in endnode_regions.items():
             is_single_const_ret_region = self._is_simple_return_graph(region)

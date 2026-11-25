@@ -595,9 +595,6 @@ class StructuringOptimizationPass(OptimizationPass):
             self.out_graph = None
             return
 
-        # the goto and quality gates only read the last probe's goto manager and structure counters (plus the graph
-        # topology, which _simplify_graph keeps), so they run before paying for the simplification of a result that
-        # may be thrown away
         if self._prevent_new_gotos:
             prev_gotos = len(self._initial_gotos)
             new_gotos = len(self._get_new_gotos())

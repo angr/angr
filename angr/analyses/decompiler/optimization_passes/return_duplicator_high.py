@@ -55,8 +55,6 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
         return dst_is_const_ret
 
     def _region_identifier(self, graph):
-        # we run before the decompiler's region identification, and most functions never need the regions (no
-        # end-node region has a multi-node predecessor component), so they are recovered on first use
         if self._ri is None:
             self._ri = self._recover_regions(graph)
         return self._ri

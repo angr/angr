@@ -61,7 +61,6 @@ class GotoManager:
 
     def gotos_in_block(self, block: ailment.Block) -> set[Goto]:
         gotos_found = set()
-        # the instruction addresses are collected once per block, not once per goto
         block_addrs: set[int] | None = None
         for goto in self.gotos:
             if goto.src_addr == block.addr:
