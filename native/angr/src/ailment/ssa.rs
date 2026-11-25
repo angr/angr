@@ -119,9 +119,20 @@ struct VVarSite {
 #[derive(Debug)]
 struct TmpSite {
     tmp_idx: i64,
-    bits: u32,
     stmt_idx: usize,
-    expr: AilExpression,
+    /// header of the ``Tmp`` expression; with ``tmp_idx`` it is the whole expression
+    header: ExprHeader,
+}
+
+impl TmpSite {
+    fn expr(&self) -> AilExpression {
+        AilExpression {
+            header: self.header.clone(),
+            inner: ExprInner::Tmp {
+                tmp_idx: self.tmp_idx,
+            },
+        }
+    }
 }
 
 #[derive(Default)]
@@ -245,9 +256,8 @@ impl Uses<'_> {
             ExprInner::Tmp { tmp_idx } => {
                 self.tmp_uses.push(TmpSite {
                     tmp_idx: *tmp_idx,
-                    bits: e.header.bits,
                     stmt_idx,
-                    expr: e.clone(),
+                    header: e.header.clone(),
                 });
             }
             ExprInner::Const { .. }
@@ -757,7 +767,7 @@ fn scan_block(
     // group tmp uses by (tmp_idx, bits), first-use order, like the ``defaultdict(set)`` of the Python collector
     let mut tmp_use_groups: Vec<((i64, u32), Vec<TmpSite>)> = Vec::new();
     for site in raw.tmp_uses {
-        let key = (site.tmp_idx, site.bits);
+        let key = (site.tmp_idx, site.header.bits);
         match tmp_use_groups.iter_mut().find(|(k, _)| *k == key) {
             Some((_, v)) => v.push(site),
             None => tmp_use_groups.push((key, vec![site])),
@@ -891,7 +901,7 @@ pub fn collect_uses_defs<'py>(
                     let key = tmp_cls.call1((*tmp_idx, *bits))?;
                     let s = PySet::empty(py)?;
                     for site in sites {
-                        let tmp = Bound::new(py, Expression::wrap(site.expr.clone()))?;
+                        let tmp = Bound::new(py, Expression::wrap(site.expr()))?;
                         s.add((tmp, site.stmt_idx))?;
                     }
                     match (tmp_mode, block_map.get_item(&key)?) {
