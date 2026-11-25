@@ -12,10 +12,13 @@ jumps. Without a boundary at each target, CFGFast absorbs all of them into ``key
 
 ``tailcall_table_dispatch`` is a stripped PIE build of tests_src/tailcall_table_dispatch.c: eight handlers are reached
 only through a table of function pointers, and ``decode`` and every handler end in an indirect jump through that table.
+``computed_goto_label_table`` and ``computed_goto_stateless_labels`` are computed gotos whose label tables are encoded
+like tables of function pointers.
 """
 
 from __future__ import annotations
 
+import io
 import os
 import unittest
 
@@ -120,6 +123,41 @@ class TestCfgFastEhFrameBoundaries(unittest.TestCase):
         # these labels are entered like functions; only the FDE of dispatch(), which covers them, says they are not
         cfg = self._cfg("computed_goto_stateless_labels")
         assert not set(cfg.kb.functions) & STATELESS_LABELS
+
+
+class TestEnteredLikeAFunction(unittest.TestCase):
+    """
+    CFGBase._entered_like_a_function on single x86-64 blocks: a function uses only its arguments, the stack pointer and
+    the return address before writing a register, and may only spill other registers to the stack.
+    """
+
+    def _entered(self, code: bytes) -> bool:
+        proj = angr.Project(
+            io.BytesIO(code),
+            main_opts={"backend": "blob", "arch": "amd64", "base_addr": 0x1000, "entry_point": 0x1000},
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFGFast(normalize=True)
+        return cfg._entered_like_a_function(0x1000)
+
+    def test_uses_only_arguments(self):
+        assert self._entered(bytes.fromhex("b80a000000c3"))  # mov eax, 10; ret
+        assert self._entered(bytes.fromhex("b8010000004801f8c3"))  # mov eax, 1; add rax, rdi; ret
+
+    def test_spills_to_the_stack(self):
+        assert self._entered(bytes.fromhex("534889f85bc3"))  # push rbx; mov rax, rdi; pop rbx; ret
+        assert self._entered(bytes.fromhex("5089f859c3"))  # push rax; mov eax, edi; pop rcx; ret
+
+    def test_uses_a_register_it_did_not_write(self):
+        assert not self._entered(bytes.fromhex("01d8c3"))  # add eax, ebx; ret
+        # writing al leaves the upper bytes of rax as they were
+        assert not self._entered(bytes.fromhex("b0014801f8c3"))  # mov al, 1; add rax, rdi; ret
+
+    def test_stores_a_register_outside_the_stack(self):
+        assert not self._entered(bytes.fromhex("48891fc3"))  # mov [rdi], rbx; ret
+
+    def test_loads_the_callers_stack(self):
+        assert not self._entered(bytes.fromhex("488b442408c3"))  # mov rax, [rsp+8]; ret
 
 
 if __name__ == "__main__":

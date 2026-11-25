@@ -2952,13 +2952,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         retaken = {
             addr
             for addr in candidates
-            if self._eh_frame_chunks.get(addr) == {"conditional_only"} and self._entered_like_a_function(addr, entered)
+            if self._eh_frame_chunks.get(addr) == self._TABLE_EXPLAINED_CHUNK_REASONS
+            and self._entered_like_a_function(addr, entered)
         }
         return trusted | retaken
 
-    def _inside_eh_frame_function(self, addr: int) -> bool:
+    # the only reason for absorbing an FDE start that a jump through a table explains
+    _TABLE_EXPLAINED_CHUNK_REASONS = frozenset({"conditional_only"})
+
+    def _eh_frame_denies_function_start(self, addr: int) -> bool:
         if not self._trusts_eh_frame_boundaries():
             return False
+        reasons = self._eh_frame_chunks.get(addr)
+        if reasons is not None and reasons != self._TABLE_EXPLAINED_CHUNK_REASONS:
+            return True
         if self._eh_frame_ranges is None:
             self._eh_frame_ranges = sorted(
                 (hint.addr, hint.addr + hint.size)

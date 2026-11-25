@@ -2373,7 +2373,7 @@ class CFGBase(Analysis):
                     and not entries <= dispatched_entries
                     and self._is_relocated_pointer_table(info, relocated_addrs)
                     and all(entry % self.FUNCTION_POINTER_TABLE_ALIGNMENT == 0 for entry in entries)
-                    and not any(self._inside_eh_frame_function(entry) for entry in entries)
+                    and not any(self._eh_frame_denies_function_start(entry) for entry in entries)
                     and all(self._entered_like_a_function(entry, entered) for entry in entries)
                 ):
                     dispatched_entries |= entries
@@ -2445,16 +2445,17 @@ class CFGBase(Analysis):
         """
         Checks if the block at `addr` is entered the way a function is, rather than continuing the code that jumped to
         it. At its entry a function holds meaningful values only in its argument registers, the stack pointer and the
-        return address; it may store any other register (saving a callee-saved register, or pushing a scratch register
-        to align the stack) but uses none before writing it, and it loads none of its caller's stack before moving the
-        stack pointer. A switch case or the label of a computed goto continues its function, so it typically uses
+        return address; it may spill any other register to the stack (saving a callee-saved register, or pushing a
+        scratch register to align the stack) but uses none before writing all of it, and it loads none of its caller's
+        stack before moving the stack pointer. A switch case or the label of a computed goto continues its function, so it typically uses
         values that its function left in registers or on the stack.
 
         Stack arguments are part of the caller's stack, so a function that loads one before moving the stack pointer
         is rejected too, as is one that reads a register the calling convention does not list as an argument (the
         vector count in `al` of a variadic AMD64 function, `t9` of MIPS PIC code). These rejections cost recall. The
         check cannot reject a block that uses no state of the code that jumped to it, such as a label that only sets
-        the return value and returns.
+        the return value and returns. Only the first block is checked, so state that is first used in a later block
+        is not seen.
 
         :param addr:    Address of the block.
         :param cache:   Results of earlier checks, by address.
@@ -2490,15 +2491,12 @@ class CFGBase(Analysis):
             if reg.general_purpose and reg.vex_offset not in live_at_entry
         ]
 
-        def tracked_reg(offset: int) -> int | None:
-            for lo, hi in tracked:
-                if lo <= offset < hi:
-                    return lo
-            return None
+        tracked_bytes = {offset for lo, hi in tracked for offset in range(lo, hi)}
 
-        written: set[int] = set()
-        entry_values: dict[int, int] = {}  # tmp -> tracked register whose value at entry it holds
-        sp_values: dict[int, int] = {}  # tmp -> offset from the stack pointer at entry
+        written: set[int] = set()  # register bytes written so far; a partial write leaves the other bytes as they were
+        entry_values: set[int] = set()  # tmps that hold a tracked register's value at entry, or part of it
+        sp_values: dict[int, int] = {}  # tmp -> offset from the stack pointer at entry, until the stack pointer moves
+        stack_addrs: set[int] = set()  # tmps that point into the stack: the stack pointer plus or minus constants
         sp_moved = False
 
         def uses(expr) -> list[int]:
@@ -2506,15 +2504,22 @@ class CFGBase(Analysis):
                 [expr.tmp] if isinstance(expr, pyvex.expr.RdTmp) else []
             )
 
+        def uses_entry_value(expr) -> bool:
+            return any(tmp in entry_values for tmp in uses(expr))
+
         for stmt in irsb.statements:
             if isinstance(stmt, pyvex.stmt.WrTmp):
                 data = stmt.data
                 if isinstance(data, pyvex.expr.Get):
-                    reg = tracked_reg(data.offset)
-                    if data.offset == arch.sp_offset and not sp_moved:
-                        sp_values[stmt.tmp] = 0
-                    elif reg is not None and reg not in written:
-                        entry_values[stmt.tmp] = reg
+                    if data.offset == arch.sp_offset:
+                        stack_addrs.add(stmt.tmp)
+                        if not sp_moved:
+                            sp_values[stmt.tmp] = 0
+                    elif any(
+                        offset in tracked_bytes and offset not in written
+                        for offset in range(data.offset, data.offset + pyvex.get_type_size(data.ty) // 8)
+                    ):
+                        entry_values.add(stmt.tmp)
                     continue
                 if isinstance(data, pyvex.expr.Load) and isinstance(data.addr, pyvex.expr.RdTmp):
                     offset = sp_values.get(data.addr.tmp)
@@ -2525,29 +2530,34 @@ class CFGBase(Analysis):
                     isinstance(data, pyvex.expr.Binop)
                     and data.op.startswith(("Iop_Add", "Iop_Sub"))
                     and isinstance(data.args[0], pyvex.expr.RdTmp)
-                    and data.args[0].tmp in sp_values
+                    and data.args[0].tmp in stack_addrs
                     and isinstance(data.args[1], pyvex.expr.Const)
                 ):
-                    delta = data.args[1].con.value
-                    sp_values[stmt.tmp] = sp_values[data.args[0].tmp] + (delta if "Add" in data.op else -delta)
-                if any(tmp in entry_values for tmp in uses(data)):
+                    stack_addrs.add(stmt.tmp)
+                    if data.args[0].tmp in sp_values:
+                        delta = data.args[1].con.value
+                        sp_values[stmt.tmp] = sp_values[data.args[0].tmp] + (delta if "Add" in data.op else -delta)
+                if uses_entry_value(data):
                     return False
             elif isinstance(stmt, pyvex.stmt.Put):
-                if any(tmp in entry_values for tmp in uses(stmt.data)):
+                if uses_entry_value(stmt.data):
                     return False
                 if stmt.offset == arch.sp_offset:
                     sp_moved = True
                     sp_values.clear()
-                reg = tracked_reg(stmt.offset)
-                if reg is not None:
-                    written.add(reg)
+                written.update(range(stmt.offset, stmt.offset + stmt.data.result_size(irsb.tyenv) // 8))
             elif isinstance(stmt, pyvex.stmt.Store):
-                # storing a register's value at entry saves it; using it as an address is not
-                if any(tmp in entry_values for tmp in uses(stmt.addr)):
+                if uses_entry_value(stmt.addr):
                     return False
-            elif isinstance(stmt, pyvex.stmt.Exit) and any(tmp in entry_values for tmp in uses(stmt.guard)):
+                # spilling a register's value at entry to the stack saves it (push rbx, or push rax to align the
+                # stack); storing it anywhere else uses it
+                if uses_entry_value(stmt.data) and not (
+                    isinstance(stmt.addr, pyvex.expr.RdTmp) and stmt.addr.tmp in stack_addrs
+                ):
+                    return False
+            elif isinstance(stmt, pyvex.stmt.Exit) and uses_entry_value(stmt.guard):
                 return False
-        return not any(tmp in entry_values for tmp in uses(irsb.next))
+        return not uses_entry_value(irsb.next)
 
     def _eh_frame_function_starts(self, candidates: set[int], entered: dict[int, bool]) -> set[int]:
         """
@@ -2561,13 +2571,15 @@ class CFGBase(Analysis):
 
         return set()
 
-    def _inside_eh_frame_function(self, addr: int) -> bool:
+    def _eh_frame_denies_function_start(self, addr: int) -> bool:
         """
-        Checks if `addr` lies inside a function that trusted .eh_frame records, after its start. Never by default;
-        CFGFast trusts ELF FDEs when eh_frame and eh_frame_boundaries are enabled.
+        Checks if trusted .eh_frame says that `addr` is not a function start: it lies inside an FDE after its start, or
+        it is an FDE start that was absorbed as a cold part for a reason that a table cannot explain. Unwind data that
+        is missing, or says nothing about `addr`, denies nothing. Never by default; CFGFast trusts ELF FDEs when
+        eh_frame and eh_frame_boundaries are enabled.
 
         :param addr:    The address to check.
-        :return:        True if an FDE that this analysis trusts covers `addr` and does not start at it.
+        :return:        True if trusted unwind data says that `addr` is not a function start.
         """
 
         return False
