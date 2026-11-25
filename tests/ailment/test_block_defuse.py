@@ -96,7 +96,7 @@ class TestBlockDefUse(unittest.TestCase):
         extra = Return(60, [])
 
         def setitem():
-            stmts[0] = extra
+            stmts[0] = Return(61, [])
 
         def set_slice():
             stmts[0:1] = [extra, extra]
@@ -130,6 +130,18 @@ class TestBlockDefUse(unittest.TestCase):
             assert block_defuse_is_cached(b0) is True
             mutate()
             assert block_defuse_is_cached(b0) is False
+
+    def test_unchanged_statements_keep_the_memo(self):
+        b0 = make_blocks()[0]
+        get_vvar_deflocs([b0])
+        # writing back the statement that is there, or a rebuilt list of the same statements
+        b0.statements[0] = b0.statements[0]
+        assert block_defuse_is_cached(b0) is True
+        b0.statements = list(b0.statements)
+        assert block_defuse_is_cached(b0) is True
+        assert block_defuse_is_cached(b0.copy(statements=b0.statements[:])) is True
+        b0.statements = b0.statements[1:]
+        assert block_defuse_is_cached(b0) is False
 
     def test_statements_is_a_list_owned_by_the_block(self):
         given: list[Statement] = [Return(60, [])]

@@ -87,7 +87,8 @@ impl Block {
 
     #[setter]
     fn set_statements(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()> {
-        self.statements = StatementList::of(value)?.unbind();
+        let py = value.py();
+        self.statements = StatementList::replacing(value, self.statements.bind(py))?.unbind();
         Ok(())
     }
     #[setter]
@@ -106,7 +107,7 @@ impl Block {
     #[pyo3(signature = (statements=None))]
     fn copy(&self, py: Python<'_>, statements: Option<Bound<'_, PyAny>>) -> PyResult<Self> {
         let stmts_list = match statements {
-            Some(s) if !s.is_none() => StatementList::of(&s)?,
+            Some(s) if !s.is_none() => StatementList::replacing(&s, self.statements.bind(py))?,
             // Shallow copy of self.statements; same items, so same version
             _ => StatementList::copy_of(self.statements.bind(py))?,
         };
