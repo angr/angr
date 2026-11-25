@@ -165,7 +165,12 @@ class TestEnteredLikeAFunction(unittest.TestCase):
 
     def test_spills_to_the_stack(self):
         assert self._entered(bytes.fromhex("534889f85bc3"))  # push rbx; mov rax, rdi; pop rbx; ret
-        assert self._entered(bytes.fromhex("5089f859c3"))  # push rax; mov eax, edi; pop rcx; ret
+        assert self._entered(bytes.fromhex("50e800000000"))  # push rax; call $+5 (aligns the stack for the call)
+
+    def test_restores_a_spill_only_into_its_register(self):
+        assert self._entered(bytes.fromhex("535bc3"))  # push rbx; pop rbx; ret
+        # the value loaded back is rbx at entry, so this returns it
+        assert not self._entered(bytes.fromhex("5358c3"))  # push rbx; pop rax; ret
 
     def test_uses_a_register_it_did_not_write(self):
         assert not self._entered(bytes.fromhex("01d8c3"))  # add eax, ebx; ret
@@ -180,10 +185,14 @@ class TestEnteredLikeAFunction(unittest.TestCase):
     def test_uses_the_flags(self):
         assert not self._entered(bytes.fromhex("0f95c0c3"))  # setnz al; ret
         assert not self._entered(bytes.fromhex("11f8c3"))  # adc eax, edi; ret
+        # inc carries the carry flag at entry in the flag thunk, and adc uses it
+        assert not self._entered(bytes.fromhex("ffc783d70089f8c3"))  # inc edi; adc edi, 0; mov eax, edi; ret
 
     def test_loads_the_callers_stack(self):
         assert not self._entered(bytes.fromhex("488b442408c3"))  # mov rax, [rsp+8]; ret
         assert not self._entered(bytes.fromhex("53488b4424105bc3"))  # push rbx; mov rax, [rsp+16]; pop rbx; ret
+        # only the first byte was stored
+        assert not self._entered(bytes.fromhex("c644240801488b442408c3"))  # mov byte [rsp+8], 1; mov rax, [rsp+8]; ret
         # reading back what it stored is fine
         assert self._entered(bytes.fromhex("48894c2408488b442408c3"))  # mov [rsp+8], rcx; mov rax, [rsp+8]; ret
 

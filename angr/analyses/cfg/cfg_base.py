@@ -2458,6 +2458,9 @@ class CFGBase(Analysis):
         value and returns. Only the first block is checked, so state that is first used in a later block is not seen,
         and vector registers and statements other than register and memory accesses are not checked.
 
+        The check is only made on architectures where it has been measured (_ENTRY_CHECK_ARCHS); elsewhere it answers
+        no, which turns off the rules that rely on it.
+
         :param addr:    Address of the block.
         :param cache:   Results of earlier checks, by address.
         :return:        True if the block is entered like a function.
@@ -2472,11 +2475,15 @@ class CFGBase(Analysis):
 
     # VEX keeps the condition flags of these architectures as a lazily evaluated thunk in these registers
     _VEX_FLAG_THUNK_REGS = ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep")
+    # architectures on which the entry check, and the 16-byte alignment of function starts, have been measured
+    _ENTRY_CHECK_ARCHS = frozenset({"AMD64"})
 
     def _check_entered_like_a_function(self, addr: int) -> bool:
         from angr.calling_conventions import SimRegArg, default_cc_for_project  # pylint:disable=import-outside-toplevel
 
         arch = self.project.arch
+        if arch.name not in self._ENTRY_CHECK_ARCHS:
+            return False
         cc = default_cc_for_project(self.project)
         if cc is None:
             return False
@@ -2506,12 +2513,17 @@ class CFGBase(Analysis):
         caller_stack = cc.STACKARG_SP_DIFF
         spill_limit = cc.STACKARG_SP_DIFF + getattr(cc, "STACKARG_SP_BUFF", 0)
 
-        written: set[int] = set()  # register bytes written so far; a partial write leaves the other bytes as they were
-        entry_values: set[int] = set()  # tmps that hold a tracked register's value at entry, or part of it
-        flag_values: set[int] = set()  # tmps computed from the condition flags at entry
+        # Every register byte and stack byte either holds a value independent of the state at entry ("clean"), or
+        # still depends on it. Values that depend on it are tracked through temporaries, registers and stack slots:
+        # a register spilled to the stack and loaded back is the same value, and so are flags carried in the thunk.
+        clean_regs: set[int] = set()  # register bytes written with values independent of the state at entry
+        entry_values: set[int] = set()  # tmps that depend on a tracked register's value at entry
+        flag_values: set[int] = set()  # tmps that depend only on the condition flags at entry
+        origins: dict[int, tuple[int, int]] = {}  # tmp -> (offset, size) of the register whose entry value it is
         sp_offsets: dict[int, int] = {}  # tmp -> its offset from the stack pointer at entry
         sp_offset: int | None = 0  # the current stack pointer's offset from its value at entry, if known
-        stored_stack: set[int] = set()  # stack offsets this block stored to
+        clean_stack: set[int] = set()  # stack bytes this block stored values independent of the state at entry to
+        spilled_stack: dict[int, tuple[int, int, int] | None] = {}  # stack byte -> (register, size, base) spilled there
 
         def uses(expr) -> list[int]:
             return [e.tmp for e in expr.child_expressions if isinstance(e, pyvex.expr.RdTmp)] + (
@@ -2535,16 +2547,31 @@ class CFGBase(Analysis):
                     if data.offset == arch.sp_offset:
                         if sp_offset is not None:
                             sp_offsets[stmt.tmp] = sp_offset
-                    elif any(offset in tracked_bytes and offset not in written for offset in read):
+                    elif any(offset in tracked_bytes and offset not in clean_regs for offset in read):
                         entry_values.add(stmt.tmp)
-                    elif any(offset in flag_bytes and offset not in written for offset in read):
+                        origins[stmt.tmp] = (data.offset, len(read))
+                    elif any(offset in flag_bytes and offset not in clean_regs for offset in read):
                         flag_values.add(stmt.tmp)
                     continue
                 if isinstance(data, pyvex.expr.Load):
-                    offset = stack_offset(data.addr)
-                    if offset is not None and offset >= caller_stack and offset not in stored_stack:
-                        # the caller's stack: its locals, or the stack arguments it passed
+                    if uses_entry_value(data.addr):
                         return False
+                    offset = stack_offset(data.addr)
+                    if offset is not None:
+                        read = byte_range(offset, pyvex.get_type_size(data.ty))
+                        if any(
+                            pos >= caller_stack and pos not in clean_stack and pos not in spilled_stack for pos in read
+                        ):
+                            # the caller's stack: its locals, or the stack arguments it passed
+                            return False
+                        spills = {spilled_stack[pos] for pos in read if pos in spilled_stack}
+                        if spills:
+                            # loading a spilled register back gives its value at entry again
+                            entry_values.add(stmt.tmp)
+                            spill = next(iter(spills))
+                            if len(spills) == 1 and spill is not None and spill[2] == offset and spill[1] == len(read):
+                                origins[stmt.tmp] = (spill[0], spill[1])
+                    continue
                 if (
                     isinstance(data, pyvex.expr.Binop)
                     and data.op.startswith(("Iop_Add", "Iop_Sub"))
@@ -2559,23 +2586,38 @@ class CFGBase(Analysis):
                     flag_values.add(stmt.tmp)
             elif isinstance(stmt, pyvex.stmt.Put):
                 target = byte_range(stmt.offset, stmt.data.result_size(irsb.tyenv))
-                # carrying the flags at entry into the flag thunk is not a use: VEX does that for instructions that
-                # keep some flags, such as inc keeping the carry flag
-                if uses_entry_value(stmt.data) and not all(offset in flag_bytes for offset in target):
-                    return False
+                if uses_entry_value(stmt.data):
+                    tmp = stmt.data.tmp if isinstance(stmt.data, pyvex.expr.RdTmp) else None
+                    carried_flags = tmp in flag_values and all(offset in flag_bytes for offset in target)
+                    # putting a register's value at entry back into it restores it (pop rbx after push rbx)
+                    restored = tmp in origins and origins[tmp] == (stmt.offset, len(target))
+                    if not (carried_flags or restored):
+                        return False
+                    # the register still holds the state at entry
+                    clean_regs.difference_update(target)
+                else:
+                    clean_regs.update(target)
                 if stmt.offset == arch.sp_offset:
                     sp_offset = stack_offset(stmt.data)
-                written.update(target)
             elif isinstance(stmt, pyvex.stmt.Store):
                 if uses_entry_value(stmt.addr):
                     return False
                 offset = stack_offset(stmt.addr)
-                if offset is not None:
-                    stored_stack.update(byte_range(offset, stmt.data.result_size(irsb.tyenv)))
-                # spilling a register's value at entry into its own frame or the home area saves it (push rbx, or
-                # push rax to align the stack); storing it anywhere else uses it
-                if uses_entry_value(stmt.data) and (offset is None or offset >= spill_limit):
-                    return False
+                written = byte_range(offset, stmt.data.result_size(irsb.tyenv)) if offset is not None else range(0)
+                if uses_entry_value(stmt.data):
+                    # spilling a register's value at entry into its own frame or the home area saves it (push rbx,
+                    # or push rax to align the stack); storing it anywhere else uses it
+                    if offset is None or written.stop > spill_limit:
+                        return False
+                    tmp = stmt.data.tmp if isinstance(stmt.data, pyvex.expr.RdTmp) else None
+                    origin = origins.get(tmp)
+                    for pos in written:
+                        clean_stack.discard(pos)
+                        spilled_stack[pos] = (*origin, offset) if origin is not None else None
+                else:
+                    for pos in written:
+                        clean_stack.add(pos)
+                        spilled_stack.pop(pos, None)
             elif isinstance(stmt, pyvex.stmt.Exit) and uses_entry_value(stmt.guard):
                 return False
         return not uses_entry_value(irsb.next)
