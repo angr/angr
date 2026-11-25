@@ -18,6 +18,7 @@ from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.block_walker import _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, StackBaseOffset
+from angr.ailment.statement import IncompleteSwitchCaseHeadStatement
 from angr.ailment.utils import is_lsb_extract
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
@@ -32,7 +33,6 @@ from angr.analyses.decompiler.structurer_nodes import (
     ConditionalBreakNode,
     ConditionNode,
     ContinueNode,
-    IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     LoopNode,
     SequenceNode,

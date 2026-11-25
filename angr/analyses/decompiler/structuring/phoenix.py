@@ -13,7 +13,7 @@ import networkx
 from angr import claripy
 from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, UnaryOp
-from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement
+from angr.ailment.statement import ConditionalJump, IncompleteSwitchCaseHeadStatement, Jump, Label, Return, Statement
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from angr.analyses.decompiler.node_replacer import NodeReplacer
 from angr.analyses.decompiler.region_overlay import RegionOverlay, RegionOverlayGraph
@@ -25,7 +25,6 @@ from angr.analyses.decompiler.structurer_nodes import (
     ConditionNode,
     ContinueNode,
     EmptyBlockNotice,
-    IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     LoopNode,
     MultiNode,

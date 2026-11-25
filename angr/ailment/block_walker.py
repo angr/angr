@@ -47,6 +47,7 @@ from .statement import (
     Assignment,
     ConditionalJump,
     DirtyStatement,
+    IncompleteSwitchCaseHeadStatement,
     Jump,
     Label,
     NoOp,
@@ -155,6 +156,7 @@ _STMT_MARKERS = (
     DirtyStatement,
     Label,
     NoOp,
+    IncompleteSwitchCaseHeadStatement,
 )
 _EXPR_KIND_TO_MARKER: dict = {}
 _STMT_KIND_TO_MARKER: dict = {}
@@ -265,22 +267,15 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
         return self._handle_expr(0, expr, stmt_idx or 0, stmt, block)
 
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block | None) -> StmtType:
-        # Inline the stmt-side dispatch: a Rust statement (the common case, ~1M/decompile) skips the ``_dispatch_key``
-        # frame and the redundant expr-side check, dispatching on the cached ``pykind`` int directly.
+        # Inline the stmt-side dispatch (~1M/decompile): skip the ``_dispatch_key`` frame and dispatch on the cached
+        # ``pykind`` int directly.
         handlers = self._stmt_handlers
         if handlers is None:
-            if type(stmt) is _RustStatement:
-                func = self._default_stmt_funcs_by_pykind.get(stmt.pykind)
-            else:
-                func = self._default_stmt_funcs.get(_dispatch_key(stmt))
+            func = self._default_stmt_funcs_by_pykind.get(stmt.pykind)
             if func is None:
                 return self._stmt_top(stmt_idx, stmt, block)
             return func(self, stmt_idx, stmt, block)
-        if type(stmt) is _RustStatement:
-            key = _STMT_KIND_TO_MARKER.get(stmt.pykind, _RustStatement)
-        else:
-            key = _dispatch_key(stmt)
-        handler = handlers.get(key)
+        handler = handlers.get(_STMT_KIND_TO_MARKER.get(stmt.pykind, _RustStatement))
         if handler is None:
             return self._stmt_top(stmt_idx, stmt, block)
         return handler(stmt_idx, stmt, block)

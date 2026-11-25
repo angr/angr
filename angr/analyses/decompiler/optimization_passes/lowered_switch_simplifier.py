@@ -8,10 +8,9 @@ import networkx
 
 from angr.ailment import AILBlockViewer, Block
 from angr.ailment.expression import BinaryOp, Const, Expression, Load, VirtualVariable
-from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
+from angr.ailment.statement import Assignment, ConditionalJump, IncompleteSwitchCaseHeadStatement, Jump, Label
 from angr.analyses.decompiler.region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
 from angr.analyses.decompiler.structurer_nodes import (
-    IncompleteSwitchCaseHeadStatement,
     MultiNode,
     SequenceNode,
 )
@@ -458,11 +457,13 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
                     # update the block ID in case_addrs
                     last_stmt: IncompleteSwitchCaseHeadStatement = head.statements[-1]
-                    for idx, items in list(enumerate(last_stmt.case_addrs)):
+                    case_addrs = last_stmt.case_addrs
+                    for idx, items in enumerate(case_addrs):
                         cmp_node, case_value, target_addr, target_idx, next_addr = items
                         if target_addr == succ_node.addr and target_idx == succ_node.idx:
                             # update the block ID
-                            last_stmt.case_addrs[idx] = cmp_node, case_value, target_addr, node_copy.idx, next_addr
+                            case_addrs[idx] = cmp_node, case_value, target_addr, node_copy.idx, next_addr
+                    last_stmt.case_addrs = case_addrs
 
                     # update the graph
                     graph_copy.add_edge(head, node_copy)
@@ -1254,7 +1255,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         ]
 
         # non-default nodes
-        ca_others = {ca[0].addr: ca for ca in ca_others}
+        ca_others = {ca[0].addr: ca for ca in ca_others if ca[0] is not None}
         # extract the AIL block from last_node
         last_block = last_node
         if isinstance(last_block, SequenceNode):
@@ -1266,7 +1267,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
         while next_node_addr is not None and next_node_addr in ca_others:
             onode, _value, target, target_idx, next_node_addr = ca_others[next_node_addr]
-            onode: Block
+            assert onode is not None
 
             if first_nonlabel_nonphi_statement(onode) is not onode.statements[-1]:
                 onode = onode.copy(statements=[onode.statements[-1]])

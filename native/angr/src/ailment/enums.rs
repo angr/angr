@@ -381,6 +381,7 @@ pub enum StatementKind {
     CAS = 8,
     DirtyStatement = 9,
     NoOp = 10,
+    IncompleteSwitchCaseHeadStatement = 11,
 }
 
 #[pymethods]
@@ -444,6 +445,7 @@ impl StatementKind {
             Self::CAS => "CAS",
             Self::DirtyStatement => "DirtyStatement",
             Self::NoOp => "NoOp",
+            Self::IncompleteSwitchCaseHeadStatement => "IncompleteSwitchCaseHeadStatement",
         }
     }
 
@@ -460,6 +462,7 @@ impl StatementKind {
             8 => Self::CAS,
             9 => Self::DirtyStatement,
             10 => Self::NoOp,
+            11 => Self::IncompleteSwitchCaseHeadStatement,
             _ => return None,
         })
     }

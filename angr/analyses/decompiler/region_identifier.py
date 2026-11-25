@@ -11,7 +11,7 @@ import networkx
 from angr import ailment
 from angr.ailment import Block, Manager
 from angr.ailment.expression import Const
-from angr.ailment.statement import ConditionalJump, Jump
+from angr.ailment.statement import ConditionalJump, IncompleteSwitchCaseHeadStatement, Jump
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions.function import Function
@@ -20,7 +20,7 @@ from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, subgraph_bet
 
 from .condition_processor import ConditionProcessor
 from .region_overlay import OverlayManager, RegionOverlay, Tx
-from .structurer_nodes import ConditionNode, IncompleteSwitchCaseHeadStatement, MultiNode
+from .structurer_nodes import ConditionNode, MultiNode
 from .utils import copy_graph, first_nonlabel_nonphi_statement, replace_last_statement
 
 l = logging.getLogger(name=__name__)
