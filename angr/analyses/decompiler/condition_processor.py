@@ -4,7 +4,7 @@ import logging
 import operator
 import struct
 from collections import OrderedDict, defaultdict
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from typing import TYPE_CHECKING, Any
 
 import networkx
@@ -246,6 +246,8 @@ class ConditionProcessor:
         # claripy hash -> converted (and peephole-optimized) AIL expression; live only during one outermost
         # conversion or one remove_claripy_bool_asts() traversal (leaf conversions depend on the current mapping)
         self._conversion_memo: dict[int, Any] | None = None
+        # simplify_condition() results by AST hash; the same conditions recur across the graphs a pass probes
+        self._simplified_conditions: dict[int, claripy.ast.Bool] = {}
 
         self._peephole_expr_optimizations = [
             cls(None, None, self.ail_manager)
@@ -260,6 +262,7 @@ class ConditionProcessor:
         self.edge_conditions = {}
         self._ast2annotations = {}
         self._conversion_memo = None
+        self._simplified_conditions = {}
 
     def have_opposite_edge_conditions(self, graph: networkx.DiGraph, src, dst0, dst1) -> bool:
         """
@@ -360,6 +363,7 @@ class ConditionProcessor:
         case_entry_to_switch_head: dict[int, int] | None = None,
         simplify_conditions: bool = True,
         with_guarding_conditions: bool = True,
+        targets: Iterable | None = None,
     ):
         """
         Recover the reaching conditions for each block in an acyclic graph. Note that we assume the graph that's passed
@@ -367,6 +371,9 @@ class ConditionProcessor:
 
         Edge conditions are stored in self.edge_conditions. Guarding conditions are only needed by structurers that
         consume them (Dream, DuplicationReverter); pass with_guarding_conditions=False to skip computing them.
+
+        :param targets: When given, only the reaching conditions of these nodes and their ancestors are recovered;
+                        other nodes are absent from self.reaching_conditions. Guarding conditions are unaffected.
         """
 
         def _strictly_postdominates(inv_idoms, node_a, node_b):
@@ -393,11 +400,20 @@ class ConditionProcessor:
 
         inverted_graph, idoms = inverted_idoms(_g)
 
+        wanted: set | None = None
+        if targets is not None:
+            wanted = set()
+            for target in targets:
+                wanted.add(target)
+                wanted |= networkx.ancestors(_g, target)
+
         reaching_conditions = {}
         # recover the reaching condition for each node
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(_g)
         terminating_nodes = []
         for node in sorted_nodes:
+            if wanted is not None and node not in wanted:
+                continue
             # create special conditions for all nodes that are jump table entries
             if case_entry_to_switch_head and node.addr in case_entry_to_switch_head:
                 jump_target_var = self.create_jump_target_var(case_entry_to_switch_head[node.addr])
@@ -432,7 +448,7 @@ class ConditionProcessor:
 
             if reaching_condition is not None:
                 reaching_conditions[node] = (
-                    self.simplify_condition(reaching_condition) if simplify_conditions else reaching_condition
+                    self.simplify_condition_cached(reaching_condition) if simplify_conditions else reaching_condition
                 )
 
         self.reaching_conditions = reaching_conditions
@@ -1174,6 +1190,17 @@ class ConditionProcessor:
     #
     # Expression simplification
     #
+
+    def simplify_condition_cached(self, cond: claripy.ast.Bool) -> claripy.ast.Bool:
+        """
+        simplify_condition() memoized on this processor; the result only depends on the AST.
+        """
+        key = cond.hash()
+        simplified = self._simplified_conditions.get(key)
+        if simplified is None:
+            simplified = self.simplify_condition(cond)
+            self._simplified_conditions[key] = simplified
+        return simplified
 
     @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):

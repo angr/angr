@@ -7,7 +7,7 @@ from itertools import combinations
 
 import networkx as nx
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.block import Block
 from angr.ailment.expression import Const, Convert, Expression, Register, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return
@@ -956,15 +956,19 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         # now that we have a full target graph, we want to know the condensed conditions that allow
         # control flow to get to that target end. We get the reaching conditions to construct a guarding
-        # node later
-        self._ri.cond_proc.recover_reaching_conditions(None, graph=full_condition_graph)
-        conditions_by_start = {}
+        # node later.
+        # Guarding conditions only depend on edge conditions, so they are recovered without the per-node
+        # simplification of reaching conditions; that simplification is then done only along the ancestors of the
+        # sinks that read their reaching condition.
+        cond_proc = self._ri.cond_proc
+        cond_proc.recover_reaching_conditions(None, graph=full_condition_graph, simplify_conditions=False)
+        conditions: dict[Block, claripy.ast.Bool] = {}
         for sink in sinks:
-            if sink in self._ri.cond_proc.guarding_conditions:
-                condition = self._ri.cond_proc.guarding_conditions[sink]
-            elif sink in self._ri.cond_proc.reaching_conditions:
-                condition = self._ri.cond_proc.reaching_conditions[sink]
-            else:
+            if sink in cond_proc.guarding_conditions:
+                condition = cond_proc.simplify_condition_cached(cond_proc.guarding_conditions[sink])
+                if not (condition.is_true() or condition.is_false()):
+                    conditions[sink] = condition
+            elif sink not in cond_proc.reaching_conditions:
                 # TODO: this should be better fixed
                 self.candidate_blacklist.add(tuple(sinks))
                 raise SAILRSemanticError(
@@ -972,13 +976,13 @@ class DuplicationReverter(StructuringOptimizationPass):
                     f"This is likely caused by unsupported statements, like Switches, being in the graph."
                 )
 
-            condition = self._ri.cond_proc.simplify_condition(condition)
-            if condition.is_true() or condition.is_false():
-                condition = self._ri.cond_proc.simplify_condition(self._ri.cond_proc.reaching_conditions[sink])
+        unresolved = [sink for sink in sinks if sink not in conditions]
+        if unresolved:
+            cond_proc.recover_reaching_conditions(None, graph=full_condition_graph, targets=unresolved)
+            for sink in unresolved:
+                conditions[sink] = cond_proc.simplify_condition_cached(cond_proc.reaching_conditions[sink])
 
-            conditions_by_start[sink] = self._ri.cond_proc.convert_claripy_bool_ast(condition)
-
-        return conditions_by_start
+        return {sink: cond_proc.convert_claripy_bool_ast(conditions[sink]) for sink in sinks}
 
     #
     # Search Stages
