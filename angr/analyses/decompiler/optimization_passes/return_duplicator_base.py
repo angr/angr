@@ -88,7 +88,6 @@ class ReturnDuplicatorBase:
     ):
         self._max_calls_in_region = max_calls_in_regions
         self._minimize_copies_for_regions = minimize_copies_for_regions
-        self._supergraph = None
 
         # this should also be set by the optimization passes initer
         self.scratch = scratch if scratch is not None else {}
@@ -115,6 +114,10 @@ class ReturnDuplicatorBase:
     def _should_duplicate_dst(self, src, dst, graph, dst_is_const_ret=False) -> bool:
         raise NotImplementedError
 
+    def _region_identifier(self, graph: networkx.DiGraph) -> RegionIdentifier:
+        assert self._ri is not None
+        return self._ri
+
     #
     # main analysis
     #
@@ -139,8 +142,6 @@ class ReturnDuplicatorBase:
             # for connected in_edges that form a region
             endnode_regions = self._copy_connected_edge_components(endnode_regions, graph)
 
-        # refresh the supergraph
-        self._supergraph = to_ail_supergraph(graph)
         for region_head, (in_edges, region) in endnode_regions.items():
             is_single_const_ret_region = self._is_simple_return_graph(region)
             dup_pred_nodes = []
@@ -308,9 +309,7 @@ class ReturnDuplicatorBase:
         self, endnode_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
     ):
         updated_regions = endnode_regions.copy()
-        assert self._ri is not None
-        assert isinstance(self._ri.region, RegionOverlay)
-        all_region_block_addrs = list(self._find_block_sets_in_all_regions(self._ri.region).values())
+        all_region_block_addrs: list[set[int]] | None = None
         for region_head, (in_edges, region) in endnode_regions.items():
             is_single_const_ret_region = self._is_simple_return_graph(region)
             pred_nodes = [src for src, _ in in_edges]
@@ -339,6 +338,10 @@ class ReturnDuplicatorBase:
                 continue
 
             # every component needs to form its own region with ONLY those nodes in the region
+            if all_region_block_addrs is None:
+                ri = self._region_identifier(graph)
+                assert isinstance(ri.region, RegionOverlay)
+                all_region_block_addrs = list(self._find_block_sets_in_all_regions(ri.region).values())
             duplicatable_components = []
             for component in candidate_components:
                 comp_addrs = {n.addr for n in component}
