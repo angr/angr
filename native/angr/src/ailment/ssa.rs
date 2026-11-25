@@ -1,11 +1,11 @@
 //! Per-block SSA def/use lists.
 //!
-//! Each [`Block`] memoizes the vvar/tmp definitions and uses of its statements (`BlockDefUse`), as finished
-//! Python objects. `Block.statements` is a [`StatementList`], which takes a new version on every mutation, and
+//! Each [`Block`] memoizes the vvar/tmp definitions and uses of its statements (`BlockDefUse`) as plain Rust
+//! data. `Block.statements` is a [`StatementList`], which takes a new version on every mutation, and
 //! statements are immutable from Python, so the memo is valid for as long as the list keeps the version it was
 //! scanned at: a read checks one integer.
 //!
-//! `collect_uses_defs` merges the per-block lists of a block sequence into the caller's containers with exactly
+//! `collect_uses_defs` builds the Python values of a block sequence into the caller's containers with exactly
 //! the insertion order and overwrite semantics of the original whole-graph scan in `angr.utils.ssa`.
 
 use std::sync::Arc;
@@ -109,12 +109,14 @@ fn clobber_vvar(varid: i64, reg_offset: i64, bits: i64) -> AilExpression {
 // Raw scan (pure Rust walk; mirrors the AILBlockViewer traversal order)
 // ---------------------------------------------------------------------------
 
+#[derive(Debug)]
 struct VVarSite {
     varid: i64,
     stmt_idx: usize,
     expr: AilExpression,
 }
 
+#[derive(Debug)]
 struct TmpSite {
     tmp_idx: i64,
     bits: u32,
@@ -650,31 +652,73 @@ fn stmt_defs(py: Python<'_>, raw: &mut Raw, stmt_idx: usize, stmt: &AilStatement
 // Memoized per-block result
 // ---------------------------------------------------------------------------
 
-/// The def/use lists of one block as finished Python objects (shared across reads; callers must not mutate).
+/// The def/use sites of one block, as plain data: nothing here is a Python object, so a memo adds nothing for the
+/// garbage collector to track. ``collect_uses_defs`` builds the Python values on each request.
 #[derive(Debug)]
 pub struct BlockDefUse {
     addr: i64,
     idx: i64,
-    /// version of the statements list the lists were taken from
+    /// version of the statements list the sites were taken from
     version: u64,
-    /// ``{varid: (VirtualVariable, AILCodeLocation)}``
-    pub vvar_deflocs: Py<PyDict>,
-    /// ``{varid: [(VirtualVariable, AILCodeLocation), ...]}`` in traversal order
-    pub vvar_uselocs: Py<PyDict>,
-    /// ``{phi varid: [src varid or None, ...]}`` in phi-entry order
-    pub phi_vvars: Py<PyDict>,
+    /// ``ins_addr`` of every statement
+    ins_addrs: Vec<Option<i64>>,
+    /// vvar definitions in traversal order
+    vvar_defs: Vec<VVarSite>,
+    /// vvar uses in traversal order
+    vvar_uses: Vec<VVarSite>,
+    /// ``(phi varid, [src varid or None, ...])`` in phi-entry order
+    phis: Vec<(i64, Vec<Option<i64>>)>,
     /// varids declared by ``extra_defs`` tags
-    pub extra_declared: Vec<i64>,
-    /// ``{atoms.Tmp: stmt_idx}``
-    pub tmp_deflocs: Py<PyDict>,
-    /// ``[(atoms.Tmp, [(Tmp, stmt_idx), ...]), ...]`` grouped by ``(tmp_idx, bits)`` in first-use order
-    pub tmp_use_groups: Py<PyList>,
+    extra_declared: Vec<i64>,
+    /// ``(tmp_idx, bits, stmt_idx)`` of every tmp definition
+    tmp_defs: Vec<(i64, u32, usize)>,
+    /// tmp uses grouped by ``(tmp_idx, bits)`` in first-use order
+    tmp_use_groups: Vec<((i64, u32), Vec<TmpSite>)>,
 }
 
 impl BlockDefUse {
     /// True iff the block still holds the statements that were scanned.
     fn matches(&self, addr: i64, idx: i64, stmts: &Bound<'_, PyList>) -> bool {
         addr == self.addr && idx == self.idx && StatementList::version_of(stmts) == self.version
+    }
+}
+
+/// The ``AILCodeLocation`` of each statement of one block: built on first use, shared by every site in the statement.
+struct Locs<'a, 'py> {
+    du: &'a BlockDefUse,
+    cls: Bound<'py, PyAny>,
+    locs: Vec<Option<Bound<'py, PyAny>>>,
+}
+
+impl<'a, 'py> Locs<'a, 'py> {
+    fn new(py: Python<'py>, du: &'a BlockDefUse) -> PyResult<Self> {
+        Ok(Self {
+            du,
+            cls: ail_code_location(py)?,
+            locs: vec![None; du.ins_addrs.len()],
+        })
+    }
+
+    fn get(&mut self, stmt_idx: usize) -> PyResult<Bound<'py, PyAny>> {
+        if let Some(l) = &self.locs[stmt_idx] {
+            return Ok(l.clone());
+        }
+        let loc = self.cls.call1((
+            self.du.addr,
+            self.du.idx,
+            stmt_idx,
+            self.du.ins_addrs[stmt_idx],
+        ))?;
+        self.locs[stmt_idx] = Some(loc.clone());
+        Ok(loc)
+    }
+
+    /// ``(VirtualVariable, AILCodeLocation)`` of a site.
+    fn entry(&mut self, site: &VVarSite) -> PyResult<Bound<'py, PyTuple>> {
+        let loc = self.get(site.stmt_idx)?;
+        let py = loc.py();
+        let vvar = Bound::new(py, Expression::wrap(site.expr.clone()))?;
+        PyTuple::new(py, [vvar.into_any(), loc])
     }
 }
 
@@ -710,78 +754,14 @@ fn scan_block(
     raw.vvar_uses = uses.vvar_uses;
     raw.tmp_uses = uses.tmp_uses;
 
-    // one AILCodeLocation per referenced statement, shared by every site in it
-    let loc_cls = ail_code_location(py)?;
-    let mut locs: Vec<Option<Py<PyAny>>> = vec![None; stmts.len()];
-    let mut loc_for = |stmt_idx: usize| -> PyResult<Py<PyAny>> {
-        if let Some(l) = &locs[stmt_idx] {
-            return Ok(l.clone_ref(py));
-        }
-        let loc = loc_cls
-            .call1((addr, idx, stmt_idx, ins_addrs[stmt_idx]))?
-            .unbind();
-        locs[stmt_idx] = Some(loc.clone_ref(py));
-        Ok(loc)
-    };
-
-    let vvar_deflocs = PyDict::new(py);
-    for site in raw.vvar_defs {
-        let loc = loc_for(site.stmt_idx)?;
-        let vvar = Bound::new(py, Expression::wrap(site.expr))?;
-        vvar_deflocs.set_item(
-            site.varid,
-            PyTuple::new(py, [vvar.into_any(), loc.into_bound(py)])?,
-        )?;
-    }
-    let vvar_uselocs = PyDict::new(py);
-    for site in raw.vvar_uses {
-        let loc = loc_for(site.stmt_idx)?;
-        let vvar = Bound::new(py, Expression::wrap(site.expr))?;
-        let entry = PyTuple::new(py, [vvar.into_any(), loc.into_bound(py)])?;
-        match vvar_uselocs.get_item(site.varid)? {
-            Some(l) => l.cast_into::<PyList>()?.append(entry)?,
-            None => {
-                let l = PyList::empty(py);
-                l.append(entry)?;
-                vvar_uselocs.set_item(site.varid, l)?;
-            }
-        }
-    }
-    let phi_vvars = PyDict::new(py);
-    for (dst, srcs) in raw.phis {
-        phi_vvars.set_item(dst, PyList::new(py, srcs)?)?;
-    }
-    let tmp_cls = tmp_atom(py)?;
-    let tmp_deflocs = PyDict::new(py);
-    for (tmp_idx, bits, stmt_idx) in raw.tmp_defs {
-        tmp_deflocs.set_item(tmp_cls.call1((tmp_idx, bits))?, stmt_idx)?;
-    }
     // group tmp uses by (tmp_idx, bits), first-use order, like the ``defaultdict(set)`` of the Python collector
-    let mut groups: Vec<((i64, u32), Vec<TmpSite>)> = Vec::new();
+    let mut tmp_use_groups: Vec<((i64, u32), Vec<TmpSite>)> = Vec::new();
     for site in raw.tmp_uses {
         let key = (site.tmp_idx, site.bits);
-        match groups.iter_mut().find(|(k, _)| *k == key) {
+        match tmp_use_groups.iter_mut().find(|(k, _)| *k == key) {
             Some((_, v)) => v.push(site),
-            None => groups.push((key, vec![site])),
+            None => tmp_use_groups.push((key, vec![site])),
         }
-    }
-    let tmp_use_groups = PyList::empty(py);
-    for ((tmp_idx, bits), sites) in groups {
-        let entries = PyList::empty(py);
-        for site in sites {
-            let tmp = Bound::new(py, Expression::wrap(site.expr))?;
-            entries.append(PyTuple::new(
-                py,
-                [
-                    tmp.into_any(),
-                    (site.stmt_idx).into_pyobject(py)?.into_any(),
-                ],
-            )?)?;
-        }
-        tmp_use_groups.append(PyTuple::new(
-            py,
-            [tmp_cls.call1((tmp_idx, bits))?, entries.into_any()],
-        )?)?;
     }
 
     Ok((
@@ -789,12 +769,13 @@ fn scan_block(
             addr,
             idx,
             version,
-            vvar_deflocs: vvar_deflocs.unbind(),
-            vvar_uselocs: vvar_uselocs.unbind(),
-            phi_vvars: phi_vvars.unbind(),
+            ins_addrs,
+            vvar_defs: raw.vvar_defs,
+            vvar_uses: raw.vvar_uses,
+            phis: raw.phis,
             extra_declared: raw.extra_declared,
-            tmp_deflocs: tmp_deflocs.unbind(),
-            tmp_use_groups: tmp_use_groups.unbind(),
+            tmp_defs: raw.tmp_defs,
+            tmp_use_groups,
         },
         cacheable,
     ))
@@ -854,93 +835,79 @@ pub fn collect_uses_defs<'py>(
             ))
         })?;
         let du = block_defuse(block)?;
+        let mut locs = Locs::new(py, &du)?;
         if let Some(d) = vvar_deflocs {
-            let block_defs = du.vvar_deflocs.bind(py);
-            d.update(block_defs.as_mapping())?;
+            for site in &du.vvar_defs {
+                d.set_item(site.varid, locs.entry(site)?)?;
+            }
             for varid in &du.extra_declared {
                 if !d.contains(*varid)? {
                     return Err(PyAssertionError::new_err("extra_def tag was dropped"));
                 }
             }
             if let Some(p) = phi_vvars {
-                for (dst, srcs) in du.phi_vvars.bind(py).iter() {
+                for (dst, srcs) in &du.phis {
                     let s = PySet::empty(py)?;
-                    for v in srcs.cast::<PyList>()?.iter() {
-                        s.add(v)?;
+                    for v in srcs {
+                        s.add(*v)?;
                     }
-                    p.set_item(dst, s)?;
+                    p.set_item(*dst, s)?;
                 }
             }
         }
         if let Some(u) = vvar_uselocs {
-            for (varid, entries) in du.vvar_uselocs.bind(py).iter() {
-                let entries = entries.cast::<PyList>()?;
-                match u.get_item(&varid)? {
-                    Some(existing) => existing
-                        .cast::<PyList>()?
-                        .call_method1("extend", (entries,))
-                        .map(|_| ())?,
-                    None => u.set_item(varid, PyList::new(py, entries.iter())?)?,
+            for site in &du.vvar_uses {
+                let entry = locs.entry(site)?;
+                match u.get_item(site.varid)? {
+                    Some(existing) => existing.cast::<PyList>()?.append(entry)?,
+                    None => u.set_item(site.varid, PyList::new(py, [entry])?)?,
                 }
             }
         }
         if tmp_deflocs.is_some() || tmp_uselocs.is_some() {
-            let b = block.borrow();
-            let block_loc = PyTuple::new(py, [b.addr, b.idx])?;
-            drop(b);
-            if let Some(td) = tmp_deflocs {
-                let defs = du.tmp_deflocs.bind(py);
-                if !defs.is_empty() {
-                    td.set_item(&block_loc, defs.copy()?)?;
+            let tmp_cls = tmp_atom(py)?;
+            let block_loc = PyTuple::new(py, [du.addr, du.idx])?;
+            if let Some(td) = tmp_deflocs
+                && !du.tmp_defs.is_empty()
+            {
+                let defs = PyDict::new(py);
+                for (tmp_idx, bits, stmt_idx) in &du.tmp_defs {
+                    defs.set_item(tmp_cls.call1((*tmp_idx, *bits))?, *stmt_idx)?;
                 }
+                td.set_item(&block_loc, defs)?;
             }
-            if let Some(tu) = tmp_uselocs {
-                let groups = du.tmp_use_groups.bind(py);
-                if tmp_mode == TMP_MODE_USES_DEFS || !groups.is_empty() {
-                    let block_map = match tu.get_item(&block_loc)? {
-                        Some(m) => m.cast_into::<PyDict>()?,
-                        None => {
-                            let m = PyDict::new(py);
-                            tu.set_item(&block_loc, &m)?;
-                            m
+            if let Some(tu) = tmp_uselocs
+                && (tmp_mode == TMP_MODE_USES_DEFS || !du.tmp_use_groups.is_empty())
+            {
+                let block_map = match tu.get_item(&block_loc)? {
+                    Some(m) => m.cast_into::<PyDict>()?,
+                    None => {
+                        let m = PyDict::new(py);
+                        tu.set_item(&block_loc, &m)?;
+                        m
+                    }
+                };
+                for ((tmp_idx, bits), sites) in &du.tmp_use_groups {
+                    let key = tmp_cls.call1((*tmp_idx, *bits))?;
+                    let s = PySet::empty(py)?;
+                    for site in sites {
+                        let tmp = Bound::new(py, Expression::wrap(site.expr.clone()))?;
+                        s.add((tmp, site.stmt_idx))?;
+                    }
+                    match (tmp_mode, block_map.get_item(&key)?) {
+                        (TMP_MODE_USES_DEFS, Some(existing)) => {
+                            existing
+                                .cast::<PySet>()?
+                                .call_method1("__ior__", (s,))
+                                .map(|_| ())?;
                         }
-                    };
-                    for group in groups.iter() {
-                        let group = group.cast::<PyTuple>()?;
-                        let key = group.get_item(0)?;
-                        let entries = group.get_item(1)?;
-                        let s = PySet::empty(py)?;
-                        for e in entries.cast::<PyList>()?.iter() {
-                            s.add(e)?;
-                        }
-                        match (tmp_mode, block_map.get_item(&key)?) {
-                            (TMP_MODE_USES_DEFS, Some(existing)) => {
-                                existing
-                                    .cast::<PySet>()?
-                                    .call_method1("__ior__", (s,))
-                                    .map(|_| ())?;
-                            }
-                            _ => block_map.set_item(key, s)?,
-                        }
+                        _ => block_map.set_item(key, s)?,
                     }
                 }
             }
         }
     }
     Ok(())
-}
-
-/// ``(vvar_deflocs, vvar_uselocs)`` of one block -- the memoized dicts themselves; read-only.
-#[pyfunction]
-pub fn block_vvar_defs_uses<'py>(
-    block: &Bound<'py, Block>,
-) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDict>)> {
-    let py = block.py();
-    let du = block_defuse(block)?;
-    Ok((
-        du.vvar_deflocs.bind(py).clone(),
-        du.vvar_uselocs.bind(py).clone(),
-    ))
 }
 
 /// Whether the block's memoized def/use lists are present and still valid (test hook).

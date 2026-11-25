@@ -1466,12 +1466,9 @@ def collect_uses_defs(
     tmp_mode: int = ...,
 ) -> None:
     """
-    Merge the memoized per-block def/use lists of ``blocks`` into whichever containers are given, reproducing the
+    Merge the memoized per-block def/use sites of ``blocks`` into whichever containers are given, reproducing the
     insertion order and overwrite semantics of the original whole-graph scan in ``angr.utils.ssa``.
     """
-
-def block_vvar_defs_uses(block: Block) -> tuple[dict, dict]:
-    """``(vvar_deflocs, vvar_uselocs)`` of one block; the memoized dicts themselves, read-only."""
 
 def block_defuse_is_cached(block: Block) -> bool:
     """Whether the block's memoized def/use lists are present and still valid."""
