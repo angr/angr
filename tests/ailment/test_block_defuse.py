@@ -18,8 +18,8 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Assignment, Return, SideEffectStatement, Store
-from angr.rustylib.ailment import block_defuse_is_cached
+from angr.ailment.statement import Assignment, Return, SideEffectStatement, Statement, Store
+from angr.rustylib.ailment import StatementList, block_defuse_is_cached
 from angr.utils.ssa import get_uses_defs, get_vvar_deflocs
 
 
@@ -89,6 +89,58 @@ class TestBlockDefUse(unittest.TestCase):
         assert block_defuse_is_cached(b1) is False
         assert 11 in get_vvar_deflocs([b1])
         assert 11 not in get_vvar_deflocs([b0])
+
+    def test_every_list_mutation_invalidates(self):
+        b0 = make_blocks()[0]
+        stmts = b0.statements
+        extra = Return(60, [])
+
+        def setitem():
+            stmts[0] = extra
+
+        def set_slice():
+            stmts[0:1] = [extra, extra]
+
+        def delitem():
+            del stmts[0]
+
+        def iadd():
+            nonlocal stmts
+            stmts += [extra]
+
+        def assign():
+            b0.statements = [extra]
+
+        for mutate in (
+            lambda: stmts.append(extra),
+            lambda: stmts.insert(0, extra),
+            lambda: stmts.extend([extra]),
+            setitem,
+            set_slice,
+            delitem,
+            iadd,
+            lambda: stmts.pop(),
+            lambda: stmts.remove(extra),
+            lambda: stmts.reverse(),
+            lambda: stmts.sort(key=lambda stmt: stmt.idx),
+            lambda: stmts.clear(),
+            assign,
+        ):
+            get_vvar_deflocs([b0])
+            assert block_defuse_is_cached(b0) is True
+            mutate()
+            assert block_defuse_is_cached(b0) is False
+
+    def test_statements_is_a_list_owned_by_the_block(self):
+        given: list[Statement] = [Return(60, [])]
+        block = Block(0x1000, 4, statements=given)
+        assert isinstance(block.statements, StatementList)
+        assert block.statements == given
+        # the block keeps its own list; a StatementList is shared as is
+        assert block.statements is not given
+        assert Block(0x2000, 4, statements=block.statements).statements is block.statements
+        assert type(block.statements[:]) is list
+        assert block.copy().statements is not block.statements
 
     def test_merged_containers_are_fresh(self):
         blocks = make_blocks()

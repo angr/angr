@@ -1,10 +1,9 @@
 //! Per-block SSA def/use lists.
 //!
 //! Each [`Block`] memoizes the vvar/tmp definitions and uses of its statements (`BlockDefUse`), as finished
-//! Python objects, behind a fingerprint of its statement objects. `Block.statements` is a plain Python list
-//! mutated in place at hundreds of sites, so the lists cannot be maintained by hooking insertion; instead every
-//! read re-validates the fingerprint -- the serial of each statement, which is immutable from Python -- which is
-//! a pointer walk, orders of magnitude cheaper than the tree walk it guards.
+//! Python objects. `Block.statements` is a [`StatementList`], which takes a new version on every mutation, and
+//! statements are immutable from Python, so the memo is valid for as long as the list keeps the version it was
+//! scanned at: a read checks one integer.
 //!
 //! `collect_uses_defs` merges the per-block lists of a block sequence into the caller's containers with exactly
 //! the insertion order and overwrite semantics of the original whole-graph scan in `angr.utils.ssa`.
@@ -22,6 +21,7 @@ use crate::ailment::ail_expr::{
 use crate::ailment::ail_stmt::{AilStatement, Statement, StmtInner};
 use crate::ailment::block::Block;
 use crate::ailment::enums::VirtualVariableCategory;
+use crate::ailment::stmt_list::StatementList;
 use crate::ailment::tags::{TagExtra, TagKey, Tags};
 
 fn py_class<'py>(
@@ -655,8 +655,8 @@ fn stmt_defs(py: Python<'_>, raw: &mut Raw, stmt_idx: usize, stmt: &AilStatement
 pub struct BlockDefUse {
     addr: i64,
     idx: i64,
-    /// serial of every statement object the lists were taken from
-    fingerprint: Vec<u64>,
+    /// version of the statements list the lists were taken from
+    version: u64,
     /// ``{varid: (VirtualVariable, AILCodeLocation)}``
     pub vvar_deflocs: Py<PyDict>,
     /// ``{varid: [(VirtualVariable, AILCodeLocation), ...]}`` in traversal order
@@ -672,34 +672,21 @@ pub struct BlockDefUse {
 }
 
 impl BlockDefUse {
-    /// True iff the block still consists of exactly the statement objects that were scanned.
+    /// True iff the block still holds the statements that were scanned.
     fn matches(&self, addr: i64, idx: i64, stmts: &Bound<'_, PyList>) -> bool {
-        if addr != self.addr || idx != self.idx || stmts.len() != self.fingerprint.len() {
-            return false;
-        }
-        for (item, serial) in stmts.iter().zip(&self.fingerprint) {
-            let Ok(cell) = item.cast::<Statement>() else {
-                return false;
-            };
-            let Ok(s) = cell.try_borrow() else {
-                return false;
-            };
-            if s.serial != *serial {
-                return false;
-            }
-        }
-        true
+        addr == self.addr && idx == self.idx && StatementList::version_of(stmts) == self.version
     }
 }
 
-/// Scan a block from scratch. ``cacheable`` is false when the list holds a non-``Statement`` entry, which contributes
-/// nothing but cannot be fingerprinted.
+/// Scan a block from scratch. ``cacheable`` is false for a statements list that has no version. A non-``Statement``
+/// entry contributes nothing.
 fn scan_block(
     py: Python<'_>,
     addr: i64,
     idx: i64,
     stmts: &Bound<'_, PyList>,
 ) -> PyResult<(BlockDefUse, bool)> {
+    let version = StatementList::version_of(stmts);
     let mut raw = Raw::default();
     let mut uses = Uses {
         py,
@@ -707,17 +694,14 @@ fn scan_block(
         tmp_uses: Vec::new(),
         phi_dst_varid: None,
     };
-    let mut fingerprint = Vec::with_capacity(stmts.len());
-    let mut cacheable = true;
+    let cacheable = version != 0;
     let mut ins_addrs: Vec<Option<i64>> = Vec::with_capacity(stmts.len());
     for (stmt_idx, item) in stmts.iter().enumerate() {
         let Ok(cell) = item.cast::<Statement>() else {
-            cacheable = false;
             ins_addrs.push(None);
             continue;
         };
         let guard = cell.borrow();
-        fingerprint.push(guard.serial);
         let stmt = &guard.stmt;
         ins_addrs.push(stmt.header.tags.ins_addr);
         stmt_defs(py, &mut raw, stmt_idx, stmt)?;
@@ -804,7 +788,7 @@ fn scan_block(
         BlockDefUse {
             addr,
             idx,
-            fingerprint,
+            version,
             vvar_deflocs: vvar_deflocs.unbind(),
             vvar_uselocs: vvar_uselocs.unbind(),
             phi_vvars: phi_vvars.unbind(),
@@ -816,7 +800,7 @@ fn scan_block(
     ))
 }
 
-/// The block's current def/use lists: the memo when its fingerprint still matches, else a fresh scan.
+/// The block's current def/use lists: the memo when the statements list is unchanged, else a fresh scan.
 pub fn block_defuse(block: &Bound<'_, Block>) -> PyResult<Arc<BlockDefUse>> {
     let py = block.py();
     let b = block.borrow();

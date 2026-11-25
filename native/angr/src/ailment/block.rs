@@ -10,6 +10,7 @@ use pyo3::types::{PyBytes, PyList, PyType};
 
 use crate::ailment::ail_stmt::{AilStatement, Statement};
 use crate::ailment::ssa::BlockDefUse;
+use crate::ailment::stmt_list::StatementList;
 use crate::ailment::{CachedHash, hash_of};
 
 #[pyclass(
@@ -24,12 +25,13 @@ pub struct Block {
     pub addr: i64,
     #[pyo3(get, set)]
     pub original_size: Option<i64>,
-    #[pyo3(get, set)]
+    /// Always a [`StatementList`].
+    #[pyo3(get)]
     pub statements: Py<PyList>,
     #[pyo3(get)]
     pub idx: i64,
     pub cached_hash: CachedHash,
-    /// Memoized def/use lists, validated against the statements on every read (see ``ssa.rs``).
+    /// Memoized def/use lists, valid while the statements list keeps its version (see ``ssa.rs``).
     pub defuse: Mutex<Option<Arc<BlockDefUse>>>,
 }
 
@@ -70,18 +72,8 @@ impl Block {
         idx: i64,
     ) -> PyResult<Self> {
         let stmts_list = match statements {
-            Some(s) if !s.is_none() => {
-                if let Ok(l) = s.cast::<PyList>() {
-                    l.to_owned()
-                } else {
-                    let l = PyList::empty(py);
-                    for x in s.try_iter()? {
-                        l.append(x?)?;
-                    }
-                    l
-                }
-            }
-            _ => PyList::empty(py),
+            Some(s) if !s.is_none() => StatementList::of(&s)?,
+            _ => StatementList::of(PyList::empty(py).as_any())?,
         };
         Ok(Self {
             addr,
@@ -93,6 +85,11 @@ impl Block {
         })
     }
 
+    #[setter]
+    fn set_statements(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.statements = StatementList::of(value)?.unbind();
+        Ok(())
+    }
     #[setter]
     fn set_addr(&mut self, value: i64) {
         self.addr = value;
@@ -109,19 +106,9 @@ impl Block {
     #[pyo3(signature = (statements=None))]
     fn copy(&self, py: Python<'_>, statements: Option<Bound<'_, PyAny>>) -> PyResult<Self> {
         let stmts_list = match statements {
-            Some(s) if !s.is_none() => {
-                if let Ok(l) = s.cast::<PyList>() {
-                    l.to_owned()
-                } else {
-                    let l = PyList::empty(py);
-                    for x in s.try_iter()? {
-                        l.append(x?)?;
-                    }
-                    l
-                }
-            }
-            // Shallow copy of self.statements
-            _ => PyList::new(py, self.statements.bind(py))?,
+            Some(s) if !s.is_none() => StatementList::of(&s)?,
+            // Shallow copy of self.statements; same items, so same version
+            _ => StatementList::copy_of(self.statements.bind(py))?,
         };
         Ok(Self {
             addr: self.addr,
@@ -146,7 +133,7 @@ impl Block {
         Ok(Self {
             addr: self.addr,
             original_size: self.original_size,
-            statements: new_list.unbind(),
+            statements: StatementList::of(new_list.as_any())?.unbind(),
             idx: self.idx,
             cached_hash: CachedHash::new(),
             defuse: Mutex::new(None),
@@ -319,7 +306,7 @@ impl Block {
             Self {
                 addr,
                 original_size,
-                statements: list.unbind(),
+                statements: StatementList::of(list.as_any())?.unbind(),
                 idx,
                 cached_hash: CachedHash::new(),
                 defuse: Mutex::new(None),

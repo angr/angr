@@ -511,10 +511,16 @@ class Statement:
 # Block
 # ---------------------------------------------------------------------------
 
+class StatementList(list[Statement]):
+    """The list type of ``Block.statements``: a ``list`` that takes a new version whenever it is mutated, so what is
+    derived from a block's statements can tell that they changed. Slices and copies are plain lists."""
+
 class Block:
     addr: int
     original_size: int | None
     idx: int
+    # a StatementList at runtime; assigning any other iterable stores its items in a new one. Declared as a plain
+    # attribute so that type checkers keep narrowing ``block.statements[i]``.
     statements: list[Statement]
     def __init__(
         self,
