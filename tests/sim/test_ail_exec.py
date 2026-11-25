@@ -206,9 +206,9 @@ class TestAILExec(unittest.TestCase):
             dst=ailment.expression.Register(None, r0_offset, 32),
             src=ccall_expr,
         )
-        assign_stmt.tags["ins_addr"] = 0x400000
+        assign_stmt = assign_stmt.copy_with(tags={"ins_addr": 0x400000})
         jump_stmt = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, 0x400004, 32))
-        jump_stmt.tags["ins_addr"] = 0x400000
+        jump_stmt = jump_stmt.copy_with(tags={"ins_addr": 0x400000})
         block = ailment.Block(0x400000, 0, statements=[assign_stmt, jump_stmt])
 
         successors = SimSuccessors(state.addr, state)
@@ -241,7 +241,7 @@ class TestAILExec(unittest.TestCase):
         true_tgt = ailment.expression.Const(None, 0x400004, 64)
         false_tgt = ailment.expression.Const(None, 0x400008, 64)
         cjmp = ailment.statement.ConditionalJump(0, cond_bv1, true_tgt, false_tgt)
-        cjmp.tags["ins_addr"] = 0x400000
+        cjmp = cjmp.copy_with(tags={"ins_addr": 0x400000})
         block = ailment.Block(0x400000, 0, statements=[cjmp])
 
         succ = SimSuccessors(state.addr, state)
@@ -283,7 +283,7 @@ class TestAILExec(unittest.TestCase):
 
         # predecessor block: jump to successor
         pred_jump = ailment.statement.Jump(idx=0, target=ailment.expression.Const(None, 0x400004, 64))
-        pred_jump.tags["ins_addr"] = 0x400000
+        pred_jump = pred_jump.copy_with(tags={"ins_addr": 0x400000})
         pred_block = ailment.Block(0x400000, 0, statements=[pred_jump])
 
         pred_succ = SimSuccessors(state.addr, state)
@@ -310,9 +310,9 @@ class TestAILExec(unittest.TestCase):
             dst=ailment.expression.Register(None, rax_offset, 64),
             src=phi,
         )
-        assign.tags["ins_addr"] = 0x400004
+        assign = assign.copy_with(tags={"ins_addr": 0x400004})
         succ_jump = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, 0x400008, 64))
-        succ_jump.tags["ins_addr"] = 0x400004
+        succ_jump = succ_jump.copy_with(tags={"ins_addr": 0x400004})
         succ_block = ailment.Block(0x400004, 0, statements=[assign, succ_jump])
 
         succ_succ = SimSuccessors(s1.addr, s1)
@@ -359,10 +359,10 @@ class TestAILExec(unittest.TestCase):
         call_tgt = ailment.expression.Const(None, 0xDEADBEEF, p.arch.bits)
         call_expr = ailment.expression.Call(idx=0, target=call_tgt, args=[ref], bits=p.arch.bits)
         call = ailment.statement.SideEffectStatement(idx=0, expr=call_expr)
-        call.tags["ins_addr"] = 0x400000
+        call = call.copy_with(tags={"ins_addr": 0x400000})
 
         jmp = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, 0x400004, p.arch.bits))
-        jmp.tags["ins_addr"] = 0x400000
+        jmp = jmp.copy_with(tags={"ins_addr": 0x400000})
 
         block = ailment.Block(0x400000, 0, statements=[call, jmp])
 
@@ -409,10 +409,10 @@ class TestAILExec(unittest.TestCase):
             fp_ret_expr=None,
         )
         # The light AIL engine expects statements to carry an instruction address tag.
-        call_stmt.tags["ins_addr"] = 0x400000
+        call_stmt = call_stmt.copy_with(tags={"ins_addr": 0x400000})
         # Add a diverging statement afterwards to avoid requiring a real lifter/graph in _process_block_end().
         jump_stmt = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, 0x400004, 32))
-        jump_stmt.tags["ins_addr"] = 0x400000
+        jump_stmt = jump_stmt.copy_with(tags={"ins_addr": 0x400000})
         block = ailment.Block(0x400000, 0, statements=[call_stmt, jump_stmt])
 
         successors = SimSuccessors(state.addr, state)
@@ -495,7 +495,7 @@ class TestAILExec(unittest.TestCase):
         state.globals["ail_lifter"] = lambda _addr: _FakeClinic()  # type: ignore
 
         jump = ailment.statement.Jump(0, ailment.expression.Const(None, 0x400004, 64))
-        jump.tags["ins_addr"] = 0x400000
+        jump = jump.copy_with(tags={"ins_addr": 0x400000})
         block = ailment.Block(0x400000, 0, statements=[jump])
 
         succ = SimSuccessors(state.addr, state)

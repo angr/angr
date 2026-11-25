@@ -129,15 +129,18 @@ class ErrorPropagationWalker(SequenceWalker):
 
         if err_node and ok_node and self._structured_node_is_simple_return_err_enum_strict(err_node):
             if isinstance(node.scrutinee, VirtualVariable) and node.scrutinee.varid in self.context.varid_to_assignment:
-                assignment = self.context.varid_to_assignment[node.scrutinee.varid]
-                assignment.src = copy_expr_with_tags(assignment.src, propagates_error=True)
+                varid = node.scrutinee.varid
+                original = self.context.varid_to_assignment[varid]
+                assignment = self.context.assignment_updates.get(varid, (original, original))[1]
+                assignment = assignment.copy_with(src=copy_expr_with_tags(assignment.src, propagates_error=True))
 
                 if new_dst_vvar and self._is_dead_assignment(new_dst_vvar, node, err_node):
                     self.dead_assignments.add(assignment)
                     new_dst_vvar = None
 
                 if new_dst_vvar:
-                    assignment.dst = new_dst_vvar
+                    assignment = assignment.copy_with(dst=new_dst_vvar)
+                self.context.assignment_updates[varid] = original, assignment
                 new_ok_node = super()._handle(ok_node)
                 return new_ok_node or ok_node
             if isinstance(node.scrutinee, Call):
@@ -161,6 +164,8 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
         self._graph = kwargs["graph"]
         self.block_by_addr_and_idx = {(block.addr, block.idx): block for block in self._graph.nodes}
         self.varid_to_assignment = self._collect_varid_to_assignment_mappings()
+        # varid -> (the assignment in the blocks, its rewritten copy)
+        self.assignment_updates: dict[int, tuple[Assignment, Assignment]] = {}
 
         self.analyze()
 
@@ -187,6 +192,18 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
 
         return varid_to_assignment
 
+    def _apply_assignment_updates(self):
+        updates = {id(original): new for original, new in self.assignment_updates.values()}
+
+        def callback(block, **_kwargs):
+            for idx, stmt in enumerate(block.statements):
+                if id(stmt) in updates:
+                    block.statements[idx] = updates[id(stmt)]
+
+        SequenceWalker(handlers={Block: callback}).walk(self.seq)
+        for block in self._graph.nodes:
+            callback(block)
+
     def _remove_dead_assignments(self, stmts):
         def callback(block, **_kwargs):
             changed = False
@@ -209,6 +226,7 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
         walker = ErrorPropagationWalker(self)
         walker.walk(self.seq)
 
+        self._apply_assignment_updates()
         self._remove_dead_assignments(walker.dead_assignments)
 
         self.out_seq = self.seq

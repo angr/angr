@@ -113,8 +113,7 @@ class StringCmpOutliner(OptimizationPass):
                 #     **stmt.condition.tags,
                 # )
                 # call.bits = 1
-                new_stmt = stmt.copy()
-                new_stmt.condition = new_cond
+                new_stmt = stmt.copy_with(condition=new_cond)
                 block.statements[stmt_idx] = new_stmt
                 return new_stmt
         return stmt

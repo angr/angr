@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::types::{PyBytes, PyDict};
 
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression};
 use crate::ailment::block::Block;
@@ -934,6 +934,229 @@ impl Statement {
     }
 }
 
+/// Field updates behind ``Statement.copy_with``. Not exposed to Python: statements are immutable there.
+impl Statement {
+    fn set_tags(&mut self, value: Tags) -> PyResult<()> {
+        self.stmt.header.tags = value;
+        self.stmt.header.cached_hash.clear();
+        Ok(())
+    }
+
+    fn set_target(&mut self, value: CFGTarget) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::Jump { target, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *target = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'target' on this Statement")),
+        }
+    }
+
+    fn set_target_idx(&mut self, value: i64) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::Jump { target_idx, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *target_idx = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'target_idx' on this Statement",
+            )),
+        }
+    }
+
+    fn set_condition(&mut self, value: AilExpression) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::ConditionalJump { condition, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *condition = Arc::new(value);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'condition' on this Statement",
+            )),
+        }
+    }
+
+    fn set_true_target(&mut self, value: Option<CFGTarget>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::ConditionalJump { true_target, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *true_target = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'true_target' on this Statement",
+            )),
+        }
+    }
+
+    fn set_false_target(&mut self, value: Option<CFGTarget>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::ConditionalJump { false_target, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *false_target = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'false_target' on this Statement",
+            )),
+        }
+    }
+
+    fn set_true_target_idx(&mut self, value: i64) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::ConditionalJump {
+                true_target_idx, ..
+            } => {
+                self.stmt.header.cached_hash.clear();
+                *true_target_idx = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'true_target_idx' on this Statement",
+            )),
+        }
+    }
+
+    fn set_false_target_idx(&mut self, value: i64) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::ConditionalJump {
+                false_target_idx, ..
+            } => {
+                self.stmt.header.cached_hash.clear();
+                *false_target_idx = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'false_target_idx' on this Statement",
+            )),
+        }
+    }
+
+    fn set_expr(&mut self, value: AilExpression) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::SideEffectStatement { expr, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *expr = Arc::new(value);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'expr' on this Statement")),
+        }
+    }
+
+    fn set_ret_exprs(&mut self, value: Vec<AilExpression>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::Return { ret_exprs } => {
+                self.stmt.header.cached_hash.clear();
+                *ret_exprs = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'ret_exprs' on this Statement",
+            )),
+        }
+    }
+
+    fn set_ret_expr(&mut self, value: Option<AilExpression>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::SideEffectStatement { ret_expr, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *ret_expr = value.map(Arc::new);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'ret_expr' on this Statement")),
+        }
+    }
+
+    fn set_fp_ret_expr(&mut self, value: Option<AilExpression>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::SideEffectStatement { fp_ret_expr, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *fp_ret_expr = value.map(Arc::new);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'fp_ret_expr' on this Statement",
+            )),
+        }
+    }
+
+    fn set_dst(&mut self, value: AilExpression) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::Assignment { dst, .. } | StmtInner::WeakAssignment { dst, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *dst = Arc::new(value);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'dst' on this Statement")),
+        }
+    }
+
+    fn set_src(&mut self, value: AilExpression) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::Assignment { src, .. } | StmtInner::WeakAssignment { src, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *src = Arc::new(value);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'src' on this Statement")),
+        }
+    }
+
+    /// The ``copy_with`` fields that never had a setter.
+    fn set_other_field(&mut self, field: &str, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        let expr = || value.extract::<AilExpression>().map(Arc::new);
+        let opt_expr = || PyResult::Ok(value.extract::<Option<AilExpression>>()?.map(Arc::new));
+        match (&mut self.stmt.inner, field) {
+            (_, "idx") => self.stmt.header.idx = value.extract()?,
+            (StmtInner::Label { name }, "name") => *name = value.extract()?,
+            (StmtInner::Store { addr, .. } | StmtInner::CAS { addr, .. }, "addr") => {
+                *addr = expr()?;
+            }
+            (StmtInner::Store { data, .. }, "data") => *data = expr()?,
+            (StmtInner::Store { size, .. }, "size") => *size = value.extract()?,
+            (StmtInner::Store { endness, .. } | StmtInner::CAS { endness, .. }, "endness") => {
+                *endness = value.extract()?;
+            }
+            (StmtInner::Store { guard, .. }, "guard") => *guard = opt_expr()?,
+            (StmtInner::CAS { data_lo, .. }, "data_lo") => *data_lo = expr()?,
+            (StmtInner::CAS { data_hi, .. }, "data_hi") => *data_hi = opt_expr()?,
+            (StmtInner::CAS { expd_lo, .. }, "expd_lo") => *expd_lo = expr()?,
+            (StmtInner::CAS { expd_hi, .. }, "expd_hi") => *expd_hi = opt_expr()?,
+            (StmtInner::CAS { old_lo, .. }, "old_lo") => *old_lo = expr()?,
+            (StmtInner::CAS { old_hi, .. }, "old_hi") => *old_hi = opt_expr()?,
+            (StmtInner::DirtyStatement { dirty }, "dirty") => *dirty = expr()?,
+            (
+                StmtInner::IncompleteSwitchCaseHeadStatement {
+                    switch_variable, ..
+                },
+                "switch_variable",
+            ) => *switch_variable = expr()?,
+            _ => {
+                return Err(PyTypeError::new_err(format!(
+                    "copy_with() got an unexpected field '{field}' for this Statement"
+                )));
+            }
+        }
+        self.stmt.header.cached_hash.clear();
+        Ok(())
+    }
+
+    fn set_case_addrs(&mut self, value: Vec<SwitchCase>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::IncompleteSwitchCaseHeadStatement { cases, .. } => {
+                *cases = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'case_addrs' on this Statement",
+            )),
+        }
+    }
+}
+
 #[pymethods]
 impl Statement {
     // --- Per-variant constructor factories ----------------------------
@@ -1171,15 +1394,9 @@ impl Statement {
         self.stmt.header.idx
     }
     #[getter]
-    fn tags(slf: Bound<'_, Self>) -> TagsView {
-        let inner = slf.borrow().stmt.header.tags.clone();
-        TagsView::with_parent(inner, slf.into_any().unbind())
-    }
-    #[setter]
-    fn set_tags(&mut self, value: Tags) -> PyResult<()> {
-        self.stmt.header.tags = value;
-        self.stmt.header.cached_hash.clear();
-        Ok(())
+    fn tags(&self) -> TagsView {
+        let inner = self.stmt.header.tags.clone();
+        TagsView::read_only(inner)
     }
     /// Variant discriminator. Python-side metaclass uses this for
     /// ``isinstance(x, Assignment)`` dispatch.
@@ -1355,74 +1572,6 @@ impl Statement {
         }
     }
 
-    #[setter]
-    fn set_target(&mut self, value: CFGTarget) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::Jump { target, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *target = value;
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err("no 'target' on this Statement")),
-        }
-    }
-
-    #[setter]
-    fn set_target_idx(&mut self, value: i64) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::Jump { target_idx, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *target_idx = value;
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'target_idx' on this Statement",
-            )),
-        }
-    }
-
-    #[setter]
-    fn set_condition(&mut self, value: AilExpression) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::ConditionalJump { condition, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *condition = Arc::new(value);
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'condition' on this Statement",
-            )),
-        }
-    }
-
-    #[setter]
-    fn set_true_target(&mut self, value: Option<CFGTarget>) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::ConditionalJump { true_target, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *true_target = value;
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'true_target' on this Statement",
-            )),
-        }
-    }
-
-    #[setter]
-    fn set_false_target(&mut self, value: Option<CFGTarget>) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::ConditionalJump { false_target, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *false_target = value;
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'false_target' on this Statement",
-            )),
-        }
-    }
-
     /// ConditionalJump.true_target_idx
     #[getter]
     fn true_target_idx(&self) -> PyResult<i64> {
@@ -1449,55 +1598,11 @@ impl Statement {
         }
     }
 
-    #[setter]
-    fn set_true_target_idx(&mut self, value: i64) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::ConditionalJump {
-                true_target_idx, ..
-            } => {
-                self.stmt.header.cached_hash.clear();
-                *true_target_idx = value;
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'true_target_idx' on this Statement",
-            )),
-        }
-    }
-
-    #[setter]
-    fn set_false_target_idx(&mut self, value: i64) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::ConditionalJump {
-                false_target_idx, ..
-            } => {
-                self.stmt.header.cached_hash.clear();
-                *false_target_idx = value;
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'false_target_idx' on this Statement",
-            )),
-        }
-    }
-
     /// SideEffectStatement.expr
     #[getter]
     fn expr(&self) -> PyResult<&AilExpression> {
         match &self.stmt.inner {
             StmtInner::SideEffectStatement { expr, .. } => Ok(&**expr),
-            _ => Err(PyAttributeError::new_err("no 'expr' on this Statement")),
-        }
-    }
-
-    #[setter]
-    fn set_expr(&mut self, value: AilExpression) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::SideEffectStatement { expr, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *expr = Arc::new(value);
-                Ok(())
-            }
             _ => Err(PyAttributeError::new_err("no 'expr' on this Statement")),
         }
     }
@@ -1529,46 +1634,6 @@ impl Statement {
             StmtInner::Return { ret_exprs } => Ok(ret_exprs),
             _ => Err(PyAttributeError::new_err(
                 "no 'ret_exprs' on this Statement",
-            )),
-        }
-    }
-
-    #[setter]
-    fn set_ret_exprs(&mut self, value: Vec<AilExpression>) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::Return { ret_exprs } => {
-                self.stmt.header.cached_hash.clear();
-                *ret_exprs = value;
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'ret_exprs' on this Statement",
-            )),
-        }
-    }
-
-    #[setter]
-    fn set_ret_expr(&mut self, value: Option<AilExpression>) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::SideEffectStatement { ret_expr, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *ret_expr = value.map(Arc::new);
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err("no 'ret_expr' on this Statement")),
-        }
-    }
-
-    #[setter]
-    fn set_fp_ret_expr(&mut self, value: Option<AilExpression>) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::SideEffectStatement { fp_ret_expr, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *fp_ret_expr = value.map(Arc::new);
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err(
-                "no 'fp_ret_expr' on this Statement",
             )),
         }
     }
@@ -1625,18 +1690,6 @@ impl Statement {
             _ => Err(PyAttributeError::new_err("no 'dirty' on this Statement")),
         }
     }
-    #[setter]
-    fn set_dst(&mut self, value: AilExpression) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::Assignment { dst, .. } | StmtInner::WeakAssignment { dst, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *dst = Arc::new(value);
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err("no 'dst' on this Statement")),
-        }
-    }
-
     /// Assignment.src / WeakAssignment.src
     #[getter]
     fn src(&self) -> PyResult<&AilExpression> {
@@ -1645,18 +1698,6 @@ impl Statement {
             _ => Err(PyAttributeError::new_err("no 'src' on this Statement")),
         }
     }
-    #[setter]
-    fn set_src(&mut self, value: AilExpression) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::Assignment { src, .. } | StmtInner::WeakAssignment { src, .. } => {
-                self.stmt.header.cached_hash.clear();
-                *src = Arc::new(value);
-                Ok(())
-            }
-            _ => Err(PyAttributeError::new_err("no 'src' on this Statement")),
-        }
-    }
-
     /// Label.name
     #[getter]
     fn name(&self) -> PyResult<String> {
@@ -1685,19 +1726,6 @@ impl Statement {
     fn case_addrs(&self) -> PyResult<Vec<SwitchCase>> {
         match &self.stmt.inner {
             StmtInner::IncompleteSwitchCaseHeadStatement { cases, .. } => Ok(cases.clone()),
-            _ => Err(PyAttributeError::new_err(
-                "no 'case_addrs' on this Statement",
-            )),
-        }
-    }
-
-    #[setter]
-    fn set_case_addrs(&mut self, value: Vec<SwitchCase>) -> PyResult<()> {
-        match &mut self.stmt.inner {
-            StmtInner::IncompleteSwitchCaseHeadStatement { cases, .. } => {
-                *cases = value;
-                Ok(())
-            }
             _ => Err(PyAttributeError::new_err(
                 "no 'case_addrs' on this Statement",
             )),
@@ -1799,6 +1827,38 @@ impl Statement {
             return Ok((false, slf.into_pyobject(py)?.into_any().unbind()));
         }
         Ok((true, Py::new(py, Statement::wrap(rebuilt))?.into_any()))
+    }
+
+    /// ``copy_with(**fields)`` -- a copy with the given fields replaced: ``idx``, ``tags`` (all of
+    /// them) or any constructor field of the variant. Statements are immutable, so this is how a
+    /// changed statement is made.
+    #[pyo3(signature = (**fields))]
+    fn copy_with(&self, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
+        let mut new = self.clone();
+        if let Some(fields) = fields {
+            for (key, value) in fields.iter() {
+                let name: String = key.extract()?;
+                match name.as_str() {
+                    "tags" => new.set_tags(value.extract()?)?,
+                    "target" => new.set_target(value.extract()?)?,
+                    "target_idx" => new.set_target_idx(value.extract()?)?,
+                    "condition" => new.set_condition(value.extract()?)?,
+                    "true_target" => new.set_true_target(value.extract()?)?,
+                    "false_target" => new.set_false_target(value.extract()?)?,
+                    "true_target_idx" => new.set_true_target_idx(value.extract()?)?,
+                    "false_target_idx" => new.set_false_target_idx(value.extract()?)?,
+                    "expr" => new.set_expr(value.extract()?)?,
+                    "ret_exprs" => new.set_ret_exprs(value.extract()?)?,
+                    "ret_expr" => new.set_ret_expr(value.extract()?)?,
+                    "fp_ret_expr" => new.set_fp_ret_expr(value.extract()?)?,
+                    "dst" => new.set_dst(value.extract()?)?,
+                    "src" => new.set_src(value.extract()?)?,
+                    "case_addrs" => new.set_case_addrs(value.extract()?)?,
+                    _ => new.set_other_field(&name, &value)?,
+                }
+            }
+        }
+        Ok(new)
     }
 
     /// ``copy()`` -- shallow clone (same idx).

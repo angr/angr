@@ -160,9 +160,7 @@ class SimplifierAILEngine(
                 new_retexprs.append(new_retexpr)
 
             if new_retexprs != stmt.ret_exprs:
-                new_stmt = stmt.copy()
-                new_stmt.ret_exprs = new_retexprs
-                return new_stmt
+                return stmt.copy_with(ret_exprs=new_retexprs)
         return stmt
 
     def _handle_stmt_DirtyStatement(self, stmt):

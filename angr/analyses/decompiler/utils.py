@@ -79,33 +79,41 @@ def copy_expr_with_tags(expr: ailment.Expr.Expression, **tags) -> ailment.Expr.E
     return new_expr
 
 
-def update_jump_target(stmt: ailment.Stmt.Jump, old_addr: int, new_addr: int) -> bool:
+def replace_statement(block: ailment.Block, old_stmt: ailment.Stmt.Statement, new_stmt: ailment.Stmt.Statement) -> None:
     """
-    Update a Jump statement from old_addr to new_addr through the statement setter. Returns True if the update
-    succeeded.
+    Put ``new_stmt`` where ``block`` holds the statement object ``old_stmt``. Statements are immutable, and blocks and
+    their copies share them, so a changed statement is written into one block at a time.
+    """
+    stmts = block.statements
+    stmts[next(i for i, stmt in enumerate(stmts) if stmt is old_stmt)] = new_stmt
+
+
+def update_jump_target(stmt: ailment.Stmt.Jump, old_addr: int, new_addr: int) -> ailment.Stmt.Jump | None:
+    """
+    A copy of a Jump statement that goes to ``new_addr`` instead of ``old_addr``, or None if the statement does not
+    jump to ``old_addr``.
     """
     target = stmt.target
     if isinstance(target, ailment.Expr.Const) and target.value == old_addr:
-        stmt.target = const_with_value(target, new_addr)
-        return True
-    return False
+        return stmt.copy_with(target=const_with_value(target, new_addr))
+    return None
 
 
-def update_conditional_jump_target(stmt: ailment.Stmt.ConditionalJump, old_addr: int, new_addr: int) -> bool:
+def update_conditional_jump_target(
+    stmt: ailment.Stmt.ConditionalJump, old_addr: int, new_addr: int
+) -> ailment.Stmt.ConditionalJump | None:
     """
-    Update every branch of a ConditionalJump that points to ``old_addr`` so it points to ``new_addr``. Returns True
-    if any branch was updated.
+    A copy of a ConditionalJump in which every branch that points to ``old_addr`` points to ``new_addr``, or None if
+    no branch points to ``old_addr``.
     """
-    patched = False
+    updates = {}
     tt = stmt.true_target
     if isinstance(tt, ailment.Expr.Const) and tt.value == old_addr:
-        stmt.true_target = const_with_value(tt, new_addr)
-        patched = True
+        updates["true_target"] = const_with_value(tt, new_addr)
     ft = stmt.false_target
     if isinstance(ft, ailment.Expr.Const) and ft.value == old_addr:
-        stmt.false_target = const_with_value(ft, new_addr)
-        patched = True
-    return patched
+        updates["false_target"] = const_with_value(ft, new_addr)
+    return stmt.copy_with(**updates) if updates else None
 
 
 def update_jump_target_idx(block: ailment.Block, addr: int, old_idx: int | None, new_idx: int) -> bool:
@@ -150,15 +158,16 @@ def update_jump_target_idx(block: ailment.Block, addr: int, old_idx: int | None,
     return False
 
 
-def set_conditional_jump_targets(stmt: ailment.Stmt.ConditionalJump, true_addr: int, false_addr: int) -> None:
+def set_conditional_jump_targets(
+    stmt: ailment.Stmt.ConditionalJump, true_addr: int, false_addr: int
+) -> ailment.Stmt.ConditionalJump:
     """
-    Point the branches of a ConditionalJump (with constant targets) at ``true_addr`` and ``false_addr``.
+    A copy of a ConditionalJump (with constant targets) whose branches point at ``true_addr`` and ``false_addr``.
     """
     tt = stmt.true_target
     ft = stmt.false_target
     assert isinstance(tt, ailment.Expr.Const) and isinstance(ft, ailment.Expr.Const)
-    stmt.true_target = const_with_value(tt, true_addr)
-    stmt.false_target = const_with_value(ft, false_addr)
+    return stmt.copy_with(true_target=const_with_value(tt, true_addr), false_target=const_with_value(ft, false_addr))
 
 
 def remove_last_statement(node):

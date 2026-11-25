@@ -11,6 +11,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import (
 )
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import ConditionNode
+from angr.analyses.decompiler.utils import replace_statement
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins import DFAMixin
 from angr.rust.optimization_passes.pre_pattern_match_simplifier import PrePatternMatchSimplifier
@@ -61,6 +62,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         return None
 
     def _collect_move_stmts(self, scrutinee: VirtualVariable, variant: EnumVariant, node):
+        """The statements that move the variant's fields out of the scrutinee, hidden in their block."""
         # if node.addr == 0x416C09:
         #     import ipdb
         #
@@ -98,7 +100,10 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                     field_offset in src_offset_to_stmt
                     and src_offset_to_stmt[field_offset].dst.size == field_ty.size // 8
                 ):
-                    move_stmts.append(src_offset_to_stmt[field_offset])
+                    move_stmt = src_offset_to_stmt[field_offset]
+                    hidden_stmt = move_stmt.copy_with(tags={**move_stmt.tags, "hidden": True})
+                    replace_statement(block, move_stmt, hidden_stmt)
+                    move_stmts.append(hidden_stmt)
                 else:
                     move_stmts.append(None)
             return tuple(move_stmts)
@@ -116,9 +121,6 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
     ):
         true_move_stmts = self._collect_move_stmts(scrutinee, true_variant, true_node)
         false_move_stmts = self._collect_move_stmts(scrutinee, false_variant, false_node)
-        for stmt in true_move_stmts + false_move_stmts:
-            if stmt:
-                stmt.tags["hidden"] = True
         if leftover:
             true_node = ConditionNode(addr, None, leftover, true_node, None)
         arms = OrderedDict(
@@ -131,9 +133,6 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
 
     def _build_if_let(self, true_node, true_variant, scrutinee, addr, leftover, false_node=None):
         true_move_stmts = self._collect_move_stmts(scrutinee, true_variant, true_node)
-        for stmt in true_move_stmts:
-            if stmt:
-                stmt.tags["hidden"] = True
         pattern = (true_variant, true_move_stmts)
         if leftover:
             true_node = ConditionNode(addr, None, leftover, true_node, None)

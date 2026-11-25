@@ -142,7 +142,13 @@ from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .stackarg_offset_manager import StackArgOffsetManager
-from .utils import copy_expr_with_tags, type_fits_variable, update_conditional_jump_target, update_jump_target
+from .utils import (
+    copy_expr_with_tags,
+    replace_statement,
+    type_fits_variable,
+    update_conditional_jump_target,
+    update_jump_target,
+)
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
@@ -2232,12 +2238,12 @@ class Clinic(Analysis, Serializable):
                     self.project.hooked_by(successors[0].addr), UnresolvableJumpTarget
                 ):
                     # found a single successor - replace the last statement
-                    new_last_stmt = last_stmt.copy()
                     assert isinstance(successors[0].addr, int)
-                    new_last_stmt.target = ailment.Expr.Const(
-                        self._ail_manager.next_atom(), successors[0].addr, last_stmt.target.bits
+                    block.statements[-1] = last_stmt.copy_with(
+                        target=ailment.Expr.Const(
+                            self._ail_manager.next_atom(), successors[0].addr, last_stmt.target.bits
+                        )
                     )
-                    block.statements[-1] = new_last_stmt
 
         return ail_graph
 
@@ -2251,8 +2257,7 @@ class Clinic(Analysis, Serializable):
                 continue
 
             last_stmt = block.statements[-1]
-            # Enumerate (slot_name, target) pairs so we can route the call_block.addr rewrite through the statement's
-            # setter (``target.value = X`` would mutate a fresh-wrapper clone in Python).
+            # Enumerate (slot_name, target) pairs so the call_block.addr rewrite can name the slot to replace.
             if isinstance(last_stmt, ailment.Stmt.Jump):
                 slots = [("target", last_stmt.target)]
                 replace_last_stmt = True
@@ -2305,11 +2310,10 @@ class Clinic(Analysis, Serializable):
                 else:
                     call_block = ailment.Block(self.new_block_addr(), 1, statements=[call_stmt])
                     ail_graph.add_edge(block, call_block)
-                    setattr(
-                        last_stmt,
-                        slot_name,
-                        ailment.Expr.Const(target.idx, call_block.addr, target.bits, **target.tags),
+                    last_stmt = last_stmt.copy_with(
+                        **{slot_name: ailment.Expr.Const(target.idx, call_block.addr, target.bits, **target.tags)}
                     )
+                    block.statements[-1] = last_stmt
 
                 if target_func.returning:
                     ret_stmt = ailment.Stmt.Return(self._ail_manager.next_atom(), [], **last_stmt.tags)
@@ -2446,13 +2450,13 @@ class Clinic(Analysis, Serializable):
                 l.warning("Call site %#x (callee %s) has an unknown calling convention.", block.addr, repr(func))
 
             assert prototype is None or isinstance(prototype, SimTypeFunction)
-            new_last_stmt = last_stmt.copy()
-            self.variable_map.set_calling_convention(new_last_stmt.expr, cc)
-            self.variable_map.set_prototype(new_last_stmt.expr, prototype)
+            self.variable_map.set_calling_convention(last_stmt.expr, cc)
+            self.variable_map.set_prototype(last_stmt.expr, prototype)
             is_proto_guessed = True if func is None else not func.is_prototype_groundtruth_for(self.flavor)
-            new_last_stmt.tags["is_prototype_guessed"] = is_proto_guessed
-            new_last_stmt.expr = copy_expr_with_tags(new_last_stmt.expr, is_prototype_guessed=is_proto_guessed)
-            block.statements[-1] = new_last_stmt
+            block.statements[-1] = last_stmt.copy_with(
+                tags={**last_stmt.tags, "is_prototype_guessed": is_proto_guessed},
+                expr=copy_expr_with_tags(last_stmt.expr, is_prototype_guessed=is_proto_guessed),
+            )
 
         return ail_graph
 
@@ -3140,8 +3144,7 @@ class Clinic(Analysis, Serializable):
                 reg_name=self.project.arch.translate_register_name(fp_reg_offset, size=ret_bytes),
                 ins_addr=last_stmt.tags.get("ins_addr"),
             )
-            last_stmt.fp_ret_expr = fp_ret_expr
-            last_stmt.ret_expr = None
+            block.statements[-1] = last_stmt.copy_with(fp_ret_expr=fp_ret_expr, ret_expr=None)
 
     @staticmethod
     def _find_fp_ret_in_successors(
@@ -4490,23 +4493,24 @@ class Clinic(Analysis, Serializable):
                 if self.kb.functions.contains_addr(callee):
                     callee_func = self.kb.functions.get_by_addr(callee)
                     if callee_func.info.get("jmp_rax", False) is True:
-                        call_stmt = last_stmt.copy()
                         old_call = last_stmt.expr
                         new_target = ailment.Expr.Register(
                             self._ail_manager.next_atom(),
                             self.project.arch.registers["rax"][0],
                             64,
-                            ins_addr=call_stmt.tags["ins_addr"],
+                            ins_addr=last_stmt.tags["ins_addr"],
                         )
                         old_cc = self.variable_map.calling_convention(old_call)
                         old_proto = self.variable_map.prototype(old_call)
-                        call_stmt.expr = ailment.Expr.Call(
-                            old_call.idx,
-                            new_target,
-                            args=old_call.args,
-                            arg_vvars=old_call.arg_vvars,
-                            bits=old_call.bits,
-                            **old_call.tags,
+                        call_stmt = last_stmt.copy_with(
+                            expr=ailment.Expr.Call(
+                                old_call.idx,
+                                new_target,
+                                args=old_call.args,
+                                arg_vvars=old_call.arg_vvars,
+                                bits=old_call.bits,
+                                **old_call.tags,
+                            )
                         )
                         if old_cc is not None:
                             self.variable_map.set_calling_convention(call_stmt.expr, old_cc)
@@ -5218,9 +5222,15 @@ class Clinic(Analysis, Serializable):
                             if pred.statements:
                                 last_stmt = pred.statements[-1]
                                 if isinstance(last_stmt, ailment.Stmt.Jump):
-                                    update_jump_target(last_stmt, node.addr, succs[0].addr)
+                                    new_stmt = update_jump_target(last_stmt, node.addr, succs[0].addr)
+                                    if new_stmt is not None:
+                                        last_stmt = new_stmt
+                                        pred.statements[-1] = last_stmt
                                 elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
-                                    update_conditional_jump_target(last_stmt, node.addr, succs[0].addr)
+                                    new_stmt = update_conditional_jump_target(last_stmt, node.addr, succs[0].addr)
+                                    if new_stmt is not None:
+                                        last_stmt = new_stmt
+                                        pred.statements[-1] = last_stmt
                                     # if both branches jump to the same location, we replace it with a jump
                                     if (
                                         isinstance(last_stmt.true_target, ailment.Expr.Const)
@@ -5236,7 +5246,9 @@ class Clinic(Analysis, Serializable):
                                         pred.statements[-1] = last_stmt
                                 first_cond_jump = first_conditional_jump(pred)
                                 if first_cond_jump is not None and first_cond_jump is not last_stmt:
-                                    update_conditional_jump_target(first_cond_jump, node.addr, succs[0].addr)
+                                    new_stmt = update_conditional_jump_target(first_cond_jump, node.addr, succs[0].addr)
+                                    if new_stmt is not None:
+                                        replace_statement(pred, first_cond_jump, new_stmt)
                             ail_graph.add_edge(pred, succs[0])
                         ail_graph.remove_node(node)
 
@@ -5267,7 +5279,7 @@ class Clinic(Analysis, Serializable):
             and isinstance(new_block.statements[-1].target, ailment.Expr.Const)
             and not patched_block.statements[-1].likes(new_block.statements[-1])
         ):
-            new_block.statements[-1].target = patched_block.statements[-1].target
+            new_block.statements[-1] = new_block.statements[-1].copy_with(target=patched_block.statements[-1].target)
         if (
             isinstance(patched_block.statements[-1], ailment.Stmt.ConditionalJump)
             and isinstance(patched_block.statements[-1].true_target, ailment.Expr.Const)
@@ -5277,8 +5289,10 @@ class Clinic(Analysis, Serializable):
             and isinstance(new_block.statements[-1].false_target, ailment.Expr.Const)
             and not patched_block.statements[-1].likes(new_block.statements[-1])
         ):
-            new_block.statements[-1].true_target = patched_block.statements[-1].true_target
-            new_block.statements[-1].false_target = patched_block.statements[-1].false_target
+            new_block.statements[-1] = new_block.statements[-1].copy_with(
+                true_target=patched_block.statements[-1].true_target,
+                false_target=patched_block.statements[-1].false_target,
+            )
 
         return True
 
@@ -5492,7 +5506,10 @@ class Clinic(Analysis, Serializable):
                     value_updated = False
                     # update the last statement of pred
                     if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                        value_updated = update_conditional_jump_target(pred.statements[-1], node.addr, succ.addr)
+                        new_stmt = update_conditional_jump_target(pred.statements[-1], node.addr, succ.addr)
+                        if new_stmt is not None:
+                            pred.statements[-1] = new_stmt
+                            value_updated = True
 
                     if value_updated:
                         graph.add_edge(pred, succ)
@@ -5520,7 +5537,9 @@ class Clinic(Analysis, Serializable):
                         for pred in preds:
                             graph.add_edge(pred, succ)
                             if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                                update_conditional_jump_target(pred.statements[-1], node.addr, succ.addr)
+                                new_stmt = update_conditional_jump_target(pred.statements[-1], node.addr, succ.addr)
+                                if new_stmt is not None:
+                                    pred.statements[-1] = new_stmt
                         raise RemoveNodeNotice
                 elif not preds or not succs:
                     raise RemoveNodeNotice

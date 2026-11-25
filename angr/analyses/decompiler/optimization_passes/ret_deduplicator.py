@@ -87,9 +87,8 @@ class ReturnDeduplicator(OptimizationPass):
         # replace the head with a new if-stmt corrected block
         if_stmt = region_head.statements[-1]
         assert isinstance(if_stmt, ConditionalJump)
-        set_conditional_jump_targets(if_stmt, super_true.addr, super_false.addr)
         new_head = region_head.copy()
-        new_head.statements[-1] = if_stmt
+        new_head.statements[-1] = set_conditional_jump_targets(if_stmt, super_true.addr, super_false.addr)
         # assures that preds still point to this block
         self._update_block(region_head, new_head)
 
