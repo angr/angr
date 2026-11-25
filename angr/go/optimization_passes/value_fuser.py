@@ -128,7 +128,8 @@ class GoValueFuser(OptimizationPass):
                     dropped = True
                     continue
                 kept.append(stmt)
-            block.statements = kept
+            if len(kept) != len(block.statements):
+                block.statements = kept
         return rewriter.changed or dropped
 
     def _collect_combo_vvars(self) -> None:

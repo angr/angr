@@ -79,9 +79,7 @@ def copy_graph_and_nodes(graph: nx.DiGraph):
     new_graph = nx.DiGraph()
     nodes_map = {}
     for node in graph.nodes:
-        node_copy = node.copy()
-        node_copy.statements = list(node_copy.statements)
-        nodes_map[node] = node_copy
+        nodes_map[node] = node.copy()
 
     new_graph.add_nodes_from(nodes_map.values())
     for src, dst in graph.edges:

@@ -499,7 +499,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                         dropped = True
                         continue
                     kept.append(stmt)
-                block.statements = kept
+                if len(kept) != len(block.statements):
+                    block.statements = kept
             if not dropped:
                 return
 

@@ -497,9 +497,9 @@ class AILMergeGraph:
             # correct every in_edge to this node, with new targets for jumps
             for pred in list(graph.predecessors(original_node)):
                 new_pred = pred.copy()
-                new_pred.statements[-1] = correct_jump_targets(
-                    new_pred.statements[-1], {original_node.addr: new_node.addr}
-                )
+                last_stmt = correct_jump_targets(new_pred.statements[-1], {original_node.addr: new_node.addr})
+                if last_stmt is not new_pred.statements[-1]:
+                    new_pred.statements[-1] = last_stmt
                 updated_blocks[pred] = new_pred
                 replace_node_in_graph(graph, pred, new_pred)
                 graph.add_edge(new_pred, new_node)

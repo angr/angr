@@ -258,7 +258,9 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
                     block.statements[stmt_idx] = new_stmt
                     rewrites.append((block, stmt_idx, stmt, old_prototype, new_stmt))
                 elif isinstance(stmt, Assignment):
-                    block.statements[stmt_idx] = self._apply_return_type_hint(call_expr, stmt)
+                    hinted_stmt = self._apply_return_type_hint(call_expr, stmt)
+                    if hinted_stmt is not stmt:
+                        block.statements[stmt_idx] = hinted_stmt
 
         # arg0 is not a pure out-buffer if the slot's earlier value still reaches a use the call also reaches (e.g.,
         # a &mut self method); without a phi no single vvar holds that value, so keep the call writing through &slot

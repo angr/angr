@@ -294,7 +294,8 @@ class PatternOutliner(OptimizationPass):
                 self.vvar_id_start += 1
                 stmt = new_stmt
                 hoisted[name] = (vvar, const)
-            block.statements[loc.stmt_idx] = stmt
+            if stmt is not block.statements[loc.stmt_idx]:
+                block.statements[loc.stmt_idx] = stmt
         return hoisted
 
     def _rename_call(

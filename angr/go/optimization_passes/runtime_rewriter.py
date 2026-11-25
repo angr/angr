@@ -1484,7 +1484,9 @@ class GoRuntimeRewriter(OptimizationPass):
         if not self._closure_slot_stmts:
             return
         for block in self._graph.nodes:
-            block.statements = [stmt for stmt in block.statements if stmt.idx not in self._closure_slot_stmts]
+            stmts = [stmt for stmt in block.statements if stmt.idx not in self._closure_slot_stmts]
+            if len(stmts) != len(block.statements):
+                block.statements = stmts
         self._changed = True
 
     @staticmethod

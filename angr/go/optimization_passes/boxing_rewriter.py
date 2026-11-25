@@ -152,7 +152,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _drop_dead_slots(self) -> None:
         for block in self._graph.nodes:
-            block.statements = [
+            stmts = [
                 stmt
                 for stmt in block.statements
                 if not (
@@ -161,6 +161,8 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                     and stmt.dst.varid in self._dead
                 )
             ]
+            if len(stmts) != len(block.statements):
+                block.statements = stmts
 
     def _is_box_alloc(self, expr: Expression) -> bool:
         """``convT*``: an allocation whose only effect is the data word it returns."""
@@ -191,7 +193,8 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                         dropped = True
                         continue
                     kept.append(stmt)
-                block.statements = kept
+                if len(kept) != len(block.statements):
+                    block.statements = kept
             if not dropped:
                 return
 

@@ -37,6 +37,7 @@ from angr.ailment.expression import Call, Const, Phi, VirtualVariable, VirtualVa
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Statement
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.outliner import Outliner
+from angr.utils.ail import same_statements
 
 from .align import Interval
 from .region import materialize, snap
@@ -336,7 +337,8 @@ def _restore(graph: networkx.DiGraph[Block], snapshot) -> None:
     graph.add_nodes_from(nodes)
     graph.add_edges_from(edges)
     for block, stmts in zip(nodes, statements):
-        block.statements = stmts
+        if not same_statements(stmts, block.statements):
+            block.statements = stmts
 
 
 def _entry_block(graph: networkx.DiGraph[Block]) -> Block | None:

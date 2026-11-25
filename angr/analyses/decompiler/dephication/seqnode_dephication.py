@@ -103,7 +103,8 @@ class SeqNodeRewriter(SequenceWalker):
         self.engine.process(None, block=block)
         if self.engine.out_block is not None:
             out = self.engine.out_block
-            out.statements = [stmt for stmt in out.statements if not is_phi_assignment(stmt)]
+            if out.phi_stmt_count:
+                out.statements = [stmt for stmt in out.statements if not is_phi_assignment(stmt)]
             self.engine.out_block = None
             return out
         return None

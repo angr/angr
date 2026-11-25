@@ -61,7 +61,7 @@ class SideEffectStatementRewriter(AILBlockRewriter):
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
         new_stmt = self.callback(stmt, block, stmt)
-        if new_stmt and block is not None:
+        if new_stmt and new_stmt is not stmt and block is not None:
             block.statements[stmt_idx] = new_stmt
         return new_stmt
 
@@ -75,7 +75,7 @@ class CallRewriter(AILBlockRewriter):
 
     def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         new_stmt = self.callback(expr, block, stmt)
-        if new_stmt and block is not None:
+        if new_stmt and block is not None and new_stmt is not block.statements[stmt_idx]:
             block.statements[stmt_idx] = new_stmt
         # Fall back to the input expression so the walker treats this as "no change."
         return new_stmt if new_stmt is not None else expr

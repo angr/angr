@@ -560,3 +560,11 @@ class CallVisitor(AILBlockViewer):
     def visit(self, graph):
         for block in graph.nodes:
             self.walk(block)
+
+
+def same_statements(stmts0, stmts1) -> bool:
+    """
+    Whether two statement lists hold the very same statement objects, in order. Statements are immutable, so a pass
+    that ends up with the list it started from has not changed the block and should leave ``block.statements`` alone.
+    """
+    return len(stmts0) == len(stmts1) and all(stmt0 is stmt1 for stmt0, stmt1 in zip(stmts0, stmts1))

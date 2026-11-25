@@ -5,7 +5,7 @@ import logging
 
 from angr import ailment
 from angr.engines.light import SimEngineLightAIL, ail_binop_handler, ail_unop_handler
-from angr.utils.ail import is_scalar_int_convert
+from angr.utils.ail import is_scalar_int_convert, same_statements
 
 _l = logging.getLogger(name=__name__)
 
@@ -52,7 +52,8 @@ class SimplifierAILEngine(
 
     def _process_block_end(self, block, stmt_data, whitelist):
         if whitelist is None:
-            block.statements = stmt_data
+            if not same_statements(stmt_data, block.statements):
+                block.statements = stmt_data
         else:
             for stmt_idx, stmt in zip(sorted(whitelist), stmt_data):
                 block.statements[stmt_idx] = stmt

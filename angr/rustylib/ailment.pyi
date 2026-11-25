@@ -522,6 +522,12 @@ class Block:
     # a StatementList at runtime; assigning any other iterable stores its items in a new one. Declared as a plain
     # attribute so that type checkers keep narrowing ``block.statements[i]``.
     statements: list[Statement]
+    @property
+    def phi_stmt_count(self) -> int:
+        """The number of phi assignments. They sit together at the start of a block, after any leading labels."""
+    @property
+    def non_phi_stmt_count(self) -> int:
+        """The number of statements that are not phi assignments."""
     def __init__(
         self,
         addr: int,

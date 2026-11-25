@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import bisect
 import contextlib
-import copy
 import enum
 import importlib
 import itertools
@@ -108,7 +107,7 @@ from angr.sim_variable import (
     SimVariable,
 )
 from angr.utils import timethis
-from angr.utils.ail import BlockDefs, GraphVVarDefs, is_head_controlled_loop_jump
+from angr.utils.ail import BlockDefs, GraphVVarDefs, is_head_controlled_loop_jump, same_statements
 from angr.utils.ail_serialization import (
     BlockPool,
     pack_arg_vvars,
@@ -1551,9 +1550,7 @@ class Clinic(Analysis, Serializable):
         block_mapping = {}
         # copy all blocks
         for block in graph.nodes():
-            new_block = copy.copy(block)
-            new_stmts = copy.copy(block.statements)
-            new_block.statements = new_stmts
+            new_block = block.copy()
             block_mapping[block] = new_block
             graph_copy.add_node(new_block)
 
@@ -2006,7 +2003,7 @@ class Clinic(Analysis, Serializable):
 
             if type(ail_block) is ailment.Block:
                 # remove constant pc assignments
-                ail_block.statements = [
+                stmts = [
                     stmt
                     for stmt in ail_block.statements
                     if not (
@@ -2016,6 +2013,8 @@ class Clinic(Analysis, Serializable):
                         and isinstance(stmt.src, ailment.Expr.Const)
                     )
                 ]
+                if len(stmts) != len(ail_block.statements):
+                    ail_block.statements = stmts
 
                 self._blocks_by_addr_and_size[(block_node.addr, block_node.size)] = ail_block
 
@@ -2078,7 +2077,9 @@ class Clinic(Analysis, Serializable):
             itstate_offset, itstate_size = self.project.arch.registers["itstate"]
             # LibVEX may infer stale ITSTATE from bytes before context-free lifts of the function's initial blocks.
             # Remove only guards that skip their first instruction; genuine IT blocks later in the function remain.
-            converted.statements = _remove_thumb_entry_itstate_guard(block, converted.statements, itstate_offset)
+            stmts = _remove_thumb_entry_itstate_guard(block, converted.statements, itstate_offset)
+            if not same_statements(stmts, converted.statements):
+                converted.statements = stmts
 
             itstate = ailment.Expr.Register(
                 self._ail_manager.next_atom(),
@@ -5998,7 +5999,9 @@ class Clinic(Analysis, Serializable):
 
         # 4. remove every no-op page touch (the probe loop's and the remainder's)
         for node in ail_graph:
-            node.statements = [s for s in node.statements if not self._vla_is_noop_touch(s)]
+            stmts = [s for s in node.statements if not self._vla_is_noop_touch(s)]
+            if len(stmts) != len(node.statements):
+                node.statements = stmts
 
         # 5. remove the (now no-op) probe self-loop: drop its self-edge, empty it, and let
         #    remove_empty_nodes splice it out and repair the guard's conditional jump
@@ -6059,7 +6062,7 @@ class Clinic(Analysis, Serializable):
 
             # delete the leftover buffer-pointer address arithmetic (buf = <align>; buf -= 16; ...)
             for node in ail_graph:
-                node.statements = [
+                stmts = [
                     s
                     for s in node.statements
                     if not (
@@ -6068,6 +6071,8 @@ class Clinic(Analysis, Serializable):
                         and s.dst.varid in buffer_ids
                     )
                 ]
+                if len(stmts) != len(node.statements):
+                    node.statements = stmts
 
             # map every surviving buffer-vvar use to the array variable so codegen renders it as the array
             binder = _VLABufferBinder(buffer_ids, buf, self.variable_map)

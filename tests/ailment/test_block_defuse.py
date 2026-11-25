@@ -18,7 +18,7 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Assignment, Return, SideEffectStatement, Statement, Store
+from angr.ailment.statement import Assignment, Label, Return, SideEffectStatement, Statement, Store
 from angr.rustylib.ailment import StatementList, block_defuse_is_cached
 from angr.utils.ssa import get_uses_defs, get_vvar_deflocs
 
@@ -153,6 +153,18 @@ class TestBlockDefUse(unittest.TestCase):
         assert Block(0x2000, 4, statements=block.statements).statements is block.statements
         assert type(block.statements[:]) is list
         assert block.copy().statements is not block.statements
+
+    def test_phi_stmt_counts(self):
+        b0, b1 = make_blocks()
+        assert (b0.phi_stmt_count, b0.non_phi_stmt_count) == (0, 6)
+        assert (b1.phi_stmt_count, b1.non_phi_stmt_count) == (1, 2)
+        # phis follow the leading labels
+        phi = b1.statements[0]
+        b1.statements[0:0] = [Label(90, "l0"), Label(91, "l1"), phi]
+        assert (b1.phi_stmt_count, b1.non_phi_stmt_count) == (2, 4)
+        b1.statements = [stmt for stmt in b1.statements if stmt is not phi]
+        assert (b1.phi_stmt_count, b1.non_phi_stmt_count) == (0, 4)
+        assert Block(0x2000, 4).phi_stmt_count == 0
 
     def test_merged_containers_are_fresh(self):
         blocks = make_blocks()

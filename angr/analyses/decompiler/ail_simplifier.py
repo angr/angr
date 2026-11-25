@@ -55,7 +55,13 @@ from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.propagations.states import Equivalence
 from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimVariable
-from angr.utils.ail import HasExprWalker, dirty_has_side_effects, is_expr_used_as_reg_base_value, is_phi_assignment
+from angr.utils.ail import (
+    HasExprWalker,
+    dirty_has_side_effects,
+    is_expr_used_as_reg_base_value,
+    is_phi_assignment,
+    same_statements,
+)
 from angr.utils.graph import dominates
 from angr.utils.ssa import (
     has_call_in_between_stmts,
@@ -2278,7 +2284,6 @@ class AILSimplifier(Analysis):
         replaced, new_stmt = stmt.replace(src_expr, dst_expr)
         if replaced:
             new_block = block.copy()
-            new_block.statements = block.statements[::]
             new_block.statements[stmt_idx] = new_stmt
             return True, new_block
 
@@ -2653,7 +2658,8 @@ class AILSimplifier(Analysis):
                 new_statements.append(stmt)
 
             new_block = block.copy()
-            new_block.statements = new_statements
+            if not same_statements(new_statements, block.statements):
+                new_block.statements = new_statements
             self.blocks[old_block] = new_block
             changed_block_keys.add((new_block.addr, new_block.idx))
 

@@ -8,7 +8,7 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyType};
 
-use crate::ailment::ail_stmt::{AilStatement, Statement};
+use crate::ailment::ail_stmt::{AilStatement, Statement, StmtInner};
 use crate::ailment::ssa::BlockDefUse;
 use crate::ailment::stmt_list::StatementList;
 use crate::ailment::{CachedHash, hash_of};
@@ -139,6 +139,31 @@ impl Block {
             cached_hash: CachedHash::new(),
             defuse: Mutex::new(None),
         })
+    }
+
+    /// The number of phi assignments. They sit together at the start of a block, after any leading labels, so
+    /// the scan stops at the first statement that is neither.
+    #[getter]
+    fn phi_stmt_count(&self, py: Python<'_>) -> usize {
+        let mut count = 0;
+        for stmt in self.statements.bind(py).iter() {
+            let Ok(stmt) = stmt.cast::<Statement>() else {
+                break;
+            };
+            let stmt = &stmt.borrow().stmt;
+            if stmt.is_phi_assignment() {
+                count += 1;
+            } else if count != 0 || !matches!(stmt.inner, StmtInner::Label { .. }) {
+                break;
+            }
+        }
+        count
+    }
+
+    /// The number of statements that are not phi assignments.
+    #[getter]
+    fn non_phi_stmt_count(&self, py: Python<'_>) -> usize {
+        self.statements.bind(py).len() - self.phi_stmt_count(py)
     }
 
     #[getter]
