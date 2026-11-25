@@ -69,6 +69,27 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestCallingConvention(TestCase):
+    def test_stack_space_includes_by_value_struct_slots(self):
+        cc = SimCCSystemVAMD64(archinfo.ArchAMD64())
+        triple = SimStruct({name: SimTypeLongLong() for name in ("a", "b", "c")}).with_arch(cc.arch)
+        prototype = SimTypeFunction([triple], triple).with_arch(cc.arch)
+        locations = cc.arg_locs(prototype)
+        self.assertEqual(cc.stack_space(locations), 32)
+        self.assertEqual(cc.stack_space([*locations, SimStackArg(32, 8)]), 40)
+
+    def test_stack_space_counts_reference_pointer_storage(self):
+        cc = SimCCSystemVAMD64(archinfo.ArchAMD64())
+        pointee = SimStackArg(128, 24)
+        register_reference = SimReferenceArgument(SimRegArg("rdi", 8), pointee)
+        stack_reference = SimReferenceArgument(SimStackArg(8, 8), pointee)
+        self.assertEqual(cc.stack_space([register_reference]), 8)
+        self.assertEqual(cc.stack_space([stack_reference]), 16)
+
+    def test_stack_space_preserves_microsoft_amd64_shadow_space(self):
+        cc = SimCCMicrosoftAMD64(archinfo.ArchAMD64())
+        self.assertEqual(cc.stack_space([]), 40)
+        self.assertEqual(cc.stack_space([SimStackArg(40, 8)]), 80)
+
     def test_arm_empty_struct_argument_uses_an_integer_slot(self):
         for arch, cc_cls in ((archinfo.ArchARM(), SimCCARM), (archinfo.ArchARMHF(), SimCCARMHF)):
             cc = cc_cls(arch)

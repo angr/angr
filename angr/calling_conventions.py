@@ -875,13 +875,25 @@ class SimCC:
         :returns:           The number of bytes that should be allocated on the stack to store all these args,
                             NOT INCLUDING the return address.
         """
-        out = self.STACKARG_SP_DIFF
-        for arg in args:
-            if isinstance(arg, SimStackArg):
-                out = max(out, arg.stack_offset + self.arg_slot_size)
 
-        out += self.STACKARG_SP_BUFF
-        return out
+        def stack_slots(arg):
+            if isinstance(arg, SimStackArg):
+                yield arg
+            elif isinstance(arg, SimReferenceArgument):
+                yield from stack_slots(arg.ptr_loc)
+            elif isinstance(arg, SimStructArg):
+                for field in arg.locs.values():
+                    yield from stack_slots(field)
+            elif isinstance(arg, (SimArrayArg, SimComboArg)):
+                parts = arg.locs if isinstance(arg, SimArrayArg) else arg.locations
+                for part in parts:
+                    yield from stack_slots(part)
+
+        end = self.STACKARG_SP_DIFF
+        for arg in args:
+            for slot in stack_slots(arg):
+                end = max(end, slot.stack_offset + max(self.arg_slot_size, slot.size))
+        return end + self.STACKARG_SP_BUFF
 
     def return_val(self, ty, perspective_returned=False):
         """
