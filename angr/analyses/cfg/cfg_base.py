@@ -2445,17 +2445,18 @@ class CFGBase(Analysis):
         """
         Checks if the block at `addr` is entered the way a function is, rather than continuing the code that jumped to
         it. At its entry a function holds meaningful values only in its argument registers, the stack pointer and the
-        return address; it may spill any other register to the stack (saving a callee-saved register, or pushing a
-        scratch register to align the stack) but uses none before writing all of it, and it loads none of its caller's
-        stack before moving the stack pointer. A switch case or the label of a computed goto continues its function, so it typically uses
-        values that its function left in registers or on the stack.
+        return address. Before writing all of it, it uses no other general-purpose register and no condition flags,
+        except to spill a register into its own frame or the register home area of the calling convention (saving a
+        callee-saved register, or pushing a scratch register to align the stack). It reads nothing from its caller's
+        stack that it did not write itself. A switch case or the label of a computed goto continues its function, so it
+        typically uses values that its function left in registers, in the flags or on the stack.
 
-        Stack arguments are part of the caller's stack, so a function that loads one before moving the stack pointer
-        is rejected too, as is one that reads a register the calling convention does not list as an argument (the
-        vector count in `al` of a variadic AMD64 function, `t9` of MIPS PIC code). These rejections cost recall. The
-        check cannot reject a block that uses no state of the code that jumped to it, such as a label that only sets
-        the return value and returns. Only the first block is checked, so state that is first used in a later block
-        is not seen.
+        Stack arguments are part of the caller's stack, so a function that loads one in its first block is rejected
+        too, as is one that reads a register the calling convention does not list as an argument (the vector count in
+        `al` of a variadic AMD64 function, `t9` of MIPS PIC code). These rejections cost recall. The check cannot
+        reject a block that uses no state of the code that jumped to it, such as a label that only sets the return
+        value and returns. Only the first block is checked, so state that is first used in a later block is not seen,
+        and vector registers and statements other than register and memory accesses are not checked.
 
         :param addr:    Address of the block.
         :param cache:   Results of earlier checks, by address.
@@ -2468,6 +2469,9 @@ class CFGBase(Analysis):
         if cache is not None:
             cache[addr] = result
         return result
+
+    # VEX keeps the condition flags of these architectures as a lazily evaluated thunk in these registers
+    _VEX_FLAG_THUNK_REGS = ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep")
 
     def _check_entered_like_a_function(self, addr: int) -> bool:
         from angr.calling_conventions import SimRegArg, default_cc_for_project  # pylint:disable=import-outside-toplevel
@@ -2485,19 +2489,29 @@ class CFGBase(Analysis):
         live_at_entry |= {arch.registers[name][0] for name in cc.ARG_REGS if name in arch.registers}
         if isinstance(cc.RETURN_ADDR, SimRegArg) and cc.RETURN_ADDR.reg_name in arch.registers:
             live_at_entry.add(arch.registers[cc.RETURN_ADDR.reg_name][0])
-        tracked: list[tuple[int, int]] = [
-            (reg.vex_offset, reg.vex_offset + reg.size)
+        tracked_bytes = {
+            offset
             for reg in arch.register_list
             if reg.general_purpose and reg.vex_offset not in live_at_entry
-        ]
-
-        tracked_bytes = {offset for lo, hi in tracked for offset in range(lo, hi)}
+            for offset in range(reg.vex_offset, reg.vex_offset + reg.size)
+        }
+        flag_bytes = {
+            offset
+            for name in self._VEX_FLAG_THUNK_REGS
+            if name in arch.registers
+            for offset in range(arch.registers[name][0], arch.registers[name][0] + arch.registers[name][1])
+        }
+        # the stack pointer's offset from its value at entry: the caller's stack starts at the stack arguments, and
+        # the register home area (if any) above the return address may be used by the callee
+        caller_stack = cc.STACKARG_SP_DIFF
+        spill_limit = cc.STACKARG_SP_DIFF + getattr(cc, "STACKARG_SP_BUFF", 0)
 
         written: set[int] = set()  # register bytes written so far; a partial write leaves the other bytes as they were
         entry_values: set[int] = set()  # tmps that hold a tracked register's value at entry, or part of it
-        sp_values: dict[int, int] = {}  # tmp -> offset from the stack pointer at entry, until the stack pointer moves
-        stack_addrs: set[int] = set()  # tmps that point into the stack: the stack pointer plus or minus constants
-        sp_moved = False
+        flag_values: set[int] = set()  # tmps computed from the condition flags at entry
+        sp_offsets: dict[int, int] = {}  # tmp -> its offset from the stack pointer at entry
+        sp_offset: int | None = 0  # the current stack pointer's offset from its value at entry, if known
+        stored_stack: set[int] = set()  # stack offsets this block stored to
 
         def uses(expr) -> list[int]:
             return [e.tmp for e in expr.child_expressions if isinstance(e, pyvex.expr.RdTmp)] + (
@@ -2505,55 +2519,62 @@ class CFGBase(Analysis):
             )
 
         def uses_entry_value(expr) -> bool:
-            return any(tmp in entry_values for tmp in uses(expr))
+            return any(tmp in entry_values or tmp in flag_values for tmp in uses(expr))
+
+        def byte_range(offset: int, ty_bits: int) -> range:
+            return range(offset, offset + ty_bits // 8)
+
+        def stack_offset(expr) -> int | None:
+            return sp_offsets.get(expr.tmp) if isinstance(expr, pyvex.expr.RdTmp) else None
 
         for stmt in irsb.statements:
             if isinstance(stmt, pyvex.stmt.WrTmp):
                 data = stmt.data
                 if isinstance(data, pyvex.expr.Get):
+                    read = byte_range(data.offset, pyvex.get_type_size(data.ty))
                     if data.offset == arch.sp_offset:
-                        stack_addrs.add(stmt.tmp)
-                        if not sp_moved:
-                            sp_values[stmt.tmp] = 0
-                    elif any(
-                        offset in tracked_bytes and offset not in written
-                        for offset in range(data.offset, data.offset + pyvex.get_type_size(data.ty) // 8)
-                    ):
+                        if sp_offset is not None:
+                            sp_offsets[stmt.tmp] = sp_offset
+                    elif any(offset in tracked_bytes and offset not in written for offset in read):
                         entry_values.add(stmt.tmp)
+                    elif any(offset in flag_bytes and offset not in written for offset in read):
+                        flag_values.add(stmt.tmp)
                     continue
-                if isinstance(data, pyvex.expr.Load) and isinstance(data.addr, pyvex.expr.RdTmp):
-                    offset = sp_values.get(data.addr.tmp)
-                    if offset is not None and offset >= cc.STACKARG_SP_DIFF:
+                if isinstance(data, pyvex.expr.Load):
+                    offset = stack_offset(data.addr)
+                    if offset is not None and offset >= caller_stack and offset not in stored_stack:
                         # the caller's stack: its locals, or the stack arguments it passed
                         return False
                 if (
                     isinstance(data, pyvex.expr.Binop)
                     and data.op.startswith(("Iop_Add", "Iop_Sub"))
-                    and isinstance(data.args[0], pyvex.expr.RdTmp)
-                    and data.args[0].tmp in stack_addrs
+                    and stack_offset(data.args[0]) is not None
                     and isinstance(data.args[1], pyvex.expr.Const)
                 ):
-                    stack_addrs.add(stmt.tmp)
-                    if data.args[0].tmp in sp_values:
-                        delta = data.args[1].con.value
-                        sp_values[stmt.tmp] = sp_values[data.args[0].tmp] + (delta if "Add" in data.op else -delta)
-                if uses_entry_value(data):
+                    delta = data.args[1].con.value
+                    sp_offsets[stmt.tmp] = stack_offset(data.args[0]) + (delta if "Add" in data.op else -delta)
+                if any(tmp in entry_values for tmp in uses(data)):
                     return False
+                if any(tmp in flag_values for tmp in uses(data)):
+                    flag_values.add(stmt.tmp)
             elif isinstance(stmt, pyvex.stmt.Put):
-                if uses_entry_value(stmt.data):
+                target = byte_range(stmt.offset, stmt.data.result_size(irsb.tyenv))
+                # carrying the flags at entry into the flag thunk is not a use: VEX does that for instructions that
+                # keep some flags, such as inc keeping the carry flag
+                if uses_entry_value(stmt.data) and not all(offset in flag_bytes for offset in target):
                     return False
                 if stmt.offset == arch.sp_offset:
-                    sp_moved = True
-                    sp_values.clear()
-                written.update(range(stmt.offset, stmt.offset + stmt.data.result_size(irsb.tyenv) // 8))
+                    sp_offset = stack_offset(stmt.data)
+                written.update(target)
             elif isinstance(stmt, pyvex.stmt.Store):
                 if uses_entry_value(stmt.addr):
                     return False
-                # spilling a register's value at entry to the stack saves it (push rbx, or push rax to align the
-                # stack); storing it anywhere else uses it
-                if uses_entry_value(stmt.data) and not (
-                    isinstance(stmt.addr, pyvex.expr.RdTmp) and stmt.addr.tmp in stack_addrs
-                ):
+                offset = stack_offset(stmt.addr)
+                if offset is not None:
+                    stored_stack.update(byte_range(offset, stmt.data.result_size(irsb.tyenv)))
+                # spilling a register's value at entry into its own frame or the home area saves it (push rbx, or
+                # push rax to align the stack); storing it anywhere else uses it
+                if uses_entry_value(stmt.data) and (offset is None or offset >= spill_limit):
                     return False
             elif isinstance(stmt, pyvex.stmt.Exit) and uses_entry_value(stmt.guard):
                 return False

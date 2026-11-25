@@ -124,11 +124,28 @@ class TestCfgFastEhFrameBoundaries(unittest.TestCase):
         cfg = self._cfg("computed_goto_stateless_labels")
         assert not set(cfg.kb.functions) & STATELESS_LABELS
 
+    def test_fde_denies_function_starts(self):
+        cfg = self._cfg("tailcall_dispatch_nocet")
+        # inside the FDE of key_verify.cold, after its start
+        assert cfg._eh_frame_denies_function_start(KEY_VERIFY_COLD + 1)
+        # key_verify.cold was absorbed only because every jump to it is conditional, which a jump through a table
+        # would explain too
+        assert cfg._eh_frame_chunks[KEY_VERIFY_COLD] == {"conditional_only"}
+        assert not cfg._eh_frame_denies_function_start(KEY_VERIFY_COLD)
+        # a chunk that jumps back into its owner or never returns is not a function, whatever table reaches it
+        for reasons in ({"jumps_back"}, {"conditional_only", "non_returning"}):
+            cfg._eh_frame_chunks[KEY_VERIFY_COLD] = frozenset(reasons)
+            assert cfg._eh_frame_denies_function_start(KEY_VERIFY_COLD)
+        # untrusted FDEs deny nothing
+        cfg = self._cfg("tailcall_dispatch_nocet", eh_frame_boundaries=False)
+        assert not cfg._eh_frame_denies_function_start(KEY_VERIFY_COLD + 1)
+
 
 class TestEnteredLikeAFunction(unittest.TestCase):
     """
-    CFGBase._entered_like_a_function on single x86-64 blocks: a function uses only its arguments, the stack pointer and
-    the return address before writing a register, and may only spill other registers to the stack.
+    CFGBase._entered_like_a_function on single x86-64 blocks (System V): a function uses only its arguments, the stack
+    pointer and the return address before writing a register, may only spill other registers into its own frame, and
+    reads nothing from its caller's stack that it did not write.
     """
 
     def _entered(self, code: bytes) -> bool:
@@ -143,6 +160,8 @@ class TestEnteredLikeAFunction(unittest.TestCase):
     def test_uses_only_arguments(self):
         assert self._entered(bytes.fromhex("b80a000000c3"))  # mov eax, 10; ret
         assert self._entered(bytes.fromhex("b8010000004801f8c3"))  # mov eax, 1; add rax, rdi; ret
+        # inc keeps the carry flag, which VEX carries over in the flag thunk without using it
+        assert self._entered(bytes.fromhex("ffc789f8c3"))  # inc edi; mov eax, edi; ret
 
     def test_spills_to_the_stack(self):
         assert self._entered(bytes.fromhex("534889f85bc3"))  # push rbx; mov rax, rdi; pop rbx; ret
@@ -153,11 +172,20 @@ class TestEnteredLikeAFunction(unittest.TestCase):
         # writing al leaves the upper bytes of rax as they were
         assert not self._entered(bytes.fromhex("b0014801f8c3"))  # mov al, 1; add rax, rdi; ret
 
-    def test_stores_a_register_outside_the_stack(self):
+    def test_stores_a_register_outside_its_frame(self):
         assert not self._entered(bytes.fromhex("48891fc3"))  # mov [rdi], rbx; ret
+        assert not self._entered(bytes.fromhex("48895c2440c3"))  # mov [rsp+0x40], rbx; ret
+        assert not self._entered(bytes.fromhex("4889fc48891c24c3"))  # mov rsp, rdi; mov [rsp], rbx; ret
+
+    def test_uses_the_flags(self):
+        assert not self._entered(bytes.fromhex("0f95c0c3"))  # setnz al; ret
+        assert not self._entered(bytes.fromhex("11f8c3"))  # adc eax, edi; ret
 
     def test_loads_the_callers_stack(self):
         assert not self._entered(bytes.fromhex("488b442408c3"))  # mov rax, [rsp+8]; ret
+        assert not self._entered(bytes.fromhex("53488b4424105bc3"))  # push rbx; mov rax, [rsp+16]; pop rbx; ret
+        # reading back what it stored is fine
+        assert self._entered(bytes.fromhex("48894c2408488b442408c3"))  # mov [rsp+8], rcx; mov rax, [rsp+8]; ret
 
 
 if __name__ == "__main__":
