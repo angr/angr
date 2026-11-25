@@ -13,7 +13,6 @@ pub mod pyslicemethodsext;
 pub mod solver;
 pub mod vsa;
 
-use num_bigint::BigInt;
 use prelude::*;
 
 /// Register `module` in `sys.modules` under `full_name`, so that
@@ -96,53 +95,16 @@ fn py_minimize_boolean<'py>(
     Base::from_ast(py, expr.get().inner.minimize_boolean(max_predicates)?)
 }
 
+/// Whether `expr` simplifies to the constant true.
 #[pyfunction]
-fn is_true(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
-    if let Ok(bool_expr) = expr.extract::<CoerceBool>() {
-        Ok(bool_expr.0.simplify()?.is_true())
-    } else if let Ok(bv_expr) = expr.extract::<CoerceBV>() {
-        match bv_expr {
-            CoerceBV::BV(bv_expr) => Ok(bv_expr.simplify()?.is_true()),
-            CoerceBV::Int(int_expr) => Ok(int_expr != BigInt::ZERO),
-            CoerceBV::Bool(bool_expr) => Ok(bool_expr.simplify()?.is_true()),
-        }
-    } else if let Ok(fp_expr) = expr.extract::<CoerceFP>() {
-        match fp_expr {
-            CoerceFP::FP(fp_expr) => Ok(fp_expr.simplify()?.is_true()),
-            CoerceFP::Py(float) => Ok(float != 0.0),
-        }
-    } else if let Ok(string_expr) = expr.extract::<CoerceString>() {
-        Ok(string_expr.0.simplify()?.is_true())
-    } else {
-        // Anything we cannot prove true is not true. This matches claripy
-        // (whose concrete backend raises BackendError for non-AST inputs,
-        // which is_true treats as False); falling back to Python truthiness
-        // would instead report every foreign object as true.
-        Ok(false)
-    }
+fn is_true(expr: Bool) -> Result<bool, ClaripyError> {
+    Ok(expr.inner.simplify()?.is_true())
 }
 
+/// Whether `expr` simplifies to the constant false.
 #[pyfunction]
-fn is_false(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
-    if let Ok(bool_expr) = expr.extract::<CoerceBool>() {
-        Ok(bool_expr.0.simplify()?.is_false())
-    } else if let Ok(bv_expr) = expr.extract::<CoerceBV>() {
-        match bv_expr {
-            CoerceBV::BV(bv_expr) => Ok(bv_expr.simplify()?.is_false()),
-            CoerceBV::Int(int_expr) => Ok(int_expr == BigInt::ZERO),
-            CoerceBV::Bool(bool_expr) => Ok(bool_expr.simplify()?.is_false()),
-        }
-    } else if let Ok(fp_expr) = expr.extract::<CoerceFP>() {
-        match fp_expr {
-            CoerceFP::FP(fp_expr) => Ok(fp_expr.simplify()?.is_false()),
-            CoerceFP::Py(float) => Ok(float == 0.0),
-        }
-    } else if let Ok(string_expr) = expr.extract::<CoerceString>() {
-        Ok(string_expr.0.simplify()?.is_false())
-    } else {
-        // See is_true: claripy returns False for anything it cannot prove.
-        Ok(false)
-    }
+fn is_false(expr: Bool) -> Result<bool, ClaripyError> {
+    Ok(expr.inner.simplify()?.is_false())
 }
 
 /// Populate the `claripy` module. Its canonical home is

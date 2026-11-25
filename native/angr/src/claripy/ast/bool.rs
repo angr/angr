@@ -3,7 +3,8 @@
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::types::PyBool;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
 
@@ -22,6 +23,29 @@ pub struct Bool {
 impl AstWrapper for Bool {
     fn inner(&self) -> &AstRef<'static> {
         &self.inner
+    }
+}
+
+/// A `Bool` argument is a `Bool` or a Python `bool`; nothing else converts.
+impl<'py> FromPyObject<'_, 'py> for Bool {
+    type Error = PyErr;
+
+    fn extract(val: Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
+        let inner = if let Ok(bool_val) = val.cast::<Bool>() {
+            bool_val.get().inner.clone()
+        } else if let Ok(bool_val) = val.cast::<PyBool>() {
+            GLOBAL_CONTEXT
+                .boolv(bool_val.is_true())
+                .map_err(ClaripyError::from)?
+        } else {
+            return Err(PyTypeError::new_err(format!(
+                "expected a Bool or a Python bool, got {}",
+                val.get_type()
+                    .name()
+                    .map_or_else(|_| "<unknown>".to_string(), |n| n.to_string())
+            )));
+        };
+        Ok(Bool { inner })
     }
 }
 
@@ -139,41 +163,66 @@ impl Bool {
     pub fn __and__<'py>(
         &self,
         py: Python<'py>,
-        other: CoerceBool,
+        other: Bool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(py, &GLOBAL_CONTEXT.and2(&self.inner, other.0)?.simplify()?)
+        Bool::new(
+            py,
+            &GLOBAL_CONTEXT
+                .and2(&self.inner, other.inner.clone())?
+                .simplify()?,
+        )
     }
 
     pub fn __or__<'py>(
         &self,
         py: Python<'py>,
-        other: CoerceBool,
+        other: Bool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(py, &GLOBAL_CONTEXT.or2(&self.inner, other.0)?.simplify()?)
+        Bool::new(
+            py,
+            &GLOBAL_CONTEXT
+                .or2(&self.inner, other.inner.clone())?
+                .simplify()?,
+        )
     }
 
     pub fn __xor__<'py>(
         &self,
         py: Python<'py>,
-        other: CoerceBool,
+        other: Bool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(py, &GLOBAL_CONTEXT.xor2(&self.inner, other.0)?.simplify()?)
+        Bool::new(
+            py,
+            &GLOBAL_CONTEXT
+                .xor2(&self.inner, other.inner.clone())?
+                .simplify()?,
+        )
     }
 
     pub fn __eq__<'py>(
         &self,
         py: Python<'py>,
-        other: CoerceBool,
+        other: Bool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(py, &GLOBAL_CONTEXT.eq_(&self.inner, other.0)?.simplify()?)
+        Bool::new(
+            py,
+            &GLOBAL_CONTEXT
+                .eq_(&self.inner, other.inner.clone())?
+                .simplify()?,
+        )
     }
 
     pub fn __ne__<'py>(
         &self,
         py: Python<'py>,
-        other: CoerceBool,
+        other: Bool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(py, &GLOBAL_CONTEXT.neq(&self.inner, other.0)?.simplify()?)
+        Bool::new(
+            py,
+            &GLOBAL_CONTEXT
+                .neq(&self.inner, other.inner.clone())?
+                .simplify()?,
+        )
     }
 
     // `Base` defines `__hash__`, but Python makes a class unhashable if it
@@ -252,7 +301,7 @@ pub fn ite_cases<'py>(
         let cond = iter.next().ok_or_else(|| {
             PyValueError::new_err("Each case must be a (condition, value) tuple")
         })??;
-        let cond_bool = cond.extract::<CoerceBool>()?;
+        let cond_bool = cond.extract::<Bool>()?;
         let value = iter.next().ok_or_else(|| {
             PyValueError::new_err("Each case must be a (condition, value) tuple")
         })??;
@@ -367,7 +416,7 @@ pub fn ite_dict<'py>(
 
     for (k, v) in d.iter() {
         let le = k.call_method1("__le__", (split_val.clone(),))?;
-        let is_le = le.extract::<CoerceBool>()?.0;
+        let is_le = le.extract::<Bool>()?.inner.clone();
 
         if is_le.is_true() {
             dict_low.set_item(k, v)?;
@@ -390,9 +439,7 @@ pub fn ite_dict<'py>(
     };
 
     // Combine with an if-then-else
-    let cond = i
-        .call_method1("__le__", (split_val,))?
-        .extract::<CoerceBool>()?;
+    let cond = i.call_method1("__le__", (split_val,))?.extract::<Bool>()?;
 
     // Create If expression: If(cond, val_low, val_high)
     let result = r#if(py, cond, val_low, val_high)?;

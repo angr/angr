@@ -1089,14 +1089,14 @@ def amd64g_check_ldmxcsr(state, mxcsr):
 
     cond = (mxcsr & 0x1F80) != 0x1F80
     if not mxcsr.symbolic:  # Fast path
-        if cond.is_true:
+        if cond.is_true():
             # /* unmasked exceptions! */
             ew = EmWarn_X86_sseExns
 
-        elif (mxcsr & (1 << 15)).is_true:
+        elif (mxcsr & (1 << 15) != 0).is_true():
             # /* FZ is set */
             ew = EmWarn_X86_fz
-        elif (mxcsr & (1 << 6)).is_true:
+        elif (mxcsr & (1 << 6) != 0).is_true():
             # /* DAZ is set */
             ew = EmWarn_X86_daz
 
@@ -1125,10 +1125,10 @@ def amd64g_create_mxcsr(state, sseround):
 def amd64g_check_fldcw(state, fpucw):
     rmode = (fpucw >> 10) & 3
     ew = EmNote_NONE
-    if ((fpucw & 0x3F) != 0x3F).is_true:
+    if ((fpucw & 0x3F) != 0x3F).is_true():
         # unmasked exceptions
         ew = EmWarn_X86_x87exns
-    elif (((fpucw >> 8) & 3) != 3).is_true:
+    elif (((fpucw >> 8) & 3) != 3).is_true():
         ew = EmWarn_X86_x87precision
     return (ew << 32) | rmode
 

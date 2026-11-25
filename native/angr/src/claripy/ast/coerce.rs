@@ -5,63 +5,6 @@ use pyo3::types::{PyFloat, PyInt};
 
 use crate::claripy::prelude::*;
 
-/// Coerce a BV into a Bool: concrete BVVs resolve to true/false directly,
-/// symbolic BVs become `bv != 0`.
-fn bv_to_bool(bv: &AstRef<'static>) -> Result<AstRef<'static>, ClaripyError> {
-    if let Ok(simplified) = bv.simplify()
-        && let AstOp::BVV(v) = simplified.op()
-    {
-        return Ok(if v.is_zero() {
-            GLOBAL_CONTEXT.false_()?
-        } else {
-            GLOBAL_CONTEXT.true_()?
-        });
-    }
-    let zero = GLOBAL_CONTEXT.bvv(BitVec::from((0, bv.size())))?;
-    Ok(GLOBAL_CONTEXT.neq(bv, &zero)?)
-}
-
-/// A Python argument accepted where a Bool is expected: a `Bool`, a Python
-/// `bool` or `int` (true when non-zero), or a `BV` (true when non-zero).
-///
-/// The coercions yield bare [`AstRef`]s rather than Python wrappers, so
-/// coercing a literal does not allocate a wrapper object.
-#[derive(Clone)]
-pub struct CoerceBool(pub AstRef<'static>);
-
-impl<'py> FromPyObject<'_, 'py> for CoerceBool {
-    type Error = PyErr;
-
-    fn extract(val: Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
-        if let Ok(bool_val) = val.cast::<Bool>() {
-            Ok(CoerceBool(bool_val.get().inner.clone()))
-        } else if let Ok(bool_val) = val.extract::<bool>() {
-            Ok(CoerceBool(
-                GLOBAL_CONTEXT.boolv(bool_val).map_err(ClaripyError::from)?,
-            ))
-        } else if let Ok(int_val) = val.cast::<PyInt>() {
-            // Coerce int (0 or non-zero) to Bool
-            let i: BigInt = int_val.extract()?;
-            Ok(CoerceBool(
-                GLOBAL_CONTEXT
-                    .boolv(i != BigInt::ZERO)
-                    .map_err(ClaripyError::from)?,
-            ))
-        } else if let Ok(bv_val) = val.cast::<BV>() {
-            // Coerce BV to Bool: concrete fast-path, otherwise `bv != 0`.
-            Ok(CoerceBool(bv_to_bool(&bv_val.get().inner)?))
-        } else {
-            Err(ClaripyError::InvalidArgumentType("Expected Bool".to_string()).into())
-        }
-    }
-}
-
-impl From<CoerceBool> for AstRef<'static> {
-    fn from(val: CoerceBool) -> Self {
-        val.0
-    }
-}
-
 /// A Python argument accepted where a BV is expected. Python `int`s and
 /// `Bool`s carry no width of their own, so they are resolved against the
 /// width of the other operands by the `unpack*` methods.
@@ -312,9 +255,6 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CoerceBase {
 
     fn extract(val: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
         // Check genuine ASTs first, preserving the actual sort of the input.
-        // Do NOT use CoerceBool here since that accepts BVs (via BV != 0), which
-        // would incorrectly turn a BV expression into a Bool expression in contexts
-        // like solver.solution(bv_expr, value) that need to preserve the original type.
         if let Ok(base) = val.cast::<Base>() {
             Ok(CoerceBase(base.get().ast()))
         } else if let Ok(py_bool) = val.extract::<bool>() {

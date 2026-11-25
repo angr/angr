@@ -55,8 +55,8 @@ pub fn and<'py>(
         let bool_args = args
             .into_iter()
             .map(|arg| {
-                arg.extract::<CoerceBool>()
-                    .map(|b| b.0)
+                arg.extract::<Bool>()
+                    .map(|b| b.inner.clone())
                     .map_err(|_| ClaripyError::TypeError("And arguments must be Bool".to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -92,8 +92,8 @@ pub fn or<'py>(
         let bool_args = args
             .into_iter()
             .map(|arg| {
-                arg.extract::<CoerceBool>()
-                    .map(|b| b.0)
+                arg.extract::<Bool>()
+                    .map(|b| b.inner.clone())
                     .map_err(|_| ClaripyError::TypeError("Or arguments must be Bool".to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -129,8 +129,8 @@ pub fn xor<'py>(
         let bool_args = args
             .into_iter()
             .map(|arg| {
-                arg.extract::<CoerceBool>()
-                    .map(|b| b.0)
+                arg.extract::<Bool>()
+                    .map(|b| b.inner.clone())
                     .map_err(|_| ClaripyError::TypeError("Xor arguments must be Bool".to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -152,7 +152,7 @@ pub fn xor<'py>(
 #[pyfunction(name = "If")]
 pub fn r#if<'py>(
     py: Python<'py>,
-    cond: CoerceBool,
+    cond: Bool,
     then_: Bound<'py, PyAny>,
     else_: Bound<'py, PyAny>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
@@ -171,12 +171,12 @@ pub fn r#if<'py>(
 
     // A Bool coerces to a BV, so handle Bool before the BV path to keep the result a Bool.
     if matches!(then_type, Some(AstType::Bool)) || matches!(else_type, Some(AstType::Bool)) {
-        let then_bool = then_.extract::<CoerceBool>()?;
-        let else_bool = else_.extract::<CoerceBool>()?;
+        let then_bool = then_.extract::<Bool>()?;
+        let else_bool = else_.extract::<Bool>()?;
         Base::from_ast(
             py,
             GLOBAL_CONTEXT
-                .ite(&cond.0, &then_bool.0, &else_bool.0)?
+                .ite(&cond.inner, &then_bool.inner, &else_bool.inner)?
                 .simplify()?,
         )
     } else if let Ok(then_bv) = then_.extract::<CoerceBV>() {
@@ -185,7 +185,7 @@ pub fn r#if<'py>(
             Base::from_ast(
                 py,
                 GLOBAL_CONTEXT
-                    .ite(&cond.0, &then_bv, &else_bv)?
+                    .ite(&cond.inner, &then_bv, &else_bv)?
                     .simplify_ext(true, true)?,
             )
         } else {
@@ -199,7 +199,7 @@ pub fn r#if<'py>(
             Base::from_ast(
                 py,
                 GLOBAL_CONTEXT
-                    .ite(&cond.0, &then_fp, &else_fp)?
+                    .ite(&cond.inner, &then_fp, &else_fp)?
                     .simplify()?,
             )
         } else {
@@ -212,7 +212,7 @@ pub fn r#if<'py>(
             Base::from_ast(
                 py,
                 GLOBAL_CONTEXT
-                    .ite(&cond.0, &then_string.0, &else_string.0)?
+                    .ite(&cond.inner, &then_string.0, &else_string.0)?
                     .simplify()?,
             )
         } else {

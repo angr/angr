@@ -128,14 +128,14 @@ impl PySolver {
     /// approximate (VSA) backend. Otherwise the full hybrid dispatch is used.
     fn with_extra_constraints<T>(
         &mut self,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<bool>,
         f: impl FnOnce(&mut DynSolver) -> Result<T, ClaripyError>,
     ) -> Result<T, ClaripyError> {
         let asts: Vec<AstRef<'static>> = extra_constraints
             .into_iter()
             .flatten()
-            .map(|c| c.0)
+            .map(|c| c.inner.clone())
             .collect();
         let has_extra = !asts.is_empty();
         let needs_sub_solver = exact.is_some() && matches!(&self.inner, DynSolver::Hybrid(_));
@@ -325,19 +325,20 @@ impl PySolver {
         &mut self,
         exprs: Bound<'py, PyAny>,
     ) -> Result<Vec<Bound<'py, Bool>>, ClaripyError> {
-        // First try to handle as a single Bool or BV (before trying iteration,
-        // since BV supports __getitem__ which makes it iterable in Python)
+        // First try to handle as a single Bool, then as an iterable of them.
         let py = exprs.py();
-        let bool_exprs = if let Ok(coerced) = exprs.extract::<CoerceBool>() {
-            vec![coerced.0]
+        let bool_exprs = if let Ok(coerced) = exprs.extract::<Bool>() {
+            vec![coerced.inner.clone()]
         } else if let Ok(iter) = exprs.try_iter() {
             // Convert iterable of expressions to Vec<AstRef>
             iter.map(|expr_result| {
                 let expr = expr_result
                     .map_err(|e| ClaripyError::TypeError(format!("add: iteration error: {e}")))?;
-                expr.extract::<CoerceBool>().map(|b| b.0).map_err(|_| {
-                    ClaripyError::TypeError("add: expression must be a boolean".to_string())
-                })
+                expr.extract::<Bool>()
+                    .map(|b| b.inner.clone())
+                    .map_err(|_| {
+                        ClaripyError::TypeError("add: expression must be a boolean".to_string())
+                    })
             })
             .collect::<Result<Vec<_>, _>>()?
         } else {
@@ -392,7 +393,7 @@ impl PySolver {
     #[pyo3(signature = (extra_constraints = None, exact = None))]
     fn satisfiable<'py>(
         &mut self,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -402,7 +403,7 @@ impl PySolver {
             let asts: Vec<AstRef<'static>> = extra_constraints
                 .into_iter()
                 .flatten()
-                .map(|c| c.0)
+                .map(|c| c.inner.clone())
                 .collect();
             return Ok(self.inner.satisfiable_with_extra(&asts)?);
         }
@@ -412,12 +413,12 @@ impl PySolver {
     #[pyo3(signature = (extra_constraints = None))]
     fn unsat_core(
         &mut self,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
     ) -> Result<Vec<usize>, ClaripyError> {
         let extras: Vec<AstRef<'static>> = extra_constraints
             .iter()
             .flatten()
-            .map(|c| c.0.clone())
+            .map(|c| c.inner.clone())
             .collect();
         if extras.is_empty() {
             return Ok(self.inner.unsat_core()?);
@@ -454,7 +455,7 @@ impl PySolver {
         py: Python<'py>,
         expr: Bound<'py, Base>,
         n: u32,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<Vec<Bound<'py, Base>>, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -474,7 +475,7 @@ impl PySolver {
         py: Python<'py>,
         expr: Bound<'py, Base>,
         n: u32,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Vec<Bound<'py, PyAny>>> {
         match self.eval_to_ast(py, expr, n, extra_constraints, exact) {
@@ -531,7 +532,7 @@ impl PySolver {
         py: Python<'py>,
         exprs: Vec<Bound<'py, Base>>,
         n: u32,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Vec<Bound<'py, PyTuple>>> {
         if exprs.is_empty() {
@@ -601,15 +602,17 @@ impl PySolver {
         self.with_extra_constraints(
             extra_constraints.map(|v| {
                 v.into_iter()
-                    .map(|c| CoerceBool(c.get().inner.clone()))
+                    .map(|c| Bool {
+                        inner: c.get().inner.clone(),
+                    })
                     .collect()
             }),
             exact,
             |solver| {
                 let value = match expr.ast_type() {
                     AstType::Bool => value
-                        .extract::<CoerceBool>()
-                        .map(|v| v.0)
+                        .extract::<Bool>()
+                        .map(|v| v.inner.clone())
                         .map_err(|_| cannot_coerce(&value, "bool"))?,
                     AstType::BitVec(_) => value
                         .extract::<CoerceBV>()
@@ -632,84 +635,32 @@ impl PySolver {
     #[pyo3(signature = (expr, extra_constraints = None, exact = None))]
     fn is_true<'py>(
         &mut self,
-        expr: Bound<'py, PyAny>,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        expr: Bool,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
-
-        // Check for Python primitive types first
-        if let Ok(py_bool) = expr.extract::<bool>() {
-            return Ok(py_bool);
-        } else if let Ok(py_int) = expr.extract::<i64>() {
-            return Ok(py_int != 0);
+        if let AstOp::BoolV(b) = expr.inner.op() {
+            return Ok(*b);
         }
-
         self.with_extra_constraints(extra_constraints, exact, |solver| {
-            // Handle different expression types
-            if let Ok(bool_expr) = expr.cast::<Bool>() {
-                match bool_expr.get().inner.op() {
-                    AstOp::BoolV(b) => Ok(*b),
-                    _ => Ok(solver.is_true(&bool_expr.get().inner)?),
-                }
-            } else if let Ok(bv_expr) = expr.cast::<BV>() {
-                // For bitvectors, check if it's concrete and non-zero
-                if let AstOp::BVV(bv) = bv_expr.get().inner.op() {
-                    Ok(!bv.is_zero())
-                } else {
-                    // For symbolic BVs, check if it can be non-zero
-                    let zero = solver
-                        .context()
-                        .bvv(BitVec::from((0, bv_expr.get().inner.size())))?;
-                    let eq_zero = solver.context().eq_(&bv_expr.get().inner, &zero)?;
-                    let is_zero = solver.is_true(&eq_zero)?;
-                    Ok(!is_zero)
-                }
-            } else {
-                Err(ClaripyError::TypeError(
-                    "is_true: expression must be a boolean, integer, or bitvector".to_string(),
-                ))
-            }
+            Ok(solver.is_true(&expr.inner)?)
         })
     }
 
     #[pyo3(signature = (expr, extra_constraints = None, exact = None))]
     fn is_false<'py>(
         &mut self,
-        expr: Bound<'py, PyAny>,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        expr: Bool,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
-
-        // Check for Python primitive types first
-        if let Ok(py_bool) = expr.extract::<bool>() {
-            return Ok(!py_bool);
-        } else if let Ok(py_int) = expr.extract::<i64>() {
-            return Ok(py_int == 0);
+        if let AstOp::BoolV(b) = expr.inner.op() {
+            return Ok(!*b);
         }
-
         self.with_extra_constraints(extra_constraints, exact, |solver| {
-            // Handle different expression types
-            if let Ok(bool_expr) = expr.cast::<Bool>() {
-                Ok(solver.is_false(&bool_expr.get().inner)?)
-            } else if let Ok(bv_expr) = expr.cast::<BV>() {
-                // For bitvectors, check if it's concrete and zero
-                if let AstOp::BVV(bv) = bv_expr.get().inner.op() {
-                    Ok(bv.is_zero())
-                } else {
-                    // For symbolic BVs, check if it must be zero
-                    let zero = solver
-                        .context()
-                        .bvv(BitVec::from((0, bv_expr.get().inner.size())))?;
-                    let eq_zero = solver.context().eq_(&bv_expr.get().inner, &zero)?;
-                    Ok(solver.is_true(&eq_zero)?)
-                }
-            } else {
-                Err(ClaripyError::TypeError(
-                    "is_false: expression must be a boolean, integer, or bitvector".to_string(),
-                ))
-            }
+            Ok(solver.is_false(&expr.inner)?)
         })
     }
 
@@ -717,7 +668,7 @@ impl PySolver {
     fn has_true<'py>(
         &mut self,
         expr: Bound<Bool>,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -730,7 +681,7 @@ impl PySolver {
     fn has_false<'py>(
         &mut self,
         expr: Bound<Bool>,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -743,7 +694,7 @@ impl PySolver {
     fn min<'py>(
         &mut self,
         expr: Bound<'py, BV>,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
         signed: bool,
     ) -> Result<BigInt, ClaripyError> {
@@ -770,7 +721,7 @@ impl PySolver {
     fn max<'py>(
         &mut self,
         expr: Bound<'py, BV>,
-        extra_constraints: Option<Vec<CoerceBool>>,
+        extra_constraints: Option<Vec<Bool>>,
         exact: Option<Bound<'py, PyAny>>,
         signed: bool,
     ) -> Result<BigInt, ClaripyError> {

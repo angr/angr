@@ -528,9 +528,9 @@ class SimEngineRDVEX(
         iftrue = self._expr(expr.iftrue)
         iffalse = self._expr(expr.iffalse)
 
-        if claripy.is_true(cond_v):
+        if cond_v is not None and claripy.is_true(cond_v != 0):
             return iftrue
-        if claripy.is_false(cond_v):
+        if cond_v is not None and claripy.is_false(cond_v != 0):
             return iffalse
         # Union both branches, but not without bound: a chain of ITEs (e.g., cmovs) doubles the set at every step.
         merged = iftrue.merge(iffalse)
