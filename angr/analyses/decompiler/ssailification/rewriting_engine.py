@@ -163,14 +163,21 @@ class SimEngineSSARewriting(
         for clobber_def in clobber_defs:
             vvar = self._expr_to_vvar(clobber_def, True)
             clobber_tag += [vvar.varid, vvar.reg_offset, vvar.bits]
-        for rstmt in result if isinstance(result, tuple) else [result] if isinstance(result, Statement) else []:
-            if self._extra_defs:
-                rstmt.tags["extra_defs"] = self._extra_defs
-            else:
-                rstmt.tags.pop("extra_defs", None)
-            if clobber_tag:
-                rstmt.tags["clobber_defs"] = clobber_tag
+        if isinstance(result, tuple):
+            return tuple(self._tag_defs(rstmt, clobber_tag) for rstmt in result)
+        if isinstance(result, Statement):
+            return self._tag_defs(result, clobber_tag)
         return result
+
+    def _tag_defs(self, stmt: Statement, clobber_tag: list[int]) -> Statement:
+        tags = dict(stmt.tags)
+        if self._extra_defs:
+            tags["extra_defs"] = self._extra_defs
+        else:
+            tags.pop("extra_defs", None)
+        if clobber_tag:
+            tags["clobber_defs"] = clobber_tag
+        return stmt.copy_with(tags=tags) if tags != stmt.tags else stmt
 
     def _handle_expr_VirtualVariable(self, expr):
         return None

@@ -455,7 +455,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 **tags,
             )
             self.replacement_core_vvars[new_ret_expr.varid].append(new_ret_expr)
-            new_stmt.ret_expr = new_ret_expr
+            new_stmt = new_stmt.copy_with(ret_expr=new_ret_expr)
 
         if changed:
             self.narrowed_any = True

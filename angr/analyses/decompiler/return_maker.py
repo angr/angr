@@ -83,8 +83,7 @@ class ReturnMaker(AILGraphWalker):
                 else prototype.returnty
             )
             ret_val = self.cc.return_val(returnty, perspective_returned=True)
-        new_stmt = stmt.copy()
-        new_ret_exprs = list(new_stmt.ret_exprs)
+        new_ret_exprs = list(stmt.ret_exprs)
         deref_size = None
         if isinstance(ret_val, SimReferenceArgument):
             # This one comes back through memory: the callee leaves a pointer to the value in the return
@@ -144,8 +143,7 @@ class ReturnMaker(AILGraphWalker):
                 )
                 for ret_expr in new_ret_exprs
             ]
-        new_stmt.ret_exprs = new_ret_exprs
-        return new_stmt
+        return stmt.copy_with(ret_exprs=new_ret_exprs)
 
     def _stack_load(self, loc: SimStackArg, stmt) -> ailment.Expr.Load:
         """A result the callee leaves in the caller's frame (Go's ABI0): read it back from the stack slot."""

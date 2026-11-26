@@ -9,6 +9,7 @@ from angr.ailment import Address, Block
 from angr.ailment.expression import BinaryOp, Call, Const, Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.decompiler.utils import replace_statement
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.errors import AngrRuntimeError
@@ -363,7 +364,7 @@ class Outliner(Analysis):
             if len(ret_exprs) > 1:
                 self.dropped_return_values = len(ret_exprs) - 1
                 _l.error("Outlined region seems to have multiple return values. Can't represent this correctly.")
-            call_stmt.dst = ret_exprs[0]
+            replace_statement(new_src_node, call_stmt, call_stmt.copy_with(dst=ret_exprs[0]))
 
         if self.closed:
             # the callee kept the region's returns; the caller returns what it returned,

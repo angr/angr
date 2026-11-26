@@ -481,6 +481,8 @@ pub struct TagsView {
     /// Owning AIL object. When set, mutations call back through the parent's
     /// `tags` setter so updates persist on the original instance.
     parent: Option<Py<PyAny>>,
+    /// The view of an immutable owner (a statement): every mutator raises.
+    read_only: bool,
 }
 
 impl Clone for TagsView {
@@ -488,6 +490,7 @@ impl Clone for TagsView {
         Python::attach(|py| Self {
             inner: self.inner.clone(),
             parent: self.parent.as_ref().map(|p| p.clone_ref(py)),
+            read_only: self.read_only,
         })
     }
 }
@@ -497,13 +500,30 @@ impl TagsView {
         Self {
             inner: tags,
             parent: None,
+            read_only: false,
         }
     }
     pub fn with_parent(tags: Tags, parent: Py<PyAny>) -> Self {
         Self {
             inner: tags,
             parent: Some(parent),
+            read_only: false,
         }
+    }
+    pub fn read_only(tags: Tags) -> Self {
+        Self {
+            inner: tags,
+            parent: None,
+            read_only: true,
+        }
+    }
+    fn check_writable(&self) -> PyResult<()> {
+        if self.read_only {
+            return Err(PyTypeError::new_err(
+                "the tags of a Statement are read-only; use Statement.copy_with(tags=...)",
+            ));
+        }
+        Ok(())
     }
     pub fn take(self) -> Tags {
         self.inner
@@ -520,6 +540,7 @@ impl TagsView {
             let snapshot = TagsView {
                 inner: self.inner.clone(),
                 parent: None,
+                read_only: false,
             };
             parent.bind(py).setattr("tags", snapshot)?;
         }
@@ -535,6 +556,7 @@ impl TagsView {
         Ok(Self {
             inner: mapping.unwrap_or_default(),
             parent: None,
+            read_only: false,
         })
     }
 
@@ -571,11 +593,13 @@ impl TagsView {
     }
 
     fn __setitem__(&mut self, py: Python<'_>, key: &str, value: Bound<'_, PyAny>) -> PyResult<()> {
+        self.check_writable()?;
         self.inner.set_from_py(key, &value)?;
         self.flush_to_parent(py)
     }
 
     fn __delitem__(&mut self, py: Python<'_>, key: &str) -> PyResult<()> {
+        self.check_writable()?;
         if !self.inner.has(key) {
             return Err(PyKeyError::new_err(key.to_string()));
         }
@@ -618,6 +642,7 @@ impl TagsView {
     }
 
     fn update(&mut self, py: Python<'_>, other: Tags) -> PyResult<()> {
+        self.check_writable()?;
         self.inner.merge(py, other);
         self.flush_to_parent(py)
     }
@@ -628,6 +653,7 @@ impl TagsView {
         Self {
             inner: self.inner.clone(),
             parent: None,
+            read_only: false,
         }
     }
 
@@ -638,6 +664,7 @@ impl TagsView {
         key: &str,
         default: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.check_writable()?;
         if self.inner.has(key) {
             let v = self.inner.get_py(py, key)?;
             self.inner.clear(key);
@@ -653,6 +680,7 @@ impl TagsView {
         key: &str,
         default: Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        self.check_writable()?;
         if let Some(v) = self.inner.get_py(py, key)? {
             return Ok(v);
         }
@@ -685,6 +713,7 @@ impl TagsView {
         Self {
             inner: merged,
             parent: None,
+            read_only: false,
         }
     }
 
@@ -693,6 +722,7 @@ impl TagsView {
         Self {
             inner: other,
             parent: None,
+            read_only: false,
         }
     }
 

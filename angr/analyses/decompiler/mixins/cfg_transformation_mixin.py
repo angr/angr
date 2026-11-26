@@ -136,10 +136,9 @@ class CFGTransformationMixin:
                 and last_stmt.target.value_int == old_target
                 and last_stmt.target_idx == old_target_idx
             ):
-                new_stmt = last_stmt.copy()
-                new_stmt.target = Const(0, new_target, last_stmt.target.bits)
-                new_stmt.target_idx = new_target_idx
-                block.statements[-1] = new_stmt
+                block.statements[-1] = last_stmt.copy_with(
+                    target=Const(0, new_target, last_stmt.target.bits), target_idx=new_target_idx
+                )
         elif isinstance(last_stmt, ConditionalJump):
             true_tgt = last_stmt.true_target
             false_tgt = last_stmt.false_target

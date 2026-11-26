@@ -503,7 +503,7 @@ class PCodeIRSBConverter(Converter):
         if self._statements:
             last_stmt = self._statements[-1]
             if isinstance(last_stmt, ConditionalJump) and last_stmt.false_target is None:
-                last_stmt.false_target = dest
+                self._statements[-1] = last_stmt.copy_with(false_target=dest)
                 return
 
         stmt = Jump(self._statement_idx, dest, ins_addr=self._manager.ins_addr)

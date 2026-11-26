@@ -146,10 +146,11 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         return Assignment(self.manager.next_atom(), dst_vvar, call, **call.tags)
 
     def _apply_return_type_hint(self, call_expr: Call, stmt):
-        """For non-retbuf calls with composite return type in Assignment(dst, Call), add type hint to dst."""
+        """For non-retbuf calls with composite return type in Assignment(dst, Call), add type hint to dst. Returns
+        the statement to keep: ``stmt`` or its hinted copy."""
         call_prototype = variable_map_of(self.manager).prototype(call_expr)
         if not isinstance(call_prototype, RustSimTypeFunction):
-            return
+            return stmt
         prototype = call_prototype.normalize()
         returnty = prototype.returnty
         if (
@@ -159,8 +160,10 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             and isinstance(stmt.dst, VirtualVariable)
             and stmt.dst.was_reg
         ):
-            stmt.dst = copy_expr_with_tags(stmt.dst, type=returnty)
-            self.project.kb.type_hints.add_type_hint(stmt.dst, returnty, self._func.addr)
+            new_stmt = stmt.copy_with(dst=copy_expr_with_tags(stmt.dst, type=returnty))
+            self.project.kb.type_hints.add_type_hint(new_stmt.dst, returnty, self._func.addr)
+            return new_stmt
+        return stmt
 
     def _detect_callsite_discriminant_hint(self, post_callsite_path):
         """
@@ -255,7 +258,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
                     block.statements[stmt_idx] = new_stmt
                     rewrites.append((block, stmt_idx, stmt, old_prototype, new_stmt))
                 elif isinstance(stmt, Assignment):
-                    self._apply_return_type_hint(call_expr, stmt)
+                    block.statements[stmt_idx] = self._apply_return_type_hint(call_expr, stmt)
 
         # arg0 is not a pure out-buffer if the slot's earlier value still reaches a use the call also reaches (e.g.,
         # a &mut self method); without a phi no single vvar holds that value, so keep the call writing through &slot

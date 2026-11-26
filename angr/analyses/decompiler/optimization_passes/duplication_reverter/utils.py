@@ -141,16 +141,18 @@ def deepcopy_ail_anyjump(stmt: Jump | ConditionalJump, idx=1):
     )
 
 
-def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
+def correct_jump_targets(stmt, replacement_map: dict[int, int]):
+    """A fresh copy of a jump with its targets mapped through ``replacement_map``; any other statement as is."""
     if not replacement_map or not isinstance(stmt, Statement):
         return stmt
 
     if isinstance(stmt, ConditionalJump):
-        cond_stmt = deepcopy_ail_condjump(stmt) if new_stmt else stmt
+        cond_stmt = deepcopy_ail_condjump(stmt)
         true_target, false_target = cond_stmt.true_target, cond_stmt.false_target
+        updates = {}
 
         if isinstance(true_target, Const) and true_target.value in replacement_map:
-            cond_stmt.true_target = Const(
+            updates["true_target"] = Const(
                 true_target.idx,
                 replacement_map[true_target.value],
                 true_target.bits,
@@ -158,24 +160,26 @@ def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
             )
 
         if isinstance(false_target, Const) and false_target.value in replacement_map:
-            cond_stmt.false_target = Const(
+            updates["false_target"] = Const(
                 false_target.idx,
                 replacement_map[false_target.value],
                 false_target.bits,
                 **false_target.tags,
             )
 
-        return cond_stmt
+        return cond_stmt.copy_with(**updates)
     if isinstance(stmt, Jump) and isinstance(stmt.target, Const):
-        jump_stmt = deepcopy_ail_jump(stmt) if new_stmt else stmt
+        jump_stmt = deepcopy_ail_jump(stmt)
         target = jump_stmt.target
 
         if isinstance(target, Const) and target.value in replacement_map:
-            jump_stmt.target = Const(
-                target.idx,
-                replacement_map[target.value],
-                target.bits,
-                **target.tags,
+            jump_stmt = jump_stmt.copy_with(
+                target=Const(
+                    target.idx,
+                    replacement_map[target.value],
+                    target.bits,
+                    **target.tags,
+                )
             )
 
         return jump_stmt

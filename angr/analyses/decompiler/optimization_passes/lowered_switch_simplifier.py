@@ -463,7 +463,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         if target_addr == succ_node.addr and target_idx == succ_node.idx:
                             # update the block ID
                             case_addrs[idx] = cmp_node, case_value, target_addr, node_copy.idx, next_addr
-                    last_stmt.case_addrs = case_addrs
+                    head.statements[-1] = last_stmt.copy_with(case_addrs=case_addrs)
 
                     # update the graph
                     graph_copy.add_edge(head, node_copy)

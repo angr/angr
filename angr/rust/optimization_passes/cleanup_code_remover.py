@@ -80,7 +80,7 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
             if self._should_remove(call):
                 self._collect_type_hint(call)
                 if isinstance(block.statements[-1], Return):
-                    block.statements[-1].ret_exprs = []
+                    block.statements[-1] = block.statements[-1].copy_with(ret_exprs=[])
                 elif not self._is_simple_block(block):
                     l.debug("Removed the last statement of\n%s", block)
                     block.statements = block.statements[:-1]
@@ -93,7 +93,8 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
         for block in self._graph.nodes:
             if block.statements and isinstance(last_stmt := block.statements[-1], Return):
                 call = find_call(last_stmt)
-                last_stmt.ret_exprs = []
+                last_stmt = last_stmt.copy_with(ret_exprs=[])
+                block.statements[-1] = last_stmt
                 if call and not self._should_remove(call):
                     call.bits = None  # pyright: ignore[reportAttributeAccessIssue]
                     new_stmts = block.statements.copy()

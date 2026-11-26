@@ -111,23 +111,24 @@ class RedundantLabelRemover:
                 if isinstance(first_stmt.true_target, ailment.Expr.Const):
                     tpl = first_stmt.true_target.value, first_stmt.true_target_idx
                     if tpl in self._new_jump_target:
-                        new_first_stmt = first_stmt.copy()
-                        new_first_stmt.true_target = ailment.Expr.Const(
-                            first_stmt.true_target.idx,
-                            self._new_jump_target[tpl][0],
-                            first_stmt.true_target.bits,
-                            **first_stmt.true_target.tags,
+                        new_first_stmt = first_stmt.copy_with(
+                            true_target=ailment.Expr.Const(
+                                first_stmt.true_target.idx,
+                                self._new_jump_target[tpl][0],
+                                first_stmt.true_target.bits,
+                                **first_stmt.true_target.tags,
+                            )
                         )
                 if isinstance(first_stmt.false_target, ailment.Expr.Const):
                     tpl = first_stmt.false_target.value, first_stmt.false_target_idx
                     if tpl in self._new_jump_target:
-                        if new_first_stmt is None:
-                            new_first_stmt = first_stmt.copy()
-                        new_first_stmt.false_target = ailment.Expr.Const(
-                            first_stmt.false_target.idx,
-                            self._new_jump_target[tpl][0],
-                            first_stmt.false_target.bits,
-                            **first_stmt.false_target.tags,
+                        new_first_stmt = (new_first_stmt or first_stmt).copy_with(
+                            false_target=ailment.Expr.Const(
+                                first_stmt.false_target.idx,
+                                self._new_jump_target[tpl][0],
+                                first_stmt.false_target.bits,
+                                **first_stmt.false_target.tags,
+                            )
                         )
                 if new_first_stmt is not None:
                     stmts = list(block.statements)
@@ -139,12 +140,13 @@ class RedundantLabelRemover:
                 if isinstance(last_stmt, ailment.Stmt.Jump) and isinstance(last_stmt.target, ailment.Expr.Const):
                     tpl = last_stmt.target.value, last_stmt.target_idx
                     if tpl in self._new_jump_target:
-                        new_last_stmt = last_stmt.copy()
-                        new_last_stmt.target = ailment.Expr.Const(
-                            last_stmt.target.idx,
-                            self._new_jump_target[tpl][0],
-                            last_stmt.target.bits,
-                            **last_stmt.target.tags,
+                        new_last_stmt = last_stmt.copy_with(
+                            target=ailment.Expr.Const(
+                                last_stmt.target.idx,
+                                self._new_jump_target[tpl][0],
+                                last_stmt.target.bits,
+                                **last_stmt.target.tags,
+                            ),
+                            target_idx=self._new_jump_target[tpl][1],
                         )
-                        new_last_stmt.target_idx = self._new_jump_target[tpl][1]
                         block.statements = [*block.statements[:-1], new_last_stmt]

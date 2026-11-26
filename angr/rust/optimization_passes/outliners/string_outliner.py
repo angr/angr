@@ -42,8 +42,7 @@ class StringOutliner(OptimizationPass):
                         .normalize(),
                     )
                     call.bits = 3 * self.project.arch.bits
-                    new_stmt = stmt.copy()
-                    new_stmt.src = call
+                    new_stmt = stmt.copy_with(src=call)
                     block.statements[stmt_idx] = new_stmt
                     return new_stmt
             return stmt

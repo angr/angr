@@ -298,7 +298,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                     self.write_graph.add_edge(orig_pred, new_target)
 
                 new_pred = orig_pred.copy()
-                new_pred.statements[-1] = correct_jump_targets(new_pred.statements[-1], replacement_map, new_stmt=True)
+                new_pred.statements[-1] = correct_jump_targets(new_pred.statements[-1], replacement_map)
                 if new_pred != orig_pred:
                     replace_node_in_graph(self.write_graph, orig_pred, new_pred)
             else:
@@ -368,9 +368,10 @@ class DuplicationReverter(StructuringOptimizationPass):
                 new_node.addr = new_addr
                 for i, stmt in enumerate(new_node.statements):
                     if stmt.tags and "ins_addr" in stmt.tags:
-                        if "orig_ins_addr" not in stmt.tags:
-                            stmt.tags["orig_ins_addr"] = stmt.tags["ins_addr"]
-                        stmt.tags["ins_addr"] = new_addr + i + 1
+                        tags = dict(stmt.tags)
+                        tags.setdefault("orig_ins_addr", tags["ins_addr"])
+                        tags["ins_addr"] = new_addr + i + 1
+                        new_node.statements[i] = stmt.copy_with(tags=tags)
 
                 new_nodes[duplicate_node] = new_node
 
@@ -379,7 +380,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             new_node = new_nodes[node] if node in new_nodes else node.copy()
             new_node.idx = 0
             if new_node.statements and isinstance(new_node.statements[-1], Jump):
-                new_node.statements[-1].target_idx = 0
+                new_node.statements[-1] = new_node.statements[-1].copy_with(target_idx=0)
 
             new_nodes[node] = new_node
 
@@ -411,21 +412,22 @@ class DuplicationReverter(StructuringOptimizationPass):
                 successor = next(iter(graph.successors(node)))
                 if isinstance(last_stmt, Jump):
                     if last_stmt.target.value != successor.addr:
-                        new_last_stmt = deepcopy_ail_anyjump(last_stmt, idx=last_stmt.idx)
-                        last_stmt.target_idx = successor.idx
-                        new_last_stmt.target = Const(self.manager.next_atom(), successor.addr, self.project.arch.bits)
+                        new_last_stmt = deepcopy_ail_anyjump(last_stmt, idx=last_stmt.idx).copy_with(
+                            target=Const(self.manager.next_atom(), successor.addr, self.project.arch.bits)
+                        )
+                        node.statements[-1] = last_stmt.copy_with(target_idx=successor.idx)
                         new_node = node.copy()
                         new_node.statements[-1] = new_last_stmt
                 # the last statement is not a jump, but this node should have one, so add it
                 else:
                     new_node = node.copy()
+                    # TODO: improve addressing here
                     new_last_stmt = Jump(
                         self.manager.next_atom(),
                         Const(self.manager.next_atom(), successor.addr, self.project.arch.bits),
                         target_idx=successor.idx,
+                        ins_addr=new_node.addr + 1,
                     )
-                    # TODO: improve addressing here
-                    new_last_stmt.tags["ins_addr"] = new_node.addr + 1
                     new_node.statements.append(new_last_stmt)
 
             elif graph.out_degree(node) == 2:
@@ -444,7 +446,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                     # right now we can only correct cases where one edge is incorrect
                     if len(real_successor_addrs) == 1 and len(unmapped_addrs) == 1:
                         addr_map[unmapped_addrs[0]] = real_successor_addrs[0]
-                        new_last_stmt = correct_jump_targets(last_stmt, addr_map, new_stmt=True)
+                        new_last_stmt = correct_jump_targets(last_stmt, addr_map)
                         new_node = node.copy()
                         new_node.statements[-1] = new_last_stmt
 
@@ -728,9 +730,10 @@ class DuplicationReverter(StructuringOptimizationPass):
             cond_jump = conditional_block.statements[-1]
             assert isinstance(cond_jump, ConditionalJump)
             if true_target == blocks[0]:
-                set_conditional_jump_targets(cond_jump, base_successor.addr, other_successor.addr)
+                cond_jump = set_conditional_jump_targets(cond_jump, base_successor.addr, other_successor.addr)
             else:
-                set_conditional_jump_targets(cond_jump, other_successor.addr, base_successor.addr)
+                cond_jump = set_conditional_jump_targets(cond_jump, other_successor.addr, base_successor.addr)
+            conditional_block.statements[-1] = cond_jump
 
             ail_merge_graph.graph.add_edge(new_node, conditional_block)
             return ail_merge_graph
@@ -814,10 +817,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                 assert isinstance(src_jump, ConditionalJump)
                 target = src_jump.true_target if target_type == "true_target" else src_jump.false_target
                 assert isinstance(target, Const)
-                if target_type == "true_target":
-                    src_jump.true_target = const_with_value(target, nop_blk.addr)
-                else:
-                    src_jump.false_target = const_with_value(target, nop_blk.addr)
+                src.statements[-1] = src_jump.copy_with(**{target_type: const_with_value(target, nop_blk.addr)})
 
         return True
 

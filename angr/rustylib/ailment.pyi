@@ -25,7 +25,7 @@ attribute is dispatched on the variant tag and raises
 ``AttributeError`` when called on the wrong variant.
 """
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, ClassVar, Self
 
 # ---------------------------------------------------------------------------
@@ -394,8 +394,6 @@ class Statement:
     idx: int
     @property
     def tags(self) -> TagsView: ...
-    @tags.setter
-    def tags(self, value: Any) -> None: ...
     @property
     def kind(self) -> StatementKind:
         """Variant discriminator. Python-side metaclass uses this for ``isinstance(x, Assignment)`` dispatch."""
@@ -412,6 +410,9 @@ class Statement:
     """True once a peephole-optimization pass has run this statement to fixpoint, letting later passes skip it.
     Runtime-only: never serialized, ignored by ``__eq__``/``__hash__``/``likes()``, and reset on clone."""
     def clear_hash(self) -> None: ...
+    def copy_with(self, *, idx: int = ..., tags: Mapping[str, Any] = ...) -> Self:
+        """A copy with the given fields replaced: ``idx``, ``tags`` (all of them) or any constructor field of the
+        variant. Statements are immutable; this is how a changed statement is made."""
     # Utility query available on any statement (true only for Assignments
     # whose source is a ``Phi``); kept on the base.
     @property
@@ -1136,22 +1137,42 @@ class VEXCCallExpression(Expression):
 class Assignment(Statement):
     """Assignment statement: expr_a = expr_b"""
 
-    dst: Expression
-    """Assignment.dst"""
-    src: Expression
-    """Assignment.src"""
+    @property
+    def dst(self) -> Expression:
+        """Assignment.dst"""
+    @property
+    def src(self) -> Expression:
+        """Assignment.src"""
     def __init__(self, idx: int | None, dst: Expression, src: Expression, **tags: Any) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        dst: Expression = ...,
+        src: Expression = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class WeakAssignment(Statement):
     """An assignment statement that does not create a new variable at its destination; It should be seen as
     operator=(&dst, &src) in C++-like syntax.
     """
 
-    dst: Expression
-    """WeakAssignment.dst (operand subtree)"""
-    src: Expression
-    """WeakAssignment.src"""
+    @property
+    def dst(self) -> Expression:
+        """WeakAssignment.dst (operand subtree)"""
+    @property
+    def src(self) -> Expression:
+        """WeakAssignment.src"""
     def __init__(self, idx: int | None, dst: Expression, src: Expression, **tags: Any) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        dst: Expression = ...,
+        src: Expression = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class Label(Statement):
     """A dummy statement that indicates a label with a name."""
@@ -1159,6 +1180,13 @@ class Label(Statement):
     def name(self) -> str:
         """Label.name"""
     def __init__(self, idx: int | None, name: str, **tags: Any) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        name: str = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class Store(Statement):
     """Store statement: ``*addr = data``"""
@@ -1187,29 +1215,55 @@ class Store(Statement):
         guard: Expression | None = ...,
         **tags: Any,
     ) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        addr: Expression = ...,
+        data: Expression = ...,
+        size: int = ...,
+        endness: str = ...,
+        guard: Expression | None = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class Jump(Statement):
     """Jump statement: goto target"""
 
-    target: Any
-    """Jump.target / ConditionalJump callers reach for true_target/false_target (distinct getters below)"""
-    target_idx: int
-    """Jump.target_idx"""
+    @property
+    def target(self) -> Any:
+        """Jump.target / ConditionalJump callers reach for true_target/false_target (distinct getters below)"""
+    @property
+    def target_idx(self) -> int:
+        """Jump.target_idx"""
     def __init__(self, idx: int | None, target: Any, target_idx: int = ..., **tags: Any) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        target: Any = ...,
+        target_idx: int = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class ConditionalJump(Statement):
     """if (cond) {true_target} else {false_target}"""
 
-    condition: Expression
-    """ConditionalJump.condition"""
-    true_target: Any
-    """ConditionalJump.true_target"""
-    false_target: Any
-    """ConditionalJump.false_target"""
-    true_target_idx: int
-    """ConditionalJump.true_target_idx"""
-    false_target_idx: int
-    """ConditionalJump.false_target_idx"""
+    @property
+    def condition(self) -> Expression:
+        """ConditionalJump.condition"""
+    @property
+    def true_target(self) -> Any:
+        """ConditionalJump.true_target"""
+    @property
+    def false_target(self) -> Any:
+        """ConditionalJump.false_target"""
+    @property
+    def true_target_idx(self) -> int:
+        """ConditionalJump.true_target_idx"""
+    @property
+    def false_target_idx(self) -> int:
+        """ConditionalJump.false_target_idx"""
     def __init__(
         self,
         idx: int | None,
@@ -1221,6 +1275,17 @@ class ConditionalJump(Statement):
         false_target_idx: int = ...,
         **tags: Any,
     ) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        condition: Expression = ...,
+        true_target: Any = ...,
+        false_target: Any = ...,
+        true_target_idx: int = ...,
+        false_target_idx: int = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class SideEffectStatement(Statement):
     """A statement wrapping an expression that has side effects (e.g., a function call).
@@ -1228,12 +1293,15 @@ class SideEffectStatement(Statement):
     When wrapping a Call expression, ret_expr and fp_ret_expr hold the return value destinations.
     """
 
-    expr: Expression
-    """SideEffectStatement.expr"""
-    ret_expr: Expression | None
-    """SideEffectStatement.ret_expr"""
-    fp_ret_expr: Expression | None
-    """SideEffectStatement.fp_ret_expr"""
+    @property
+    def expr(self) -> Expression:
+        """SideEffectStatement.expr"""
+    @property
+    def ret_expr(self) -> Expression | None:
+        """SideEffectStatement.ret_expr"""
+    @property
+    def fp_ret_expr(self) -> Expression | None:
+        """SideEffectStatement.fp_ret_expr"""
     @property
     def size(self) -> int: ...
     def __init__(
@@ -1244,13 +1312,30 @@ class SideEffectStatement(Statement):
         fp_ret_expr: Expression | None = ...,
         **tags: Any,
     ) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        expr: Expression = ...,
+        ret_expr: Expression | None = ...,
+        fp_ret_expr: Expression | None = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class Return(Statement):
     """Return statement: (return expr_a), (return)"""
 
-    ret_exprs: Any
-    """Return.ret_exprs"""
+    @property
+    def ret_exprs(self) -> Any:
+        """Return.ret_exprs"""
     def __init__(self, idx: int | None, ret_exprs: Any, **tags: Any) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        ret_exprs: Sequence[Expression] = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class CAS(Statement):
     """Atomic compare-and-swap.
@@ -1297,6 +1382,20 @@ class CAS(Statement):
         endness: str,
         **tags: Any,
     ) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        addr: Expression = ...,
+        data_lo: Expression = ...,
+        data_hi: Expression | None = ...,
+        expd_lo: Expression = ...,
+        expd_hi: Expression | None = ...,
+        old_lo: Expression = ...,
+        old_hi: Expression | None = ...,
+        endness: str = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class DirtyStatement(Statement):
     """Wrapper around the original statement, which is usually not convertible (temporarily)."""
@@ -1304,6 +1403,13 @@ class DirtyStatement(Statement):
     def dirty(self) -> Expression:
         """DirtyStatement.dirty"""
     def __init__(self, idx: int | None, dirty: Expression, **tags: Any) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        dirty: Expression = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...
 
 class NoOp(Statement):
     """A statement that does nothing. It defines and uses no atoms. It is primarily used as an in-place placeholder for a
@@ -1318,11 +1424,18 @@ type SwitchCase = tuple[Block | None, int | str, int, int | None, int | None]
 class IncompleteSwitchCaseHeadStatement(Statement):
     """Describes a switch-case head. This is only created by LoweredSwitchSimplifier."""
 
-    switch_variable: Expression
+    @property
+    def switch_variable(self) -> Expression: ...
     @property
     def case_addrs(self) -> list[SwitchCase]: ...
-    @case_addrs.setter
-    def case_addrs(self, value: Sequence[SwitchCase]) -> None: ...
     def __init__(
         self, idx: int | None, switch_variable: Expression, case_addrs: Sequence[SwitchCase], **tags: Any
     ) -> None: ...
+    def copy_with(
+        self,
+        *,
+        idx: int = ...,
+        switch_variable: Expression = ...,
+        case_addrs: Sequence[SwitchCase] = ...,
+        tags: Mapping[str, Any] = ...,
+    ) -> Self: ...

@@ -120,14 +120,16 @@ class TestSwitchHeadLabelWidth(TestCase):
         # so every label the simplifier can record round-trips. Substituting the label on the real graph keeps
         # the rest of the statement exactly as the decompiler built it.
         *_rest, graph = self._chunker_switch_head()
-        _block, _i, stmt = _heads(graph)[0]
+        block, i, stmt = _heads(graph)[0]
         original = list(stmt.case_addrs)
         try:
             for value in (-(2**63), -2, 0, 1, 2**63 - 1, 2**63, 2**64 - 1):
-                stmt.case_addrs = [
-                    case if isinstance(case[1], str) else (case[0], value, case[2], case[3], case[4])
-                    for case in original
-                ]
+                block.statements[i] = stmt.copy_with(
+                    case_addrs=[
+                        case if isinstance(case[1], str) else (case[0], value, case[2], case[3], case[4])
+                        for case in original
+                    ]
+                )
                 msg = pack_graph(graph)
                 back = parse_graph(type(msg).FromString(msg.SerializeToString()))
                 labels = {
@@ -138,7 +140,7 @@ class TestSwitchHeadLabelWidth(TestCase):
                 }
                 assert labels == {value}, f"label {value} came back as {labels}"
         finally:
-            stmt.case_addrs = original
+            block.statements[i] = stmt
 
 
 if __name__ == "__main__":

@@ -256,9 +256,9 @@ class AILMergeGraph:
                 b0, b1 = merge_end_pair
 
             if true_target == self._find_og_start_by_merge_end(b0):
-                set_conditional_jump_targets(cond_jump_stmt, b0.addr, b1.addr)
+                cond_copy.statements[-1] = set_conditional_jump_targets(cond_jump_stmt, b0.addr, b1.addr)
             else:
-                set_conditional_jump_targets(cond_jump_stmt, b1.addr, b0.addr)
+                cond_copy.statements[-1] = set_conditional_jump_targets(cond_jump_stmt, b1.addr, b0.addr)
 
             self.graph.add_edge(match_node, cond_copy)
             self.graph.add_edge(cond_copy, b0)
@@ -498,7 +498,7 @@ class AILMergeGraph:
             for pred in list(graph.predecessors(original_node)):
                 new_pred = pred.copy()
                 new_pred.statements[-1] = correct_jump_targets(
-                    new_pred.statements[-1], {original_node.addr: new_node.addr}, new_stmt=True
+                    new_pred.statements[-1], {original_node.addr: new_node.addr}
                 )
                 updated_blocks[pred] = new_pred
                 replace_node_in_graph(graph, pred, new_pred)
