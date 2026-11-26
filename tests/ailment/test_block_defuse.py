@@ -19,8 +19,8 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import Assignment, Label, Return, SideEffectStatement, Statement, Store
-from angr.rustylib.ailment import StatementList, block_defuse_is_cached
-from angr.utils.ssa import get_uses_defs, get_vvar_deflocs
+from angr.rustylib.ailment import StatementList, UsesDefs, block_defuse_is_cached, block_tmp_defs_uses
+from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, get_uses_defs, get_vvar_deflocs
 
 
 def vv(idx: int, varid: int, bits: int = 64) -> VirtualVariable:
@@ -176,6 +176,65 @@ class TestBlockDefUse(unittest.TestCase):
         assert len(uses_b[1]) == count
         assert 1 in defs_b
         assert uses_b[12345] == []  # defaultdict shape preserved
+
+    def test_uses_defs_queries_match_the_merged_containers(self):
+        blocks = make_blocks()
+        phis: dict = {}
+        defs, uses, tmp_defs, tmp_uses = get_uses_defs(blocks, phi_vvars=phis)
+        ud = UsesDefs(blocks)
+
+        ud_phis: dict = {}
+        ud_defs = ud.vvar_defs(ud_phis)
+        assert list(ud_defs.items()) == list(defs.items())
+        assert ud_phis == phis
+
+        all_uses = ud.all_vvar_uses()
+        assert list(all_uses.items()) == list(uses.items())
+        for varid, sites in uses.items():
+            assert ud.has_vvar_uses(varid) is True
+            assert ud.vvar_uses(varid) == sites
+            assert ud.vvar_uses(varid) is ud.vvar_uses(varid)
+        assert ud.has_vvar_uses(12345) is False
+        assert ud.vvar_uses(12345) == []
+
+        expected = [
+            (block_loc, tmp_defs[block_loc][tmp], sites)
+            for block_loc, by_tmp in tmp_uses.items()
+            for tmp, sites in by_tmp.items()
+            if tmp in tmp_defs.get(block_loc, {})
+        ]
+        assert expected
+        assert ud.tmp_defs_uses() == expected
+
+    def test_uses_defs_register_use_ids(self):
+        ud = UsesDefs(make_blocks())
+        # vv(_, n) is the register at offset 8 * n
+        assert ud.register_use_ids([16, 40], set()) == [2, 5]
+        assert ud.register_use_ids([16], {9, 777}) == [2, 9]
+        assert ud.register_use_ids([], set()) == []
+
+    def test_uses_defs_is_a_snapshot(self):
+        blocks = make_blocks()
+        ud = UsesDefs(blocks)
+        before = list(ud.vvar_defs())
+        blocks[0].statements = blocks[0].statements[1:]
+        assert list(ud.vvar_defs()) == before
+        assert list(UsesDefs(blocks).vvar_defs()) != before
+
+    def test_block_tmp_defs_uses(self):
+        for block in make_blocks():
+            block_loc = (block.addr, block.idx)
+            defs = get_tmp_deflocs([block]).get(block_loc, {})
+            uses = get_tmp_uselocs([block]).get(block_loc, {})
+            result = block_tmp_defs_uses(block)
+            if not defs:
+                assert result is None
+                continue
+            assert result == (
+                {tmp.tmp_idx: stmt_idx for tmp, stmt_idx in defs.items()},
+                {tmp.tmp_idx: {stmt_idx for _, stmt_idx in sites} for tmp, sites in uses.items()},
+            )
+        assert block_tmp_defs_uses(make_blocks()[0]) == ({0: 2}, {0: {3}})
 
 
 if __name__ == "__main__":

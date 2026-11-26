@@ -82,6 +82,8 @@ pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<stmt_list::StatementList>()?;
     m.add_function(wrap_pyfunction!(ssa::collect_uses_defs, m)?)?;
     m.add_function(wrap_pyfunction!(ssa::block_defuse_is_cached, m)?)?;
+    m.add_function(wrap_pyfunction!(ssa::block_tmp_defs_uses, m)?)?;
+    m.add_class::<ssa::UsesDefs>()?;
 
     // Manager.
     m.add_class::<manager::Manager>()?;

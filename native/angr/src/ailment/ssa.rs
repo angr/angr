@@ -7,9 +7,14 @@
 //!
 //! `collect_uses_defs` builds the Python values of a block sequence into the caller's containers with exactly
 //! the insertion order and overwrite semantics of the original whole-graph scan in `angr.utils.ssa`.
+//!
+//! [`UsesDefs`] holds the sites of a block sequence for consumers to query, and builds Python values only for
+//! what a query returns.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use indexmap::IndexMap;
 use pyo3::exceptions::{PyAssertionError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
@@ -899,11 +904,7 @@ pub fn collect_uses_defs<'py>(
                 };
                 for ((tmp_idx, bits), sites) in &du.tmp_use_groups {
                     let key = tmp_cls.call1((*tmp_idx, *bits))?;
-                    let s = PySet::empty(py)?;
-                    for site in sites {
-                        let tmp = Bound::new(py, Expression::wrap(site.expr()))?;
-                        s.add((tmp, site.stmt_idx))?;
-                    }
+                    let s = tmp_use_set(py, sites)?;
                     match (tmp_mode, block_map.get_item(&key)?) {
                         (TMP_MODE_USES_DEFS, Some(existing)) => {
                             existing
@@ -918,6 +919,278 @@ pub fn collect_uses_defs<'py>(
         }
     }
     Ok(())
+}
+
+/// The ``set`` of ``(Tmp, stmt_idx)`` of one tmp-use group.
+fn tmp_use_set<'py>(py: Python<'py>, sites: &[TmpSite]) -> PyResult<Bound<'py, PySet>> {
+    let s = PySet::empty(py)?;
+    for site in sites {
+        let tmp = Bound::new(py, Expression::wrap(site.expr()))?;
+        s.add((tmp, site.stmt_idx))?;
+    }
+    Ok(s)
+}
+
+// ---------------------------------------------------------------------------
+// Queries
+// ---------------------------------------------------------------------------
+
+/// ``(block, site)`` position of a vvar site.
+type SiteRef = (u32, u32);
+
+/// The def/use sites of a sequence of blocks, merged like ``collect_uses_defs`` merges them (a later definition of
+/// a vvar replaces an earlier one; uses are in block order). It is a snapshot: editing the blocks afterwards does
+/// not change it. Blocks are expected to have distinct ``(addr, idx)``.
+#[pyclass(name = "UsesDefs", module = "angr.rustylib.ailment")]
+pub struct UsesDefs {
+    blocks: Vec<Arc<BlockDefUse>>,
+    defs: IndexMap<i64, SiteRef>,
+    uses: IndexMap<i64, Vec<SiteRef>>,
+    /// ``AILCodeLocation`` of the statements asked about so far, per block
+    locs: Vec<Vec<Option<Py<PyAny>>>>,
+    /// varid -> the list ``vvar_uses`` returned
+    use_lists: Py<PyDict>,
+}
+
+impl UsesDefs {
+    fn loc<'py>(
+        &mut self,
+        py: Python<'py>,
+        block: u32,
+        stmt_idx: usize,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let du = &self.blocks[block as usize];
+        let locs = &mut self.locs[block as usize];
+        if locs.is_empty() {
+            locs.resize_with(du.ins_addrs.len(), || None);
+        }
+        if let Some(l) = &locs[stmt_idx] {
+            return Ok(l.bind(py).clone());
+        }
+        let loc =
+            ail_code_location(py)?.call1((du.addr, du.idx, stmt_idx, du.ins_addrs[stmt_idx]))?;
+        locs[stmt_idx] = Some(loc.clone().unbind());
+        Ok(loc)
+    }
+
+    /// ``(VirtualVariable, AILCodeLocation)`` of a site.
+    fn entry<'py>(
+        &mut self,
+        py: Python<'py>,
+        at: SiteRef,
+        is_def: bool,
+    ) -> PyResult<Bound<'py, PyTuple>> {
+        let du = self.blocks[at.0 as usize].clone();
+        let site = if is_def {
+            &du.vvar_defs[at.1 as usize]
+        } else {
+            &du.vvar_uses[at.1 as usize]
+        };
+        let loc = self.loc(py, at.0, site.stmt_idx)?;
+        let vvar = Bound::new(py, Expression::wrap(site.expr.clone()))?;
+        PyTuple::new(py, [vvar.into_any(), loc])
+    }
+
+    fn use_list<'py>(
+        &mut self,
+        py: Python<'py>,
+        sites: &[SiteRef],
+    ) -> PyResult<Bound<'py, PyList>> {
+        let list = PyList::empty(py);
+        for at in sites {
+            list.append(self.entry(py, *at, false)?)?;
+        }
+        Ok(list)
+    }
+}
+
+#[pymethods]
+impl UsesDefs {
+    #[new]
+    fn new(py: Python<'_>, blocks: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let mut this = Self {
+            blocks: Vec::new(),
+            defs: IndexMap::new(),
+            uses: IndexMap::new(),
+            locs: Vec::new(),
+            use_lists: PyDict::new(py).unbind(),
+        };
+        for item in blocks.try_iter()? {
+            let item = item?;
+            let block = item.cast::<Block>().map_err(|_| {
+                PyTypeError::new_err(format!("UsesDefs: expected Block, got {}", item.get_type()))
+            })?;
+            let du = block_defuse(block)?;
+            let bi = this.blocks.len() as u32;
+            for (i, site) in du.vvar_defs.iter().enumerate() {
+                this.defs.insert(site.varid, (bi, i as u32));
+            }
+            if du
+                .extra_declared
+                .iter()
+                .any(|varid| !this.defs.contains_key(varid))
+            {
+                return Err(PyAssertionError::new_err("extra_def tag was dropped"));
+            }
+            for (i, site) in du.vvar_uses.iter().enumerate() {
+                this.uses
+                    .entry(site.varid)
+                    .or_default()
+                    .push((bi, i as u32));
+            }
+            this.blocks.push(du);
+        }
+        this.locs.resize_with(this.blocks.len(), Vec::new);
+        Ok(this)
+    }
+
+    /// ``{varid: (VirtualVariable, AILCodeLocation)}`` of every definition; fills ``phi_vvars`` with
+    /// ``{phi varid: {source varid or None}}`` when given.
+    #[pyo3(signature = (phi_vvars=None))]
+    fn vvar_defs<'py>(
+        &mut self,
+        py: Python<'py>,
+        phi_vvars: Option<&Bound<'py, PyDict>>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+        for i in 0..self.defs.len() {
+            let (varid, at) = self
+                .defs
+                .get_index(i)
+                .map(|(k, v)| (*k, *v))
+                .expect("in range");
+            d.set_item(varid, self.entry(py, at, true)?)?;
+        }
+        if let Some(p) = phi_vvars {
+            for du in &self.blocks {
+                for (dst, srcs) in &du.phis {
+                    let s = PySet::empty(py)?;
+                    for v in srcs {
+                        s.add(*v)?;
+                    }
+                    p.set_item(*dst, s)?;
+                }
+            }
+        }
+        Ok(d)
+    }
+
+    fn has_vvar_uses(&self, varid: i64) -> bool {
+        self.uses.contains_key(&varid)
+    }
+
+    /// ``[(VirtualVariable, AILCodeLocation)]`` of the uses of one vvar; the same list on every call.
+    fn vvar_uses<'py>(&mut self, py: Python<'py>, varid: i64) -> PyResult<Bound<'py, PyList>> {
+        if let Some(list) = self.use_lists.bind(py).get_item(varid)? {
+            return Ok(list.cast_into::<PyList>()?);
+        }
+        let sites = self.uses.get(&varid).cloned().unwrap_or_default();
+        let list = self.use_list(py, &sites)?;
+        self.use_lists.bind(py).set_item(varid, &list)?;
+        Ok(list)
+    }
+
+    /// ``{varid: [(VirtualVariable, AILCodeLocation)]}`` of every use.
+    fn all_vvar_uses<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+        for i in 0..self.uses.len() {
+            let (varid, sites) = self
+                .uses
+                .get_index(i)
+                .map(|(k, v)| (*k, v.clone()))
+                .expect("in range");
+            d.set_item(varid, self.use_list(py, &sites)?)?;
+        }
+        Ok(d)
+    }
+
+    /// The used varids, in first-use order, that are in ``also`` or whose definition or first use is a register vvar
+    /// of one of ``reg_offsets``.
+    fn register_use_ids(&self, reg_offsets: Vec<i64>, also: HashSet<i64>) -> Vec<i64> {
+        let is_reg = |site: &VVarSite| {
+            matches!(
+                &site.expr.inner,
+                ExprInner::VirtualVariable {
+                    category: VirtualVariableCategory::Register,
+                    oident: OIdent::Int(offset),
+                    ..
+                } if reg_offsets.contains(offset)
+            )
+        };
+        let mut ids = Vec::new();
+        for (varid, sites) in &self.uses {
+            let (bi, i) = sites[0];
+            let hit = also.contains(varid)
+                || is_reg(&self.blocks[bi as usize].vvar_uses[i as usize])
+                || self.defs.get(varid).is_some_and(|(bi, i)| {
+                    is_reg(&self.blocks[*bi as usize].vvar_defs[*i as usize])
+                });
+            if hit {
+                ids.push(*varid);
+            }
+        }
+        ids
+    }
+
+    /// ``[((addr, idx), def stmt_idx, {(Tmp, use stmt_idx)})]`` of every tmp that is defined and used in the same
+    /// block. ``Tmp`` atoms compare on ``tmp_idx`` alone: the last definition counts, and uses of every width are
+    /// one entry.
+    fn tmp_defs_uses<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let out = PyList::empty(py);
+        for du in &self.blocks {
+            if du.tmp_defs.is_empty() || du.tmp_use_groups.is_empty() {
+                continue;
+            }
+            let defs: HashMap<i64, usize> = du.tmp_defs.iter().map(|(t, _, s)| (*t, *s)).collect();
+            let mut merged: IndexMap<i64, Bound<'py, PySet>> = IndexMap::new();
+            for ((tmp_idx, _), sites) in &du.tmp_use_groups {
+                if !defs.contains_key(tmp_idx) {
+                    continue;
+                }
+                let s = tmp_use_set(py, sites)?;
+                match merged.get(tmp_idx) {
+                    Some(existing) => {
+                        existing.call_method1("__ior__", (s,))?;
+                    }
+                    None => {
+                        merged.insert(*tmp_idx, s);
+                    }
+                }
+            }
+            let block_loc = PyTuple::new(py, [du.addr, du.idx])?;
+            for (tmp_idx, s) in merged {
+                out.append((&block_loc, defs[&tmp_idx], s))?;
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// ``({tmp_idx: def stmt_idx}, {tmp_idx: {use stmt_idx}})`` of one block; None when it defines no tmp. Matches
+/// ``get_tmp_deflocs`` / ``get_tmp_uselocs``: the last definition of a tmp counts, and of the uses of a tmp at
+/// several widths, those of the last width.
+#[pyfunction]
+pub fn block_tmp_defs_uses<'py>(
+    block: &Bound<'py, Block>,
+) -> PyResult<Option<(Bound<'py, PyDict>, Bound<'py, PyDict>)>> {
+    let py = block.py();
+    let du = block_defuse(block)?;
+    if du.tmp_defs.is_empty() {
+        return Ok(None);
+    }
+    let defs = PyDict::new(py);
+    for (tmp_idx, _, stmt_idx) in &du.tmp_defs {
+        defs.set_item(*tmp_idx, *stmt_idx)?;
+    }
+    let uses = PyDict::new(py);
+    for ((tmp_idx, _), sites) in &du.tmp_use_groups {
+        let s = PySet::empty(py)?;
+        for site in sites {
+            s.add(site.stmt_idx)?;
+        }
+        uses.set_item(*tmp_idx, s)?;
+    }
+    Ok(Some((defs, uses)))
 }
 
 /// Whether the block's memoized def/use lists are present and still valid (test hook).

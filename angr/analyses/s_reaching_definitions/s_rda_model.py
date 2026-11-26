@@ -9,7 +9,8 @@ from angr.ailment.block import Block
 from angr.ailment.expression import Tmp, VirtualVariable
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import Definition, atoms
-from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, get_vvar_deflocs, get_vvar_uselocs
+from angr.rustylib.ailment import UsesDefs  # pylint:disable=import-error
+from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
@@ -123,7 +124,8 @@ class SRDAModel:
 
         # --- definitions ---
         new_phi: dict[int, set[int | None]] = {}
-        new_deflocs = get_vvar_deflocs(edited_blocks, phi_vvars=new_phi)
+        uses_defs = UsesDefs(edited_blocks)
+        new_deflocs = uses_defs.vvar_defs(new_phi)
 
         old_def_vids = {vid for vid, loc in self.all_vvar_definitions.items() if in_edited(loc)}
         for vid in old_def_vids - set(new_deflocs):
@@ -160,7 +162,7 @@ class SRDAModel:
                 else:
                     del self.all_vvar_uses[vid]
         # re-add the recomputed explicit uses for the edited blocks
-        for vid, uses in get_vvar_uselocs(edited_blocks).items():
+        for vid, uses in uses_defs.all_vvar_uses().items():
             for expr, loc in uses:
                 self.all_vvar_uses[vid].append((expr, loc))
 
@@ -379,10 +381,11 @@ def populate_model(
     function (via :class:`SReachingDefinitions` or directly)."""
 
     phi_vvars: dict[int, set[int | None]] = {}
+    uses_defs = UsesDefs(blocks.values())
     # find all vvar definitions
-    vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
+    vvar_deflocs = uses_defs.vvar_defs(phi_vvars)
     # find all explicit vvar uses
-    vvar_uselocs = get_vvar_uselocs(blocks.values())
+    vvar_uselocs = uses_defs.all_vvar_uses()
 
     # update vvar definitions using function arguments
     if func_args:

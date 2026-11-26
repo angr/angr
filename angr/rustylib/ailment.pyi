@@ -28,6 +28,8 @@ attribute is dispatched on the variant tag and raises
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from typing import Any, ClassVar, Self
 
+from angr.code_location import AILCodeLocation
+
 # ---------------------------------------------------------------------------
 # Tags
 # ---------------------------------------------------------------------------
@@ -1472,3 +1474,41 @@ def collect_uses_defs(
 
 def block_defuse_is_cached(block: Block) -> bool:
     """Whether the block's memoized def/use lists are present and still valid."""
+
+def block_tmp_defs_uses(block: Block) -> tuple[dict[int, int], dict[int, set[int]]] | None:
+    """
+    ``({tmp_idx: statement index of its definition}, {tmp_idx: statement indices of its uses})`` of a block, from
+    its memoized def/use sites; None when the block defines no tmp.
+    """
+
+class UsesDefs:
+    """
+    The def/use sites of a sequence of blocks (with distinct ``(addr, idx)``), taken from the sites memoized on
+    each block. A later definition of a vvar replaces an earlier one. Python values are built only for what a
+    method returns. It is a snapshot: editing the blocks afterwards does not change it.
+    """
+
+    def __init__(self, blocks: Iterable[Block]) -> None: ...
+    def vvar_defs(
+        self, phi_vvars: dict[int, set[int | None]] | None = ...
+    ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
+        """Every vvar definition. ``phi_vvars`` is filled with the source varids of each phi vvar."""
+
+    def has_vvar_uses(self, varid: int) -> bool: ...
+    def vvar_uses(self, varid: int) -> list[tuple[VirtualVariable, AILCodeLocation]]:
+        """The uses of one vvar; the same list on every call."""
+
+    def all_vvar_uses(self) -> dict[int, list[tuple[VirtualVariable, AILCodeLocation]]]:
+        """The uses of every used vvar, in first-use order."""
+
+    def register_use_ids(self, reg_offsets: list[int], also: set[int]) -> list[int]:
+        """
+        The used varids, in first-use order, that are in ``also`` or whose definition or first use is a register
+        vvar of one of ``reg_offsets``.
+        """
+
+    def tmp_defs_uses(self) -> list[tuple[tuple[int, int], int, set[tuple[Tmp, int]]]]:
+        """
+        ``((addr, idx), statement index of the definition, {(Tmp, statement index of a use)})`` of every tmp that
+        is defined and used in the same block.
+        """
