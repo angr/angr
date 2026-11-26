@@ -51,6 +51,8 @@ class SRDAModel:
         self.phi_vvar_ids: set[int] = set()
         self.phivarid_to_varids_with_unknown: dict[int, set[int | None]] = {}
         self.phivarid_to_varids: dict[int, set[int]] = {}
+        # the def/use sites populate_model took the vvar definitions from; None once the definitions were edited
+        self.uses_defs: UsesDefs | None = None
         # the by-location indexes. None after populate_model: they are then built from all_vvar_uses and
         # all_vvar_definitions when first asked for
         self._vvar_uses_by_loc: dict[AILCodeLocation, list[int]] | None = {}
@@ -114,6 +116,7 @@ class SRDAModel:
         """
         Record the definition of a vvar id, keeping all_vvar_definitions and vvar_defs_by_loc in sync.
         """
+        self.uses_defs = None
         if self._vvar_defs_by_loc is None:
             # build the index before the definitions change
             _ = self.vvar_defs_by_loc
@@ -141,6 +144,7 @@ class SRDAModel:
         """
         Drop the definition of a vvar id from both all_vvar_definitions and vvar_defs_by_loc.
         """
+        self.uses_defs = None
         by_loc = self.vvar_defs_by_loc
         loc = self.all_vvar_definitions.pop(vvar_id, None)
         if loc is not None:
@@ -176,6 +180,7 @@ class SRDAModel:
 
         edited_blocks = list(edited_blocks)
         block_keys = {(b.addr, b.idx) for b in edited_blocks}
+        self.uses_defs = None
         # the indexes are updated in place below
         vvar_uses_by_loc = self.vvar_uses_by_loc
 
@@ -466,6 +471,7 @@ def populate_model(
             model.all_vvar_uses[vvar_id] = list(uses)
 
     model.defer_loc_indexes()
+    model.uses_defs = uses_defs
 
     if track_tmps:
         # track tmps

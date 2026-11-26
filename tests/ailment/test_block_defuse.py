@@ -213,6 +213,35 @@ class TestBlockDefUse(unittest.TestCase):
         assert ud.register_use_ids([16], {9, 777}) == [2, 9]
         assert ud.register_use_ids([], set()) == []
 
+    def test_uses_defs_argless_call_stmts(self):
+        call = Call(70, Const(71, 0x2000, 64))
+        block = Block(
+            0x3000,
+            8,
+            statements=[
+                SideEffectStatement(1, call),
+                SideEffectStatement(2, Call(72, Const(73, 0x2000, 64), args=[])),
+                Assignment(3, vv(74, 1), call),
+                Assignment(4, vv(75, 2), Const(76, 1, 64)),
+                Return(5, [call]),
+            ],
+        )
+        assert UsesDefs([*make_blocks(), block]).argless_call_stmts() == [((0x3000, 0), i) for i in (0, 2, 4)]
+
+    def test_uses_defs_block_reg_defs(self):
+        blocks = make_blocks()
+        blocks[0].statements.append(Assignment(80, vv(81, 11, 32), Const(82, 1, 32)))
+        blocks[0].statements.append(Assignment(83, vv(84, 12), Const(85, 1, 64)))
+        ud = UsesDefs(blocks)
+        # registers 8 and 16 (vvars 1, 2) share base 0: the later definition counts. width is part of the key
+        result = ud.block_reg_defs(lambda reg_offset, size: 0 if reg_offset in (8, 16) else reg_offset)
+        assert list(result) == [(0x1000, 0), (0x1010, 0)]
+        b0 = result[(0x1000, 0)]
+        assert b0[(0, 8)] == 2
+        assert b0[(88, 4)] == 11
+        assert b0[(96, 8)] == 12
+        assert result[(0x1010, 0)] == {(72, 8): 9, (80, 8): 10}
+
     def test_uses_defs_is_a_snapshot(self):
         blocks = make_blocks()
         ud = UsesDefs(blocks)

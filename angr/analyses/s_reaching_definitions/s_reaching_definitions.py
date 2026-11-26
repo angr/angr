@@ -1,7 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import networkx
 
@@ -108,24 +108,9 @@ class SReachingDefinitions:
             # fix register uses at call sites
 
             # find all implicit vvar uses
-            call_stmt_ids = []
-            for block in blocks.values():
-                for stmt_idx, stmt in enumerate(block.statements):
-                    if (  # pylint:disable=too-many-boolean-expressions
-                        (
-                            isinstance(stmt, SideEffectStatement)
-                            and isinstance(stmt.expr, Call)
-                            and stmt.expr.args is None
-                        )
-                        or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt.src.args is None)
-                        or (
-                            isinstance(stmt, Return)
-                            and stmt.ret_exprs
-                            and isinstance(stmt.ret_exprs[0], Call)
-                            and stmt.ret_exprs[0].args is None
-                        )
-                    ):
-                        call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
+            # calls without args: call statements, assignments of a call and returns of a call
+            assert self.model.uses_defs is not None
+            call_stmt_ids: list[Any] = self.model.uses_defs.argless_call_stmts()
 
             observations = srda_view.observe(
                 [("stmt", insn_stmt_id, ObservationPointType.OP_BEFORE) for insn_stmt_id in call_stmt_ids],

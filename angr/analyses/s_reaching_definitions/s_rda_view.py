@@ -481,6 +481,9 @@ class SRDAView:
         forward path which starts the entry block with an empty register map.
         """
         arch = self.model.arch
+        if self.model.uses_defs is not None:
+            # the definitions are those of the blocks the model was populated from
+            return self.model.uses_defs.block_reg_defs(lambda reg_offset, size: get_reg_offset_base(reg_offset, arch))
         tmp: dict[tuple[int, int], dict[tuple[int, int], tuple[int, int]]] = defaultdict(dict)
         for vid, defloc in self.model.all_vvar_definitions.items():
             if defloc.is_extern:

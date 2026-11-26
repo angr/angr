@@ -689,6 +689,8 @@ pub struct BlockDefUse {
     tmp_defs: Vec<(i64, u32, usize)>,
     /// tmp uses grouped by ``(tmp_idx, bits)`` in first-use order
     tmp_use_groups: Vec<((i64, u32), Vec<TmpSite>)>,
+    /// indices of the statements that are a call without ``args``
+    argless_calls: Vec<usize>,
 }
 
 impl BlockDefUse {
@@ -737,6 +739,20 @@ impl<'a, 'py> Locs<'a, 'py> {
     }
 }
 
+/// A call whose arguments are not known yet: a call statement, an assignment of a call, or a return of a call.
+fn is_argless_call(stmt: &AilStatement) -> bool {
+    let callee: Option<&AilExpression> = match &stmt.inner {
+        StmtInner::SideEffectStatement { expr, .. } => Some(expr),
+        StmtInner::Assignment { src, .. } => Some(src),
+        StmtInner::Return { ret_exprs } => ret_exprs.first(),
+        _ => None,
+    };
+    matches!(
+        callee.map(|e| &e.inner),
+        Some(ExprInner::Call { args: None, .. })
+    )
+}
+
 /// Scan a block from scratch. ``cacheable`` is false for a statements list that has no version. A non-``Statement``
 /// entry contributes nothing.
 fn scan_block(
@@ -755,6 +771,7 @@ fn scan_block(
     };
     let cacheable = version != 0;
     let mut ins_addrs: Vec<Option<i64>> = Vec::with_capacity(stmts.len());
+    let mut argless_calls = Vec::new();
     for (stmt_idx, item) in stmts.iter().enumerate() {
         let Ok(cell) = item.cast::<Statement>() else {
             ins_addrs.push(None);
@@ -765,6 +782,9 @@ fn scan_block(
         ins_addrs.push(stmt.header.tags.ins_addr);
         stmt_defs(py, &mut raw, stmt_idx, stmt)?;
         uses.stmt(stmt_idx, stmt, true);
+        if is_argless_call(stmt) {
+            argless_calls.push(stmt_idx);
+        }
     }
     raw.vvar_uses = uses.vvar_uses;
     raw.tmp_uses = uses.tmp_uses;
@@ -791,6 +811,7 @@ fn scan_block(
             extra_declared: raw.extra_declared,
             tmp_defs: raw.tmp_defs,
             tmp_use_groups,
+            argless_calls,
         },
         cacheable,
     ))
@@ -937,6 +958,8 @@ fn tmp_use_set<'py>(py: Python<'py>, sites: &[TmpSite]) -> PyResult<Bound<'py, P
 
 /// ``(block, site)`` position of a vvar site.
 type SiteRef = (u32, u32);
+/// (base register offset, size) -> (statement index, varid)
+type RegDefs = IndexMap<(i64, u32), (usize, i64)>;
 
 /// The def/use sites of a sequence of blocks, merged like ``collect_uses_defs`` merges them (a later definition of
 /// a vvar replaces an earlier one; uses are in block order). It is a snapshot: editing the blocks afterwards does
@@ -1126,6 +1149,75 @@ impl UsesDefs {
         let phi_vvars = PyDict::new(py);
         self.fill_phi_vvars(py, &phi_vvars)?;
         Ok(phi_vvars)
+    }
+
+    /// ``[((addr, idx), stmt_idx)]`` of the calls without ``args``: call statements, assignments of a call and
+    /// returns of a call.
+    fn argless_call_stmts<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let out = PyList::empty(py);
+        for du in &self.blocks {
+            if du.argless_calls.is_empty() {
+                continue;
+            }
+            let block_loc = PyTuple::new(py, [du.addr, du.idx])?;
+            for stmt_idx in &du.argless_calls {
+                out.append((&block_loc, *stmt_idx))?;
+            }
+        }
+        Ok(out)
+    }
+
+    /// ``{(addr, idx): {(base register offset, size): varid}}``: the last definition of each register in each
+    /// block. ``base_of(reg_offset, size)`` gives the base register offset.
+    fn block_reg_defs<'py>(
+        &self,
+        py: Python<'py>,
+        base_of: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let mut bases: HashMap<(i64, u32), i64> = HashMap::new();
+        // block -> (base, size) -> (stmt_idx, varid), both in first-seen order
+        let mut by_block: IndexMap<u32, RegDefs> = IndexMap::new();
+        for (varid, (bi, i)) in &self.defs {
+            let site = &self.blocks[*bi as usize].vvar_defs[*i as usize];
+            let ExprInner::VirtualVariable {
+                category: VirtualVariableCategory::Register,
+                oident: OIdent::Int(reg_offset),
+                ..
+            } = &site.expr.inner
+            else {
+                continue;
+            };
+            let size = site.expr.header.bits / 8;
+            let base = match bases.get(&(*reg_offset, size)) {
+                Some(b) => *b,
+                None => {
+                    let b: i64 = base_of.call1((*reg_offset, size))?.extract()?;
+                    bases.insert((*reg_offset, size), b);
+                    b
+                }
+            };
+            let defs = by_block.entry(*bi).or_default();
+            match defs.get_mut(&(base, size)) {
+                Some(cur) => {
+                    if site.stmt_idx > cur.0 {
+                        *cur = (site.stmt_idx, *varid);
+                    }
+                }
+                None => {
+                    defs.insert((base, size), (site.stmt_idx, *varid));
+                }
+            }
+        }
+        let out = PyDict::new(py);
+        for (bi, defs) in by_block {
+            let du = &self.blocks[bi as usize];
+            let d = PyDict::new(py);
+            for ((base, size), (_, varid)) in defs {
+                d.set_item((base, size), varid)?;
+            }
+            out.set_item((du.addr, du.idx), d)?;
+        }
+        Ok(out)
     }
 
     /// The varids that are used, in first-use order.

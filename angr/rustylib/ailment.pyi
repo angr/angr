@@ -25,7 +25,7 @@ attribute is dispatched on the variant tag and raises
 ``AttributeError`` when called on the wrong variant.
 """
 
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import Any, ClassVar, Self
 
 from angr.code_location import AILCodeLocation
@@ -1504,6 +1504,15 @@ class UsesDefs:
         """
         Fill the dicts of a new ``SRDAModel`` with every definition, the function arguments that are not defined
         in the blocks (at an extern location), and the uses of both. Returns the source varids of each phi vvar.
+        """
+
+    def argless_call_stmts(self) -> list[tuple[tuple[int, int], int]]:
+        """``((addr, idx), stmt_idx)`` of the call statements, call assignments and call returns without ``args``."""
+
+    def block_reg_defs(self, base_of: Callable[[int, int], int]) -> dict[tuple[int, int], dict[tuple[int, int], int]]:
+        """
+        ``{(addr, idx): {(base register offset, size): varid}}``: the last definition of each register in each
+        block. ``base_of(reg_offset, size)`` gives the base register offset.
         """
 
     def vvar_use_ids(self) -> list[int]:
