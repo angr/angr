@@ -991,6 +991,19 @@ impl UsesDefs {
         PyTuple::new(py, [vvar.into_any(), loc])
     }
 
+    fn fill_phi_vvars<'py>(&self, py: Python<'py>, phi_vvars: &Bound<'py, PyDict>) -> PyResult<()> {
+        for du in &self.blocks {
+            for (dst, srcs) in &du.phis {
+                let s = PySet::empty(py)?;
+                for v in srcs {
+                    s.add(*v)?;
+                }
+                phi_vvars.set_item(*dst, s)?;
+            }
+        }
+        Ok(())
+    }
+
     fn use_list<'py>(
         &mut self,
         py: Python<'py>,
@@ -1062,17 +1075,62 @@ impl UsesDefs {
             d.set_item(varid, self.entry(py, at, true)?)?;
         }
         if let Some(p) = phi_vvars {
-            for du in &self.blocks {
-                for (dst, srcs) in &du.phis {
-                    let s = PySet::empty(py)?;
-                    for v in srcs {
-                        s.add(*v)?;
-                    }
-                    p.set_item(*dst, s)?;
+            self.fill_phi_vvars(py, p)?;
+        }
+        Ok(d)
+    }
+
+    /// Fill the dicts of a new ``SRDAModel``: ``varid_to_vvar`` and ``definitions`` (varid -> ``AILCodeLocation``)
+    /// for every definition, then for every function argument that is not defined in the blocks (at an extern
+    /// location); ``uses`` (varid -> ``[(VirtualVariable, AILCodeLocation)]``) for those of them that are used.
+    /// Returns ``{phi varid: {source varid or None}}``.
+    #[pyo3(signature = (varid_to_vvar, definitions, uses, func_args=None))]
+    fn fill_model<'py>(
+        &mut self,
+        py: Python<'py>,
+        varid_to_vvar: &Bound<'py, PyDict>,
+        definitions: &Bound<'py, PyDict>,
+        uses: &Bound<'py, PyDict>,
+        func_args: Option<&Bound<'py, PyAny>>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        for i in 0..self.defs.len() {
+            let (varid, at) = self
+                .defs
+                .get_index(i)
+                .map(|(k, v)| (*k, *v))
+                .expect("in range");
+            let du = self.blocks[at.0 as usize].clone();
+            let site = &du.vvar_defs[at.1 as usize];
+            varid_to_vvar.set_item(varid, Bound::new(py, Expression::wrap(site.expr.clone()))?)?;
+            definitions.set_item(varid, self.loc(py, at.0, site.stmt_idx)?)?;
+            if let Some(sites) = self.uses.get(&varid).cloned() {
+                uses.set_item(varid, self.use_list(py, &sites)?)?;
+            }
+        }
+        if let Some(func_args) = func_args {
+            for arg in func_args.try_iter()? {
+                let arg = arg?;
+                let varid = varid_of(&arg.cast::<Expression>()?.borrow().expr)
+                    .ok_or_else(|| PyTypeError::new_err("function argument is not a vvar"))?;
+                if self.defs.contains_key(&varid) || definitions.contains(varid)? {
+                    continue;
+                }
+                varid_to_vvar.set_item(varid, &arg)?;
+                // AILCodeLocation.make_extern(varid)
+                definitions.set_item(varid, ail_code_location(py)?.call1((-1, 0, varid))?)?;
+                if let Some(sites) = self.uses.get(&varid).cloned() {
+                    uses.set_item(varid, self.use_list(py, &sites)?)?;
                 }
             }
         }
-        Ok(d)
+        let phi_vvars = PyDict::new(py);
+        self.fill_phi_vvars(py, &phi_vvars)?;
+        Ok(phi_vvars)
+    }
+
+    /// The varids that are used, in first-use order.
+    fn vvar_use_ids(&self) -> Vec<i64> {
+        self.uses.keys().copied().collect()
     }
 
     fn has_vvar_uses(&self, varid: i64) -> bool {

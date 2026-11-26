@@ -1494,6 +1494,21 @@ class UsesDefs:
     ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
         """Every vvar definition. ``phi_vvars`` is filled with the source varids of each phi vvar."""
 
+    def fill_model(
+        self,
+        varid_to_vvar: dict[int, VirtualVariable],
+        definitions: dict[int, AILCodeLocation],
+        uses: dict[int, list[tuple[VirtualVariable | None, AILCodeLocation]]],
+        func_args: Iterable[VirtualVariable] | None = ...,
+    ) -> dict[int, set[int | None]]:
+        """
+        Fill the dicts of a new ``SRDAModel`` with every definition, the function arguments that are not defined
+        in the blocks (at an extern location), and the uses of both. Returns the source varids of each phi vvar.
+        """
+
+    def vvar_use_ids(self) -> list[int]:
+        """The varids that are used, in first-use order."""
+
     def has_vvar_uses(self, varid: int) -> bool: ...
     def vvar_uses(self, varid: int) -> list[tuple[VirtualVariable, AILCodeLocation]]:
         """The uses of one vvar; the same list on every call."""
