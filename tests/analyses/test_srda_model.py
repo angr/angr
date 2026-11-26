@@ -4,6 +4,8 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
+import copy
+import pickle
 import unittest
 
 from angr.ailment import Block
@@ -71,6 +73,24 @@ class TestSRDAModelVVarDefs(unittest.TestCase):
 
 def _vv(idx: int, varid: int) -> VirtualVariable:
     return VirtualVariable(idx, varid, 64, VirtualVariableCategory.REGISTER, oident=8 * varid)
+
+
+class TestAILCodeLocation(unittest.TestCase):
+    def test_compares_and_hashes_without_the_instruction_address(self):
+        a, b = AILCodeLocation(0x1000, 0, 2, 0x1004), AILCodeLocation(0x1000, 0, 2)
+        assert a == b
+        assert hash(a) == hash(b)
+        assert a != AILCodeLocation(0x1000, 0, 3)
+        assert a != (0x1000, 0, 2)
+        assert {a: 1}[b] == 1
+        assert a < AILCodeLocation(0x1000, 0, 3)
+
+    def test_copies_and_pickles(self):
+        a = AILCodeLocation(0x1000, 1, 2, 0x1004)
+        for other in (copy.copy(a), pickle.loads(pickle.dumps(a))):
+            assert other == a
+            assert other.insn_addr == 0x1004
+        assert AILCodeLocation.make_extern(5).is_extern is True
 
 
 class TestPopulateModel(unittest.TestCase):
