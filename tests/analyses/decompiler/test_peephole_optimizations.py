@@ -45,6 +45,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     MagicDivisionSimplifier,
     OptimizedDivisionSimplifier,
     RemoveNoopConversions,
+    RemoveRedundantConversions,
     RemoveRedundantShifts,
     SarToSignedDiv,
     SimplifyBitwiseInserts,
@@ -57,6 +58,27 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestPeepholeOptimizations(unittest.TestCase):
+    def test_narrow_division_preserves_signedness(self):
+        manager = Manager()
+        opt = RemoveRedundantConversions(None, None, manager)
+        for op in ("Div", "Mod"):
+            for signed in (False, True):
+                for lhs_signed, rhs_signed in ((False, False), (False, True), (True, False), (True, True)):
+                    with self.subTest(op=op, signed=signed, lhs_signed=lhs_signed, rhs_signed=rhs_signed):
+                        operands = (Register(manager.next_atom(), 0, 32), Register(manager.next_atom(), 8, 32))
+                        widened = [
+                            Convert(manager.next_atom(), 32, 64, extension_signed, operand)
+                            for extension_signed, operand in zip((lhs_signed, rhs_signed), operands)
+                        ]
+                        div = BinaryOp(manager.next_atom(), op, widened, signed, bits=64)
+                        result = opt.optimize(Convert(manager.next_atom(), 64, 32, not signed, div))
+                        if lhs_signed == rhs_signed == signed:
+                            assert isinstance(result, BinaryOp) and result.op == op
+                            assert result.signed == signed and result.bits == 32
+                            assert result.operands == operands
+                        else:
+                            assert result is None
+
     def test_constant_dereference(self):
         # a = *(A) :=> a = the variable at at A iff
         # - A is a pointer that points to a read-only section.
