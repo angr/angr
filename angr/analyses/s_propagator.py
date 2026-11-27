@@ -608,10 +608,7 @@ class SPropagator:
                         # feeding the result, DEP2, and NDEP of the next adc); keep it as a variable instead
                         continue
                     # we can propagate it!
-                    if isinstance(stmt.src, VirtualVariable):
-                        v = const_vvars.get(stmt.src.varid, stmt.src)
-                    else:
-                        v = stmt.src
+                    v = const_vvars.get(stmt.src.varid, stmt.src) if isinstance(stmt.src, VirtualVariable) else stmt.src
 
                     for tmp_used, tmp_use_stmtidx in tmp_uses:
                         loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
