@@ -18,7 +18,7 @@ from angr.analyses.unpacker.protected_unpackers import vmprotect_original_sectio
 from tests.common import bin_location
 
 from .samples import IMAGE_BASE, sample, sample_path
-from .test_vmprotect_static import CODE
+from .test_vmprotect_static import not_packed_code
 
 TEXT_RVA, STUB_RVA = 0x1000, 0x3000
 OEP_RVA = TEXT_RVA + 0x800
@@ -122,7 +122,8 @@ class TestUnpackerFacade(unittest.TestCase):
         assert isinstance(unpacker.unpacker, VMProtectUnpacker)
         assert unpacker.unpacker.method == "static"
         assert unpacker.unpacked is not None
-        assert pefile.PE(data=unpacker.unpacked).sections[0].get_data()[: len(CODE)] == CODE
+        code = not_packed_code()
+        assert pefile.PE(data=unpacker.unpacked).sections[0].get_data()[: len(code)] == code
 
     def test_not_packed(self):
         unpacker = self._project("not_packed.exe").analyses.Unpacker()
