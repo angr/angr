@@ -158,6 +158,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
     # TODO: this needs to be updated to support Windows, but detect and disable on MSVC
     PLATFORMS = ["linux"]
+    PROBE_STRUCTURE_ONLY = False
     NAME = "Convert lowered switch-cases (if-else) to switch-cases"
     DESCRIPTION = (
         "Convert lowered switch-cases (if-else) to switch-cases. Only works when the Phoenix structuring "
