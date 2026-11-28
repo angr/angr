@@ -4,9 +4,14 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
 
 import angr
+from angr.analyses import Decompiler
+from tests.common import bin_location
+
+test_location = os.path.join(bin_location, "tests")
 
 
 class TestSwitchDefaultCaseDuplicatorSplitPred(unittest.TestCase):
@@ -166,6 +171,32 @@ class TestSwitchDefaultCaseDuplicatorSplitPred(unittest.TestCase):
         func = cfg.functions[self.BASE]
         # fail_fast=True: this raised NetworkXError in SwitchDefaultCaseDuplicator before the split-predecessor fix.
         dec = proj.analyses.Decompiler(func, cfg=cfg, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+
+class TestSwitchDefaultCaseDuplicatorUnreachableDefault(unittest.TestCase):
+    """
+    SwitchDefaultCaseDuplicator collects switch-case constructs from the function-level CFG graph, but clinic builds
+    the AIL graph out of the blocks reachable from the function entry only, so a construct the CFG recovered in
+    unreachable code has no default-case block. _get_block() returned None for it and self._graph.successors(None)
+    raised a NetworkXError, which escaped clinic and made Decompiler redo the whole function with the basic preset.
+
+    sub_140109110 carries two jump tables inside a region nothing reaches, at 0x140109608 and 0x140109b88. Their
+    switch heads are 0x1401095df and 0x140109b5f, and their default cases are 0x140109765 and 0x140109ce1.
+    """
+
+    def test_default_case_outside_the_ail_graph(self):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_addr = 0x140109110
+        # the unreachable jump tables sit a couple of kilobytes into the function
+        cfg = proj.analyses.CFGFast(
+            normalize=True, regions=[(func_addr, func_addr + 0x2000)], function_starts=[func_addr]
+        )
+        # fail_fast=True: this raised NetworkXError in SwitchDefaultCaseDuplicator before the fix.
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func_addr, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
 
 
