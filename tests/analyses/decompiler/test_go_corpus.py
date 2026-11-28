@@ -12,9 +12,9 @@ import os
 import re
 import unittest
 
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
-from .test_go_decompiler import GoDecompilationTarget, TargetChecks
+from .test_go_decompiler import GoDecompilationTarget, TargetChecks, go_func_addrs
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -274,6 +274,44 @@ class TestGoCorpusLinuxAmd64Stdlib(CorpusChecks, GoDecompilationTarget):
         # the descriptors of the type switch ahead of it print as names, not as their first field
         assert "&go:itab.*crypto/internal/fips140/sha256.Digest,hash.Hash" in text, text
         assert ".Inter" not in text and ".Size_" not in text, text
+
+
+class TestGoCorpusLinuxAmd64StringOrder(unittest.TestCase):
+    """
+    ``cmpstring(a, b) < 0`` folds into ``a < b``, and the operands stay strings: two string elements of a slice, not
+    their 16-byte headers compared as integers. ``insertionSortOrdered`` uses the comparison as a value,
+    ``siftDownOrdered`` as an ``if`` condition. In ``medianOrdered`` type inference reads the string prototype the fold
+    puts on the comparison and types the slice parameter ``*string``.
+    """
+
+    def test_string_comparisons(self):
+        binary = os.path.join(test_location, "x86_64", "go", "age")
+        names = (
+            "slices.insertionSortOrdered[go.shape.string]",
+            "slices.siftDownOrdered[go.shape.string]",
+            "slices.medianOrdered[go.shape.string]",
+        )
+        # cmpstring tail-jumps to cmpbody, which the call tree does not reach: without it cmpstring never returns
+        addrs = go_func_addrs(binary, *names, "cmpbody")
+        proj, cfg = load_project_with_scoped_cfg(
+            binary,
+            addrs[names[0]],
+            extra_func_addrs=[addrs[names[1]], addrs[names[2]], addrs["cmpbody"]],
+            call_tree_depth=1,
+        )
+        texts = {}
+        for name in names:
+            dec = proj.analyses.Decompiler(addrs[name], cfg=cfg.model, flavor="go")
+            assert not dec.errors, dec.errors
+            assert dec.codegen is not None
+            text = dec.codegen.text
+            assert text is not None
+            assert not re.search(r"\*\(\*u?int128\)\([^\n]*\) [<>]=? ", text), text
+            texts[name] = text
+        for name in names[:2]:
+            assert re.search(r"\*\(\*string\)\([^\n]*\) [<>]=? \*\(\*string\)\(", texts[name]), texts[name]
+        header = next(line for line in texts[names[2]].splitlines() if line.startswith("func "))
+        assert "*string" in header and "uint128" not in header, texts[names[2]]
 
 
 class TestGoCorpusDarwinArm64(CorpusChecks, GoDecompilationTarget):
