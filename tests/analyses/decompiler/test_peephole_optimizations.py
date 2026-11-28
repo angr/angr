@@ -34,6 +34,7 @@ from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
     ARMCmpF,
+    ASubAShrConstShrConst,
     Bswap,
     CmpFFlagTests,
     CmpMaskedShift,
@@ -57,6 +58,21 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestPeepholeOptimizations(unittest.TestCase):
+    def test_a_sub_a_shr_const_shr_const_preserves_root_atom_id(self):
+        manager = Manager()
+        value = Register(manager.next_atom(), 16, 32)
+        sign = BinaryOp(manager.next_atom(), "Sar", [value, Const(manager.next_atom(), 31, 8)], True, bits=32)
+        adjusted = BinaryOp(manager.next_atom(), "Sub", [value, sign], True, bits=32)
+        expr = BinaryOp(manager.next_atom(), "Sar", [adjusted, Const(manager.next_atom(), 1, 8)], True, bits=32)
+
+        result = ASubAShrConstShrConst(None, None, manager).optimize(expr)
+
+        # A replacement root keeps the replaced expression's ID; reusing the operand's ID aliases VariableMap entries.
+        assert isinstance(result, BinaryOp) and result.op == "Div"
+        assert result.signed is True
+        assert result.idx == expr.idx
+        assert result.idx != result.operands[0].idx
+
     def test_constant_dereference(self):
         # a = *(A) :=> a = the variable at at A iff
         # - A is a pointer that points to a read-only section.
