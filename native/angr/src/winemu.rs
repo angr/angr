@@ -528,11 +528,11 @@ impl WinPatcher {
                 c => c,
             };
             stmt.inputs = pcode::Inputs::new(remap(a, &live), remap(b, &live));
-            if !is_mem(stmt.op) {
-                if let Some(i) = written.iter().position(|w| *w == stmt.output) {
-                    stmt.output = temps[i];
-                    live[i] = true;
-                }
+            if !is_mem(stmt.op)
+                && let Some(i) = written.iter().position(|w| *w == stmt.output)
+            {
+                stmt.output = temps[i];
+                live[i] = true;
             }
         }
         let copies: Vec<pcode::Instruction> = written

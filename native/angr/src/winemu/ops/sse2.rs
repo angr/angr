@@ -1,5 +1,7 @@
 //! MMX, SSE and SSE2 operations that the SLEIGH spec leaves to user ops.
 
+use std::cmp::Ordering;
+
 use icicle_vm::cpu::{Cpu, exec::helpers::PcodeOpHelper};
 use pcode::{Value, VarNode};
 
@@ -29,8 +31,8 @@ fn cmp_predicate(a: f64, b: f64, imm: u64) -> u64 {
         2 => a <= b,
         3 => a.is_nan() || b.is_nan(),
         4 => a != b,
-        5 => !(a < b),
-        6 => !(a <= b),
+        5 => a.partial_cmp(&b) != Some(Ordering::Less),
+        6 => !matches!(a.partial_cmp(&b), Some(Ordering::Less | Ordering::Equal)),
         _ => !(a.is_nan() || b.is_nan()),
     };
     (holds as u64).wrapping_neg()
