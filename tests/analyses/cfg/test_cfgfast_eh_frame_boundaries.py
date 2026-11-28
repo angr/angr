@@ -9,10 +9,16 @@ jumps. Without a boundary at each target, CFGFast absorbs all of them into ``key
 - ``tailcall_dispatch_nocet``: .eh_frame FDEs, no endbr64. Only the FDE boundaries split the targets.
 - ``tailcall_dispatch_cet_nofde``: endbr64, no FDEs for the functions. Only the endbr64 heuristic splits them.
 - ``tailcall_dispatch_cet``: both.
+
+``tailcall_table_dispatch`` is a stripped PIE build of tests_src/tailcall_table_dispatch.c: eight handlers are reached
+only through a table of function pointers, and ``decode`` and every handler end in an indirect jump through that table.
+``computed_goto_label_table`` and ``computed_goto_stateless_labels`` are computed gotos whose label tables are encoded
+like tables of function pointers.
 """
 
 from __future__ import annotations
 
+import io
 import os
 import unittest
 
@@ -27,6 +33,13 @@ NOCET_TARGETS = {0x4011C0, 0x401250, 0x4012E0, 0x401380, 0x401410, 0x4014A0}
 KEY_VERIFY_COLD = 0x401050
 CET_KEY_VERIFY = 0x401540
 NOCET_KEY_VERIFY = 0x401530
+# op_done, op_seg, op_bad, op_vex, op_lock, op_rep, op_size, op_rex
+TABLE_HANDLERS = {0x401170, 0x401180, 0x4011D0, 0x4011E0, 0x401210, 0x401250, 0x401290, 0x4012D0}
+TABLE_DECODE = 0x401320
+# op_halt, op_inc, op_dec, op_dbl, op_neg: labels of run(), aligned to 16 bytes like function entries
+COMPUTED_GOTO_LABELS = {0x401160, 0x401190, 0x4011A0, 0x4011B0, 0x4011C0}
+# op1, op0: labels of dispatch() that only set the return value and return
+STATELESS_LABELS = {0x401150, 0x401160}
 
 
 class TestCfgFastEhFrameBoundaries(unittest.TestCase):
@@ -82,6 +95,106 @@ class TestCfgFastEhFrameBoundaries(unittest.TestCase):
         assert cfg.kb.functions[sftp_server_main].returning is False
         assert sftp_server_main not in cfg.kb.functions[main].block_addrs_set
         assert len(cfg.kb.functions[main].block_addrs_set) < 10
+
+    def test_functions_dispatched_through_a_table_are_kept(self):
+        # every handler is a jump table target with no call predecessor, like a cold part of a switch, but it returns
+        # on its own and never jumps back into the body of the function that owns the table
+        cfg = self._cfg("tailcall_table_dispatch")
+        assert set(cfg.kb.functions).issuperset(TABLE_HANDLERS)
+        assert all(cfg.kb.functions[addr].returning for addr in TABLE_HANDLERS)
+        assert not cfg.kb.functions[TABLE_DECODE].block_addrs_set & TABLE_HANDLERS
+
+    def test_functions_dispatched_through_a_table_without_unwind_data(self):
+        # without trusted FDEs the handlers are still recovered: the table is an array of relocated pointers to
+        # aligned function entries, which no switch table is
+        for kwargs in ({"eh_frame": False}, {"eh_frame_boundaries": False}):
+            cfg = self._cfg("tailcall_table_dispatch", **kwargs)
+            assert set(cfg.kb.functions).issuperset(TABLE_HANDLERS)
+            assert not cfg.kb.functions[TABLE_DECODE].block_addrs_set & TABLE_HANDLERS
+
+    def test_computed_goto_labels_are_not_functions(self):
+        # the label table of a computed goto is an array of relocated pointers too, but a label continues its
+        # function: it uses the registers that its function set up
+        for kwargs in ({}, {"eh_frame": False}, {"eh_frame_boundaries": False}):
+            cfg = self._cfg("computed_goto_label_table", **kwargs)
+            assert not set(cfg.kb.functions) & COMPUTED_GOTO_LABELS
+
+    def test_computed_goto_labels_inside_an_fde_are_not_functions(self):
+        # these labels are entered like functions; only the FDE of dispatch(), which covers them, says they are not
+        cfg = self._cfg("computed_goto_stateless_labels")
+        assert not set(cfg.kb.functions) & STATELESS_LABELS
+
+    def test_fde_denies_function_starts(self):
+        cfg = self._cfg("tailcall_dispatch_nocet")
+        # inside the FDE of key_verify.cold, after its start
+        assert cfg._eh_frame_denies_function_start(KEY_VERIFY_COLD + 1)
+        # key_verify.cold was absorbed only because every jump to it is conditional, which a jump through a table
+        # would explain too
+        assert cfg._eh_frame_chunks[KEY_VERIFY_COLD] == {"conditional_only"}
+        assert not cfg._eh_frame_denies_function_start(KEY_VERIFY_COLD)
+        # a chunk that jumps back into its owner or never returns is not a function, whatever table reaches it
+        for reasons in ({"jumps_back"}, {"conditional_only", "non_returning"}):
+            cfg._eh_frame_chunks[KEY_VERIFY_COLD] = frozenset(reasons)
+            assert cfg._eh_frame_denies_function_start(KEY_VERIFY_COLD)
+        # untrusted FDEs deny nothing
+        cfg = self._cfg("tailcall_dispatch_nocet", eh_frame_boundaries=False)
+        assert not cfg._eh_frame_denies_function_start(KEY_VERIFY_COLD + 1)
+
+
+class TestEnteredLikeAFunction(unittest.TestCase):
+    """
+    CFGBase._entered_like_a_function on single x86-64 blocks (System V): a function uses only its arguments, the stack
+    pointer and the return address before writing a register, may only spill other registers into its own frame, and
+    reads nothing from its caller's stack that it did not write.
+    """
+
+    def _entered(self, code: bytes) -> bool:
+        proj = angr.Project(
+            io.BytesIO(code),
+            main_opts={"backend": "blob", "arch": "amd64", "base_addr": 0x1000, "entry_point": 0x1000},
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFGFast(normalize=True)
+        return cfg._entered_like_a_function(0x1000)
+
+    def test_uses_only_arguments(self):
+        assert self._entered(bytes.fromhex("b80a000000c3"))  # mov eax, 10; ret
+        assert self._entered(bytes.fromhex("b8010000004801f8c3"))  # mov eax, 1; add rax, rdi; ret
+        # inc keeps the carry flag, which VEX carries over in the flag thunk without using it
+        assert self._entered(bytes.fromhex("ffc789f8c3"))  # inc edi; mov eax, edi; ret
+
+    def test_spills_to_the_stack(self):
+        assert self._entered(bytes.fromhex("534889f85bc3"))  # push rbx; mov rax, rdi; pop rbx; ret
+        assert self._entered(bytes.fromhex("50e800000000"))  # push rax; call $+5 (aligns the stack for the call)
+
+    def test_restores_a_spill_only_into_its_register(self):
+        assert self._entered(bytes.fromhex("535bc3"))  # push rbx; pop rbx; ret
+        # the value loaded back is rbx at entry, so this returns it
+        assert not self._entered(bytes.fromhex("5358c3"))  # push rbx; pop rax; ret
+
+    def test_uses_a_register_it_did_not_write(self):
+        assert not self._entered(bytes.fromhex("01d8c3"))  # add eax, ebx; ret
+        # writing al leaves the upper bytes of rax as they were
+        assert not self._entered(bytes.fromhex("b0014801f8c3"))  # mov al, 1; add rax, rdi; ret
+
+    def test_stores_a_register_outside_its_frame(self):
+        assert not self._entered(bytes.fromhex("48891fc3"))  # mov [rdi], rbx; ret
+        assert not self._entered(bytes.fromhex("48895c2440c3"))  # mov [rsp+0x40], rbx; ret
+        assert not self._entered(bytes.fromhex("4889fc48891c24c3"))  # mov rsp, rdi; mov [rsp], rbx; ret
+
+    def test_uses_the_flags(self):
+        assert not self._entered(bytes.fromhex("0f95c0c3"))  # setnz al; ret
+        assert not self._entered(bytes.fromhex("11f8c3"))  # adc eax, edi; ret
+        # inc carries the carry flag at entry in the flag thunk, and adc uses it
+        assert not self._entered(bytes.fromhex("ffc783d70089f8c3"))  # inc edi; adc edi, 0; mov eax, edi; ret
+
+    def test_loads_the_callers_stack(self):
+        assert not self._entered(bytes.fromhex("488b442408c3"))  # mov rax, [rsp+8]; ret
+        assert not self._entered(bytes.fromhex("53488b4424105bc3"))  # push rbx; mov rax, [rsp+16]; pop rbx; ret
+        # only the first byte was stored
+        assert not self._entered(bytes.fromhex("c644240801488b442408c3"))  # mov byte [rsp+8], 1; mov rax, [rsp+8]; ret
+        # reading back what it stored is fine
+        assert self._entered(bytes.fromhex("48894c2408488b442408c3"))  # mov [rsp+8], rcx; mov rax, [rsp+8]; ret
 
 
 if __name__ == "__main__":

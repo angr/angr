@@ -2305,20 +2305,88 @@ class CFGBase(Analysis):
         The temporary solution is identifying functions that (a) have no call predecessors, and (b) are used as
         jump targets for identified jump tables. Remove these functions so that they can be treated as part of the
         source function where the corresponding jump table belongs.
+
+        A jump table may also be a table of function pointers that is dispatched with a tail call, such as a decoder
+        that ends every handler in `return table[byte](d)`. Its targets are ordinary functions: they return on their
+        own and never jump back into the body of the function that owns the table, while a cold part either does not
+        return or jumps back into that body. Two kinds of evidence say a table holds such functions, and its targets
+        are then kept as function starts, or created when tracing folded them into the dispatcher:
+
+        - .eh_frame: once one target of a table is such a function, every target that .eh_frame records as a function
+          start is one too. Targets without an FDE are left alone: they are blocks, such as the cases of a switch.
+        - The table itself, without unwind data: a compiler writes a switch table as offsets, or as pointers that are
+          not relocated; an array of function pointers written by the program is a table of pointers that the loader
+          relocates. Its targets must also start where functions start: aligned, entered the way a function is (see
+          _entered_like_a_function), and not inside a function that trusted .eh_frame records.
+
+        The labels of a computed goto are a relocated pointer table too. Most of them use the state of their function
+        and fail the entry check, and with trusted .eh_frame all of them lie inside their function's FDE. Without
+        unwind data, a label that is aligned like a function and uses no state of its function (`op: return 10;`) is
+        indistinguishable from a function, and is made one.
         """
 
         jumptable_entries: set[int] = set()
+        jumptable_owners: dict[int, set[int]] = defaultdict(set)
         for jt in self.model.jump_tables.values():
             assert jt.jumptable_entries is not None
             jumptable_entries |= set(jt.jumptable_entries)
+            for entry in jt.jumptable_entries:
+                jumptable_owners[entry].add(jt.func_addr)
 
         if not jumptable_entries:
             return set()
 
+        dispatched_entries: set[int] = set()
+        entered: dict[int, bool] = {}
+
+        # with unwind data: only .eh_frame function starts can be function pointers dispatched through a table
+        fde_starts = self._eh_frame_function_starts(jumptable_entries, entered)
+        if fde_starts:
+            is_tail_dispatched: dict[int, bool] = {}
+            for jt in self.model.jump_tables.values():
+                assert jt.jumptable_entries is not None
+                entries = set(jt.jumptable_entries) & fde_starts
+                for entry in entries:
+                    if entry not in is_tail_dispatched:
+                        is_tail_dispatched[entry] = functions.contains_addr(
+                            entry
+                        ) and self._is_tail_dispatched_function(functions, entry, jumptable_owners[entry])
+                    if is_tail_dispatched[entry]:
+                        dispatched_entries |= entries
+                        break
+
+        # without unwind data: a relocated table of pointers to function entries is an array of function pointers
+        relocated_addrs: dict[Any, set[int]] = {}
+        checked_tables: set[tuple] = set()
+        for ij in self.model.jump_tables.values():
+            for info in ij.jumptables:
+                if info.addr is None or info.entries_guessed:
+                    continue
+                entries = frozenset(info.entries)
+                # the same table may be resolved with different bounds at different jump sites
+                table_key = (info.addr, info.size, info.entry_size, entries)
+                if table_key in checked_tables:
+                    continue
+                checked_tables.add(table_key)
+                if (
+                    len(entries) >= 2
+                    and not entries <= dispatched_entries
+                    and self._is_relocated_pointer_table(info, relocated_addrs)
+                    and all(entry % self.FUNCTION_POINTER_TABLE_ALIGNMENT == 0 for entry in entries)
+                    and not any(self._eh_frame_denies_function_start(entry) for entry in entries)
+                    and all(self._entered_like_a_function(entry, entered) for entry in entries)
+                ):
+                    dispatched_entries |= entries
+
+        # a target that tracing folded into its dispatcher becomes a function start
+        for entry in dispatched_entries:
+            if not functions.contains_addr(entry) and self.model.get_any_node(entry, force_fastpath=True):
+                functions.function(addr=entry, create=True)
+
         functions_to_remove = set()
 
         for func_addr in functions:
-            if func_addr in predetermined_function_addrs:
+            if func_addr in predetermined_function_addrs or func_addr in dispatched_entries:
                 continue
             if func_addr in jumptable_entries:
                 # is there any call edge pointing to it?
@@ -2343,6 +2411,268 @@ class CFGBase(Analysis):
                 del blockaddr_to_funcaddr[to_remove]
 
         return functions_to_remove
+
+    # Function starts in an array of function pointers are at least this aligned; GCC and Clang align functions to 16
+    # bytes by default. This requirement only removes candidates, costing some recall (e.g., -Os); it does not make the
+    # rule exact, since labels can be aligned too (-falign-labels).
+    FUNCTION_POINTER_TABLE_ALIGNMENT = 16
+
+    def _is_relocated_pointer_table(self, info, relocated_addrs: dict) -> bool:
+        """
+        Checks if a jump table is a table of pointers that the loader relocates. A compiler writes a switch table as
+        offsets, or, in code that is not position-independent, as pointers that are not relocated; a relocated table of
+        pointers is an array written by the program.
+
+        :param info:            The JumptableInfo to check.
+        :param relocated_addrs: A cache of relocated addresses per loaded object.
+        :return:                True if the table holds pointer-sized entries and every entry is relocated.
+        """
+
+        if info.addr is None or info.entry_size != self.project.arch.bytes:
+            return False
+        slots = info.size // info.entry_size
+        if slots < 1:
+            return False
+        obj = self.project.loader.find_object_containing(info.addr)
+        if obj is None or not obj.pic:
+            return False
+        if obj not in relocated_addrs:
+            relocated_addrs[obj] = {reloc.rebased_addr for reloc in obj.relocs}
+        addrs = relocated_addrs[obj]
+        return all(info.addr + i * info.entry_size in addrs for i in range(slots))
+
+    def _entered_like_a_function(self, addr: int, cache: dict[int, bool] | None = None) -> bool:
+        """
+        Checks if the block at `addr` is entered the way a function is, rather than continuing the code that jumped to
+        it. At its entry a function holds meaningful values only in its argument registers, the stack pointer and the
+        return address. Before writing all of it, it uses no other general-purpose register and no condition flags,
+        except to spill a register into its own frame or the register home area of the calling convention (saving a
+        callee-saved register, or pushing a scratch register to align the stack). It reads nothing from its caller's
+        stack that it did not write itself. A switch case or the label of a computed goto continues its function, so it
+        typically uses values that its function left in registers, in the flags or on the stack.
+
+        Stack arguments are part of the caller's stack, so a function that loads one in its first block is rejected
+        too, as is one that reads a register the calling convention does not list as an argument (the vector count in
+        `al` of a variadic AMD64 function, `t9` of MIPS PIC code). These rejections cost recall. The check cannot
+        reject a block that uses no state of the code that jumped to it, such as a label that only sets the return
+        value and returns. Only the first block is checked, so state that is first used in a later block is not seen,
+        and vector registers and statements other than register and memory accesses are not checked.
+
+        The check is only made on architectures where it has been measured (_ENTRY_CHECK_ARCHS); elsewhere it answers
+        no, which turns off the rules that rely on it.
+
+        :param addr:    Address of the block.
+        :param cache:   Results of earlier checks, by address.
+        :return:        True if the block is entered like a function.
+        """
+
+        if cache is not None and addr in cache:
+            return cache[addr]
+        result = self._check_entered_like_a_function(addr)
+        if cache is not None:
+            cache[addr] = result
+        return result
+
+    # VEX keeps the condition flags of these architectures as a lazily evaluated thunk in these registers
+    _VEX_FLAG_THUNK_REGS = ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep")
+    # architectures on which the entry check, and the 16-byte alignment of function starts, have been measured
+    _ENTRY_CHECK_ARCHS = frozenset({"AMD64"})
+
+    def _check_entered_like_a_function(self, addr: int) -> bool:
+        from angr.calling_conventions import SimRegArg, default_cc_for_project  # pylint:disable=import-outside-toplevel
+
+        arch = self.project.arch
+        if arch.name not in self._ENTRY_CHECK_ARCHS:
+            return False
+        cc = default_cc_for_project(self.project)
+        if cc is None:
+            return False
+        try:
+            irsb = self.project.factory.block(addr).vex
+        except (SimEngineError, SimMemoryError, SimTranslationError):
+            return False
+
+        live_at_entry = {arch.sp_offset, arch.ip_offset}
+        live_at_entry |= {arch.registers[name][0] for name in cc.ARG_REGS if name in arch.registers}
+        if isinstance(cc.RETURN_ADDR, SimRegArg) and cc.RETURN_ADDR.reg_name in arch.registers:
+            live_at_entry.add(arch.registers[cc.RETURN_ADDR.reg_name][0])
+        tracked_bytes = {
+            offset
+            for reg in arch.register_list
+            if reg.general_purpose and reg.vex_offset not in live_at_entry
+            for offset in range(reg.vex_offset, reg.vex_offset + reg.size)
+        }
+        flag_bytes = {
+            offset
+            for name in self._VEX_FLAG_THUNK_REGS
+            if name in arch.registers
+            for offset in range(arch.registers[name][0], arch.registers[name][0] + arch.registers[name][1])
+        }
+        # the stack pointer's offset from its value at entry: the caller's stack starts at the stack arguments, and
+        # the register home area (if any) above the return address may be used by the callee
+        caller_stack = cc.STACKARG_SP_DIFF
+        spill_limit = cc.STACKARG_SP_DIFF + getattr(cc, "STACKARG_SP_BUFF", 0)
+
+        # Every register byte and stack byte either holds a value independent of the state at entry ("clean"), or
+        # still depends on it. Values that depend on it are tracked through temporaries, registers and stack slots:
+        # a register spilled to the stack and loaded back is the same value, and so are flags carried in the thunk.
+        clean_regs: set[int] = set()  # register bytes written with values independent of the state at entry
+        entry_values: set[int] = set()  # tmps that depend on a tracked register's value at entry
+        flag_values: set[int] = set()  # tmps that depend only on the condition flags at entry
+        origins: dict[int, tuple[int, int]] = {}  # tmp -> (offset, size) of the register whose entry value it is
+        sp_offsets: dict[int, int] = {}  # tmp -> its offset from the stack pointer at entry
+        sp_offset: int | None = 0  # the current stack pointer's offset from its value at entry, if known
+        clean_stack: set[int] = set()  # stack bytes this block stored values independent of the state at entry to
+        spilled_stack: dict[int, tuple[int, int, int] | None] = {}  # stack byte -> (register, size, base) spilled there
+
+        def uses(expr) -> list[int]:
+            return [e.tmp for e in expr.child_expressions if isinstance(e, pyvex.expr.RdTmp)] + (
+                [expr.tmp] if isinstance(expr, pyvex.expr.RdTmp) else []
+            )
+
+        def uses_entry_value(expr) -> bool:
+            return any(tmp in entry_values or tmp in flag_values for tmp in uses(expr))
+
+        def byte_range(offset: int, ty_bits: int) -> range:
+            return range(offset, offset + ty_bits // 8)
+
+        def stack_offset(expr) -> int | None:
+            return sp_offsets.get(expr.tmp) if isinstance(expr, pyvex.expr.RdTmp) else None
+
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.stmt.WrTmp):
+                data = stmt.data
+                if isinstance(data, pyvex.expr.Get):
+                    read = byte_range(data.offset, pyvex.get_type_size(data.ty))
+                    if data.offset == arch.sp_offset:
+                        if sp_offset is not None:
+                            sp_offsets[stmt.tmp] = sp_offset
+                    elif any(offset in tracked_bytes and offset not in clean_regs for offset in read):
+                        entry_values.add(stmt.tmp)
+                        origins[stmt.tmp] = (data.offset, len(read))
+                    elif any(offset in flag_bytes and offset not in clean_regs for offset in read):
+                        flag_values.add(stmt.tmp)
+                    continue
+                if isinstance(data, pyvex.expr.Load):
+                    if uses_entry_value(data.addr):
+                        return False
+                    offset = stack_offset(data.addr)
+                    if offset is not None:
+                        read = byte_range(offset, pyvex.get_type_size(data.ty))
+                        if any(
+                            pos >= caller_stack and pos not in clean_stack and pos not in spilled_stack for pos in read
+                        ):
+                            # the caller's stack: its locals, or the stack arguments it passed
+                            return False
+                        spills = {spilled_stack[pos] for pos in read if pos in spilled_stack}
+                        if spills:
+                            # loading a spilled register back gives its value at entry again
+                            entry_values.add(stmt.tmp)
+                            spill = next(iter(spills))
+                            if len(spills) == 1 and spill is not None and spill[2] == offset and spill[1] == len(read):
+                                origins[stmt.tmp] = (spill[0], spill[1])
+                    continue
+                if (
+                    isinstance(data, pyvex.expr.Binop)
+                    and data.op.startswith(("Iop_Add", "Iop_Sub"))
+                    and stack_offset(data.args[0]) is not None
+                    and isinstance(data.args[1], pyvex.expr.Const)
+                ):
+                    delta = data.args[1].con.value
+                    sp_offsets[stmt.tmp] = stack_offset(data.args[0]) + (delta if "Add" in data.op else -delta)
+                if any(tmp in entry_values for tmp in uses(data)):
+                    return False
+                if any(tmp in flag_values for tmp in uses(data)):
+                    flag_values.add(stmt.tmp)
+            elif isinstance(stmt, pyvex.stmt.Put):
+                target = byte_range(stmt.offset, stmt.data.result_size(irsb.tyenv))
+                if uses_entry_value(stmt.data):
+                    tmp = stmt.data.tmp if isinstance(stmt.data, pyvex.expr.RdTmp) else None
+                    carried_flags = tmp in flag_values and all(offset in flag_bytes for offset in target)
+                    # putting a register's value at entry back into it restores it (pop rbx after push rbx)
+                    restored = tmp in origins and origins[tmp] == (stmt.offset, len(target))
+                    if not (carried_flags or restored):
+                        return False
+                    # the register still holds the state at entry
+                    clean_regs.difference_update(target)
+                else:
+                    clean_regs.update(target)
+                if stmt.offset == arch.sp_offset:
+                    sp_offset = stack_offset(stmt.data)
+            elif isinstance(stmt, pyvex.stmt.Store):
+                if uses_entry_value(stmt.addr):
+                    return False
+                offset = stack_offset(stmt.addr)
+                written = byte_range(offset, stmt.data.result_size(irsb.tyenv)) if offset is not None else range(0)
+                if uses_entry_value(stmt.data):
+                    # spilling a register's value at entry into its own frame or the home area saves it (push rbx,
+                    # or push rax to align the stack); storing it anywhere else uses it
+                    if offset is None or written.stop > spill_limit:
+                        return False
+                    tmp = stmt.data.tmp if isinstance(stmt.data, pyvex.expr.RdTmp) else None
+                    origin = origins.get(tmp)
+                    for pos in written:
+                        clean_stack.discard(pos)
+                        spilled_stack[pos] = (*origin, offset) if origin is not None else None
+                else:
+                    for pos in written:
+                        clean_stack.add(pos)
+                        spilled_stack.pop(pos, None)
+            elif isinstance(stmt, pyvex.stmt.Exit) and uses_entry_value(stmt.guard):
+                return False
+        return not uses_entry_value(irsb.next)
+
+    def _eh_frame_function_starts(self, candidates: set[int], entered: dict[int, bool]) -> set[int]:
+        """
+        Function starts recorded in .eh_frame that this analysis trusts as function boundaries, among `candidates`.
+        Nothing by default; CFGFast trusts ELF FDEs when eh_frame and eh_frame_boundaries are enabled.
+
+        :param candidates:  Addresses to consider.
+        :param entered:     A cache for _entered_like_a_function.
+        :return:            A set of function start addresses.
+        """
+
+        return set()
+
+    def _eh_frame_denies_function_start(self, addr: int) -> bool:
+        """
+        Checks if trusted .eh_frame says that `addr` is not a function start: it lies inside an FDE after its start, or
+        it is an FDE start that was absorbed as a cold part for a reason that a table cannot explain. Unwind data that
+        is missing, or says nothing about `addr`, denies nothing. Never by default; CFGFast trusts ELF FDEs when
+        eh_frame and eh_frame_boundaries are enabled.
+
+        :param addr:    The address to check.
+        :return:        True if trusted unwind data says that `addr` is not a function start.
+        """
+
+        return False
+
+    def _is_tail_dispatched_function(self, functions, func_addr: int, owners: set[int]) -> bool:
+        """
+        Checks if a function, who is a jump table target, is dispatched by a tail-call. Such functions should not be
+        treated as a "cold" function thunk and merged into its caller.
+
+        :param functions:   The function manager being rebuilt.
+        :param func_addr:   Address of the jump-table-targeted function.
+        :param owners:      Addresses of the functions that own the jump tables reaching it.
+        :return:            True if the function returns and none of its blocks jumps into the body of an owner.
+        """
+
+        if functions.is_func_nonreturning(func_addr):
+            return False
+        func = functions.get_by_addr(func_addr)
+        owners = owners - {func_addr}
+        for block_addr in func.block_addrs_set:
+            for node in self.model.nodes_by_addr(block_addr):
+                for succ, jumpkind in self.model.get_successors_and_jumpkinds(node):
+                    # jumping to another function's entry is a tail call, not a jump back into its body
+                    if (
+                        jumpkind == "Ijk_Boring"
+                        and succ.function_address in owners
+                        and not functions.contains_addr(succ.addr)
+                    ):
+                        return False
+        return True
 
     @overload
     def _addr_to_funcaddr(
