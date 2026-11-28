@@ -272,9 +272,14 @@ class GoPrototypeInference(OptimizationPass):
                     continue
                 fp = self._float_positions(len(stmt.ret_exprs))
                 leaves = self._flatten([e for i, e in enumerate(stmt.ret_exprs) if i not in fp])
+                # the result widener appends its words after the guessed results, one expression per word
+                widened = len(leaves) - len(stmt.ret_exprs) + stmt.tags.get(RET_FLOOR_TAG, len(stmt.ret_exprs))
                 w = 0
                 while w < len(leaves):
-                    hit = leaves[w] if isinstance(leaves[w], tuple) else self._classify(leaves, w, depth=0)
+                    if isinstance(leaves[w], tuple):
+                        hit = leaves[w]
+                    else:
+                        hit = self._classify(leaves, w, depth=0, widened=w >= widened)
                     if hit is None:
                         w += 1
                         continue
@@ -364,8 +369,11 @@ class GoPrototypeInference(OptimizationPass):
         pieces = regs[off // bytes_ : (off + load.size) // bytes_]
         return pieces if len(pieces) == load.size // bytes_ else None
 
-    def _classify(self, leaves: list, i: int, depth: int) -> tuple[str, int] | None:
-        """The Go type of the value whose first word is ``leaves[i]`` and how many of the leaves it spans."""
+    def _classify(self, leaves: list, i: int, depth: int, widened: bool = False) -> tuple[str, int] | None:
+        """
+        The Go type of the value whose first word is ``leaves[i]`` and how many of the leaves it spans. ``widened``: the
+        word is one the result widener added to a return.
+        """
         assert self._values is not None
         if isinstance(leaves[i], tuple):
             return leaves[i]
@@ -399,6 +407,11 @@ class GoPrototypeInference(OptimizationPass):
                 return None
             if isinstance(src, (Load, Const)):
                 expr = src
+        if widened and isinstance(expr, Call) and expr.tags.get("go_render") == "closure" and len(expr.args or ()) > 1:
+            # a widened word is dropped again unless typed here. A heap closure record is folded into a use only when
+            # it has no other, so one here was built to be returned; a stack closure never escapes to a return. A
+            # capture-free closure is a static funcval constant, which may just be left over in the register
+            return self._single_result(expr, leaves, i)
         if isinstance(expr, Const) and expr.is_int:
             return self._classify_const(leaves, i, expr.value_int)
         if self._narrowed:
