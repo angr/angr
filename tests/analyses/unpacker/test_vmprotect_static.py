@@ -18,7 +18,7 @@ from tests.common import bin_location
 from .samples import IMAGE_BASE, sample
 
 TEXT_RVA, RDATA_RVA = 0x1000, 0x3000
-# what the VMProtect-like samples hold compressed: the .text of not_packed.exe, .rdata and .vmp0
+# The VMProtect-like samples hold these .text, .rdata and .vmp0 compressed. The .text comes from not_packed.exe.
 CODE = pefile.PE(data=sample("not_packed.exe")).sections[0].get_data()[:0x1800]
 RDATA = b"imported strings and constants " * 64
 VMP0 = bytes(range(256)) * 4
@@ -26,7 +26,8 @@ VMP0 = bytes(range(256)) * 4
 
 class TestVMProtectStatic(unittest.TestCase):
     def _check(self, kind: str):
-        # laid out like a VMProtect-packed file: empty original sections, compressed blocks and PACKER_INFO in .vmp1
+        # The sample has the layout of a VMProtect-packed file. The original sections are empty, and .vmp1 holds the
+        # compressed blocks and PACKER_INFO.
         packed = sample(f"vmprotect_like_{kind}_table.exe")
         info = identify_packer(packed)
         assert info.protector == "VMProtect"

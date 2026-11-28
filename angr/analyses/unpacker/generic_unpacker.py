@@ -33,8 +33,10 @@ _SKIPPED_SECTIONS = {".rsrc", ".reloc", ".tls", ".idata", ".edata", ".pdata", ".
 @dataclass
 class UnpackedLayer:
     """
-    A snapshot of the image. Normally taken when execution first entered memory that was written at run time; `oep`
-    is None for a snapshot taken at the end of a run that never showed such a transfer.
+    A snapshot of the image.
+
+    We normally take a snapshot when the program first jumps into memory that the program wrote at run time.
+    `oep` is None for a snapshot that we take at the end of a run in which the program never made this jump.
     """
 
     oep: int | None
@@ -49,7 +51,7 @@ class UnpackedLayer:
 
     def rebuild(self, image_base: int) -> bytes:
         """
-        A loadable PE whose entry point is this layer's OEP and whose import table is rebuilt.
+        This method returns a loadable PE whose entry point is the OEP of this layer and whose import table is rebuilt.
         """
         entry_rva = None if self.oep is None else self.oep - image_base
         try:
@@ -60,8 +62,9 @@ class UnpackedLayer:
 
 class GenericUnpackerCore:
     """
-    Run a packed PE under WindowsEmulator and snapshot the image each time control first reaches a section whose
-    bytes were produced at run time. The last such transfer is reported as the original entry point.
+    This class runs a packed PE in WindowsEmulator. We take a snapshot of the image each time the program first jumps
+    into a section whose bytes the program wrote at run time.
+    We report the target of the last jump as the original entry point.
     """
 
     def __init__(
@@ -96,7 +99,7 @@ class GenericUnpackerCore:
         self._wrappers: dict[int, int] = {}
         self._cell_of_target: dict[int, int] = {}
         self._started = 0.0
-        # the watched section that holds the entry point (only when the caller asked for it)
+        # The watched section that holds the entry point. We only watch this section at the request of the caller.
         self._entry_section: int | None = None
         emu = self.emu
         ep_rva = emu.pe.OPTIONAL_HEADER.AddressOfEntryPoint
@@ -116,8 +119,8 @@ class GenericUnpackerCore:
 
     def run(self, timeout: float = 300.0, settle_timeout: float = 20.0, max_layers: int = 8) -> None:
         """
-        :param timeout:         Total wall-clock budget.
-        :param settle_timeout:  How long to keep running after a layer was found, looking for a deeper one.
+        :param timeout:         The total time budget in seconds.
+        :param settle_timeout:  The time in seconds that we keep running after we find a layer.
         """
         emu = self.emu
         self._started = time.monotonic()
@@ -143,8 +146,8 @@ class GenericUnpackerCore:
             if self._was_written(stop.addr, start):
                 self.layers.append(self._snapshot(stop.addr, start))
             elif start == self._entry_section:
-                # the protector's own code in the entry section (its entry stub): run it, but keep watching the rest
-                # of the section, and this page once control has left it, for the jump back to the original code
+                # The program runs the entry stub of the protector in the entry section. We keep watching the rest
+                # of the section, and we watch this page again after the program leaves the page.
                 page = stop.addr & ~(PAGE - 1)
                 if page > region[0]:
                     emu.watch_exec(region[0], page - region[0])
@@ -156,8 +159,9 @@ class GenericUnpackerCore:
 
     def _snapshot_unpacked_code(self) -> None:
         """
-        Fallback for runs that never jumped into a watched section (for example when the entry point is virtualized
-        or the protector quit first): if a watched section was filled with code anyway, keep that image.
+        This method handles a run that never jumped into a watched section, for example when the entry point is
+        virtualized or the protector quit first. If the program filled a watched section with code anyway, we keep
+        the image.
         """
         emu = self.emu
         best: UnpackedLayer | None = None
@@ -208,8 +212,8 @@ class GenericUnpackerCore:
 
     def _recover_imports(self, image: bytearray) -> list[RecoveredImport]:
         """
-        Find import-address-table slots: pointer-aligned values in the image that are API trap addresses, or that
-        point at a wrapper outside the image which ends up in an API.
+        This method finds the slots of the import address table. A slot is a pointer-aligned value in the image that
+        is an API trap address, or that points at a wrapper outside the image that ends up in an API.
         """
         emu = self.emu
         size = emu.ptr_size
@@ -228,7 +232,7 @@ class GenericUnpackerCore:
                 pos = bisect.bisect_right(starts, value) - 1
                 if value < starts[pos] + allocations[pos][1]:
                     wrapped[idx] = value
-        # wrappers sit in the table among other imports; anything else that points into an allocation is data
+        # A wrapper sits in the table next to other imports. Any other value that points into an allocation is data.
         cells = dict(direct)
         resolved: dict[int, int | None] = {}
         deadline = time.monotonic() + _WRAPPER_BUDGET
@@ -252,7 +256,7 @@ class GenericUnpackerCore:
                 found.append(RecoveredImport(idx * size, module.name, name))
             else:
                 found.append(RecoveredImport(idx * size, module.name, None, ordinal))
-        # isolated hits are usually coincidental constants; real IATs come in runs
+        # A real import address table is a run of slots, so we drop every slot that has no neighbor.
         rvas = {imp.iat_rva for imp in found}
         found = [imp for imp in found if imp.iat_rva - size in rvas or imp.iat_rva + size in rvas]
         self._cell_of_target = {}
@@ -262,8 +266,8 @@ class GenericUnpackerCore:
 
     def _restore_calls(self, image: bytearray) -> int:
         """
-        Undo the rewriting of `call/jmp [import slot]` into a direct call or jump to the slot's target padded with a
-        nop. Returns the number of sites restored.
+        Protectors rewrite `call/jmp [import slot]` into a direct call or jump to the target of the slot, padded with
+        a nop. This method undoes the rewriting and returns the number of restored sites.
         """
         emu = self.emu
         if not self._cell_of_target:
@@ -282,7 +286,7 @@ class GenericUnpackerCore:
                 cell = self._cell_of_target.get(target)
                 if cell is None:
                     continue
-                # the nop follows or precedes the branch; starting at the branch is right when both are there
+                # The nop follows or precedes the branch. When both nops are there, we start at the branch.
                 if image[site + 5] != 0x90:
                     if site == rva or image[site - 1] != 0x90:
                         continue
@@ -296,8 +300,11 @@ class GenericUnpackerCore:
     @property
     def final_layer(self) -> UnpackedLayer | None:
         """
-        The layer to report. Later transfers into written memory are often a protector's own runtime (for example a
-        VM section called from the program), so the primary code section wins, then the deepest code-like layer.
+        The layer that we report.
+
+        A later jump into written memory is often the runtime of the protector, for example a VM section that the
+        program calls, so we prefer the last layer in the primary code section.
+        Otherwise, we report the last layer that looks like code.
         """
         if not self.layers:
             return None
@@ -314,17 +321,19 @@ class GenericUnpackerCore:
 
 class EmulatingUnpacker(Analysis):
     """
-    Base class of the unpackers that emulate the main PE object until it jumps into code it wrote at run time.
+    Base class of the unpackers that emulate the main PE object until the program jumps into code that the program
+    wrote at run time.
 
-    `unpacked` is a rebuilt PE for the reported layer (None if the binary never ran written code), `oep` is its
-    entry point, and `layers` lists every layer seen.
+    `unpacked` is a rebuilt PE for the reported layer, or None if the program never ran code that the program wrote.
+    `oep` is the entry point of the reported layer.
+    `layers` lists every layer that we saw.
 
-    :param engine:               The emulator that runs the program: "icicle" (the Rust run loop on Icicle) or
-                                 "unicorn".
-    :param icicle_jit:           Whether Icicle compiles hot blocks to native code or interprets everything.
-    :param icicle_jit_threshold: The number of times Icicle runs a block before it compiles the block.
-    :param icicle_thread_slice:  The number of instructions a thread runs on Icicle before the next thread's turn.
-    :param exports_dir:          The directory of the DLLs' export lists; angr-data's lists by default.
+    :param engine:               The emulator that runs the program, which is "icicle" or "unicorn".
+    :param icicle_jit:           Whether Icicle compiles hot blocks to native code.
+    :param icicle_jit_threshold: The number of times Icicle runs a block before Icicle compiles the block.
+    :param icicle_thread_slice:  The number of instructions that a thread runs on Icicle before the next thread runs.
+    :param exports_dir:          The directory of the export lists of the DLLs. We use the lists of angr-data by
+                                 default.
     """
 
     def __init__(
@@ -353,13 +362,14 @@ class EmulatingUnpacker(Analysis):
         self.oep: int | None = None
         self.unpacked: bytes | None = None
         self.core: GenericUnpackerCore | None = None
-        #: Exports the program asked for that the export lists of the DLLs do not have
+        #: The exports that the program asked for and that the export lists of the DLLs do not have.
         self.unlisted_exports: list[UnlistedExport] = []
         self._emulate(self._sections_to_watch(), timeout, settle_timeout)
 
     def _sections_to_watch(self) -> set[int] | None:
         """
-        Indices of the sections that hold the original program, or None to watch every plausible section.
+        This method returns the indices of the sections that hold the original program, or None to watch every
+        plausible section.
         """
         return None
 
@@ -386,8 +396,10 @@ class EmulatingUnpacker(Analysis):
 
 class GenericUnpacker(EmulatingUnpacker):
     """
-    Packer-agnostic unpacking: every section except the entry section is watched, and after a layer is found the
-    program keeps running for settle_timeout seconds in case a deeper layer follows.
+    This analysis unpacks a PE without knowing which tool packed the PE.
+
+    We watch every section except the entry section. After we find a layer, the program keeps running for
+    `settle_timeout` seconds in case a deeper layer follows.
     """
 
 

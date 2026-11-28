@@ -18,14 +18,14 @@ _PROBE_SIZE = 0x1000
 
 class VMProtectStaticError(AngrError):
     """
-    The file is not something the static VMProtect unpacker can handle.
+    The static VMProtect unpacker cannot handle the file.
     """
 
 
 @dataclass
 class VMProtectStaticResult:
     """
-    The outcome of statically unpacking a VMProtect-packed PE.
+    The result of statically unpacking a VMProtect-packed PE.
     """
 
     image: bytes
@@ -62,13 +62,14 @@ def _rol32(value: int, count: int) -> int:
 
 class _Packed:
     """
-    Locates VMProtect's PACKER_INFO table: {source RVA, destination RVA} pairs, one per packed section.
+    This class locates the PACKER_INFO table of VMProtect. The table has one pair of source RVA and destination RVA
+    for each packed section.
     """
 
     def __init__(self, data: bytes):
         self.data = data
         self.pe = pefile.PE(data=data, fast_load=True)
-        # packed sections keep their virtual range but have no bytes on disk
+        # A packed section has a virtual range but no bytes on disk.
         self.dests = [
             s
             for s in self.pe.sections
@@ -85,7 +86,8 @@ class _Packed:
 
     def locate_plain(self) -> tuple[int, bytes, list[tuple[int, int]]] | None:
         """
-        VMProtect < 3.9: plaintext entries in section order; the entry before them points at the LZMA properties.
+        Before VMProtect 3.9, the table stores plaintext entries in section order. The entry before the plaintext
+        entries points at the LZMA properties.
         """
         first = struct.pack("<I", self.dest_rvas[0])
         pos = -1
@@ -109,15 +111,16 @@ class _Packed:
 
     def locate_encrypted(self) -> tuple[int, bytes, list[tuple[int, int]]] | None:
         """
-        VMProtect 3.9+: destinations are stored as dst ^ rol(key, 7 * index). The destinations are known, so the key
-        falls out of entry 0 and every other entry must decrypt to a distinct packed section.
+        Since VMProtect 3.9, the table stores each destination as dst ^ rol(key, 7 * index).
+        We know the destinations, so we derive the key from entry 0. Every other entry must decrypt to a distinct
+        packed section.
         """
         count = len(self.dests)
         if count < 2:
             return None
         known = set(self.dest_rvas)
         data = self.data
-        # block sources live in file-backed sections; reject everything else before the costlier checks
+        # The source of a block is in a file-backed section, so we reject any other source.
         backed = [
             (s.VirtualAddress, s.VirtualAddress + s.SizeOfRawData, s.PointerToRawData - s.VirtualAddress)
             for s in self.pe.sections
@@ -153,7 +156,8 @@ class _Packed:
 
 def has_packer_info(data: bytes) -> bool:
     """
-    Whether the file carries a plaintext VMProtect PACKER_INFO table for its virtual-only sections.
+    This function returns whether the file has a plaintext VMProtect PACKER_INFO table for the sections that have no
+    bytes on disk.
     """
     packed = _Packed(data)
     return bool(packed.dests) and packed.locate_plain() is not None
@@ -161,10 +165,11 @@ def has_packer_info(data: bytes) -> bool:
 
 def unpack_vmprotect_static(data: bytes) -> VMProtectStaticResult:
     """
-    Statically unpack a VMProtect-packed PE: find PACKER_INFO and LZMA-decompress each block into the memory image.
+    This function statically unpacks a VMProtect-packed PE. We find the PACKER_INFO table and decompress each block
+    with LZMA into the memory image.
+    We do not restore the entry point and the import table.
 
-    The algorithm follows VMPStatic (https://github.com/notsnakesilent/VMPStatic, MIT). The entry point and the import
-    table are not restored.
+    The algorithm follows VMPStatic, which is MIT-licensed and available at https://github.com/notsnakesilent/VMPStatic.
     """
     packed = _Packed(data)
     pe = packed.pe
@@ -206,8 +211,10 @@ def unpack_vmprotect_static(data: bytes) -> VMProtectStaticResult:
 
 class VMProtectStaticUnpacker(Analysis):
     """
-    Statically unpack the VMProtect-packed main object. `unpacked` holds a rebuilt PE file whose original sections are
-    decompressed; the entry point still points into the VMProtect loader.
+    This analysis statically unpacks the VMProtect-packed main object.
+
+    `unpacked` holds a rebuilt PE file whose original sections are decompressed. The entry point of the rebuilt PE file
+    still points into the VMProtect loader.
     """
 
     def __init__(self):

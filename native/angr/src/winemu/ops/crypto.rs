@@ -19,7 +19,7 @@ fn gf_mul(mut a: u8, mut b: u8) -> u8 {
     out
 }
 
-/// (S-box, inverse S-box)
+/// The AES S-box and the inverse S-box.
 static SBOX: LazyLock<([u8; 256], [u8; 256])> = LazyLock::new(|| {
     let (mut sbox, mut inverse) = ([0u8; 256], [0u8; 256]);
     for x in 0..=255u8 {
@@ -36,7 +36,8 @@ static SBOX: LazyLock<([u8; 256], [u8; 256])> = LazyLock::new(|| {
     (sbox, inverse)
 });
 
-/// MixColumns with the matrix whose first row is `row` (each further row rotates it right).
+/// This function applies MixColumns with the matrix whose first row is `row`.
+/// Each further row is the previous row rotated right by one.
 fn mix_columns(state: [u8; 16], row: [u8; 4]) -> [u8; 16] {
     let mut out = [0u8; 16];
     for c in 0..4 {
@@ -59,7 +60,7 @@ fn aes_round(cpu: &mut Cpu, dst: VarNode, args: Args, decrypt: bool, mix: bool) 
     let mut out = [0u8; 16];
     for c in 0..4 {
         for r in 0..4 {
-            // ShiftRows moves row r left by r columns; its inverse moves it right
+            // ShiftRows moves row r left by r columns, and the inverse moves row r right
             let from = if decrypt { (c + 4 - r) % 4 } else { (c + r) % 4 };
             out[4 * c + r] = table[state[4 * from + r] as usize];
         }
@@ -83,7 +84,8 @@ fn aeskeygenassist(cpu: &mut Cpu, dst: VarNode, args: Args) {
     write_trunc(cpu, dst, build(4, 4, |i| words[i as usize] as u64));
 }
 
-/// The four dwords of an operand, most significant first (the order the manuals name them in).
+/// This function returns the four dwords of an operand with the most significant dword first, which
+/// is the order in the manuals.
 fn dwords(v: u128) -> [u32; 4] {
     [3, 2, 1, 0].map(|i| lane(v, i, 4) as u32)
 }
@@ -139,7 +141,7 @@ fn sha1msg2(cpu: &mut Cpu, dst: VarNode, args: Args) {
 fn sha256rnds2(cpu: &mut Cpu, dst: VarNode, args: Args) {
     let [mut c, mut d, mut g, mut h] = dwords(rd(cpu, args[0]));
     let [mut a, mut b, mut e, mut f] = dwords(rd(cpu, args[1]));
-    // the two message words plus round constants, in xmm0's low half
+    // the low half of xmm0 holds the two message words plus the round constants
     let wk = cpu.args[0];
     for i in 0..2 {
         let t1 = ((e & f) ^ (!e & g))

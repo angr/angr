@@ -1,7 +1,9 @@
 # pylint:disable=missing-module-docstring,line-too-long
-# Known-answer vectors for the x86 instructions the Icicle engine implements with user-op helpers or patched SLEIGH.
-# Each entry is (64-bit mode, code, data kind, digest[, compared flags]); the digests were taken from a host CPU
-# (64-bit entries) or from Unicorn, for the states make_state() derives from the code bytes.
+# Known-answer vectors for the x86 instructions that the Icicle engine implements with user-op helpers or with patched
+# SLEIGH.
+# Each entry is the 64-bit mode, the code, the data kind, the digest and optionally the compared flags.
+# We took the digests of the 64-bit entries from a host CPU and the digests of the other entries from Unicorn.
+# `make_state` derives the input states from the code bytes.
 from __future__ import annotations
 
 import hashlib
@@ -48,7 +50,10 @@ def _vector(rnd: random.Random, kind: str) -> int:
 
 
 def make_state(key: str, is64: bool, kind: str) -> tuple[list[int], int, list[int], bytes]:
-    """(general registers in encoding order, flags, xmm registers, data memory) for a test key."""
+    """
+    This function returns the general registers in encoding order, the flags, the xmm registers and the data memory
+    for a test key.
+    """
     rnd = random.Random(key)
     count, bits = (16, 64) if is64 else (8, 32)
     gpr = [rnd.getrandbits(bits) if rnd.random() < 0.5 else rnd.choice(_INTS) for _ in range(count)]
@@ -62,7 +67,10 @@ def make_state(key: str, is64: bool, kind: str) -> tuple[list[int], int, list[in
 
 
 def digest(results: list[tuple[list[int], int, list[int], bytes]], flags_mask: int) -> str:
-    """Digest of the visible outcome of some runs: registers but the stack pointer, flags, xmm, the two data areas."""
+    """
+    This function returns a digest of the visible outcome of some runs. The visible outcome includes the registers
+    except the stack pointer, the flags, the xmm registers and the two data areas.
+    """
     h = hashlib.blake2b(digest_size=6)
     for gpr, flags, xmm, mem in results:
         for i, value in enumerate(gpr):

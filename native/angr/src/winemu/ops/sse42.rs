@@ -1,11 +1,11 @@
-//! SSE4.2: CRC32 and the string compares.
+//! CRC32 and the string compares of SSE4.2.
 
 use icicle_vm::cpu::{Cpu, exec::helpers::PcodeOpHelper};
 use pcode::VarNode;
 
 use super::*;
 
-// CRC-32C (Castagnoli), bit-reflected
+// bit-reflected CRC-32C with the Castagnoli polynomial
 fn crc32(cpu: &mut Cpu, dst: VarNode, args: Args) {
     let mut crc = rd(cpu, args[0]) as u32;
     let data = rd(cpu, args[1]) as u64;
@@ -18,9 +18,10 @@ fn crc32(cpu: &mut Cpu, dst: VarNode, args: Args) {
     write_trunc(cpu, dst, crc as u128);
 }
 
-/// pcmpistri / pcmpistrm / pcmpestri / pcmpestrm(a, b, imm[, eax, edx, rex.w]): sets the flags and returns
-/// (IntRes2, element count, IntRes2 expanded to element masks). `explicit` lengths come from eax and edx; the last
-/// argument, added to the SLEIGH spec, says whether they are 64 bits wide.
+/// This function implements pcmpistri, pcmpistrm, pcmpestri and pcmpestrm with the arguments
+/// `(a, b, imm[, eax, edx, rex.w])`. This function sets the flags and returns IntRes2, the element
+/// count and IntRes2 expanded to element masks. Explicit lengths come from eax and edx. We added
+/// the last argument to the SLEIGH spec to tell whether eax and edx are 64 bits wide.
 fn string_compare(cpu: &mut Cpu, args: Args, explicit: bool) -> (u32, u8, u128) {
     let (a, b, imm) = (rd(cpu, args[0]), rd(cpu, args[1]), cpu.args[0] as u8);
     let width = if imm & 1 != 0 { 2 } else { 1 };
@@ -50,9 +51,9 @@ fn string_compare(cpu: &mut Cpu, args: Args, explicit: bool) -> (u32, u8, u128) 
     let mut res1 = 0u32;
     for j in 0..n {
         let bit = match (imm >> 2) & 3 {
-            // equal any: b[j] is in the set a
+            // equal any, where b[j] is in the set a
             0 => j < lb && (0..la).any(|i| value(a, i) == value(b, j)),
-            // ranges: b[j] is in one of the ranges a[2k] ..= a[2k + 1]
+            // ranges, where b[j] is in one of the ranges a[2k] ..= a[2k + 1]
             1 => {
                 j < lb
                     && (0..la / 2).any(|k| {
@@ -65,7 +66,7 @@ fn string_compare(cpu: &mut Cpu, args: Args, explicit: bool) -> (u32, u8, u128) 
                 (false, false) => true,
                 _ => false,
             },
-            // equal ordered: a occurs in b at j
+            // equal ordered, where a occurs in b at j
             _ => (0..n - j).all(|i| i >= la || (j + i < lb && value(a, i) == value(b, j + i))),
         };
         res1 |= (bit as u32) << j;

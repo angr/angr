@@ -79,8 +79,9 @@ def page_perms(protect: int) -> int:
 
 class FileObject:
     """
-    An open file: the emulated copy of the sample's own file or a stand-in for a system file (read-only bytes), or a
-    file the program created.
+    An open file.
+    The emulated copy of the sample's own file and a stand-in for a system file are read-only. A file that the program
+    created is writable.
     """
 
     def __init__(self, data: bytes | bytearray):
@@ -110,7 +111,7 @@ class MappingObject:
 
 class FindObject:
     """
-    A FindFirstFile handle: the remaining matches, as (name, attributes, size).
+    A FindFirstFile handle with the remaining matches. Each match is a tuple of name, attributes and size.
     """
 
     def __init__(self, entries: list[tuple[str, int, int]]):
@@ -119,8 +120,9 @@ class FindObject:
 
 class ToolhelpSnapshot:
     """
-    A CreateToolhelp32Snapshot handle: the threads of the emulated process, as (thread id, process id), and the
-    processes of the session, as (process id, parent, threads, name), each with a cursor.
+    A CreateToolhelp32Snapshot handle.
+    Each thread of the emulated process is a tuple of thread ID and process ID. Each process of the session is a tuple
+    of process ID, parent process ID, number of threads and name. Each of the two lists has a cursor.
     """
 
     def __init__(self, threads: list[tuple[int, int]], processes: list[tuple[int, int, int, str]]):
@@ -143,7 +145,7 @@ def _virtual_alloc(emu: WindowsEmulator, addr: int, size: int, protect: int) -> 
         region = emu.space.find(base)
         if region is not None:
             if emu.module_by_base(region[0]) is not None:
-                # a loaded DLL is not free memory
+                # we cannot allocate memory inside a loaded DLL
                 return 0
             if region[0] not in emu.lazy_regions:
                 emu.protect(base, span, perms)
@@ -173,7 +175,7 @@ def nt_allocate_virtual_memory(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 def _virtual_protect(emu: WindowsEmulator, addr: int, size: int, protect: int, old_ptr: int) -> None:
-    # a range that runs into unmapped memory fails as a whole
+    # Windows changes no page when a page of the range is unmapped, so we check every page first
     for page in range(addr & ~0xFFF, addr + max(size, 1), 0x1000):
         if not emu.is_mapped(page):
             raise SimSegfaultException(page, "unmapped")
@@ -203,17 +205,18 @@ def nt_protect_virtual_memory(emu: WindowsEmulator, args: list[int]) -> int:
 
 def _query_memory(emu: WindowsEmulator, addr: int, buf: int) -> int:
     """
-    Write the MEMORY_BASIC_INFORMATION of the region around addr. Returns its size, or 0 for an invalid address.
+    This function writes the MEMORY_BASIC_INFORMATION of the region around `addr` to `buf`.
+    This function returns the size of the structure, or 0 when `addr` is invalid.
     """
     addr &= ~0xFFF
     if addr >= emu.space.limit:
         return 0
     region = emu.space.find(addr)
     if region is not None and region[0] <= emu.image_base and addr >= emu.image_base + emu.image_size:
-        # the address space is reserved in 64K steps, but the image ends at SizeOfImage
+        # we reserve the address space in 64K steps, but the image ends at SizeOfImage, so we report the rest as free
         region = None
     if region is None:
-        # MEM_FREE up to the next region
+        # we report MEM_FREE up to the next region
         fields = (addr, 0, 0, emu.space.next_start(addr) - addr, 0x10000, 1, 0)
     else:
         perms = emu.perms(addr) if emu.is_mapped(addr) else emu.lazy_regions.get(region[0], (3, 0))[0]
@@ -240,7 +243,7 @@ def virtual_query_ex(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("NtQueryVirtualMemory", "ZwQueryVirtualMemory", nargs=6)
 def nt_query_virtual_memory(emu: WindowsEmulator, args: list[int]) -> int:
-    if args[2] != 0:  # only MemoryBasicInformation
+    if args[2] != 0:  # we only support MemoryBasicInformation
         return STATUS_INVALID_INFO_CLASS
     size = 48 if emu.is_64bit else 28
     if args[4] < size:
@@ -282,7 +285,7 @@ _const(("NtFreeVirtualMemory", "ZwFreeVirtualMemory"), 4, STATUS_SUCCESS)
 
 @api("KiFastSystemCall", "KiIntSystemCall", nargs=0)
 def ki_system_call(emu: WindowsEmulator, args: list[int]) -> None:  # pylint:disable=unused-argument
-    # reached from a 32-bit ntdll stub: the stub's caller pushed the arguments above its own return address
+    # A 32-bit ntdll stub calls this function. The arguments are above the return address to the caller of the stub.
     emu.system_call(emu.sp + 4)
 
 
@@ -335,7 +338,7 @@ def local_free(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("GlobalLock", "LocalLock", "GlobalHandle", "LocalHandle", nargs=1)
 def global_lock(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    # memory handles are the blocks' addresses
+    # a memory handle is the address of the block
     return args[0]
 
 
@@ -436,14 +439,14 @@ def ldr_get_dll_handle(emu: WindowsEmulator, args: list[int]) -> int:
 
 def _get_proc_address(emu: WindowsEmulator, base: int, name: str | None, ordinal: int) -> int | None:
     """
-    The address of an export by name, or by ordinal if name is None: 0 if the module does not have it, None if base
-    is not a module.
+    This function returns the address of an export by name, or by ordinal if `name` is None.
+    This function returns 0 if the module does not have the export, and None if `base` is not a module.
     """
     module = emu.module_by_base(base)
     if module is None and base != emu.image_base:
         return None
     if not name and (name is not None or ordinal == 0):
-        # no export has an empty name; ordinal 0 is what a null name looks like
+        # No export has an empty name. A null name looks like ordinal 0.
         return 0
     if module is None:
         symbol = emu.main.get_symbol(name) if name is not None else None
@@ -554,7 +557,8 @@ def nt_close(emu: WindowsEmulator, args: list[int]) -> int:
 TH32CS_SNAPPROCESS = 0x2
 TH32CS_SNAPTHREAD = 0x4
 ERROR_NO_MORE_FILES = 0x12
-# a plain desktop session with the sample started from Explorer: (pid, parent pid, threads, name)
+# This is a plain desktop session in which Explorer started the sample.
+# (pid, parent pid, threads, name)
 _EXPLORER_PID = 0x6A8
 _PROCESSES = (
     (0, 0, 2, "[System Process]"),
@@ -618,7 +622,7 @@ _const(("InitializeCriticalSectionAndSpinCount",), 2, 1)
 
 @api("SetHandleCount", nargs=1)
 def set_handle_count(emu: WindowsEmulator, args: list[int]) -> int:
-    # a no-op since Windows NT: returns the requested count
+    # SetHandleCount does nothing since Windows NT and returns the requested count
     return args[0]
 
 
@@ -652,8 +656,9 @@ def set_unhandled_exception_filter(emu: WindowsEmulator, args: list[int]) -> int
 @api("UnhandledExceptionFilter", nargs=1)
 def unhandled_exception_filter(emu: WindowsEmulator, args: list[int]) -> int | None:
     """
-    Run the top-level filter; without one, or when it declines, the default is EXCEPTION_EXECUTE_HANDLER (no
-    debugger attached), so the caller's __except block ends the process.
+    We run the top-level exception filter.
+    Windows without a debugger returns EXCEPTION_EXECUTE_HANDLER when no top-level exception filter exists or the
+    filter returns EXCEPTION_CONTINUE_SEARCH, so we return 1.
     """
     top_level = emu.exceptions.unhandled_filter
     if not top_level:
@@ -735,8 +740,8 @@ def rtl_unwind_ex(emu: WindowsEmulator, args: list[int]) -> None:
 @api("RtlUnwind", nargs=4)
 def rtl_unwind(emu: WindowsEmulator, args: list[int]) -> None:
     """
-    x86: call each SEH handler above target_frame with EXCEPTION_UNWINDING and unlink it, then return to the caller
-    with eax = return_value. target_frame 0 unwinds the whole chain (exit unwind).
+    On x86, we call each SEH handler above the target frame with EXCEPTION_UNWINDING and unlink the SEH handler.
+    Then we return to the caller with `return_value` in eax. A target frame of 0 is an exit unwind of the whole chain.
     """
     target, _, record, return_value = args
     if emu.is_64bit:
@@ -778,18 +783,19 @@ def rtl_unwind(emu: WindowsEmulator, args: list[int]) -> None:
 
 @api("__CxxFrameHandler", "__CxxFrameHandler2", "__CxxFrameHandler3", nargs=4, cdecl=True)
 def cxx_frame_handler(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    # catch blocks are not run: a C++ frame passes every exception on (ExceptionContinueSearch)
+    # we do not run catch blocks, so a C++ frame returns ExceptionContinueSearch for every exception
     return 1
 
 
 @api("__C_specific_handler", nargs=4)
 def c_specific_handler(emu: WindowsEmulator, args: list[int]) -> int | None:
     """
-    The language handler behind __try/__except on x64: run the filters of the scopes around the faulting address
-    and unwind to the first __except block that accepts the exception. __finally blocks are not run.
+    The language handler of __try and __except on x64.
+    We run the filters of the scopes around the faulting address and unwind to the first __except block that accepts
+    the exception. We do not run __finally blocks.
     """
     record, establisher, _, dispatcher = args
-    if emu.read_u32(record + 4) & 6:  # being unwound
+    if emu.read_u32(record + 4) & 6:  # the frame is being unwound
         return 1
     control_pc, base = emu.read_ptr(dispatcher), emu.read_ptr(dispatcher + 8)
     table = emu.read_ptr(dispatcher + 0x38)
@@ -835,7 +841,7 @@ SCREEN_RECT = (0, 0, 1024, 768)
 
 @api("GetSystemMetrics", nargs=1)
 def get_system_metrics(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    # the screen's size; everything else (remote session, mouse buttons, ...) reads as zero
+    # we report the size of the screen and zero for every other metric
     return {0: SCREEN_RECT[2], 1: SCREEN_RECT[3]}.get(args[0], 0)
 
 
@@ -850,7 +856,7 @@ def _get_environment_variable(emu: WindowsEmulator, name: str, buf: int, capacit
         emu.write_u32(emu.teb + (0x68 if emu.is_64bit else 0x34), ERROR_ENVVAR_NOT_FOUND)
         return 0
     value = entry[1]
-    # the length written, or the size needed if it does not fit
+    # GetEnvironmentVariable returns the required size when the value does not fit
     if capacity <= len(value):
         return len(value) + 1
     return _write_text(emu, buf, capacity, value, wide)
@@ -893,7 +899,7 @@ def _expand_environment_strings(emu: WindowsEmulator, text: str, buf: int, capac
         return match.group(0) if entry is None else entry[1]
 
     expanded = _ENVIRONMENT_REFERENCE_RE.sub(expand, text)
-    # counts the terminator
+    # ExpandEnvironmentStrings counts the terminator in the returned length
     if buf and capacity > len(expanded):
         _write_text(emu, buf, capacity, expanded, wide)
     return len(expanded) + 1
@@ -910,7 +916,7 @@ def expand_environment_strings_w(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 def _environment_block(emu: WindowsEmulator) -> str:
-    # NAME=value strings in name order; alloc_cstr adds the terminator that ends the block
+    # The block has NAME=value strings in the order of the names. `alloc_cstr` adds the terminator that ends the block.
     return "".join(f"{name}={value}\0" for _, (name, value) in sorted(emu.environment.items()))
 
 
@@ -919,7 +925,7 @@ _const(("SetThreadAffinityMask", "SetProcessAffinityMask"), 2, 1)
 
 @api("GetProcessAffinityMask", nargs=3)
 def get_process_affinity_mask(emu: WindowsEmulator, args: list[int]) -> int:
-    # the four processors GetSystemInfo reports
+    # we report the four processors that GetSystemInfo reports
     emu.write_ptr(args[1], 0xF)
     emu.write_ptr(args[2], 0xF)
     return 1
@@ -959,9 +965,10 @@ def check_remote_debugger_present(emu: WindowsEmulator, args: list[int]) -> int:
 
 def _probe_for_read(emu: WindowsEmulator, addr: int, length: int, alignment: int) -> int | None:
     """
-    The kernel's ProbeForRead on a system call's buffer: the status the call fails with, or None. Only the
-    alignment and the address range are checked; the memory is not touched (a bad address faults when it is used).
-    Nothing is checked for an empty range.
+    The ProbeForRead of the kernel on the buffer of a system call.
+    This function returns the status that the system call fails with, or None.
+    ProbeForRead only checks the alignment and the address range. ProbeForRead does not touch the memory and does not
+    check an empty range.
     """
     if not length:
         return None
@@ -978,7 +985,8 @@ def _writable(emu: WindowsEmulator, addr: int, length: int) -> bool:
 
 def _probe_for_write(emu: WindowsEmulator, addr: int, length: int, alignment: int) -> int | None:
     """
-    The kernel's ProbeForWrite on a system call's output pointer: as ProbeForRead, and every page is written to.
+    The ProbeForWrite of the kernel on the output pointer of a system call.
+    ProbeForWrite checks what ProbeForRead checks and also writes to every page.
     """
     status = _probe_for_read(emu, addr, length, alignment)
     if status is None and length and not _writable(emu, addr, length):
@@ -993,9 +1001,9 @@ def _pseudo_handle(emu: WindowsEmulator, handle: int, value: int) -> bool:
 @api("NtQueryInformationProcess", "ZwQueryInformationProcess", nargs=5)
 def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
     info_class, buf, length, return_length = args[1], args[2], args[3], args[4]
-    # The order of the kernel's checks; protectors pass each kind of bad argument and compare the status to catch
-    # faked answers. The buffer is probed without being touched (aligned as a ULONG), the length pointer by writing
-    # to it (any alignment), then come the class, the length, the handle, and only then the write to the buffer.
+    # We check the arguments in the order of the kernel, because protectors pass each kind of bad argument and compare
+    # the status. The kernel probes the buffer aligned as a ULONG without touching the buffer, then writes to the
+    # length pointer. Then the kernel checks the class, the length and the handle, and writes to the buffer last.
     status = _probe_for_read(emu, buf, length, 4)
     if status is None and return_length:
         status = _probe_for_write(emu, return_length, 4, 1)
@@ -1008,7 +1016,7 @@ def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
     if length != sizes[info_class]:
         return STATUS_INFO_LENGTH_MISMATCH
     if not _pseudo_handle(emu, args[0], -1):
-        # no handle here stands for a process
+        # the emulator has no process handle other than the pseudo handle
         return STATUS_OBJECT_TYPE_MISMATCH if args[0] in emu.handles else STATUS_INVALID_HANDLE
     if not _writable(emu, buf, length):
         return STATUS_ACCESS_VIOLATION
@@ -1024,8 +1032,8 @@ def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
         emu.write(buf, bytes(length))
         emu.write_ptr(buf + ptr, emu.peb)
         emu.write_ptr(buf + 4 * ptr, emu.PID)
-    # the kernel stores the length after the data, also with STATUS_PORT_NOT_SET; protectors overlap the two to
-    # catch fakes
+    # The kernel stores the length after the data, also with STATUS_PORT_NOT_SET. Protectors overlap the buffer and
+    # the length pointer to catch a fake, so we write the length last.
     if return_length:
         emu.write_u32(return_length, length)
     return status
@@ -1033,7 +1041,8 @@ def nt_query_information_process(emu: WindowsEmulator, args: list[int]) -> int:
 
 class DebugObject:
     """
-    A debug object the program created itself (to count the debug objects of the system through NtQueryObject).
+    A debug object that the program created.
+    A protector creates a debug object to count the debug objects of the system through NtQueryObject.
     """
 
 
@@ -1060,9 +1069,9 @@ def _object_type_name(obj: object) -> str:
     return "Event"
 
 
-# The object types of Windows 7 SP1 in the order of their index (2 upwards): name, valid access mask, generic
-# mapping (read, write, execute, all), and how many objects and handles of the type an idle desktop session has.
-# The system has no debug objects; the program's own are added.
+# The object types of Windows 7 SP1 in the order of the type index, which starts at 2. Each entry is the name, the
+# valid access mask, the generic mapping for read, write, execute and all, and the numbers of objects and handles of
+# the type in an idle desktop session. The system has no debug objects, and we add the debug objects of the program.
 _GENERIC = (0x20000, 0x20000, 0x20000)
 _WAITABLE = (0x20001, 0x20002, 0x120000)
 _OBJECT_TYPES: tuple[tuple[str, int, tuple[int, int, int, int], int, int], ...] = (
@@ -1114,8 +1123,8 @@ _OBJECT_TYPE_BY_NAME = {entry[0]: entry for entry in _OBJECT_TYPES}
 
 def _object_type_information(emu: WindowsEmulator, name: str, addr: int) -> bytes:
     """
-    An OBJECT_TYPE_INFORMATION for the address it will be stored at; the name follows the structure, and the whole
-    is padded to a multiple of the pointer size.
+    This function builds an OBJECT_TYPE_INFORMATION that the caller stores at `addr`.
+    The name follows the structure, and we pad the result to a multiple of the pointer size.
     """
     ptr = emu.ptr_size
     _, access, mapping, objects, handles = _OBJECT_TYPE_BY_NAME[name]
@@ -1141,7 +1150,7 @@ def nt_query_object(emu: WindowsEmulator, args: list[int]) -> int:
     if status is not None:
         return status
     ptr = emu.ptr_size
-    if info_class == 3:  # ObjectTypesInformation: every object type of the system; the handle is not used
+    if info_class == 3:  # ObjectTypesInformation lists every object type of the system and ignores the handle
         data = struct.pack("<I", len(_OBJECT_TYPES)).ljust(ptr, b"\0")
         for entry in _OBJECT_TYPES:
             data += _object_type_information(emu, entry[0], buf + len(data))
@@ -1160,7 +1169,7 @@ def nt_query_object(emu: WindowsEmulator, args: list[int]) -> int:
         data = struct.pack("<IIII", 0, 0x1F0003, 1, 2).ljust(0x38, b"\0")
         if length != len(data):
             return STATUS_INFO_LENGTH_MISMATCH
-    elif info_class == 2:  # ObjectTypeInformation: the type's name, then how many objects and handles of it exist
+    elif info_class == 2:  # ObjectTypeInformation has the name of the type and the numbers of objects and handles
         data = _object_type_information(emu, _object_type_name(obj), buf)
         if return_length:
             emu.write_u32(return_length, len(data))
@@ -1184,7 +1193,6 @@ def get_tick_count64(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:di
     return emu.tick_ms(16)
 
 
-# the calls that count as polls of a Sleep loop; they share _sleep()
 SLEEP_POLL_APIS = frozenset(("Sleep", "SleepEx"))
 
 
@@ -1193,7 +1201,7 @@ def _sleep(emu: WindowsEmulator, milliseconds: int) -> None:
     thread.wake_tick = emu.sleep_wake_tick(milliseconds)
     emu.set_reg("rax" if emu.is_64bit else "eax", 0)
     if not emu.switch_thread():
-        # nothing else to run: the sleep simply elapses
+        # no other thread can run, so we let the sleep elapse
         emu.tick = thread.wake_tick
 
 
@@ -1213,7 +1221,8 @@ _MAX_WAITS = 4096
 
 def _wait(emu: WindowsEmulator, handle: int, timeout: int) -> int | None:
     """
-    Wait on a handle. Unsatisfied waits make the thread retry the call after other threads ran.
+    This function waits on a handle.
+    When the wait is not satisfied, the thread retries the call after other threads ran.
     """
     obj = emu.handles.get(handle)
     thread = emu.thread
@@ -1236,14 +1245,12 @@ def _wait(emu: WindowsEmulator, handle: int, timeout: int) -> int | None:
         return 0
     if not infinite:
         if not retried:
-            # like Sleep, at most a minute
             thread.wake_tick = emu.tick + min(timeout, 60000)
         if emu.tick >= thread.wake_tick:
             thread.waits = 0
             return WAIT_TIMEOUT
         thread.timed_wait = True
     thread.waits += 1
-    # not scheduled again until the object is signaled or the timeout has passed
     thread.wait_handle = handle
     if emu.block_thread():
         return None
@@ -1252,7 +1259,7 @@ def _wait(emu: WindowsEmulator, handle: int, timeout: int) -> int | None:
     thread.timed_wait = False
     if infinite:
         return 0
-    # nothing can signal the object before the timeout: the wait simply elapses
+    # no thread can signal the object before the timeout, so we let the wait elapse
     emu.tick = max(emu.tick, thread.wake_tick)
     return WAIT_TIMEOUT
 
@@ -1422,7 +1429,7 @@ def _set_last_error(emu: WindowsEmulator, code: int) -> None:
 
 def full_path(emu: WindowsEmulator, path: str) -> str:
     """
-    The absolute form of a DOS or NT path; relative paths start at the current directory.
+    This function returns the absolute form of a DOS or NT path. A relative path starts at the current directory.
     """
     path = path.strip().strip('"').replace("/", "\\")
     if path.startswith(("\\??\\", "\\\\?\\")):
@@ -1434,7 +1441,7 @@ def full_path(emu: WindowsEmulator, path: str) -> str:
 
 def _copy_path(emu: WindowsEmulator, capacity: int, buf: int, text: str, wide: bool) -> int:
     """
-    The convention of GetCurrentDirectory and GetTempPath: the length written, or the size needed if it does not fit.
+    GetCurrentDirectory and GetTempPath return the length written, or the required size if the text does not fit.
     """
     if capacity <= len(text):
         return len(text) + 1
@@ -1452,7 +1459,7 @@ def get_current_directory_w(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 def _set_current_directory(emu: WindowsEmulator, path: str) -> int:
-    # every well-formed directory is taken to exist
+    # we assume that every well-formed directory exists
     if not path.strip():
         _set_last_error(emu, ERROR_INVALID_NAME)
         return 0
@@ -1533,7 +1540,8 @@ def message_box_a(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("NtRaiseHardError", "ZwRaiseHardError", nargs=6)
 def nt_raise_hard_error(emu: WindowsEmulator, args: list[int]) -> int:
-    # loaders report a missing DLL or export this way; parameters flagged in the mask are UNICODE_STRING pointers
+    # Loaders report a missing DLL or a missing export through NtRaiseHardError.
+    # A parameter whose bit is set in the mask is a UNICODE_STRING pointer.
     count, mask, params = min(args[1], 4), args[2], args[3]
     texts = []
     for idx in range(count if params else 0):
@@ -1604,8 +1612,9 @@ def tls_set_value(emu: WindowsEmulator, args: list[int]) -> int:
 _const(("TlsFree", "FlsFree"), 1, 1)
 
 #
-# Files: the sample's own image, stand-ins for a few files every Windows 7 installation has, and the files the
-# program creates (kept in memory)
+# Files
+# The files are the image of the sample, stand-ins for a few files that every Windows 7 installation has, and the
+# files that the program creates, which we keep in memory.
 #
 
 CREATE_NEW, CREATE_ALWAYS, OPEN_EXISTING, OPEN_ALWAYS, TRUNCATE_EXISTING = 1, 2, 3, 4, 5
@@ -1614,7 +1623,7 @@ INVALID_FILE_ATTRIBUTES = -1
 _STD_HANDLE = 0x30
 _FILE_TIME = 0x01DB3A0000000000
 
-# protectors probe for these, e.g. read the first two bytes of explorer.exe and expect "MZ"
+# Protectors probe for these files. For example, a protector reads the first two bytes of explorer.exe and expects "MZ".
 _WINDOWS_FILES = frozenset(("explorer.exe", "notepad.exe", "regedit.exe", "hh.exe", "winhlp32.exe", "write.exe"))
 _SYSTEM32_FILES = frozenset(
     ("cmd.exe", "notepad.exe", "calc.exe", "svchost.exe", "lsass.exe", "csrss.exe", "winlogon.exe", "services.exe",
@@ -1638,7 +1647,7 @@ def _stub_image(is_64bit: bool) -> bytes:
 
 def _system_files(emu: WindowsEmulator, directory: str) -> list[str]:
     """
-    The names of the stand-in system files in a directory, given its absolute path in lower case.
+    The names of the stand-in system files in a directory. `directory` is an absolute path in lower case.
     """
     windows = WINDOWS_DIRECTORY.lower()
     if directory == windows:
@@ -1650,7 +1659,7 @@ def _system_files(emu: WindowsEmulator, directory: str) -> list[str]:
 
 def _system_file(emu: WindowsEmulator, path: str) -> bytes | None:
     """
-    The stand-in for a system file, given its absolute path in lower case.
+    The stand-in for a system file. `path` is an absolute path in lower case.
     """
     directory, name = ntpath.split(path)
     windows = WINDOWS_DIRECTORY.lower()
@@ -1664,9 +1673,6 @@ def _system_file(emu: WindowsEmulator, path: str) -> bytes | None:
 
 
 def _file_data(emu: WindowsEmulator, path: str) -> bytes | bytearray | None:
-    """
-    The contents of an existing file.
-    """
     if ntpath.basename(path).lower() == ntpath.basename(emu.image_path).lower():
         return emu.image_file
     key = full_path(emu, path).lower()
@@ -1678,7 +1684,7 @@ def _is_directory(emu: WindowsEmulator, path: str) -> bool:
     key = full_path(emu, path).lower()
     if key in emu.directories or key == emu.current_directory.lower():
         return True
-    # system directories and the ancestors of everything known to exist
+    # the system directories and the ancestors of every known file are directories too
     known = (emu.image_path, SYSTEM_DIRECTORY + "\\", TEMP_DIRECTORY + "\\", *(name for name, _ in emu.files.values()))
     return any(name.lower().startswith(key.rstrip("\\") + "\\") for name in known)
 
@@ -1690,11 +1696,11 @@ def _open_file(emu: WindowsEmulator, path: str) -> int:
 
 def _create_file(emu: WindowsEmulator, path: str, disposition: int) -> tuple[int, int]:
     """
-    CreateFile on the in-memory files. Returns the handle (or INVALID_HANDLE) and the Win32 error code.
+    CreateFile on the in-memory files. This function returns the handle or INVALID_HANDLE, and the Win32 error code.
     """
     data = _file_data(emu, path)
     if data is None:
-        # devices (\\.\name) and directories cannot be created as files
+        # we cannot create a device such as \\.\name or a directory as a file
         creatable = bool(path.strip()) and not path.startswith("\\\\.\\") and not _is_directory(emu, path)
         if disposition in (OPEN_EXISTING, TRUNCATE_EXISTING) or not creatable:
             return INVALID_HANDLE, ERROR_FILE_NOT_FOUND
@@ -1738,7 +1744,7 @@ def write_file(emu: WindowsEmulator, args: list[int]) -> int:
     elif args[0] != _STD_HANDLE:
         _set_last_error(emu, ERROR_INVALID_HANDLE)
         return 0
-    # console output is dropped
+    # we drop console output
     if args[3]:
         emu.write_u32(args[3], size)
     return 1
@@ -1773,7 +1779,7 @@ def open_file(emu: WindowsEmulator, args: list[int]) -> int:
         else:
             error = 0
             if style & OF_EXIST:
-                # only a test: the file is closed again
+                # OF_EXIST only tests for the file, so we close the file again
                 emu.handles.pop(handle)
     # OFSTRUCT: cBytes, fFixedDisk, nErrCode, two reserved words, szPathName[128]
     emu.write(args[1], struct.pack("<BBHHH", 136, 1, error, 0, 0) + name.ljust(128, b"\0"))
@@ -1820,7 +1826,6 @@ WSAENETDOWN = 10050
 
 
 def _no_socket(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    # there is no network
     _set_last_error(emu, WSAENETDOWN)
     return INVALID_SOCKET
 
@@ -1847,7 +1852,7 @@ def flush_file_buffers(emu: WindowsEmulator, args: list[int]) -> int:
 def _delete_file(emu: WindowsEmulator, path: str) -> int:
     if emu.files.pop(full_path(emu, path).lower(), None) is not None:
         return 1
-    # the running image cannot be deleted
+    # Windows refuses to delete the running image
     _set_last_error(emu, ERROR_FILE_NOT_FOUND if _file_data(emu, path) is None else ERROR_ACCESS_DENIED)
     return 0
 
@@ -1983,7 +1988,7 @@ def _create_file_mapping(emu: WindowsEmulator, args: list[int], name: str) -> in
         return emu.new_handle(MappingObject(bytes(obj.data)))
     if args[0] & 0xFFFFFFFF != 0xFFFFFFFF:
         return 0
-    # shared memory backed by the paging file, often named so a second instance can find it
+    # The paging file backs this shared memory. A program often names the shared memory for a second instance to find.
     existing = emu.named_mappings.get(name) if name else None
     if existing is not None:
         _set_last_error(emu, ERROR_ALREADY_EXISTS)
@@ -2037,7 +2042,7 @@ def _find_entries(emu: WindowsEmulator, pattern: str) -> list[tuple[str, int, in
     known = [(emu.image_path, FILE_ATTRIBUTE_ARCHIVE, len(emu.image_file))]
     known += [(name, FILE_ATTRIBUTE_ARCHIVE, len(data)) for name, data in emu.files.values()]
     known += [(name, FILE_ATTRIBUTE_DIRECTORY, 0) for name in emu.directories.values()]
-    # what CreateFile and GetFileAttributes find without the program having made it: system directories and files
+    # CreateFile and GetFileAttributes also find the system directories and files, which the program did not create
     present = {name.lower() for name, _, _ in known}
     system = [(name, FILE_ATTRIBUTE_DIRECTORY, 0) for name in (WINDOWS_DIRECTORY, SYSTEM_DIRECTORY, TEMP_DIRECTORY)]
     stub_size = len(_stub_image(emu.is_64bit))
@@ -2045,7 +2050,7 @@ def _find_entries(emu: WindowsEmulator, pattern: str) -> list[tuple[str, int, in
         (directory + "\\" + name, FILE_ATTRIBUTE_ARCHIVE, stub_size) for name in _system_files(emu, directory.lower())
     ]
     known += [entry for entry in system if entry[0].lower() not in present]
-    # "*.*" matches names without a dot too; brackets are ordinary characters
+    # "*.*" also matches a name without a dot. A bracket is an ordinary character, so we escape the bracket.
     mask = "*" if mask == "*.*" else mask.lower().replace("[", "[[]")
     return [
         (ntpath.basename(name), attributes, size)
@@ -2131,7 +2136,7 @@ def check_sum_mapped_file(emu: WindowsEmulator, args: list[int]) -> int:
     nt = base + struct.unpack_from("<I", data, 0x3C)[0]
     if emu.read(nt, 4) != b"PE\0\0":
         return 0
-    # 16-bit ones'-complement sum with end-around carry, as imagehlp's ChkSum
+    # ChkSum of imagehlp computes a 16-bit ones'-complement sum with end-around carry
     total = sum(struct.unpack(f"<{len(data) // 2}H", data))
     calc = 0 if total == 0 else (total - 1) % 0xFFFF + 1
     stored = emu.read_u32(nt + 0x58)
@@ -2153,7 +2158,7 @@ def _object_name(emu: WindowsEmulator, attributes: int) -> str:
     return emu.read(emu.read_ptr(name + emu.ptr_size), length).decode("utf-16-le", "replace")
 
 
-# NtCreateFile dispositions (FILE_SUPERSEDE ... FILE_OVERWRITE_IF) as CreateFile ones
+# NtCreateFile dispositions from FILE_SUPERSEDE to FILE_OVERWRITE_IF as CreateFile dispositions
 _NT_DISPOSITIONS = (CREATE_ALWAYS, OPEN_EXISTING, CREATE_NEW, OPEN_ALWAYS, TRUNCATE_EXISTING, CREATE_ALWAYS)
 FILE_DIRECTORY_FILE = 1
 
@@ -2180,7 +2185,7 @@ def nt_open_file(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("NtCreateFile", "ZwCreateFile", nargs=11)
 def nt_create_file(emu: WindowsEmulator, args: list[int]) -> int:
-    # directories are not created through here
+    # we do not create directories through NtCreateFile
     creating = args[7] < len(_NT_DISPOSITIONS) and not args[8] & FILE_DIRECTORY_FILE
     return _nt_open_file(emu, args[0], args[2], args[3], _NT_DISPOSITIONS[args[7]] if creating else OPEN_EXISTING)
 
@@ -2206,7 +2211,7 @@ def nt_query_information_file(emu: WindowsEmulator, args: list[int]) -> int:
     obj = emu.handles.get(args[0])
     if not isinstance(obj, FileObject):
         return STATUS_INVALID_HANDLE
-    if args[4] != 5:  # only FileStandardInformation
+    if args[4] != 5:  # we only support FileStandardInformation
         return STATUS_INVALID_INFO_CLASS
     if args[3] < 24:
         return STATUS_INFO_LENGTH_MISMATCH
@@ -2240,7 +2245,7 @@ def nt_create_section(emu: WindowsEmulator, args: list[int]) -> int:
     obj = emu.handles.get(args[6])
     if not isinstance(obj, FileObject):
         return STATUS_INVALID_HANDLE
-    # SEC_IMAGE: the view is the file laid out as a loaded image
+    # with SEC_IMAGE, the view is the file laid out as a loaded image
     data = emu.pe.get_memory_mapped_image() if args[5] & 0x1000000 else bytes(obj.data)
     emu.write_ptr(args[0], emu.new_handle(MappingObject(data)))
     return STATUS_SUCCESS
@@ -2331,7 +2336,7 @@ _FORMAT_RE = re.compile(r"%([-+ #0]*)(\*|\d+)?(?:\.(\*|\d+))?(hh|h|ll|l|I64|I32|
 
 def _call_arg(emu: WindowsEmulator, index: int) -> int:
     """
-    The index-th argument of the API call being handled, for variadic calls.
+    This function returns the argument at `index` of the current API call. Handlers of variadic APIs use this function.
     """
     if emu.is_64bit:
         if index < 4:
@@ -2342,7 +2347,7 @@ def _call_arg(emu: WindowsEmulator, index: int) -> int:
 
 def _format(emu: WindowsEmulator, fmt: str, next_arg: Callable[[], int], wide: bool) -> str:
     """
-    printf-style formatting with arguments pulled from the guest.
+    This function formats text in the style of printf. `next_arg` returns the next argument from the guest.
     """
     bits = 8 * emu.ptr_size
 
@@ -2394,7 +2399,8 @@ def _sprintf(
     capacity: int | None = None,
 ) -> int:  # fmt: skip
     """
-    Format into buf. Arguments come from the call (starting at index `first`) or from a va_list.
+    This function formats text into `buf`.
+    The arguments come from the call, starting at index `first`, or from `va_list`.
     """
     position = [0]
 
@@ -2463,7 +2469,7 @@ def vsnwprintf(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("timeGetTime", nargs=0)
 def time_get_time(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unused-argument
-    # WinLicense rejects a timer that changes on every poll of its virtualized loop
+    # WinLicense rejects a timer that changes on every poll of the virtualized loop, so we do not advance the timer here
     return emu.clock_ms() & 0xFFFFFFFF
 
 
@@ -2484,8 +2490,8 @@ def nt_delay_execution(emu: WindowsEmulator, args: list[int]) -> None:  # pylint
 @api("NtQuerySystemInformation", "ZwQuerySystemInformation", "RtlGetNativeSystemInformation", nargs=4)
 def nt_query_system_information(emu: WindowsEmulator, args: list[int]) -> int:
     info_class, buf, length, ret_length = args
-    # the buffer is probed for writing (aligned as a ULONG; SystemKernelDebuggerInformation as a BOOLEAN), then the
-    # length pointer; the size a class needs is stored also when the buffer is too small
+    # The kernel probes the buffer for writing, aligned as a ULONG, or as a BOOLEAN for SystemKernelDebuggerInformation.
+    # Then the kernel probes the length pointer. The kernel stores the required size also when the buffer is too small.
     status = _probe_for_write(emu, buf, length, 1 if info_class == 0x23 else 4)
     if status is None and ret_length:
         status = _probe_for_write(emu, ret_length, 4, 1)
@@ -2517,7 +2523,7 @@ _const(("NtSetInformationProcess", "ZwSetInformationProcess"), 4, STATUS_SUCCESS
 
 def _thread_of_handle(emu: WindowsEmulator, handle: int) -> Thread | int:
     """
-    The thread a handle stands for, or the status a system call fails with.
+    This function returns the thread that a handle stands for, or the status that the system call fails with.
     """
     if _pseudo_handle(emu, handle, -2):
         return emu.thread
@@ -2530,15 +2536,15 @@ def _thread_of_handle(emu: WindowsEmulator, handle: int) -> Thread | int:
 @api("NtQueryInformationThread", "ZwQueryInformationThread", nargs=5)
 def nt_query_information_thread(emu: WindowsEmulator, args: list[int]) -> int:
     info_class, buf, length, return_length = args[1], args[2], args[3], args[4]
-    # checked in the kernel's order, as for NtQueryInformationProcess: buffer alignment, length pointer, length,
-    # handle, and then the write
+    # We check the arguments in the order of the kernel, as for NtQueryInformationProcess. The order is the buffer
+    # alignment, the length pointer, the length, the handle, and then the write.
     status = _probe_for_read(emu, buf, length, 1 if info_class == 0x11 else 4)
     if status is None and return_length:
         status = _probe_for_write(emu, return_length, 4, 1)
     if status is not None:
         return status
     ptr = emu.ptr_size
-    # ThreadBasicInformation, ThreadHideFromDebugger (a BOOLEAN)
+    # ThreadBasicInformation, and ThreadHideFromDebugger which is a BOOLEAN
     sizes = {0: 0x30 if emu.is_64bit else 0x1C, 0x11: 1}
     if info_class in sizes and length != sizes[info_class]:
         return STATUS_INFO_LENGTH_MISMATCH
@@ -2567,8 +2573,8 @@ def nt_query_information_thread(emu: WindowsEmulator, args: list[int]) -> int:
 def nt_set_information_thread(emu: WindowsEmulator, args: list[int]) -> int:
     if args[1] != 0x11:
         return STATUS_SUCCESS
-    # ThreadHideFromDebugger takes no data: programs pass a length, or a handle that is none, to see whether the
-    # call is answered by something that always succeeds
+    # ThreadHideFromDebugger takes no data. Programs pass a length or an invalid handle to detect an implementation
+    # that always succeeds, so we check both.
     if args[3]:
         return STATUS_INFO_LENGTH_MISMATCH
     thread = _thread_of_handle(emu, args[0])
@@ -2580,13 +2586,14 @@ def nt_set_information_thread(emu: WindowsEmulator, args: list[int]) -> int:
 
 _const(("NtQueryPerformanceCounter",), 2, STATUS_SUCCESS)
 
-# registry: empty, except for the keys and values the sample creates itself (trial bookkeeping reads them back)
+# The registry is empty except for the keys and values that the sample creates.
+# Trial bookkeeping reads these keys and values back.
 ERROR_MORE_DATA = 234
 
 
 class RegistryKey:
     """
-    An open registry key: (predefined root, lower-case path).
+    An open registry key. `key` is a tuple of the predefined root and the lower-case path.
     """
 
     def __init__(self, key: tuple[int, str]):
@@ -2595,7 +2602,8 @@ class RegistryKey:
 
 def _registry_path(emu: WindowsEmulator, parent: int, subkey: int, wide: bool) -> tuple[int, str] | None:
     """
-    The predefined key and the path below it that a key handle and a subkey name stand for, in the case given.
+    This function returns the predefined key and the path below the predefined key for a key handle and a subkey name.
+    The path keeps the case of the given names.
     """
     path = (emu.read_wstr(subkey) if wide else emu.read_cstr(subkey)) if subkey else ""
     opened = emu.handles.get(parent)
@@ -2622,7 +2630,8 @@ def _reg_open(emu: WindowsEmulator, parent: int, subkey: int, result: int, wide:
     if key not in emu.registry:
         if not create:
             return ERROR_FILE_NOT_FOUND
-        # the key and the missing keys above it; names keep the case they were created with, lookups ignore it
+        # We create the key and the missing ancestors of the key.
+        # Names keep the original case, and lookups ignore the case.
         parts = found[1].split("\\")
         for depth in range(1, len(parts) + 1):
             written = "\\".join(parts[:depth])
@@ -2754,7 +2763,7 @@ ERROR_NO_MORE_ITEMS = 259
 
 def _reg_name(emu: WindowsEmulator, buf: int, size_ptr: int, name: str, wide: bool) -> int:
     """
-    Store an enumerated name; the size is in characters, without the terminator on return.
+    This function stores an enumerated name. The size is in characters, and the returned size excludes the terminator.
     """
     capacity = emu.read_u32(size_ptr)
     if capacity <= len(name):
@@ -2811,7 +2820,7 @@ def _reg_subkeys(emu: WindowsEmulator, key: tuple[int, str]) -> list[str]:
 def _reg_enum_key(emu: WindowsEmulator, handle: int, index: int, buf: int, size_ptr: int, wide: bool) -> int:
     opened = emu.handles.get(handle)
     if not isinstance(opened, RegistryKey):
-        # a predefined root (or anything else): the registry has no keys but the sample's own
+        # the registry has no keys other than the keys of the sample, so a predefined root has no subkeys
         return ERROR_NO_MORE_ITEMS
     subkeys = _reg_subkeys(emu, opened.key)
     if index >= len(subkeys):
@@ -2830,7 +2839,7 @@ def reg_enum_key_ex_w(emu: WindowsEmulator, args: list[int]) -> int:
 
 
 def _reg_enum_key_plain(emu: WindowsEmulator, args: list[int], wide: bool) -> int:
-    # the size is passed by value
+    # RegEnumKey passes the size by value
     size = emu.alloc(4)
     emu.write_u32(size, args[3])
     return _reg_enum_key(emu, args[0], args[1], args[2], size, wide)
@@ -2900,7 +2909,7 @@ _const(("InitializeSListHead", "FreeEnvironmentStringsW", "FreeEnvironmentString
 _const(("GetThreadLocale", "GetUserDefaultLCID", "GetSystemDefaultLCID"), 0, 0x409)
 _const(("GetUserDefaultUILanguage", "GetSystemDefaultUILanguage", "GetUserDefaultLangID", "GetSystemDefaultLangID"),
        0, 0x409)  # fmt: skip
-# no network adapters: ERROR_NO_DATA, not success with an untouched buffer
+# the emulator has no network adapters, so we return ERROR_NO_DATA
 _const(("GetAdaptersInfo",), 2, 232)
 _const(("GetAdaptersAddresses",), 5, 232)
 _const(("SetConsoleCtrlHandler", "SetThreadPriority"), 2, 1)
@@ -2918,7 +2927,7 @@ def _process_entry(emu: WindowsEmulator, handle: int, entry: int, wide: bool, fi
     if not isinstance(snapshot, ToolhelpSnapshot):
         set_last_error(emu, [6])  # ERROR_INVALID_HANDLE
         return 0
-    # PROCESSENTRY32: the name follows nine fields, th32DefaultHeapID is pointer-sized
+    # In PROCESSENTRY32, the name follows nine fields, and th32DefaultHeapID has the size of a pointer.
     name_offset = 0x2C if emu.is_64bit else 0x24
     size = name_offset + 260 * (2 if wide else 1)
     if emu.is_64bit:
@@ -3053,7 +3062,7 @@ def rtl_zero_memory(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("GetThreadContext", nargs=2)
 def get_thread_context(emu: WindowsEmulator, args: list[int]) -> int:
-    # debug registers read back as zero
+    # we report the debug registers as zero
     emu.exceptions.write_context(args[1], emu.pc)
     return 1
 
@@ -3079,7 +3088,8 @@ _const(("GetProcessWindowStation", "GetDesktopWindow", "GetForegroundWindow", "G
 
 
 #
-# Windows and GDI: enough for a splash screen (a window, a DIB section to draw into)
+# Windows and GDI
+# We implement enough for a splash screen, which needs a window and a DIB section to draw into.
 #
 
 
@@ -3099,9 +3109,9 @@ class WindowObject:
     # left, top, right, bottom
     rect: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     visible: bool = False
-    # a visible window with an invalid region gets WM_PAINT once its thread's queue is empty
+    # Windows sends WM_PAINT to a visible window with an invalid region once the message queue of the thread is empty
     needs_paint: bool = False
-    # when the simulated user clicks the window (None: not yet scheduled; -1: clicked)
+    # The tick at which the simulated user clicks the window. None means not scheduled yet, and -1 means clicked.
     click_tick: int | None = None
 
 
@@ -3122,7 +3132,7 @@ def _class_name(emu: WindowsEmulator, ptr: int, wide: bool) -> str:
 
 
 def _register_class(emu: WindowsEmulator, wndclass: int, extended: bool, wide: bool) -> int:
-    # x86 WNDCLASSEX is WNDCLASS behind cbSize; on x64 cbSize fills the padding after style
+    # On x86, WNDCLASSEX is WNDCLASS behind cbSize. On x64, cbSize fills the padding after style.
     if emu.is_64bit:
         wndproc, name = emu.read_ptr(wndclass + 8), emu.read_ptr(wndclass + 64)
     else:
@@ -3159,7 +3169,7 @@ def _create_window(emu: WindowsEmulator, args: list[int], wide: bool) -> int | N
     wndclass = emu.window_classes.get(name)
     window = WindowObject(wndclass, args[8], emu.thread, wndclass.wndproc if wndclass is not None else 0)
     x, y, width, height = (value - (1 << 32) if value & 0x80000000 else value for value in args[4:8])
-    # the system picks the position and the size
+    # CW_USEDEFAULT lets the system pick the position and the size
     if x == CW_USEDEFAULT:
         x = y = 0
     if width == CW_USEDEFAULT:
@@ -3169,7 +3179,7 @@ def _create_window(emu: WindowsEmulator, args: list[int], wide: bool) -> int | N
     hwnd = emu.new_handle(window)
     if not window.wndproc:
         return hwnd
-    # WM_NCCREATE and WM_CREATE get a CREATESTRUCT: the arguments in reverse order
+    # WM_NCCREATE and WM_CREATE get a CREATESTRUCT, which holds the arguments in reverse order
     if emu.is_64bit:
         create = struct.pack("<QQQQiiiiIIQQII", args[11], args[10], args[9], args[8], height, width, y, x,
                              args[3], 0, args[2], args[1], args[0], 0)  # fmt: skip
@@ -3179,7 +3189,7 @@ def _create_window(emu: WindowsEmulator, args: list[int], wide: bool) -> int | N
     emu.write(buf, create)
 
     def created(results: list[int]) -> int:
-        # WM_NCCREATE returning FALSE or WM_CREATE returning -1 fail the creation
+        # the creation fails when WM_NCCREATE returns FALSE or WM_CREATE returns -1
         if results[0] == 0 or (len(results) == 2 and results[1] == (1 << (8 * emu.ptr_size)) - 1):
             emu.handles.pop(hwnd, None)
             return 0
@@ -3238,7 +3248,7 @@ def select_object(emu: WindowsEmulator, args: list[int]) -> int:
     dc = emu.handles.get(args[0])
     if not isinstance(dc, GdiObject) or dc.kind != "dc":
         return 0
-    # the previously selected object: a fresh DC holds a stock 1x1 bitmap
+    # SelectObject returns the previously selected object, and a fresh DC holds a stock 1x1 bitmap
     previous = dc.bits or emu.new_handle(GdiObject("bitmap"))
     dc.bits = args[1]
     return previous
@@ -3256,7 +3266,7 @@ _const(("StretchBlt",), 11, 1)
 
 
 #
-# Window messages: per-thread queues, timers, and calls into window procedures
+# Window messages, per-thread message queues, timers and calls into window procedures
 #
 
 WM_CREATE = 0x1
@@ -3271,7 +3281,8 @@ WM_NCDESTROY = 0x82
 WM_TIMER = 0x113
 WM_LBUTTONDOWN = 0x201
 WM_LBUTTONUP = 0x202
-# how long a window waits for input before the simulated user clicks it (splash screens that close on a click)
+# The time that a window waits for input before the simulated user clicks the window.
+# Some splash screens close on a click.
 USER_CLICK_DELAY = 3000
 
 
@@ -3293,9 +3304,10 @@ def _guest_calls(
     owner: Thread | None = None,
 ) -> None:
     """
-    For API handlers that call guest code (window procedures): make the calls in order while proceed(results)
-    holds, then return finish(results) to the API's caller. The handler itself returns None. The calls run on
-    behalf of owner, the thread of the window whose procedure is called.
+    API handlers that call guest code, such as window procedures, use this function.
+    We make the calls in order while `proceed(results)` holds, then return `finish(results)` to the caller of the API.
+    The API handler returns None.
+    The calls run on behalf of `owner`, which is the thread of the window whose procedure we call.
     """
     ret_pc = emu.pc
     results: list[int] = []
@@ -3326,7 +3338,7 @@ def _window(emu: WindowsEmulator, hwnd: int) -> WindowObject | None:
 def _post(emu: WindowsEmulator, thread: Thread, message: tuple[int, int, int, int]) -> None:
     thread.messages.append(message)
     if thread.wait_handle is None:
-        # a thread blocked in GetMessage wakes up
+        # we wake up a thread that is blocked in GetMessage
         thread.wake_tick = min(thread.wake_tick, emu.tick)
 
 
@@ -3375,14 +3387,14 @@ def _get_message(emu: WindowsEmulator, addr: int) -> int | None:
     if message is None:
         thread = emu.thread
         timers = [t.due for t in emu.timers if t.thread is thread]
-        # a visible window that waits for input gets clicked a while later
+        # the simulated user clicks a visible window that waits for input a while later
         for window in emu.handles.values():
             if isinstance(window, WindowObject) and window.thread is thread and window.visible:
                 if window.click_tick is None:
                     window.click_tick = emu.tick + USER_CLICK_DELAY
                 if window.click_tick >= 0:
                     timers.append(window.click_tick)
-        # nothing queued: sleep until the next timer, or until another thread posts something
+        # no message is queued, so the thread sleeps until the next timer or until another thread posts a message
         thread.wake_tick = min(timers) if timers else emu.tick + 60000
         if emu.block_thread():
             return None
@@ -3432,7 +3444,7 @@ def _send(emu: WindowsEmulator, hwnd: int, msg: int, wparam: int, lparam: int) -
     window = _window(emu, hwnd)
     if window is None or not window.wndproc:
         return 0
-    # the procedure runs for the window's thread, whichever thread sends
+    # the window procedure runs on behalf of the thread of the window, whichever thread sends the message
     _guest_calls(emu, [(window.wndproc, (hwnd, msg, wparam, lparam))], lambda results: results[0], owner=window.thread)
     return None
 
@@ -3461,7 +3473,8 @@ def post_thread_message(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("PostQuitMessage", nargs=1)
 def post_quit_message(emu: WindowsEmulator, args: list[int]) -> int:
-    # from a window procedure that another thread called (SendMessage, DestroyWindow): the window's thread quits
+    # Another thread can call the window procedure through SendMessage or DestroyWindow.
+    # In that case the thread of the window quits.
     owners = emu.thread.window_owners
     _post(emu, owners[-1] if owners else emu.thread, (0, WM_QUIT, args[0], 0))
     return 0
@@ -3514,7 +3527,7 @@ def update_window(emu: WindowsEmulator, args: list[int]) -> int | None:
         return 0
     if not (window.visible and window.needs_paint and window.wndproc):
         return 1
-    # sends WM_PAINT right away
+    # UpdateWindow sends WM_PAINT right away
     _guest_calls(emu, [(window.wndproc, (args[0], WM_PAINT, 0, 0))], lambda _: 1, owner=window.thread)
     return None
 
@@ -3566,7 +3579,7 @@ def mul_div(emu: WindowsEmulator, args: list[int]) -> int:  # pylint:disable=unu
     if c == 0:
         return -1
     product = a * b
-    # rounded half away from zero, as Windows does
+    # Windows rounds half away from zero
     quotient = (abs(product) + abs(c) // 2) // abs(c)
     return quotient if (product < 0) == (c < 0) else -quotient
 
@@ -3626,7 +3639,7 @@ def _window_rect(emu: WindowsEmulator, hwnd: int, rect: int, client: bool) -> in
     window = _window(emu, hwnd)
     if window is None and hwnd:
         return 0
-    # 0 is the desktop window (GetDesktopWindow)
+    # GetDesktopWindow returns 0, so 0 is the desktop window
     left, top, right, bottom = window.rect if window is not None else SCREEN_RECT
     emu.write(
         rect, struct.pack("<iiii", *((0, 0, right - left, bottom - top) if client else (left, top, right, bottom)))

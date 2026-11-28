@@ -23,7 +23,9 @@ fn extend(cpu: &mut Cpu, dst: VarNode, args: Args, from: u8, to: u8, signed: boo
     write_trunc(cpu, dst, out);
 }
 
-/// 0 nearest (ties to even), 1 down, 2 up, 3 towards zero; from the immediate, or from MXCSR.RC if its bit 2 is set.
+/// The rounding mode is 0 for nearest with ties to even, 1 for down, 2 for up and 3 towards zero.
+/// The rounding mode comes from MXCSR.RC if bit 2 of the immediate is set, and from the immediate
+/// otherwise.
 fn rounding_mode(cpu: &Cpu, imm: u64) -> u64 {
     if imm & 4 != 0 {
         (cpu.read_var::<u32>(reg(cpu, "MXCSR")) as u64 >> 13) & 3
@@ -100,7 +102,8 @@ fn dppd(cpu: &mut Cpu, dst: VarNode, args: Args) {
 
 fn insertps(cpu: &mut Cpu, dst: VarNode, args: Args) {
     let (a, b, imm) = (rd(cpu, args[0]), rd(cpu, args[1]), cpu.args[0] as u8);
-    // a memory source is one dword; a register source is picked by the top two bits
+    // a memory source is one dword, and the top two bits of the immediate pick the dword of a
+    // register source
     let src = if args[1].size() == 4 {
         b as u32 as u64
     } else {

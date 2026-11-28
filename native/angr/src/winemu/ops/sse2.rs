@@ -1,4 +1,4 @@
-//! MMX, SSE and SSE2 operations the SLEIGH spec leaves to user ops.
+//! MMX, SSE and SSE2 operations that the SLEIGH spec leaves to user ops.
 
 use icicle_vm::cpu::{Cpu, exec::helpers::PcodeOpHelper};
 use pcode::{Value, VarNode};
@@ -9,7 +9,7 @@ fn sat_i8(v: i64) -> u64 {
     v.clamp(i8::MIN as i64, i8::MAX as i64) as u8 as u64
 }
 
-/// The shift count of the packed shifts: the low quadword of the count operand.
+/// The shift count of a packed shift is the low quadword of the count operand.
 fn shift_count(cpu: &Cpu, value: Value) -> u64 {
     rd(cpu, value) as u64
 }
@@ -50,7 +50,8 @@ fn cmp_f64(cpu: &mut Cpu, dst: VarNode, args: Args) {
     });
 }
 
-/// maskmovdqu / maskmovq, as patched in the SLEIGH spec: (data, mask, old memory) -> new memory.
+/// This function implements maskmovdqu and maskmovq. Our patched SLEIGH spec passes the data, the
+/// mask and the old memory, and this function returns the new memory.
 fn masked_move(cpu: &mut Cpu, dst: VarNode, args: Args) {
     let (data, select, old) = (rd(cpu, args[0]), rd(cpu, args[1]), cpu.args[0]);
     let out = build(dst.size, 1, |i| {
@@ -125,19 +126,19 @@ pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
     ("MaskedMoveQWord", masked_move),
     ("divps", |c, d, a| zip_f32(c, d, a, |x, y| x / y)),
     ("divpd", |c, d, a| zip_f64(c, d, a, |x, y| x / y)),
-    // the second operand wins unless the comparison holds (NaNs, zeros of either sign)
+    // the CPU returns the second operand unless the comparison holds, as for NaNs and signed zeros
     ("maxps", |c, d, a| zip_f32(c, d, a, |x, y| if x > y { x } else { y })),
     ("maxpd", |c, d, a| zip_f64(c, d, a, |x, y| if x > y { x } else { y })),
     ("minps", |c, d, a| zip_f32(c, d, a, |x, y| if x < y { x } else { y })),
     ("minpd", |c, d, a| zip_f64(c, d, a, |x, y| if x < y { x } else { y })),
     ("sqrtps", |c, d, a| zip_f32(c, d, a, |_, y| y.sqrt())),
     ("sqrtpd", |c, d, a| zip_f64(c, d, a, |_, y| y.sqrt())),
-    // the estimates are computed exactly, as QEMU does
+    // we compute the estimates exactly, as QEMU does
     ("rcpps", |c, d, a| zip_f32(c, d, a, |_, y| 1.0 / y)),
     ("rsqrtps", |c, d, a| zip_f32(c, d, a, |_, y| 1.0 / y.sqrt())),
     ("rcpss", |c, d, a| low_f32(c, d, a, |y| 1.0 / y)),
     ("rsqrtss", |c, d, a| low_f32(c, d, a, |y| 1.0 / y.sqrt())),
-    // predicates above 7, which the spec does not expand
+    // the SLEIGH spec leaves predicates above 7 to these user ops
     ("cmpps", cmp_f32),
     ("cmpss", cmp_f32),
     ("cmppd", cmp_f64),

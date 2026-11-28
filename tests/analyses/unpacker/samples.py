@@ -8,14 +8,13 @@ from tests.common import bin_location
 IMAGE_BASE = 0x400000
 IMAGE_BASE_64 = 0x140000000
 
-# for tests of the Icicle engine that need fixes of the x86 SLEIGH files that pypcode does not have yet
 needs_sleigh_fixes = unittest.skip("needs x86 SLEIGH fixes that pypcode does not have yet")
 
 
 def sample_path(name: str, is_64bit: bool = False) -> str:
     """
-    The path of a hand-made PE file of the unpacker tests; tests_src/unpacker/build.py in the binaries repo builds
-    them and describes their code.
+    This function returns the path of a hand-made PE file of the unpacker tests.
+    `tests_src/unpacker/build.py` in the binaries repo builds the PE files and describes the code of each PE file.
     """
     return os.path.join(bin_location, "tests", "x86_64" if is_64bit else "i386", "windows", "unpacker", name)
 

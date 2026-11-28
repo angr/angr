@@ -6,7 +6,10 @@ from dataclasses import dataclass, field
 @dataclass
 class Thread:
     """
-    An emulated thread: its own stack and TEB, plus the saved register file while it is not running.
+    An emulated thread.
+
+    Each thread has its own stack and TEB.
+    We save the registers of a thread while the thread is not running.
     """
 
     tid: int
@@ -21,13 +24,13 @@ class Thread:
     waits: int = 0
     wake_tick: int = 0
     wait_handle: int | None = None
-    # the wait on wait_handle ends at wake_tick
+    # the wait on `wait_handle` ends at `wake_tick`
     timed_wait: bool = False
     # posted window messages: (hwnd, message, wParam, lParam)
     messages: list[tuple[int, int, int, int]] = field(default_factory=list)
-    # threads of the windows whose procedures this thread is running through SendMessage and the like, innermost last
+    # the threads of the windows whose window procedures this thread is running, with the innermost one last
     window_owners: list[Thread] = field(default_factory=list)
-    # set through NtSetInformationThread(ThreadHideFromDebugger)
+    # NtSetInformationThread(ThreadHideFromDebugger) sets this flag
     hide_from_debugger: bool = False
 
 

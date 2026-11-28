@@ -17,7 +17,8 @@ EXCEPTION_INT_DIVIDE_BY_ZERO = 0xC0000094
 
 _CONTINUE_EXECUTION = 0xFFFFFFFF
 _TRAP_FLAG = 0x100
-# EFlags of a user-mode thread: IF and the reserved bit 1 always read as set; NtContinue keeps only these bits
+# IF and the reserved bit 1 always read as set in the EFlags of a user-mode thread. NtContinue only keeps the bits
+# in `_USER_FLAGS_SANITIZE`.
 _USER_FLAGS = 0x202
 _USER_FLAGS_SANITIZE = 0x3F4DD7
 _MAX_FRAMES = 128
@@ -38,8 +39,11 @@ _UNWIND_OP_SLOTS = {1: 2, 4: 2, 5: 3, 6: 2, 7: 3, 8: 2, 9: 3}
 
 class ExceptionDispatcher:
     """
-    User-mode exception dispatch: vectored handlers, frame-based handlers (the x86 SEH chain, or the x64 function
-    tables), then the unhandled-exception filter.
+    The dispatcher of user-mode exceptions.
+
+    We offer an exception to the vectored handlers, then to the frame-based handlers, then to the unhandled-exception
+    filter.
+    The frame-based handlers come from the SEH chain on x86 and from the function tables on x64.
     """
 
     def __init__(self, emu: WindowsEmulator):
@@ -47,7 +51,7 @@ class ExceptionDispatcher:
         self.vectored: list[int] = []
         self.unhandled_filter = 0
         self.count = 0
-        # addresses of the EXCEPTION_POINTERS and CONTEXT of the exception being dispatched
+        # the addresses of the EXCEPTION_POINTERS and the CONTEXT of the exception that we are dispatching
         self.pointers = 0
         self.context = 0
         self._dynamic_tables: list[tuple[int, int, int]] = []
@@ -55,8 +59,8 @@ class ExceptionDispatcher:
 
     def _nested_handler(self) -> int:
         """
-        ntdll's handler for exceptions raised inside an x86 exception handler: a spare (unexported) ntdll slot running
-        `mov eax, 1 (ExceptionContinueSearch); ret 16`.
+        Get the handler of ntdll for exceptions that are raised inside an x86 exception handler.
+        The handler is a spare ntdll slot that runs `mov eax, 1; ret 16`, which returns ExceptionContinueSearch.
         """
         if not self._nested_handler_addr:
             addr = self.emu.load_module("ntdll.dll").resolve("ExecuteHandler2")
@@ -100,7 +104,7 @@ class ExceptionDispatcher:
 
     def read_registers(self, addr: int) -> dict[str, int]:
         """
-        The general-purpose registers of a 64-bit CONTEXT.
+        Read the general-purpose registers of a 64-bit CONTEXT.
         """
         data = self.emu.read(addr + 0x78, 0x88)
         return {name: struct.unpack_from("<Q", data, off - 0x78)[0] for name, off in _X64_REGS}
@@ -121,7 +125,9 @@ class ExceptionDispatcher:
 
     def lookup_function(self, pc: int) -> tuple[int, int] | None:
         """
-        Find the RUNTIME_FUNCTION that covers pc. Returns (image base, address of the entry).
+        Find the RUNTIME_FUNCTION that covers `pc`.
+
+        :return: The image base and the address of the RUNTIME_FUNCTION.
         """
         emu = self.emu
         tables = list(self._dynamic_tables)
@@ -146,8 +152,10 @@ class ExceptionDispatcher:
 
     def virtual_unwind(self, base: int, entry: int, regs: dict[str, int]) -> tuple[int | None, int, int]:
         """
-        Undo the effects of the prologue of the function described by a RUNTIME_FUNCTION: regs become the caller's.
-        Returns (language handler or None, address of its data, establisher frame). Epilogues are not recognized.
+        Undo the effects of the prologue of the function that a RUNTIME_FUNCTION describes, so that `regs` holds the
+        registers of the caller. We do not recognize epilogues.
+
+        :return: The language handler or None, the address of the handler data, and the establisher frame.
         """
         emu = self.emu
         pc = regs["rip"]
@@ -167,7 +175,7 @@ class ExceptionDispatcher:
             frame_offset = (frame_byte >> 4) * 16
             codes = emu.read(info + 4, 2 * count)
             offset = pc - (base + begin) if first else 1 << 32
-            # the frame pointer only counts once the prologue has set it
+            # we only use the frame pointer after the prologue has set it
             frame = regs["rsp"]
             if frame_reg and (
                 offset >= prolog_size
@@ -215,7 +223,7 @@ class ExceptionDispatcher:
                 handler = base + emu.read_u32(tail)
                 handler_data = tail + 4
             first = False
-            if flags & 4 and not machine_frame:  # UNW_FLAG_CHAININFO: the rest is described by a parent entry
+            if flags & 4 and not machine_frame:  # UNW_FLAG_CHAININFO means that a parent entry describes the rest
                 entry = tail
                 continue
             if not machine_frame:
@@ -226,11 +234,13 @@ class ExceptionDispatcher:
 
     def _unwind_frame(self, regs: dict[str, int]) -> tuple[int | None, int, int, int, int]:
         """
-        Step regs to the caller. Returns (language handler, handler data, establisher frame, image base, entry).
+        Unwind `regs` to the caller.
+
+        :return: The language handler, the handler data, the establisher frame, the image base and the RUNTIME_FUNCTION.
         """
         found = self.lookup_function(regs["rip"])
         if found is None:
-            # a leaf function: only the return address is on the stack
+            # a function without a RUNTIME_FUNCTION is a leaf function, which only has the return address on the stack
             frame = regs["rsp"]
             regs["rip"] = self.emu.read_ptr(frame)
             regs["rsp"] = frame + 8
@@ -244,8 +254,9 @@ class ExceptionDispatcher:
 
     def unwind_to(self, target_frame: int, target_ip: int, return_value: int) -> None:
         """
-        RtlUnwindEx for the exception being dispatched: resume at target_ip in the function whose establisher frame
-        is target_frame. Termination handlers of the frames in between are not run.
+        Perform RtlUnwindEx for the exception that we are dispatching.
+        We resume at `target_ip` in the function whose establisher frame is `target_frame`.
+        We do not run the termination handlers of the frames in between.
         """
         emu = self.emu
         regs = self.read_registers(self.context)
@@ -267,7 +278,7 @@ class ExceptionDispatcher:
 
     def dispatch(self, code: int, pc: int, info: tuple[int, ...] = (), flags: int = 0) -> None:
         """
-        Deliver an exception raised at pc. Control resumes wherever the handlers decide.
+        Deliver an exception that was raised at `pc`. Control resumes where the handlers decide.
         """
         emu = self.emu
         self.count += 1
@@ -275,7 +286,8 @@ class ExceptionDispatcher:
             emu.stop(StopReason.ERROR, "exception storm")
             return
         ptr = emu.ptr_size
-        # right below the faulting sp, as Windows does: sp may be a small heap block (Themida's VM stack)
+        # We put the frame right below the faulting sp, as Windows does. Themida uses a small heap block as its VM
+        # stack.
         frame = (emu.sp - (0x700 if emu.is_64bit else 0x400)) & ~0xF
         if emu.space.find(frame - 0x40) is None or emu.space.find(emu.sp - 1) is None:
             emu.stop(StopReason.ERROR, f"exception {code:#x} at {pc:#x} with an unusable stack ({emu.sp:#x})")
@@ -326,8 +338,8 @@ class ExceptionDispatcher:
                 else:
                     try_seh(emu.read_ptr(frame_addr))
 
-            # ntdll's ExecuteHandler2 registers a frame for nested exceptions above the handler's arguments;
-            # handlers that never return find their way back to the faulting frame through it
+            # ExecuteHandler2 in ntdll registers a frame for nested exceptions above the arguments of the handler.
+            # A handler that never returns uses this frame to find the faulting frame, so we register this frame too.
             nested = frame - 0x40 - 12
             emu.write(nested, struct.pack("<III", emu.read_ptr(emu.teb), self._nested_handler(), frame_addr))
             emu.write_ptr(emu.teb, nested)
@@ -335,7 +347,7 @@ class ExceptionDispatcher:
             emu.call_guest(emu.read_ptr(frame_addr + 4), (record, frame_addr, context, frame + 0x80), after_handler)
 
         def try_frames(regs: dict[str, int], depth: int) -> None:
-            # x64: walk the call stack through the function tables, offering the exception to each language handler
+            # on x64 we walk the call stack through the function tables and offer the exception to each language handler
             while depth < _MAX_FRAMES and self._on_stack(regs):
                 depth += 1
                 control_pc = regs["rip"]

@@ -1,7 +1,10 @@
-//! x86 user ops that Icicle's helper table lacks: MMX/SSE through SSE4.2, AES-NI, SHA, CRC32 and the x87 leftovers.
+//! x86 user ops that the helper table of Icicle lacks.
+//! These user ops cover MMX, SSE through SSE4.2, AES-NI, SHA, CRC32 and the remaining x87
+//! instructions.
 //!
-//! A helper gets the destination and the first two arguments; further arguments arrive in `cpu.args`. x87 values
-//! are doubles kept in the low eight bytes of the ten-byte registers, as everywhere in Icicle.
+//! A helper gets the destination and the first two arguments.
+//! Further arguments arrive in `cpu.args`.
+//! Icicle keeps x87 values as doubles in the low eight bytes of the ten-byte registers.
 
 use icicle_vm::cpu::{Cpu, ValueSource};
 use pcode::{Value, VarNode};
@@ -17,7 +20,7 @@ pub mod state;
 
 pub(super) type Args = [Value; 2];
 
-/// The zero-extended value of an operand of up to 16 bytes (the low half of a wider one).
+/// This function returns the zero-extended value of the low 16 bytes of an operand.
 pub(super) fn rd(cpu: &Cpu, value: Value) -> u128 {
     match value {
         Value::Const(c, _) => c as u128,
@@ -58,7 +61,7 @@ pub(super) fn build(count: u8, width: u8, f: impl Fn(u8) -> u64) -> u128 {
     })
 }
 
-/// dst = f(a, b) per lane of `width` bytes.
+/// This function sets each lane of `width` bytes of `dst` to `f(a, b)`.
 pub(super) fn zip(
     cpu: &mut Cpu,
     dst: VarNode,
@@ -85,7 +88,8 @@ pub(super) fn zip_f64(cpu: &mut Cpu, dst: VarNode, args: Args, f: impl Fn(f64, f
     });
 }
 
-/// Scalar forms: the low lane is f(low lane of the second operand), the rest is the first operand.
+/// This function applies `f` to the low lane of the second operand.
+/// The rest of the result is the first operand.
 pub(super) fn low_f32(cpu: &mut Cpu, dst: VarNode, args: Args, f: impl Fn(f32) -> f32) {
     let (a, b) = (rd(cpu, args[0]), rd(cpu, args[1]));
     let low = f(f32::from_bits(b as u32)).to_bits() as u128;
@@ -102,7 +106,7 @@ pub(super) fn sat_i16(v: i64) -> u64 {
     v.clamp(i16::MIN as i64, i16::MAX as i64) as u16 as u64
 }
 
-/// Narrow the lanes of a, then of b, to half their width.
+/// This function narrows the lanes of `a` and then the lanes of `b` to half of `width`.
 pub(super) fn pack(cpu: &mut Cpu, dst: VarNode, args: Args, width: u8, sat: fn(i64) -> u64) {
     let (a, b) = (rd(cpu, args[0]), rd(cpu, args[1]));
     let half = dst.size / width;
@@ -120,7 +124,8 @@ pub(super) fn pack(cpu: &mut Cpu, dst: VarNode, args: Args, width: u8, sat: fn(i
     write_trunc(cpu, dst, out);
 }
 
-/// Per lane of `width` bytes, the second operand's where `pick` says so, else the first's.
+/// For each lane of `width` bytes, this function takes the lane of the second operand if `pick`
+/// returns true, and the lane of the first operand otherwise.
 pub(super) fn blend(cpu: &mut Cpu, dst: VarNode, args: Args, width: u8, pick: impl Fn(u8) -> bool) {
     let (a, b) = (rd(cpu, args[0]), rd(cpu, args[1]));
     let out = build(dst.size / width, width, |i| {

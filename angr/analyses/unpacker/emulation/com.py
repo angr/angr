@@ -29,7 +29,7 @@ RPC_S_SERVER_UNAVAILABLE = 0x800706BA
 
 SLOT_SIZE = 16
 _ARENA_SIZE = 0x10000
-# methods of the object handed out for an interface that is not in the table (x64 only)
+# The number of methods of the object that we hand out on x64 for an interface that is not in `INTERFACES`.
 _GENERIC_METHODS = 125
 _X86_SLOTS = {"p": 1, "q": 2, "V": 4}
 
@@ -37,9 +37,12 @@ _X86_SLOTS = {"p": 1, "q": 2, "V": 4}
 @dataclass(frozen=True)
 class ComInterface:
     """
-    An interface whose methods are known: (name, parameters) in vtable order after IUnknown's three, base interfaces
-    included. A parameter is "p" (pointer-sized), "q" (64-bit by value) or "V" (16-byte structure by value); on x86
-    they take one, two and four stack slots, which is what a method must pop.
+    A COM interface whose methods are known.
+
+    `methods` lists the name and the parameters of each method in vtable order. The list includes the methods of the
+    base interfaces and excludes the three methods of IUnknown.
+    Each parameter is "p" for a pointer-sized value, "q" for a 64-bit value or "V" for a 16-byte structure passed by
+    value. On x86, these parameters take one, two and four stack slots.
     """
 
     name: str
@@ -50,8 +53,8 @@ class ComInterface:
 
 IID_IUNKNOWN = "00000000-0000-0000-c000-000000000046"
 _UNKNOWN_METHODS = (("QueryInterface", "pp"), ("AddRef", ""), ("Release", ""))
-# generated from the IDL files of wine-mirror/wine 97027f879ba9a36dbe594720d4710818536e5433 (unknwn, objidlbase,
-# objidl, ocidl, oaidl, shobjidl, wbemcli, mstask, exdisp)
+# We generated this table from the IDL files unknwn, objidlbase, objidl, ocidl, oaidl, shobjidl, wbemcli, mstask and
+# exdisp of wine-mirror/wine 97027f879ba9a36dbe594720d4710818536e5433.
 INTERFACES: tuple[ComInterface, ...] = (
     ComInterface("IUnknown", IID_IUNKNOWN, (), ()),
     ComInterface(
@@ -432,7 +435,7 @@ INTERFACES: tuple[ComInterface, ...] = (
 )
 INTERFACE_BY_NAME = {interface.name: interface for interface in INTERFACES}
 INTERFACE_BY_IID = {interface.iid: interface for interface in INTERFACES}
-# classes that can be created, and the interfaces their objects answer QueryInterface for
+# The classes that we can create, and the interfaces that the objects of each class implement.
 CLASSES: dict[str, tuple[str, ...]] = {
     "00021401-0000-0000-c000-000000000046": ("IShellLinkA", "IShellLinkW", "IPersistFile"),  # ShellLink
     "4590f811-1d3a-11d0-891f-00aa004b2e24": ("IWbemLocator",),  # WbemLocator
@@ -445,15 +448,18 @@ CLASSES: dict[str, tuple[str, ...]] = {
 @dataclass
 class ComObject:
     """
-    A stub COM object. `interfaces` are the ones it implements (None: it answers every QueryInterface, which only
-    objects of unknown interfaces on x64 do); `pointers` maps each interface handed out so far to its pointer.
+    A stub COM object.
+
+    `interfaces` are the interfaces that the object implements. `interfaces` is None for the generic object that we
+    hand out on x64 for an unknown interface. The generic object answers every QueryInterface.
+    `pointers` maps each interface that we have handed out to the pointer of the interface.
     """
 
     interfaces: tuple[str, ...] | None
     clsid: str = ""
     refs: int = 1
     pointers: dict[str, int] = field(default_factory=dict)
-    # IStream: a block of guest memory
+    # IStream on a block of guest memory
     base: int = 0
     size: int = 0
     capacity: int = 0
@@ -490,7 +496,7 @@ def _not_implemented(emu: WindowsEmulator, obj: ComObject, this: int, args: list
 @dataclass
 class ComSlot:
     """
-    A trap address in a vtable: the method's name and its handler, which pops what the method takes.
+    A trap address in a vtable, with the name and the handler of the method.
     """
 
     name: str
@@ -499,15 +505,17 @@ class ComSlot:
 
 class ComRuntime:
     """
-    The stub COM objects of one emulated process. An object is a pointer to a vtable whose entries are trap
-    addresses; calls through them arrive at WindowsEmulator like API calls.
+    The stub COM objects of one emulated process.
+
+    Each object is a pointer to a vtable whose entries are trap addresses. A call through a trap address arrives at
+    WindowsEmulator like an API call.
     """
 
     def __init__(self, emu: WindowsEmulator):
         self._emu = emu
         self.slots: dict[int, ComSlot] = {}
         self.pointers: dict[int, tuple[ComObject, ComInterface | None]] = {}
-        # every object-creating call: (API, class, interface, result)
+        # The API, class, interface and result of every call that creates an object.
         self.requests: list[tuple[str, str, str, int]] = []
         self._vtables: dict[str, int] = {}
         self._arena = 0
@@ -517,7 +525,7 @@ class ComRuntime:
     def _reserve(self, size: int) -> int:
         emu = self._emu
         if self._arena + size > self._arena_end:
-            # outside the heap: not an allocation the program made
+            # The program does not allocate the arena, so we reserve the arena outside the heap.
             self._arena = emu.space.reserve(_ARENA_SIZE, 0x7FF700000000 if emu.is_64bit else 0x6F000000)
             self._arena_end = self._arena + _ARENA_SIZE
             emu.map(self._arena, _ARENA_SIZE, 5)
@@ -527,7 +535,7 @@ class ComRuntime:
 
     def _slot(self, name: str, params: str, func: ComFunc) -> int:
         emu = self._emu
-        # the object, then the parameters: one each on x64, their stack slots on x86
+        # The first argument is the object. On x86, each parameter takes one or more stack slots.
         nargs = 1 + (len(params) if emu.is_64bit else sum(_X86_SLOTS[kind] for kind in params))
 
         def call(emu: WindowsEmulator, raw: list[int]) -> int:
@@ -551,7 +559,7 @@ class ComRuntime:
                 return E_OUTOFMEMORY
 
         addr = self._reserve(SLOT_SIZE)
-        # jmp self: only the trap at the slot start matters
+        # jmp self
         emu.write(addr, b"\xeb\xfe".ljust(SLOT_SIZE, b"\xcc"))
         self.slots[addr] = ComSlot(name, ApiHandler(call, nargs))
         emu.add_stop_point(addr)
@@ -582,11 +590,13 @@ class ComRuntime:
 
     def pointer(self, obj: ComObject, interface: ComInterface | None) -> int:
         """
-        The object's pointer for an interface it implements (None: the generic x64 object).
+        This method returns the pointer of the object for an interface that the object implements. An `interface` of
+        None means the generic object that we hand out on x64.
         """
         key = interface.name if interface is not None else ""
         for name, addr in obj.pointers.items():
-            # a derived interface's vtable starts with its bases; IUnknown is the first pointer handed out
+            # The vtable of a derived interface starts with the methods of the base interfaces, so we return the
+            # pointer of the derived interface. For IUnknown, we return the first pointer that we handed out.
             if name == key or key == "IUnknown" or (name and key in INTERFACE_BY_NAME[name].bases):
                 return addr
         addr = self._reserve(self._emu.ptr_size)
@@ -597,13 +607,14 @@ class ComRuntime:
 
     def new(self, interface: str, obj: ComObject | None = None) -> int:
         """
-        A new object seen through a table interface.
+        This method returns the pointer of a new object for an interface in `INTERFACES`.
         """
         return self.pointer(obj or ComObject((interface,)), INTERFACE_BY_NAME[interface])
 
     def query(self, obj: ComObject, iid: str) -> int:
         """
-        QueryInterface: the pointer for an interface, 0 if the object does not implement it.
+        This method implements QueryInterface and returns the pointer of the object for an interface, or 0 if the
+        object does not implement the interface.
         """
         if obj.interfaces is None:
             return next(iter(obj.pointers.values()))
@@ -614,9 +625,12 @@ class ComRuntime:
 
     def create(self, api_name: str, clsid: str, iid: str, obj: ComObject | None = None) -> tuple[int, int]:
         """
-        Make an object of a class and return (HRESULT, pointer for the interface). The interface must be one whose
-        methods are known, because on x86 a method that pops the wrong number of bytes corrupts the caller's stack;
-        on x64 the callee pops nothing, so an unknown interface gets an object whose methods all fail.
+        This method creates an object of a class and returns the HRESULT and the pointer of the object for the
+        interface.
+
+        On x86, a method that pops the wrong number of bytes corrupts the stack of the caller, so we only create an
+        object for an interface whose methods are known.
+        On x64, the callee pops nothing, so we give an unknown interface an object whose methods all fail.
         """
         interface = INTERFACE_BY_IID.get(iid)
         if obj is None:
@@ -636,7 +650,7 @@ class ComRuntime:
 
     def malloc(self) -> int:
         """
-        The task allocator's IMalloc.
+        This method returns the IMalloc of the task allocator.
         """
         if not self._malloc:
             self._malloc = self.new("IMalloc")
@@ -744,7 +758,7 @@ def sh_get_desktop_folder(emu: WindowsEmulator, args: list[int]) -> int:
 
 @api("CLSIDFromProgID", "CLSIDFromProgIDEx", nargs=2)
 def clsid_from_prog_id(emu: WindowsEmulator, args: list[int]) -> int:
-    # no program identifiers are registered
+    # We do not register any program identifier.
     emu.write(args[1], bytes(16))
     return CO_E_CLASSSTRING
 
@@ -762,8 +776,7 @@ api("CoUninitialize", "OleUninitialize", nargs=0)(_succeed)
 #
 
 
-# blocks come from the process heap, as CoTaskMemAlloc's do: a region of their own each would cost 64 KB of
-# address space per block
+# Windows allocates the blocks of CoTaskMemAlloc from the process heap, so we do the same.
 
 
 def _task_alloc(emu: WindowsEmulator, size: int) -> int:
@@ -860,7 +873,7 @@ def _stream_reserve(emu: WindowsEmulator, obj: ComObject, size: int) -> None:
 def create_stream_on_hglobal(emu: WindowsEmulator, args: list[int]) -> int:
     if not args[2]:
         return E_POINTER
-    # a given block is the stream's contents, at its whole size
+    # When the caller gives a block, the whole block is the contents of the stream.
     size = emu.allocations.get(args[0], 0)
     stream = ComObject(("IStream",), base=args[0] if size else 0, size=size, capacity=size)
     emu.write_ptr(args[2], emu.com.new("IStream", stream))
@@ -951,7 +964,8 @@ def stream_revert(emu: WindowsEmulator, obj: ComObject, this: int, args: list[in
 
 def _image_size(data: bytes) -> tuple[int, int]:
     """
-    Pixel size of a BMP, JPEG, GIF or PNG image; (0, 0) if it is none of these.
+    This function returns the width and the height in pixels of a BMP, JPEG, GIF or PNG image, or (0, 0) for any
+    other data.
     """
     if data[:2] == b"BM" and len(data) >= 26:
         width, height = struct.unpack_from("<ii", data, 18)
@@ -1041,7 +1055,7 @@ def picture_render(emu: WindowsEmulator, obj: ComObject, this: int, args: list[i
 
 
 #
-# WMI: the locator exists, the service cannot be reached
+# WMI
 #
 
 

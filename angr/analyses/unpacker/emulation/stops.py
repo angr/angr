@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 class StopReason(enum.Enum):
     """
-    Why WindowsEmulator.run() returned.
+    The reason why `WindowsEmulator.run()` returned.
     """
 
     BUDGET = "budget"
@@ -19,7 +19,7 @@ class StopReason(enum.Enum):
 @dataclass
 class EmulationStop:
     """
-    The result of one WindowsEmulator.run() call.
+    The result of one call of `WindowsEmulator.run()`.
     """
 
     reason: StopReason

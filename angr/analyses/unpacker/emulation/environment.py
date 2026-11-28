@@ -67,19 +67,18 @@ PAGE = 0x1000
 _LAZY_THRESHOLD = 0x100000
 _LAZY_CHUNK = 0x10000
 _UNMAPPED_RE = re.compile(r"(0x[0-9a-fA-F]+) is not mapped")
-# export lists kept apart from a DLL's own list: ntdll's C runtime (mingw's libntdllcrt)
+# the C runtime exports of ntdll have an export list of their own, which comes from libntdllcrt of mingw
 _EXTRA_EXPORT_LISTS = {"ntdll": ("ntdllcrt",)}
 _NTDLL_PREFIXES = ("Nt", "Zw", "Rtl", "Ldr", "Dbg", "Ki", "Csr", "Etw")
 _WIN32_LOWERCASE_PREFIXES = ("lstr", "wsprintf", "wvsprintf")
 _CDECL_MODULE_PREFIXES = ("msvcr", "msvcp", "ucrtbase", "vcruntime", "crtdll", "api-ms-win-crt")
 _PRELOADED = ("ntdll.dll", "kernel32.dll", "kernelbase.dll")
-# without an API set table: the sets that combase.dll implements (COM and the Windows Runtime); the C runtime sets
-# go to ucrtbase and the others to kernel32
+# combase.dll implements these API sets. We only use this list when there is no API set table.
 _COMBASE_API_SETS = ("api-ms-win-core-com-", "api-ms-win-core-winrt-")
-# what follows the layer number in an API set name (api-ms-win-core-file-l1-2-0)
+# the part of an API set name that follows the layer number, for example `-2-0` in api-ms-win-core-file-l1-2-0
 _API_SET_VERSION_RE = re.compile(r"(-l\d+)-\d+(?:-\d+)?$")
-# static imports of Windows 7 system DLLs that pull in other DLLs: loading one maps these too, as the Windows
-# loader does (a program importing shell32 has user32 mapped)
+# Each Windows 7 system DLL imports these DLLs statically. The Windows loader maps these DLLs too, and so do we.
+# For example, a program that imports shell32 has user32 mapped.
 _DLL_DEPENDENCIES = {
     "advapi32.dll": ("msvcrt.dll",),
     "comctl32.dll": ("user32.dll", "gdi32.dll", "advapi32.dll", "msvcrt.dll"),
@@ -95,33 +94,34 @@ _DLL_DEPENDENCIES = {
     "ws2_32.dll": ("rpcrt4.dll", "msvcrt.dll"),
 }
 _KUSER_SHARED_DATA = 0x7FFE0000
-# KUSER_SHARED_DATA.TickCountMultiplier of a 15.625 ms clock: milliseconds = TickCount * multiplier >> 24
+# KUSER_SHARED_DATA.TickCountMultiplier of a 15.625 ms clock, where milliseconds = TickCount * multiplier >> 24
 _TICK_MULTIPLIER = 0x0FA00000
 SYSTEM_TIME_BASE = 0x01DB3A0000000000
-# Where 32-bit DLLs and allocations go. Import recovery takes aligned values in the dumped image that are API
-# addresses, or point into an allocation, for import cells, so those addresses must not be values that data holds
-# anyway: DLLs lie where the address's third byte is 0x80 or more and its top byte is not 0x7F (no text, no UTF-16
-# text or 16-bit table read at an odd offset, no float), allocations where the top byte is a control character that
-# text does not use.
+# These are the bases of 32-bit DLLs and allocations. Import recovery treats an aligned value in the dumped image as
+# an import cell if the value is an API address or points into an allocation, so we choose addresses that ordinary
+# data does not hold. The third byte of a DLL address is 0x80 or more and the top byte is not 0x7F, which rules out
+# text, floats, and UTF-16 text or 16-bit tables that are read at an odd offset. The top byte of an allocation
+# address is a control character that text does not use.
 _X86_DLL_BASE = 0x75A30000
 _X86_DLL_WINDOW = 0x00800000
 _X86_ALLOC_BASE = 0x13A70000
 _HEAP_GRANULARITY = 16
 _HEAP_SEGMENT = 0x100000
-# the NT heap hands blocks from this size on to VirtualAlloc
+# the NT heap allocates blocks of this size or more with VirtualAlloc
 _HEAP_LARGE_BLOCK = 0x7F000
 
 
 class UnlistedExport(NamedTuple):
     """
-    An export that was asked of a DLL whose export list does not have it: a gap in the list, or a name that Windows
-    does not export either (a probe).
+    An export that a program asked for and that the export list of the DLL does not have.
+
+    Either the export list has a gap, or Windows does not export the name and the program is probing.
     """
 
     dll: str
-    #: The export's name, or "#<ordinal>"
+    #: The name of the export, or "#<ordinal>"
     name: str
-    #: Asked for by the image's import directory (it got a slot anyway) rather than looked up at run time (not found)
+    #: Whether the import directory of the image asks for the export. Otherwise the program looked it up at run time.
     static: bool
 
 
@@ -133,7 +133,7 @@ class AddressSpaceExhausted(MemoryError):
 
 class AddressSpace:
     """
-    Tracks reserved address ranges and hands out free ones.
+    This class tracks the reserved address ranges and hands out free address ranges.
     """
 
     def __init__(self, limit: int):
@@ -172,7 +172,7 @@ class AddressSpace:
 
     def next_start(self, addr: int) -> int:
         """
-        Where the first region above addr starts (the end of the address space if there is none).
+        Get the start of the first region above `addr`, or the end of the address space if there is no region.
         """
         idx = bisect.bisect_right(self._starts, addr)
         return self._starts[idx] if idx < len(self._starts) else self._limit
@@ -186,8 +186,8 @@ class AddressSpace:
 
 def file_backed_size(section: pefile.SectionStructure) -> int:
     """
-    How many bytes of a section the loader takes from the file: the raw data up to the end of the section's last
-    page. Raw bytes past VirtualSize stay (Themida 3.x decompresses from them); only what lies past the raw data is zero.
+    Get the number of bytes of a section that the loader takes from the file, which is the raw data up to the end of
+    the last page of the section. The loader keeps raw bytes past VirtualSize, and Themida 3.x decompresses from them.
     """
     virtual = section.Misc_VirtualSize or section.SizeOfRawData
     return min(section.SizeOfRawData, (virtual + PAGE - 1) & ~(PAGE - 1))
@@ -228,29 +228,29 @@ _LAYOUT64 = _Layout(0x30, 0x08, 0x10, 0x40, 0x48, 0x58, 0x60, 0x68, 0x10, 0x18, 
 
 class WindowsEmulator:
     """
-    Concrete user-mode emulation of a PE inside a synthetic Windows process, on top of angr's Unicorn engine.
+    A concrete user-mode emulator of a PE inside a synthetic Windows process.
+    The emulator runs on the Unicorn engine of angr.
 
-    DLLs are synthetic images whose exports are trap slots; every API call is dispatched to a Python handler.
+    DLLs are synthetic images whose exports are trap slots.
+    We dispatch every API call to a Python handler.
     """
 
     PID = 0x1234
     TID = 0x1238
     STACK_SIZE = 0x100000
-    # On this engine every API call restarts Unicorn (about 6 ms), so a Sleep loop that waits for a thread which
-    # sleeps for a minute costs minutes. After SLEEP_POLL_STREAK identical polls in a row, with every other thread
-    # asleep, the next poll lasts until the first of them wakes. Engines with cheap API calls turn this off.
+    # After `SLEEP_POLL_STREAK` identical Sleep calls in a row while every other thread is asleep, the next Sleep call
+    # lasts until the first of the other threads wakes.
     SLEEP_POLL_FAST_FORWARD: bool = True
-    # above the round iteration counts of bounded poll loops (10 to 100), which therefore run unchanged
+    # a bounded poll loop usually has 10 to 100 iterations, so we only fast-forward after a longer streak
     SLEEP_POLL_STREAK = 128
 
-    # guest time advances with executed work: blocks per millisecond here (Icicle counts instructions), and with
-    # clock reads, which are expensive on Unicorn (every API call restarts the engine)
+    # the guest clock advances with the blocks that we execute and with the clock reads of the guest
     WORK_PER_MS = 200_000
     CLOCK_READS_PER_MS = 20
 
     def __init__(self, project: Project, image_path: str | None = None, exports_dir: str | None = None):
         """
-        :param exports_dir: The directory of the DLLs' export lists; angr-data's lists by default.
+        :param exports_dir: The directory of the export lists of DLLs. We use the export lists in angr-data by default.
         """
         main = project.loader.main_object
         if not isinstance(main, cle.backends.pe.PE):
@@ -279,7 +279,7 @@ class WindowsEmulator:
         self._export_db: dict[str, dict[str, int | None]] = {}
         self._api_sets = self._load_api_sets()
         self.unlisted_exports: list[UnlistedExport] = []
-        # the image loaded, so every name its import directory asks for exists in the named DLL
+        # the image loads on Windows, so every name that the import directory asks for exists in the named DLL
         self._static_imports: dict[str, set[str]] = {}
         for entry in getattr(self.pe, "DIRECTORY_ENTRY_IMPORT", []):
             dll = entry.dll.decode("latin-1")
@@ -303,13 +303,13 @@ class WindowsEmulator:
         self.unhandled_apis: collections.Counter[str] = collections.Counter()
         self.messages: list[str] = []
         self.allocations: dict[int, int] = {}
-        # heap blocks (address -> granted size), free blocks by size, and the segment being carved
+        # heap blocks by address with their granted sizes, free blocks by size, and the current segment for new blocks
         self._heap_blocks: dict[int, int] = {}
         self._heap_free: dict[int, list[int]] = collections.defaultdict(list)
         self._heap_cursor = 0
         self._heap_end = 0
         self.file_views: set[int] = set()
-        # as when started from Explorer: the directory of the image
+        # Explorer starts a program in the directory of the image
         self.current_directory = ntpath.dirname(self.image_path)
         # environment variables by upper-case name: (name, value)
         self.environment: dict[str, tuple[str, str]] = {}
@@ -341,18 +341,18 @@ class WindowsEmulator:
         self.timers: list[TimerObject] = []
         # (predefined key, lower-case path) -> lower-case value name -> (name, type, data)
         self.registry: dict[tuple[int, str], dict[str, tuple[str, int, bytes]]] = {}
-        # the path of each key as it was written when the key was created
+        # the path of each key in the spelling that the program used when it created the key
         self.registry_names: dict[tuple[int, str], str] = {}
         self.threads: list[Thread] = []
         self.current_thread = 0
         self._api_frame = (0, 0)
         self._api_return = 0
-        # the Sleep call being repeated, as (thread id, return address, milliseconds), and how often so far
+        # the Sleep call that the program repeats, as (thread id, return address, milliseconds), and the repeat count
         self._sleep_poll: tuple[int, int, int] | None = None
         self._sleep_polls = 0
         self._syscall_names: dict[int, str] = dict(WIN7_X64_SYSCALLS if self.is_64bit else WIN7_X86_SYSCALLS)
         self.exit_code: int | None = None
-        #: Why the Windows loader would not start this image; run() then stops with this error at once.
+        #: The reason why the Windows loader would not start this image. `run()` stops with this error at once.
         self.load_error: str | None = None
         self.blocks = 0
         self.tick = 0x493E0
@@ -387,8 +387,9 @@ class WindowsEmulator:
 
     def clock_ms(self) -> int:
         """
-        Milliseconds since boot: explicit advances (sleeps, time slices) plus time spent executing and reading the
-        clock. Polling it in a tight loop returns the same value several times, as on a real machine.
+        Get the milliseconds since boot.
+        The clock advances with sleeps, time slices, executed code and clock reads.
+        A tight loop that polls the clock reads the same value several times, as on a real machine.
         """
         self._clock_reads += 1
         self._clock = max(self._clock, self.tick + self._clock_work() - self._clock_work_in_tick)
@@ -399,12 +400,12 @@ class WindowsEmulator:
 
     def tick_ms(self, step: int) -> int:
         """
-        The tick count after another `step` milliseconds. It is the same clock as clock_ms(): neither ever reads
-        less than the other has returned.
+        Advance the tick count by `step` milliseconds and return the new tick count.
+        The tick count and `clock_ms()` are the same clock, so neither reads less than the other has returned.
         """
         self.tick += step
         if self.tick < self._clock:
-            # catch up with the work clock_ms() has counted; that work is part of the tick count from here on
+            # we catch up with the work that `clock_ms()` has counted, which is part of the tick count from now on
             self.tick = self._clock
             self._clock_work_in_tick = self._clock_work()
         return self.tick
@@ -424,7 +425,7 @@ class WindowsEmulator:
             if len(data) == chunk:
                 out[pos : pos + chunk] = data
             elif self.is_mapped(addr + pos):
-                # partially symbolic or unwritten page: take the slow path
+                # the page is partially symbolic or unwritten, so we load the bytes through the solver
                 bits = memory.load(addr + pos, chunk, priv=True)
                 out[pos : pos + chunk] = self.state.solver.eval(bits, cast_to=bytes)
             pos += chunk
@@ -437,7 +438,6 @@ class WindowsEmulator:
             self._store(addr, data)
 
     def _store(self, addr: int, data: bytes) -> None:
-        # one store per page: the cost of a store that spans many pages grows much faster than its size
         memory = self.state.memory
         pos = 0
         while pos < len(data):
@@ -447,14 +447,14 @@ class WindowsEmulator:
 
     def patch(self, addr: int, data: bytes) -> None:
         """
-        Write memory that may hold code which has already run.
+        Write memory that may hold code that has already run.
         """
         self.write(addr, data)
         self.state.unicorn.uncache_region(addr, len(data))
 
     def _commit(self, addr: int, size: int) -> bool:
         """
-        Back the lazily-allocated chunks overlapping [addr, addr + size) with zeroed memory.
+        Back the lazily allocated chunks that overlap [addr, addr + size) with zeroed memory.
         """
         region = self.space.find(addr)
         if region is None or region[0] not in self._lazy:
@@ -503,7 +503,7 @@ class WindowsEmulator:
         return out.decode("utf-16-le", "replace")
 
     def map(self, addr: int, size: int, perms: int = 3) -> None:
-        # unwritten bytes would be symbolic, which the native Unicorn bridge cannot run at speed
+        # unwritten bytes would be symbolic, so we fill the region with zeros
         self.state.memory.map_region(addr, size, perms)
         self._store(addr, bytes(size))
 
@@ -516,14 +516,11 @@ class WindowsEmulator:
 
     def perms(self, addr: int) -> int:
         """
-        Permission bits (1 read, 2 write, 4 execute) of the mapped page at addr.
+        Get the permission bits of the mapped page at `addr`. 1 means read, 2 means write, and 4 means execute.
         """
         return self.state.solver.eval(self.state.memory.permissions(addr, priv=True))
 
     def _zero_fill_image(self) -> None:
-        """
-        Map every page of the image and give every byte that has no file backing a concrete zero.
-        """
         cursor = self.pe.OPTIONAL_HEADER.SizeOfHeaders
         for section in sorted(self.pe.sections, key=lambda s: s.VirtualAddress):
             chars = section.Characteristics
@@ -551,9 +548,9 @@ class WindowsEmulator:
         addr = self.space.reserve(size, self._next_alloc if hint is None else hint)
         if hint is None:
             self._next_alloc = addr + size
-        perms |= 4  # behave like a process without DEP
+        perms |= 4  # we behave like a process without DEP
         if size >= _LAZY_THRESHOLD:
-            # large regions are zero-filled on first touch
+            # we zero-fill a large region when the program first touches it
             self._lazy[addr] = (perms, size)
         else:
             self.map(addr, size, perms)
@@ -562,8 +559,8 @@ class WindowsEmulator:
 
     def heap_alloc(self, size: int) -> int:
         """
-        A zeroed heap block. Small blocks share segments, as on the NT heap (a region per block exhausts the address
-        space of programs that make tens of thousands of allocations); large ones get their own region.
+        Allocate a zeroed heap block.
+        Small blocks share segments, as on the NT heap, and each large block gets a region of its own.
         """
         size = max(size, 1)
         granted = (size + _HEAP_GRANULARITY - 1) & ~(_HEAP_GRANULARITY - 1)
@@ -575,7 +572,7 @@ class WindowsEmulator:
                 addr = free.pop()
                 self.write(addr, bytes(granted))
             else:
-                # each block follows a header, as a HEAP_ENTRY
+                # a header precedes each block, as a HEAP_ENTRY does on the NT heap
                 if self._heap_cursor + _HEAP_GRANULARITY + granted > self._heap_end:
                     self._heap_cursor = self.alloc(_HEAP_SEGMENT)
                     self._heap_end = self._heap_cursor + _HEAP_SEGMENT
@@ -616,7 +613,7 @@ class WindowsEmulator:
 
     def add_stop_point(self, addr: int) -> None:
         """
-        Make run() look at this address before executing it.
+        Make the engine return to `run()` before the engine executes this address.
         """
         self._stop_points.add(addr)
 
@@ -660,7 +657,7 @@ class WindowsEmulator:
         self._ldr = self.peb + 0x1000
         self._arena = self.alloc(0x40000)
         self._arena_next = self._arena
-        # a heap header whose Flags/ForceFlags look like an undebugged process (HEAP_GROWABLE only)
+        # the Flags and ForceFlags of this heap header only have HEAP_GROWABLE, as in a process without a debugger
         self.process_heap = self.alloc(PAGE)
         for offset in (0x0C, 0x40, 0x70):
             self.write_u32(self.process_heap + offset, 2)
@@ -692,7 +689,7 @@ class WindowsEmulator:
         self.write_ptr(self._current_directory_string + self.ptr_size, self._arena_alloc(0x210))
         self.set_current_directory(self.current_directory)
         self._set_thread_register(self.thread)
-        # on the thread's own stack from the beginning: handlers and call_guest() are usable before start()
+        # we put sp on the stack of the thread now, so that handlers and `call_guest()` work before `start()`
         self._set_sp(self.thread.stack_base - 0x2000)
 
         self._add_ldr_entry(ntpath.basename(self.image_path), self.image_path, self.image_base, self.image_size,
@@ -704,8 +701,8 @@ class WindowsEmulator:
 
     def _sync_shared_time(self) -> None:
         """
-        Make the time fields of KUSER_SHARED_DATA, which programs read without any call, follow the clock. Called
-        before guest code runs; the page changes only when the clock did.
+        Update the time fields of KUSER_SHARED_DATA from the clock.
+        Programs read these time fields without any call.
         """
         if self._shared_tick is None or self._shared_tick == self.tick:
             return
@@ -747,7 +744,7 @@ class WindowsEmulator:
 
     def spawn_thread(self, start: int, param: int) -> Thread:
         """
-        Register a new thread; it first runs when the current thread yields or its time slice ends.
+        Register a new thread. The new thread first runs when the current thread yields or uses up its time slice.
         """
         thread = self._create_thread(start, param)
         self.threads.append(thread)
@@ -761,14 +758,16 @@ class WindowsEmulator:
 
     def switch_thread(self) -> bool:
         """
-        Hand the CPU to the next runnable thread. Returns False if the current thread keeps running: there is no
-        other thread, or every thread sleeps and the current one wakes first (the clock is moved to that time).
+        Hand the CPU to the next runnable thread.
+        If every thread sleeps, we move the clock to the time when the first thread wakes.
+
+        :return: False if the current thread keeps running.
         """
         count = len(self.threads)
         order = [(self.current_thread + step) % count for step in range(1, count)]
         target = next((idx for idx in order if self._runnable(self.threads[idx])), None)
         if target is None and not self._runnable(self.thread):
-            # everything is waiting: skip ahead to the next timed wake-up, which may be the current thread's own
+            # every thread is waiting, so we skip ahead to the next timed wake-up, which may wake the current thread
             candidates = (*order, self.current_thread)
             sleepers = [idx for idx in candidates if self._wakes_by_time(self.threads[idx])]
             if sleepers:
@@ -807,7 +806,7 @@ class WindowsEmulator:
     @staticmethod
     def _wakes_by_time(thread: Thread) -> bool:
         """
-        Whether the passing of time alone makes the thread runnable: it sleeps, or its wait has a timeout.
+        Check whether the thread sleeps or waits with a timeout, so that the passing of time alone makes it runnable.
         """
         return thread.alive and (thread.wait_handle is None or thread.timed_wait)
 
@@ -827,7 +826,7 @@ class WindowsEmulator:
 
     def sleep_wake_tick(self, milliseconds: int) -> int:
         """
-        When the current thread, which calls Sleep, wakes up.
+        Get the tick at which the current thread wakes up from its Sleep call.
         """
         wake = self.tick + min(max(milliseconds, 1), 60000)
         if not self.SLEEP_POLL_FAST_FORWARD:
@@ -842,7 +841,6 @@ class WindowsEmulator:
         others = [thread for thread in self.threads if thread is not self.thread]
         if any(self._runnable(thread) for thread in others):
             return wake
-        # nothing the loop polls for can change before another thread wakes
         wakes = [thread.wake_tick for thread in others if self._wakes_by_time(thread)]
         return max(wake, min(wakes)) if wakes else wake
 
@@ -853,8 +851,9 @@ class WindowsEmulator:
 
     def block_thread(self) -> bool:
         """
-        For API handlers that must wait: run another thread and make the current one repeat the call when it is next
-        scheduled. Returns False (nothing changed) if no other thread can run.
+        Run another thread, and make the current thread repeat the API call when it is scheduled again.
+        API handlers that must wait use this method.
+        This method returns False and changes nothing if no other thread can run.
         """
         slot, sp = self._api_frame
         ret_sp, ret_pc = self.sp, self.pc
@@ -868,7 +867,8 @@ class WindowsEmulator:
 
     def yield_thread(self, result: int) -> None:
         """
-        For blocking API handlers: finish the call with the given result, then let another thread run.
+        Finish the API call with the given result, then let another thread run.
+        Blocking API handlers use this method.
         """
         self.set_reg("rax" if self.is_64bit else "eax", result)
         self.switch_thread()
@@ -890,8 +890,9 @@ class WindowsEmulator:
 
     def _write_unicode_string(self, addr: int, text: str) -> None:
         data = text.encode("utf-16-le")
-        # a heap block: the next block's (never zero) header follows at 8-byte granularity; module finders read the
-        # character at a fixed index of each BaseDllName to pick a name of that length
+        # Module finders read the character at a fixed index of each BaseDllName to pick a name of a certain length.
+        # On Windows the buffer is a heap block, so we append the non-zero header of the next block at 8-byte
+        # granularity.
         padded = (len(data) + 2 + 7) & ~7
         buf = self._arena_alloc(padded + 8)
         self.write(buf, (data + b"\0\0").ljust(padded, b"\0") + struct.pack("<HBBI", 4, 1, 0x0F, 0))
@@ -900,7 +901,7 @@ class WindowsEmulator:
 
     def set_current_directory(self, path: str) -> None:
         self.current_directory = path
-        # the process parameters hold it with a trailing backslash
+        # the process parameters hold the current directory with a trailing backslash
         data = (path.rstrip("\\") + "\\").encode("utf-16-le")[:0x206]
         addr = self._current_directory_string
         self.write(self.read_ptr(addr + self.ptr_size), data + b"\0\0")
@@ -930,8 +931,9 @@ class WindowsEmulator:
 
     def _load_api_sets(self) -> dict[str, str]:
         """
-        The DLL that hosts each API set, from api_sets.json next to the export list directory. The key is the set's
-        name up to its layer number: the rest of the version does not take part in the match.
+        Load the DLL that hosts each API set from api_sets.json, which lies next to the directory of the export lists.
+        The key is the name of the API set up to its layer number. The rest of the version does not take part in the
+        match.
         """
         path = os.path.join(os.path.dirname(os.path.normpath(self._export_db_dir)), "api_sets.json")
         if not os.path.isfile(path):
@@ -946,7 +948,8 @@ class WindowsEmulator:
 
     def normalize_module_name(self, name: str) -> str:
         """
-        The name a module is loaded under: lower case, with an extension, and an API set's host for an API set.
+        Get the name that a module is loaded under.
+        The name is in lower case and has an extension. The name of an API set becomes the name of its host DLL.
         """
         name = ntpath.basename(name.strip().strip('"')).lower()
         if not name:
@@ -958,7 +961,7 @@ class WindowsEmulator:
         host = self._api_sets.get(_API_SET_VERSION_RE.sub(r"\1", os.path.splitext(name)[0]))
         if host is not None:
             return host
-        # no table, or a set it does not place
+        # there is no API set table, or the table does not have this API set
         if name.startswith(("api-ms-win-crt", "ext-ms-win-crt")):
             return "ucrtbase.dll"
         if name.startswith(_COMBASE_API_SETS):
@@ -967,9 +970,9 @@ class WindowsEmulator:
 
     def _import_host(self, dll: str, export: str) -> str:
         """
-        The module that a static import of a name from a DLL binds to. A name asked of an API set whose host's list
-        lacks it comes from kernel32 if kernel32's list has it (programs got these names from kernel32 before the
-        API sets, so the host's list is the likelier one to have the gap).
+        Get the module that a static import of a name from a DLL binds to.
+        If the export list of the host of an API set lacks the name and the export list of kernel32 has the name, the
+        import binds to kernel32. Programs got these names from kernel32 before API sets existed.
         """
         host = self.normalize_module_name(dll)
         if host == "kernel32.dll" or not ntpath.basename(dll).lower().startswith(("api-ms-", "ext-ms-")):
@@ -982,7 +985,8 @@ class WindowsEmulator:
 
     def _known_exports(self, name: str) -> dict[str, int | None]:
         """
-        Export names of a real DLL mapped to their stdcall argument count (None: cdecl or unknown).
+        Get the export names of a real DLL with their stdcall argument counts. The count of a cdecl or unknown export
+        is None.
         """
         known = self._export_db.get(name)
         if known is None:
@@ -998,14 +1002,11 @@ class WindowsEmulator:
         return known
 
     def has_export_list(self, name: str) -> bool:
-        """
-        Whether name is a DLL that ships with Windows (one with an export list).
-        """
         return bool(self._known_exports(name))
 
     def export_list_dlls(self) -> list[str]:
         """
-        The DLLs that ship with Windows: those that have an export list.
+        Get the DLLs that have an export list. These are the DLLs that ship with Windows.
         """
         if self._export_list_dlls is None:
             try:
@@ -1021,7 +1022,7 @@ class WindowsEmulator:
 
     def _known_ordinals(self, name: str) -> dict[int, str | None]:
         """
-        Export ordinals of a real DLL, for those DLLs whose exports are imported by ordinal.
+        Get the export ordinals of a real DLL. Only DLLs whose exports are imported by ordinal have an ordinal list.
         """
         path = os.path.join(self._export_db_dir, os.path.splitext(name)[0] + ".ordinals.json")
         if not os.path.isfile(path):
@@ -1031,7 +1032,7 @@ class WindowsEmulator:
 
     def _known_ordinal_nargs(self, name: str) -> dict[int, int]:
         """
-        Stdcall argument counts of a real DLL's exports that have no name, by ordinal.
+        Get the stdcall argument counts of the exports of a real DLL that have no name, by ordinal.
         """
         path = os.path.join(self._export_db_dir, os.path.splitext(name)[0] + ".ordinal_args.json")
         if not os.path.isfile(path):
@@ -1050,7 +1051,8 @@ class WindowsEmulator:
             exports.update(lib.prototypes_json)
             exports.update(lib.prototypes)
         if not known_exports and name in _PRELOADED:
-            # no export list for this DLL: the handlers stand in for one, split by name between ntdll and kernel32
+            # this DLL has no export list, so we export the API handlers and split them by name between ntdll and
+            # kernel32
             for api_name in API_HANDLERS:
                 is_nt = api_name.startswith(_NTDLL_PREFIXES) or (
                     (api_name[0].islower() or api_name[0] == "_") and not api_name.startswith(_WIN32_LOWERCASE_PREFIXES)
@@ -1084,7 +1086,8 @@ class WindowsEmulator:
             if ordinals.get(ordinal, "") is None:
                 self._nargs_cache[(name, f"ordinal_{ordinal}")] = nargs
         if listed:
-            # Windows would not have loaded the image; a gap in the list is the likelier reason, so they get slots
+            # The export list lacks a static import. A gap in the export list is the likely reason, so the import
+            # gets a slot.
             for export in sorted(self._static_imports.get(name, set()) - known_exports.keys()):
                 self._note_unlisted(name, export, True)
         self.map(base, module.size, 5)
@@ -1098,7 +1101,7 @@ class WindowsEmulator:
         for dependency in _DLL_DEPENDENCIES.get(name, ()):
             self.load_module(dependency)
         if name == "ntdll.dll" and not self.is_64bit and self.is_mapped(_KUSER_SHARED_DATA):
-            # KUSER_SHARED_DATA.SystemCall / SystemCallReturn, which the 32-bit stubs call through
+            # the 32-bit stubs call through KUSER_SHARED_DATA.SystemCall and SystemCallReturn
             for offset, export in ((0x300, "KiFastSystemCall"), (0x304, "KiFastSystemCallRet")):
                 target = module.resolve(export)
                 if target is not None:
@@ -1108,7 +1111,7 @@ class WindowsEmulator:
     def _reserve_module(self, size: int) -> int:
         hint = self._next_dll_base
         if not self.is_64bit:
-            # stay inside the upper half of a 16 MB block (see _X86_DLL_BASE); the last block is the one below 0x7F
+            # we keep the DLL in the upper half of a 16 MB block below 0x7F000000, as `_X86_DLL_BASE` requires
             while hint < 0x7E000000 and not (
                 hint & _X86_DLL_WINDOW
                 and (hint + size - 1) & _X86_DLL_WINDOW
@@ -1122,9 +1125,6 @@ class WindowsEmulator:
         return base
 
     def is_image(self, base: int) -> bool:
-        """
-        Whether the region that starts at base is a mapped image (the program or a DLL).
-        """
         return base == self.image_base & ~0xFFFF or self.module_by_base(base) is not None
 
     def module_by_base(self, base: int) -> FakeModule | None:
@@ -1146,19 +1146,20 @@ class WindowsEmulator:
 
     def resolve_export(self, module: FakeModule, name: str, required: bool = False) -> int | None:
         """
-        The trap address of an export. A DLL that has an export list only has the names in the list; a DLL without
-        one has every name it is asked for.
+        Get the trap address of an export.
+        A DLL that has an export list only has the names in the export list. A DLL without an export list has every
+        name that a program asks for.
 
-        :param required:    The process cannot run without it (a static import): it gets a slot in any case.
+        :param required:    Whether the export is a static import, which always gets a slot.
         """
         addr = module.resolve(name, create=required or not module.listed)
         return self._resolved(module, name, addr, module.listed)
 
     def resolve_ordinal(self, module: FakeModule, ordinal: int, required: bool = False) -> int | None:
         """
-        The trap address of an export by ordinal. Only ordinals from the DLL's ordinal list name an export; another
-        ordinal is not found if anything is known about the DLL's exports, and gets a slot of its own otherwise
-        or if it is required.
+        Get the trap address of an export by ordinal.
+        Only the ordinals in the ordinal list of the DLL name an export. We do not find another ordinal if we know
+        anything about the exports of the DLL. Otherwise, or if the ordinal is required, it gets a slot of its own.
         """
         known = module.listed or module.has_ordinals
         addr = module.resolve_ordinal(ordinal, create=required or not known)
@@ -1168,7 +1169,7 @@ class WindowsEmulator:
         if addr is None:
             self._note_unlisted(module.name, name, False)
         elif addr not in self.api_slots:
-            # a spare slot
+            # the export got a spare slot
             if known:
                 self._note_unlisted(module.name, name, True)
             self.api_slots[addr] = (module, module.slot_names[addr])
@@ -1198,8 +1199,8 @@ class WindowsEmulator:
         delta = self.main.mapped_base - self.main.linked_base
         raw_start = tls.struct.StartAddressOfRawData
         raw_end = tls.struct.EndAddressOfRawData
-        # the loader reads the template and the callback list and writes the index while it initializes the
-        # process: a directory that points outside the image makes it fault, and the process never starts
+        # The Windows loader reads the template and the callback list and writes the index while it initializes the
+        # process. A TLS directory that points outside the image makes the loader fault, so we set `load_error`.
         image_end = self.image_base + self.image_size
         for what, start, size in (
             ("raw data", raw_start, max(raw_end - raw_start, 0)),
@@ -1268,10 +1269,11 @@ class WindowsEmulator:
         return_address: int | None = None,
     ) -> None:
         """
-        Transfer control to guest code at addr; continuation(return_value) runs when it returns.
+        Transfer control to the guest code at `addr`. We call `continuation` with the return value when the guest code
+        returns.
 
-        :param return_address:  Where the call returns to, if not a fresh sentinel; code that looks at its return
-                                address expects some callers inside a system DLL.
+        :param return_address:  The address that the call returns to. We use a fresh sentinel by default. Code that
+                                looks at its return address expects some callers inside a system DLL.
         """
         if return_address is None:
             sentinel = self._next_sentinel
@@ -1318,14 +1320,14 @@ class WindowsEmulator:
             if is_dll:
                 self.call_guest(entry, (self.image_base, 1, 0), finished)
                 return
-            # kernel32!BaseThreadInitThunk calls the entry point; protectors find kernel32 by scanning down from
-            # the return address for an MZ header
+            # kernel32!BaseThreadInitThunk calls the entry point. Protectors find kernel32 by scanning down from the
+            # return address for an MZ header, so the entry point returns into BaseThreadInitThunk.
             thunk = self.resolve_export(self.load_module("kernel32.dll"), "BaseThreadInitThunk", required=True)
             assert thunk is not None
             top = self.sp
             if not self.is_64bit:
-                # the stack of a Windows 7 main thread: __RtlUserThreadStart's arguments (entry, PEB) at the top, then
-                # BaseThreadInitThunk's frame, which ebp points at; packers read both
+                # The stack of a Windows 7 main thread has the entry and the PEB at the top as the arguments of
+                # __RtlUserThreadStart, then the frame of BaseThreadInitThunk, which ebp points at. Packers read both.
                 start = self.resolve_export(self.load_module("ntdll.dll"), "RtlUserThreadStart", required=True)
                 assert start is not None
                 self.write(top - 0xC, struct.pack("<III", entry, self.peb, 0))
@@ -1338,7 +1340,7 @@ class WindowsEmulator:
                 self.set_reg("rdx", entry)
                 self.set_reg("r8", self.peb)
             else:
-                # BaseThreadInitThunk takes the entry in edx, as a fastcall
+                # BaseThreadInitThunk is a fastcall and takes the entry in edx
                 self.set_reg("eax", entry)
                 self.set_reg("ebx", self.peb)
                 self.set_reg("ecx", 0)
@@ -1348,15 +1350,17 @@ class WindowsEmulator:
 
     def trace_to_api(self, addr: int, max_blocks: int = 20000) -> int | None:
         """
-        Run the code at addr on a throw-away copy of the process until it reaches an API. Returns the API's trap
-        address, or None if it gets anywhere else. Used to see through import wrappers; the process is not changed.
+        Run the code at `addr` on a throw-away copy of the process until the code reaches an API.
+        We use this method to see through import wrappers. This method does not change the process.
 
-        A wrapper stands in for the API: it enters it with the stack as it found it (its caller's return address on
-        top). Code that reaches an API any other way is not one - for example the middle of a wrapper, or data,
-        that a constant in the image happens to point at.
+        An import wrapper enters the API with the stack as the import wrapper found it, so the return address of its
+        caller is on top. Code that reaches an API in any other way is not an import wrapper. Examples are the middle
+        of an import wrapper and data that a constant in the image happens to point at.
+
+        :return: The trap address of the API, or None if the code gets anywhere else.
         """
         if self.read(addr, 16) == bytes(16):
-            # zeroed data, not code
+            # the address holds zeroed data and not code
             return None
         state = self.state.copy()
         state.unicorn.max_steps = max_blocks
@@ -1373,7 +1377,7 @@ class WindowsEmulator:
                     return pc if reached_sp == sp else None
                 if reached_sp != sp - self.ptr_size:
                     return None
-                # entered through a copied system-call stub: the number names the API
+                # the code entered through a copied system-call stub, so the system-call number names the API
                 number = state.solver.eval(state.registers.load(self.project.arch.registers["eax"][0], 4)) & 0xFFFF
                 name = self._syscall_names.get(number)
                 return slot[0].resolve(name, create=False) if name is not None else None
@@ -1399,7 +1403,7 @@ class WindowsEmulator:
 
     def watch_exec(self, start: int, size: int) -> None:
         """
-        Make a range non-executable so that the first jump into it stops run() with EXEC_TRAP.
+        Make a range non-executable so that the first jump into the range stops `run()` with EXEC_TRAP.
         """
         begin = start & ~(PAGE - 1)
         end = (start + size + PAGE - 1) & ~(PAGE - 1)
@@ -1422,7 +1426,7 @@ class WindowsEmulator:
 
     def watch_page_after_leaving(self, page: int) -> None:
         """
-        Watch a page again at the first API call made from outside it.
+        Watch a page again at the first API call that comes from outside the page.
         """
         self._rewatch.append(page)
 
@@ -1445,7 +1449,7 @@ class WindowsEmulator:
         com_slot = self.com.slots.get(addr)
         handler: ApiHandler | None
         if com_slot is not None:
-            # a method of a stub COM object
+            # the address is a method of a stub COM object
             module_name, name, handler = "com", com_slot.name, com_slot.handler
             nargs: int | None = handler.nargs
             cdecl = False
@@ -1496,7 +1500,7 @@ class WindowsEmulator:
                 # the handler followed a bad pointer argument
                 result = STATUS_ACCESS_VIOLATION if name.startswith(("Nt", "Zw")) else 0
             except AddressSpaceExhausted:
-                # an allocation that cannot be satisfied fails, as it would on Windows
+                # an allocation that we cannot satisfy fails, as on Windows
                 result = STATUS_NO_MEMORY if name.startswith(("Nt", "Zw")) else 0
         if result is not None:
             self.set_reg("rax" if self.is_64bit else "eax", result)
@@ -1518,7 +1522,7 @@ class WindowsEmulator:
         if self._commit(ex.addr, PAGE):
             return
         if self.space.find(ex.addr) is not None and ex.reason not in ("unmapped", "non-writable", "non-readable"):
-            # executing data: allowed, as in a process without DEP
+            # we allow the program to execute data, as in a process without DEP
             perms = self.perms(ex.addr)
             self.protect(ex.addr, PAGE, perms | 4)
             return
@@ -1537,7 +1541,7 @@ class WindowsEmulator:
             if previous == 0xCC:
                 self.exceptions.dispatch(EXCEPTION_BREAKPOINT, pc - 1)
             elif previous == 0xF4:
-                # hlt: a fault, reported at the instruction
+                # hlt is a fault, so we report the exception at the hlt instruction
                 self.exceptions.dispatch(EXCEPTION_PRIV_INSTRUCTION, pc - 1)
             else:
                 self.exceptions.dispatch(EXCEPTION_PRIV_INSTRUCTION, pc)
@@ -1561,7 +1565,7 @@ class WindowsEmulator:
 
     def system_call(self, arg_base: int | None = None) -> None:
         """
-        Dispatch the system call selected by eax/rax. 32-bit arguments are read from arg_base.
+        Dispatch the system call that eax or rax selects. We read 32-bit arguments from `arg_base`.
         """
         number = self.reg("rax" if self.is_64bit else "eax") & 0xFFFF
         name = self._syscall_names.get(number)
@@ -1593,7 +1597,8 @@ class WindowsEmulator:
             return
         edx = self.reg("edx")
         if self.read(self.pc - 2, 2) == b"\x0f\x34":
-            # sysenter: arguments sit above two return addresses; the kernel resumes at KiFastSystemCallRet, a ret
+            # With sysenter the arguments sit above two return addresses. The kernel resumes at KiFastSystemCallRet,
+            # which is a ret, so we pop the first return address.
             sp = self.sp
             self._set_pc(self.read_ptr(sp))
             self._set_sp(sp + 4)
@@ -1603,7 +1608,7 @@ class WindowsEmulator:
 
     def run(self, max_blocks: int | None = None, timeout: float | None = None) -> EmulationStop:
         """
-        Emulate until a stop condition. EXEC_TRAP stops are resumable after unwatch_exec().
+        Emulate until a stop condition holds. We can resume an EXEC_TRAP stop after `unwatch_exec()`.
         """
         deadline = None if timeout is None else time.monotonic() + timeout
         block_limit = None if max_blocks is None else self.blocks + max_blocks
@@ -1623,7 +1628,7 @@ class WindowsEmulator:
                 continuation(self.reg("rax" if self.is_64bit else "eax"))
                 continue
             if self.trap_pending:
-                # a context with the trap flag set was resumed
+                # the program resumed a context that has the trap flag set
                 self.trap_pending = False
                 self._raise_at_instruction(1, EXCEPTION_SINGLE_STEP)
                 continue
@@ -1666,7 +1671,7 @@ class WindowsEmulator:
                 )
                 continue
             except (SimError, AngrError, KeyError) as ex:
-                # KeyError: the Unicorn engine tried to re-execute instructions it believes touch symbolic data
+                # the Unicorn engine raises KeyError on re-executing instructions that it believes touch symbolic data
                 return EmulationStop(StopReason.ERROR, addr, f"{type(ex).__name__}: {ex}")
             if not successors.flat_successors:
                 return EmulationStop(StopReason.ERROR, addr, f"no successors ({successors.description})")
@@ -1676,13 +1681,13 @@ class WindowsEmulator:
             if successors.sort == "Unicorn":
                 fault = self._take_unmapped_fault(new_state)
                 if new_state.unicorn.stop_reason in (STOP.STOP_ERROR, STOP.STOP_SEGFAULT):
-                    # the engine never retries a block natively once it faulted there; our faults (lazy commits,
-                    # execution traps) are transient, so forget them
+                    # The engine never retries a block natively once the block faulted. Our faults come from lazy
+                    # commits and execution traps and are transient, so we forget them.
                     self._forget_native_failures()
             new_state.history.trim()
             self.state = new_state
             if successors.sort == "Unicorn" and new_state.unicorn.trap_flag:
-                # the trap flag is set: the engine stopped in front of the instruction that gets single-stepped
+                # the trap flag is set, and the engine stopped in front of the instruction that we single-step
                 self._raise_at_instruction(1, EXCEPTION_SINGLE_STEP)
                 continue
             if (
@@ -1692,7 +1697,7 @@ class WindowsEmulator:
                 and new_state.addr not in self.api_slots
                 and new_state.addr not in self._continuations
             ):
-                # time slice used up
+                # the current thread used up its time slice
                 self.tick += 16
                 self.switch_thread()
                 continue

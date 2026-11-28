@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-# Windows 7 SP1 (build 7601) x64 system call numbers; the emulated process reports this build.
+# These are the x64 system call numbers of Windows 7 SP1, build 7601. The emulated process reports this build.
 _WIN7_X64_NAMES = [
     "NtMapUserPhysicalPagesScatter",
     "NtWaitForSingleObject",
@@ -407,7 +407,7 @@ _WIN7_X64_NAMES = [
 
 WIN7_X64_SYSCALLS: dict[int, str] = dict(enumerate(_WIN7_X64_NAMES))
 
-# The same build, 32-bit.
+# These are the 32-bit system call numbers of the same build.
 _WIN7_X86_NAMES = [
     "NtAcceptConnectPort",
     "NtAccessCheck",

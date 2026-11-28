@@ -33,7 +33,7 @@ _PRIVILEGED_OPCODES = frozenset((0xF4, 0xFA, 0xFB, 0xE4, 0xE5, 0xE6, 0xE7, 0xEC,
 
 class _StopPoints(set[int]):
     """
-    The emulator's stop points, mirrored as VM breakpoints.
+    The stop points of the emulator. We add each stop point to the VM as a breakpoint.
     """
 
     def __init__(self, vm: WinVm):
@@ -56,20 +56,20 @@ class _StopPoints(set[int]):
             self._vm.remove_breakpoint(addr)
 
 
-# protector code mostly runs a few times after it is decrypted; compiling it all costs ~1 ms per block
 DEFAULT_JIT_THRESHOLD = 32
 DEFAULT_THREAD_SLICE = 4_000_000
 
 
 class IcicleWindowsEmulator(WindowsEmulator):
     """
-    WindowsEmulator on an Icicle VM driven from Rust (angr.rustylib.winemu). Guest code runs natively until it
-    reaches a trap slot, a fault or the end of its budget; the API handlers and exception dispatch stay in Python.
+    A WindowsEmulator that runs on the Icicle VM of `angr.rustylib.winemu`.
+
+    The guest code runs in the VM until the guest code reaches a trap slot, a fault or the end of the budget.
+    The API handlers and the exception dispatch stay in Python.
     """
 
-    # instructions between deadline checks when there is one thread
+    # The number of instructions that we run between two deadline checks when there is only one thread.
     CHUNK = 50_000_000
-    # an API call costs microseconds here: Sleep loops run poll by poll
     SLEEP_POLL_FAST_FORWARD: bool = False
 
     WORK_PER_MS = 1_000_000
@@ -85,9 +85,9 @@ class IcicleWindowsEmulator(WindowsEmulator):
         thread_slice: int = DEFAULT_THREAD_SLICE,
     ):
         """
-        :param jit:           Whether hot blocks are compiled to native code; otherwise everything is interpreted.
-        :param jit_threshold: The number of times a block runs before it is compiled.
-        :param thread_slice:  Instructions per time slice when several threads exist.
+        :param jit:           Whether we compile hot blocks to native code. We interpret every block otherwise.
+        :param jit_threshold: The number of times a block runs before we compile the block.
+        :param thread_slice:  The number of instructions in a time slice when several threads exist.
         """
         self.jit = jit
         self.jit_threshold = jit_threshold
@@ -100,7 +100,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
         self._stop_points = _StopPoints(self.vm)
         self.vm.pc = self.project.entry
         self.instructions = 0
-        # interrupts enabled, as in any user-mode thread
+        # Windows runs user-mode threads with interrupts enabled, so we set the interrupt flag.
         self.vm.reg_write("if", 1)
 
     #
@@ -134,7 +134,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
         return perms
 
     def alloc(self, size: int, perms: int = 3, hint: int | None = None) -> int:
-        # Icicle backs pages on first touch, so nothing is lazy here
+        # Icicle backs a page when the guest first touches the page, so we map the whole allocation at once.
         size = max((size + PAGE - 1) & ~(PAGE - 1), PAGE)
         addr = self.space.reserve(size, self._next_alloc if hint is None else hint)
         if hint is None:
@@ -168,7 +168,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
             size = max(section.Misc_VirtualSize, section.SizeOfRawData)
             if size:
                 self.vm.mem_protect(self.image_base + (section.VirtualAddress & ~(PAGE - 1)), size, perms | 1)
-        # as on the Unicorn path: bytes past a section's raw data and the gaps between sections read as zero
+        # The bytes after the raw data of a section and the gaps between sections must read as zero.
         cursor = self.pe.OPTIONAL_HEADER.SizeOfHeaders
         for section in sorted(self.pe.sections, key=lambda s: s.VirtualAddress):
             end = (section.VirtualAddress + max(section.Misc_VirtualSize, section.SizeOfRawData) + PAGE - 1) & ~(
@@ -231,7 +231,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
 
     def reg(self, name: str) -> int:
         if name in ("eflags", "rflags"):
-            # what the Unicorn path reports (VEX's flags thunk): status flags, DF, AC and ID only
+            # We only report the status flags, DF, AC and ID, because the Unicorn engine only reports these flags.
             return self.vm.reg_read(name) & 0x240CD5
         return self.vm.reg_read(name)
 
@@ -268,7 +268,6 @@ class IcicleWindowsEmulator(WindowsEmulator):
             return None
         vm = self.vm
         vm.save_snapshot()
-        # short runs over mostly new code: compiling each block costs more than interpreting it
         jit = vm.jit
         vm.jit = False
         try:
@@ -298,9 +297,8 @@ class IcicleWindowsEmulator(WindowsEmulator):
             vm.restore_snapshot()
 
     def _trace_run(self, budget: int) -> int:
-        # values that point at zeroed data slide through `add [eax], al` until the budget ends. Every instruction
-        # translated on the way stays in the code cache (about 1 KB each), so look for such slides before running
-        # and often at first: thousands of them cost gigabytes otherwise
+        # Zeroed data decodes as `add [eax], al`, so a value that points at zeroed data runs until the budget ends.
+        # We stop when the program counter points at zeroed data, and we check after short runs at first.
         vm = self.vm
         step = 64
         while budget > 0:
@@ -317,7 +315,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
     def run(self, max_blocks: int | None = None, timeout: float | None = None) -> EmulationStop:
         vm = self.vm
         deadline = None if timeout is None else time.monotonic() + timeout
-        # blocks are not counted on this engine; a budget is taken as about 4 instructions per block
+        # This engine does not count blocks, so we treat each block of the budget as 4 instructions.
         limit = None if max_blocks is None else vm.icount + 4 * max_blocks
         self._stop = None
         if self.load_error is not None:
@@ -345,7 +343,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
             budget = self.thread_slice if len(self.threads) > 1 else self.CHUNK
             if limit is not None:
                 budget = min(budget, limit - vm.icount)
-            # the time-stamp counter follows the clock the API handlers keep
+            # We make the time-stamp counter follow the clock that the API handlers keep.
             vm.clock = self.tick
             self._sync_shared_time()
             kind, code, value = vm.run(budget)
@@ -355,7 +353,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
             if kind == winemu.EXIT_LIMIT:
                 pc = vm.pc
                 if len(self.threads) > 1 and pc not in self.api_slots and pc not in self._continuations:
-                    # time slice used up
+                    # The current thread has used up its time slice.
                     self.tick += 16
                     self.switch_thread()
                 continue
@@ -386,7 +384,7 @@ class IcicleWindowsEmulator(WindowsEmulator):
                 self.vm.pc = value
                 return EmulationStop(StopReason.EXEC_TRAP, value)
             if self.space.find(value) is not None and self.is_mapped(value):
-                # executing data: allowed, as in a process without DEP
+                # A process without DEP may execute data, so we make the page executable.
                 self.protect(value, PAGE, self.perms(value) | 4)
                 self.vm.pc = value
             else:
@@ -422,9 +420,9 @@ class IcicleWindowsEmulator(WindowsEmulator):
             self.exceptions.dispatch(EXCEPTION_BREAKPOINT, pc)
             return
         if code == b"\xcd\x2d":
-            # what Windows does without a debugger: a breakpoint exception past the instruction
+            # Without a debugger, Windows reports the breakpoint exception of `int 0x2d` at the next instruction.
             self._set_pc(next_pc)
             self.exceptions.dispatch(EXCEPTION_BREAKPOINT, next_pc)
             return
-        # other software interrupts are not allowed from user mode
+        # User mode may not raise any other software interrupt, so we dispatch an access violation.
         self.exceptions.dispatch(EXCEPTION_ACCESS_VIOLATION, pc, (0, 0xFFFFFFFF))

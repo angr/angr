@@ -5,7 +5,7 @@ use pcode::VarNode;
 
 use super::*;
 
-/// Horizontal pairs: the lanes of a, then of b, combined two by two.
+/// This function combines adjacent pairs of the lanes of `a` and then of the lanes of `b`.
 fn horizontal(cpu: &mut Cpu, dst: VarNode, args: Args, width: u8, f: impl Fn(i64, i64) -> u64) {
     let (a, b) = (rd(cpu, args[0]), rd(cpu, args[1]));
     let count = dst.size / width;
@@ -47,7 +47,7 @@ pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
     ("phsubw", |c, d, a| horizontal(c, d, a, 2, |x, y| (x - y) as u64)),
     ("phsubd", |c, d, a| horizontal(c, d, a, 4, |x, y| (x - y) as u64)),
     ("phsubsw", |c, d, a| horizontal(c, d, a, 2, |x, y| sat_i16(x - y))),
-    // unsigned bytes of the destination times signed bytes of the source
+    // pmaddubsw multiplies unsigned bytes of the destination by signed bytes of the source
     ("pmaddubsw", |c, d, a| {
         zip(c, d, a, 2, |x, y| {
             let p = |s: u32| ((x >> s) as u8 as i64) * ((y >> s) as i8 as i64);

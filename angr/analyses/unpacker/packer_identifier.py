@@ -43,8 +43,8 @@ def entropy(data: bytes) -> float:
 
 def call_target_score(data: bytes, va: int, lo: int, hi: int) -> int:
     """
-    Count the distinct in-image targets that at least three `call rel32` instructions agree on. Compiler output scores
-    in the tens to thousands; compressed or encrypted bytes score about zero.
+    This function counts the distinct targets inside the image that at least three `call rel32` instructions share.
+    Compiler output scores from tens to thousands. Compressed or encrypted bytes score about zero.
     """
     data = data[:_ENTROPY_SAMPLE]
     hits: collections.Counter[int] = collections.Counter()
@@ -64,7 +64,7 @@ def section_name(section: pefile.SectionStructure) -> str:
 @dataclass
 class SectionFeatures:
     """
-    Per-section measurements used for packer identification.
+    The measurements of a section that we use to identify the packer.
     """
 
     name: str
@@ -83,7 +83,7 @@ class SectionFeatures:
 @dataclass
 class PackerInfo:
     """
-    The verdict of packer identification on one PE file.
+    The result of packer identification on a PE file.
     """
 
     protector: str | None = None
@@ -110,8 +110,9 @@ def _vmp_section_group(names: list[str]) -> list[int]:
 
 def _entry_mnemonics(pe: pefile.PE, sections: list[SectionFeatures]) -> tuple[list[str], int | None]:
     """
-    Follow direct jumps from the entry point. Returns the mnemonics seen and, if the code reaches a VMProtect-style
-    `push imm32; call rel32` VM entry, the index of the section the call targets.
+    This function follows the direct jumps from the entry point and returns the mnemonics on the way.
+    If the code reaches a `push imm32; call rel32` VM entry of VMProtect, this function also returns the index of the
+    section that the call targets.
     """
     is_64bit = pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_AMD64"]
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64 if is_64bit else capstone.CS_MODE_32)
@@ -161,7 +162,8 @@ def _code_verdict(code: SectionFeatures, outer: str | None) -> tuple[bool | None
 
 def identify_packer(data: bytes) -> PackerInfo:
     """
-    Identify VMProtect / Themida (and common outer packers) on a PE file, and whether the original code is packed.
+    This function identifies VMProtect, Themida and common outer packers on a PE file, and decides whether the
+    original code is packed.
     """
     info = PackerInfo()
     pe = pefile.PE(data=data, fast_load=True)
@@ -271,8 +273,9 @@ def identify_packer(data: bytes) -> PackerInfo:
 
 class PackerIdentifier(Analysis):
     """
-    Identify the protector on the main PE object (VMProtect, Themida/WinLicense, or a common compressor) and whether
-    the original code is packed, from static section and entry-point features.
+    This analysis identifies the protector of the main PE object, which is VMProtect, Themida, WinLicense or a common
+    compressor. The analysis also reports whether the original code is packed.
+    The analysis only uses static features of the sections and the entry point.
     """
 
     def __init__(self):

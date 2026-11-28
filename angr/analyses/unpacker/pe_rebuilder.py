@@ -15,7 +15,7 @@ _DIR_IAT = pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IAT"]
 @dataclass(frozen=True)
 class RecoveredImport:
     """
-    One import-address-table slot recovered from a memory image.
+    A slot of the import address table that we recovered from a memory image.
     """
 
     iat_rva: int
@@ -41,7 +41,8 @@ def _import_runs(imports: list[RecoveredImport], ptr_size: int) -> list[list[Rec
 
 def _build_import_section(imports: list[RecoveredImport], section_rva: int, is_64bit: bool) -> tuple[bytes, int]:
     """
-    Build import descriptors whose FirstThunk fields point at the IAT slots already in the image.
+    This function builds import descriptors whose FirstThunk fields point at the import address table slots that are
+    already in the image.
     """
     ptr_size = 8 if is_64bit else 4
     ptr_fmt = "<Q" if is_64bit else "<I"
@@ -78,10 +79,12 @@ def rebuild_pe(
     import_section_name: bytes = b".angr_i",
 ) -> bytes:
     """
-    Turn a memory image of a PE (headers included, sections at their RVAs) into a loadable PE file.
+    This function turns a memory image of a PE into a loadable PE file. The memory image includes the headers and has
+    each section at the RVA of the section.
 
-    Every section's raw data is realigned to its virtual address. When imports are given, a new section with fresh
-    import descriptors is appended and the import directory is pointed at it.
+    We move the raw data of every section to the virtual address of the section.
+    When the caller gives imports, we append a new section with new import descriptors and point the import directory
+    at the new section.
     """
     out = bytearray(image)
     pe = pefile.PE(data=bytes(image[:0x1000]), fast_load=True)

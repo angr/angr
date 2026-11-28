@@ -5,11 +5,11 @@ import struct
 IMAGE_FILE_MACHINE_I386 = 0x14C
 IMAGE_FILE_MACHINE_AMD64 = 0x8664
 
-# Each export gets a 16-byte slot: a short prologue, then an absolute jump back to the slot start. Only the slot start
-# is trapped. Protectors run stolen copies of an API's first instructions from their own memory; because the jump
-# is absolute, a copy of any length, and a jump into the middle of the slot, still end at the trap.
+# Each export gets a 16-byte slot, which holds a short prologue and an absolute jump back to the start of the slot.
+# We only trap the start of the slot. Protectors run copies of the first instructions of an API from their own
+# memory, so the jump is absolute, and a copy of any length or a jump into the middle of the slot ends at the trap.
 SLOT_SIZE = 16
-# 32-bit ntdll routines whose bodies protectors read or call through KUSER_SHARED_DATA.SystemCall
+# protectors read the bodies of these 32-bit ntdll routines or call them through KUSER_SHARED_DATA.SystemCall
 _X86_NTDLL_BODIES = {
     "KiFastSystemCall": bytes.fromhex("8bd4 0f34 c3"),
     "KiFastSystemCallRet": bytes.fromhex("c3"),
@@ -17,8 +17,8 @@ _X86_NTDLL_BODIES = {
 }
 
 _HEADER_SIZE = 0x1000
-# 32-bit slots start at odd addresses, as many exports of the 32-bit system DLLs do: tables of aligned constants in
-# an unpacked image (multiples of 0x100 are common) then never hold a value that is also the address of an API
+# 32-bit slots start at odd addresses, as many exports of the 32-bit system DLLs do. A table of aligned constants
+# in an unpacked image then never holds a value that is also the address of an API.
 _X86_SLOT_OFFSET = 5
 _SPARE_SLOTS = 512
 
@@ -32,8 +32,10 @@ _DOS_STUB = bytes.fromhex("0e1fba0e00b409cd21b8014ccd21") + b"This program canno
 
 class FakeModule:
     """
-    A synthetic DLL image: a PE header, one trap slot per export, and a real export directory, so both
-    GetProcAddress-style lookups and manual export-table walks resolve to trap addresses.
+    A synthetic DLL image.
+
+    The image has a PE header, one trap slot for each export, and a real export directory.
+    Both a lookup with GetProcAddress and a manual walk of the export table resolve to trap addresses.
     """
 
     def __init__(
@@ -48,11 +50,10 @@ class FakeModule:
         listed: bool = False,
     ):
         """
-        :param ordinals:    Known export ordinals: the export's name, or None for an export without a name. Other
-                            exports get the ordinals that follow; those are made up (the export directory needs
-                            them) and are not found by resolve_ordinal.
-        :param listed:      Whether export_names is the real DLL's export list (and not only the names somebody
-                            asked for): lookups of other names should then fail.
+        :param ordinals:    The known export ordinals, each with the name of the export or None for an export
+                            without a name. The other exports get made-up ordinals, which `resolve_ordinal` does
+                            not find.
+        :param listed:      Whether `export_names` is the export list of the real DLL.
         """
         self.name = name.lower()
         self.listed = listed
@@ -67,11 +68,11 @@ class FakeModule:
         ordinals = ordinals or {}
         self._known_ordinals = frozenset(ordinals)
         names = sorted(set(export_names) | {export for export in ordinals.values() if export is not None})
-        # slots: the named exports in name order, then the exports that only have an ordinal
+        # the named exports take the first slots in name order, and the exports that only have an ordinal follow
         slot_of = {export: idx for idx, export in enumerate(names)}
         if syscalls:
-            # in ntdll the system-call stubs follow each other in the order of their numbers: programs take a
-            # stub's rank among the Zw exports sorted by address for its number
+            # Programs take the rank of a system-call stub among the Zw exports sorted by address as the number of
+            # the system call, so we order the stubs by their numbers, as ntdll does.
             for prefix in ("Nt", "Zw"):
                 stubs = [export for export in names if export in syscalls and export.startswith(prefix)]
                 slots = [slot_of[export] for export in stubs]
@@ -108,8 +109,8 @@ class FakeModule:
         for addr in range(base + self._slot_rva, base + self._slot_rva + slots_size, SLOT_SIZE):
             code += self._slot(addr)
         if syscalls:
-            # system-call stubs must look real: protectors read the number out of them, compare neighbouring stubs,
-            # or reject foreign bytes
+            # Protectors read the number out of a system-call stub, compare neighbouring stubs, or reject foreign
+            # bytes, so we emit stubs that look real.
             for export, idx in slot_of.items():
                 number = syscalls.get(export)
                 if number is not None:
@@ -155,7 +156,7 @@ class FakeModule:
 
     def resolve(self, name: str, create: bool = True) -> int | None:
         """
-        Get the trap address of an export. Unknown names get a spare slot (reachable by address only).
+        Get the trap address of an export. An unknown name gets a spare slot, which the export directory does not list.
         """
         addr = self.exports.get(name)
         if addr is None and create and self._next_spare < _SPARE_SLOTS:
@@ -165,9 +166,6 @@ class FakeModule:
 
     @property
     def has_ordinals(self) -> bool:
-        """
-        Whether the real DLL's export ordinals are known.
-        """
         return bool(self._known_ordinals)
 
     def resolve_ordinal(self, ordinal: int, create: bool = True) -> int | None:
@@ -180,7 +178,7 @@ class FakeModule:
 
     def unnamed_ordinal(self, addr: int) -> int | None:
         """
-        The ordinal of the export at a trap address if that export has no name.
+        Get the ordinal of the export at a trap address if the export has no name.
         """
         name = self.slot_names.get(addr, "")
         return int(name[8:]) if name.startswith("ordinal_") and name[8:].isdigit() else None
@@ -229,7 +227,7 @@ class FakeModule:
         dos = bytearray(e_lfanew)
         dos[0:2] = b"MZ"
         struct.pack_into("<I", dos, 0x3C, e_lfanew)
-        # the linker's DOS stub: code that finds a system DLL by scanning memory checks for its text at 0x4E
+        # code that scans memory for a system DLL checks for the text of the DOS stub at 0x4E, so we write the stub
         dos[0x40 : 0x40 + len(_DOS_STUB)] = _DOS_STUB
         machine = IMAGE_FILE_MACHINE_AMD64 if self.is_64bit else IMAGE_FILE_MACHINE_I386
         opt_size = 0xF0 if self.is_64bit else 0xE0

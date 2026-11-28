@@ -23,11 +23,12 @@ def _name(section: pefile.SectionStructure) -> str:
 
 def vmprotect_original_sections(data: bytes) -> set[int] | None:
     """
-    Indices of the sections of a VMProtect-protected PE that belong to the original program.
+    This function returns the indices of the sections of a VMProtect-protected PE that belong to the original program.
     """
     pe = pefile.PE(data=data, fast_load=True)
     ep = pe.OPTIONAL_HEADER.AddressOfEntryPoint
-    # VMProtect appends its sections; everything before the first of them belongs to the original program
+    # VMProtect adds new sections at the end, so every section before the first new section belongs to the original
+    # program.
     first = next(
         (
             idx
@@ -39,29 +40,30 @@ def vmprotect_original_sections(data: bytes) -> set[int] | None:
         0,
     )
     if first == 0 and pe.sections and pe.sections[0].contains_rva(ep) and not _name(pe.sections[0]).startswith(".vmp"):
-        # the entry point was left in the original code section (a virtualized entry function): the loader returns
-        # to it once the section is unpacked
+        # VMProtect leaves the entry point in the original code section when the entry function is virtualized.
+        # The loader returns to the original code section after unpacking, so we watch the original code section.
         return {0}
     return set(range(first)) or None
 
 
 def themida_original_sections(data: bytes) -> set[int]:
     """
-    Indices of the sections of a Themida-protected PE that belong to the original program.
+    This function returns the indices of the sections of a Themida-protected PE that belong to the original program.
     """
     pe = pefile.PE(data=data, fast_load=True)
-    # the original sections come first; Themida's import stub, resources and engine sections follow
+    # The original sections come first. The import stub, the resources and the engine sections of Themida follow.
     first = next((idx for idx, section in enumerate(pe.sections) if _name(section) in _LOADER_SECTION_NAMES), 0)
     return set(range(first)) or {0}
 
 
 class VMProtectUnpacker(EmulatingUnpacker):
     """
-    Unpack a VMProtect-packed PE.
+    This analysis unpacks a VMProtect-packed PE.
 
-    The loader is emulated until control first reaches one of the original sections, which gives the OEP and a
-    rebuilt import table. If emulation does not get that far, the static PACKER_INFO unpacker is used instead; its
-    output has the original sections but keeps VMProtect's entry point and import handling.
+    We emulate the loader until the program first reaches one of the original sections, which gives the OEP and a
+    rebuilt import table.
+    If the emulation does not reach an original section, we use the static PACKER_INFO unpacker instead. The output
+    of the static unpacker has the original sections, but keeps the entry point and the import handling of VMProtect.
 
     `method` is "emulation", "static", or None when both failed.
     """
@@ -109,10 +111,11 @@ class VMProtectUnpacker(EmulatingUnpacker):
 
 class ThemidaUnpacker(EmulatingUnpacker):
     """
-    Unpack a Themida/WinLicense-protected PE by emulating it until control reaches the original program's sections.
+    This analysis unpacks a PE protected by Themida or WinLicense. We emulate the PE until the program reaches the
+    sections of the original program.
 
-    Themida's own sections are not watched, so its long start-up (anti-debug checks, worker threads, decryption) runs
-    without being mistaken for an unpacked layer.
+    We do not watch the sections of Themida, so we do not mistake the long start-up of Themida for an unpacked layer.
+    The start-up of Themida includes anti-debug checks, worker threads and decryption.
     """
 
     def __init__(
@@ -140,9 +143,10 @@ class ThemidaUnpacker(EmulatingUnpacker):
 
 class Unpacker(EmulatingUnpacker):
     """
-    Identify the packer of the main PE object and run the matching unpacker.
+    This analysis identifies the packer of the main PE object and runs the matching unpacker.
 
-    `info` holds the identification, `unpacker` the analysis that did the work (None if the file is not packed).
+    `info` holds the identification.
+    `unpacker` is the analysis that did the work, or None if the file is not packed.
     """
 
     def __init__(

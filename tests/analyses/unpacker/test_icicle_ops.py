@@ -24,7 +24,7 @@ State = tuple[list[int], int, list[int], bytes]
 @functools.cache
 def _vm(is_64bit: bool, jit: bool) -> WinVm:
     vm = WinVm(is_64bit, PROCESSORS_DIR, jit)
-    # compile on first use, so that the JIT's path to the helpers is the one tested
+    # We compile each block on first use, so that the tests cover the path from the JIT to the helpers.
     vm.jit_threshold = 0
     vm.mem_map(CODE, 0x1000, 7)
     vm.mem_map(DATA, DSIZE, 3)
@@ -55,7 +55,7 @@ def _execute(vm: WinVm, code: bytes, state: State) -> State:
 
 def _run(code: str, is_64bit: bool = False, jit: bool = False, **regs: int) -> WinVm:
     """
-    Run hex code with the data pointers in esi / edi and the given registers.
+    This function runs hex code with the data pointers in esi and edi and with the given registers.
     """
     vm = _vm(is_64bit, jit)
     gpr, _, xmm, _ = vectors.make_state(code, is_64bit, "i")
@@ -77,7 +77,7 @@ def _run(code: str, is_64bit: bool = False, jit: bool = False, **regs: int) -> W
 
 class TestOpVectors(unittest.TestCase):
     """
-    The interpreter and the JIT against results recorded from a CPU.
+    These tests compare the interpreter and the JIT against results that we recorded from a CPU.
     """
 
     def _check(self, entries: tuple[tuple, ...]) -> None:
@@ -123,7 +123,7 @@ class TestOpVectors(unittest.TestCase):
 
 class TestSse(unittest.TestCase):
     def test_conversion_out_of_range(self):
-        # cvttsd2si eax, xmm1 / cvtsd2si / cvttss2si of 1e10, NaN and -1e10 give the integer indefinite
+        # cvttsd2si, cvtsd2si and cvttss2si of 1e10, NaN and -1e10 must give the integer indefinite.
         for jit in (False, True):
             for value in (1e10, float("nan"), -1e10):
                 vm = _vm(False, jit)
@@ -134,7 +134,7 @@ class TestSse(unittest.TestCase):
                     vm.pc = CODE
                     vm.run(10)
                     assert vm.reg_read("eax") == 0x80000000, (code, value, jit)
-        # cvtsd2si rounds to nearest even: 2.5 -> 2, 3.5 -> 4
+        # cvtsd2si rounds to the nearest even integer, so 2.5 becomes 2 and 3.5 becomes 4.
         for value, expected in ((2.5, 2), (3.5, 4), (-2.5, 0xFFFFFFFE)):
             vm = _vm(False, False)
             vm.reg_write_bytes("xmm1", struct.pack("<d", value).ljust(16, b"\0"))
@@ -145,21 +145,23 @@ class TestSse(unittest.TestCase):
 
     @needs_sleigh_fixes
     def test_movdq2q(self):
-        # movdq2q mm3, xmm6; movq [edi], mm3; emms: the low half of the XMM register named by the r/m field
+        # movdq2q mm3, xmm6; movq [edi], mm3; emms
+        # movdq2q must read the low half of the XMM register that the r/m field names.
         code = "f20fd6de 0f7f1f 0f77"
         vm = _run(code)
         xmm6 = vectors.make_state(code, False, "i")[2][6]
         assert vm.mem_read(DATA + Q_OFF, 8) == (xmm6 & (2**64 - 1)).to_bytes(8, "little")
 
     def test_string_compare_flags_in_jit(self):
-        # sub eax, eax sets flags the JIT keeps in registers; pcmpistri's helper must still win
+        # `sub eax, eax` sets flags that the JIT keeps in registers. The flags of pcmpistri must replace these flags.
         vm = _vm(False, True)
         vm.reg_write_bytes("xmm0", b"ab".ljust(16, b"\0"))
         vm.reg_write_bytes("xmm1", b"xxbxxxxxxxxxxxxx")
         vm.mem_write(CODE, bytes.fromhex("29c0 660f3a63c100 cc"))
         vm.pc = CODE
         vm.run(10)
-        # equal any: index 2; CF (match), SF (xmm0 ends early), not ZF
+        # The equal-any comparison matches at index 2. CF reports the match, SF reports that xmm0 ends early, and ZF
+        # is clear.
         assert (vm.reg_read("ecx"), vm.reg_read("eflags") & 0x8C1) == (2, 0x81)
 
 
@@ -169,7 +171,7 @@ class TestProcessorState(unittest.TestCase):
         vm = _run("dbe3 d9e8 0fae07 660fefc9 ddd8 0fae0f dd9f00030000")
         image = vm.mem_read(DATA + Q_OFF, 512)
         assert image[:2] == b"\x7f\x03" and image[24:28] == b"\x80\x1f\0\0"
-        # ST0 = 1.0 as an 80-bit value; xmm1 in its slot
+        # The image holds ST0 as the 80-bit value 1.0, and xmm1 in the slot of xmm1.
         assert image[32:42] == bytes.fromhex("0000000000000080ff3f")
         expected = vectors.make_state("dbe3 d9e8 0fae07 660fefc9 ddd8 0fae0f dd9f00030000", False, "i")[2][1]
         assert int.from_bytes(image[176:192], "little") == expected
@@ -177,7 +179,8 @@ class TestProcessorState(unittest.TestCase):
         assert vm.mem_read(DATA + Q_OFF + 0x300, 8) == struct.pack("<d", 1.0)
 
     def test_xsave(self):
-        # xsave [edi] with eax = 3 saves x87 and SSE and says so in the header; xgetbv reports the same states
+        # `xsave [edi]` with eax = 3 saves the x87 and SSE states and records both states in the header.
+        # xgetbv must report the same states.
         vm = _run("0fae27 31c9 0f01d0", eax=3, edx=0)
         assert struct.unpack("<Q", vm.mem_read(DATA + Q_OFF + 512, 8))[0] == 3
         assert (vm.reg_read("eax"), vm.reg_read("edx")) == (3, 0)
@@ -194,12 +197,13 @@ class TestProcessorState(unittest.TestCase):
         vm.pc = CODE
         vm.run(10)
         assert vm.mem_read(DATA + Q_OFF, 8) == struct.pack("<d", 3.141592653589793)
-        # back to 80 bits: the double's 53 significant bits
+        # The 80-bit value that we store back only has the 53 significant bits of the double.
         assert vm.mem_read(DATA + Q_OFF + 16, 10) == bytes.fromhex("00c06821a2da0fc90040")
 
     @needs_sleigh_fixes
     def test_exact_64_bit_integers(self):
-        # values a double cannot hold survive fild / fistp, register moves, an 80-bit store and reload, and BCD
+        # Values that a double cannot hold must survive fild and fistp, register moves, an 80-bit store and reload,
+        # and BCD.
         values = (0x7FFFFFFFFFFFFFFF, -0x7FFFFFFFFFFFFFFF, (1 << 53) + 1, -(1 << 62) - 3, 999999999999999999)
         programs = (
             # fild qword [esi]; fistp qword [edi]
@@ -218,7 +222,7 @@ class TestProcessorState(unittest.TestCase):
             for code in programs:
                 for value in values:
                     if "df7710" in code and abs(value) >= 10**18:
-                        # packed decimal has 18 digits
+                        # A packed decimal only has 18 digits.
                         continue
                     vm.mem_write(CODE, bytes.fromhex("dbe3" + code) + b"\xcc")
                     vm.mem_write(DATA + P_OFF, struct.pack("<q", value))
@@ -227,14 +231,15 @@ class TestProcessorState(unittest.TestCase):
                     vm.pc = CODE
                     assert vm.run(100)[1] == winemu.FAULT_SYSCALL, code
                     assert struct.unpack("<q", vm.mem_read(DATA + Q_OFF, 8))[0] == value, (code, value, jit)
-        # an 80-bit operand with more than 53 significant bits comes back as it was
+        # An 80-bit operand with more than 53 significant bits must come back unchanged.
         raw = bytes.fromhex("35c26821a2da0fc90040")
         vm.mem_write(CODE, bytes.fromhex("dbe3 db2e db3f cc"))
         vm.mem_write(DATA + P_OFF, raw)
         vm.pc = CODE
         vm.run(100)
         assert vm.mem_read(DATA + Q_OFF, 10) == raw
-        # out of range for fistp m64: the integer indefinite (fld1; fild; fscale -> 2 ** 62 * 2 ** 62)
+        # fild; fild; fscale computes 62 * 2 ** 62. This value is out of range for `fistp m64`, which must store the
+        # integer indefinite.
         vm.mem_write(CODE, bytes.fromhex("dbe3 df2e df2e d9fd df3f cc"))
         vm.mem_write(DATA + P_OFF, struct.pack("<q", 62))
         vm.pc = CODE
@@ -243,11 +248,11 @@ class TestProcessorState(unittest.TestCase):
 
     @needs_sleigh_fixes
     def test_small_instructions(self):
-        # rdtscp; clflush [esi]; rdrand eax (CF set); fprem needs no 10-byte integer
+        # rdtscp; clflush [esi]; rdrand eax; pushfd. rdrand must set CF.
         vm = _run("0f01f9 0fae3e 0fc7f0 9c", ecx=5)
         assert vm.reg_read("ecx") == 0
         assert struct.unpack("<I", vm.mem_read(vm.reg_read("esp"), 4))[0] & 0x8D5 == 1
-        # fld 3.0; fld 7.5 -> fprem: 1.5
+        # fld 3.0; fld 7.5; fprem must give 1.5.
         vm = _vm(False, False)
         vm.mem_write(DATA + P_OFF, struct.pack("<2d", 3.0, 7.5))
         vm.mem_write(CODE, bytes.fromhex("dbe3 dd06 dd4608 d9f8 dd1f ddd8 cc"))
@@ -259,7 +264,7 @@ class TestProcessorState(unittest.TestCase):
 
 
 class TestInventory(unittest.TestCase):
-    # user ops behind the instruction-set extensions cpuid advertises
+    # The user ops of the instruction set extensions that cpuid advertises.
     ADVERTISED = [
         "pshufb",
         "palignr",
@@ -330,7 +335,7 @@ class TestInventory(unittest.TestCase):
     def test_user_ops(self):
         for is_64bit in (False, True):
             handled = dict(_vm(is_64bit, False).user_ops())
-            # palignr is plain SLEIGH; every other name must have a helper
+            # SLEIGH implements palignr without a helper. Every other name must have a helper.
             missing = [name for name in self.ADVERTISED if name != "palignr" and not handled.get(name)]
             assert not missing, missing
 
@@ -340,12 +345,12 @@ class TestInventory(unittest.TestCase):
         # SSE3, PCLMULQDQ, SSSE3, CX16, SSE4.1, SSE4.2, MOVBE, POPCNT, AES, XSAVE, OSXSAVE, RDRAND
         for bit in (0, 1, 9, 13, 19, 20, 22, 23, 25, 26, 27, 30):
             assert ecx >> bit & 1, bit
-        # no FMA, AVX, F16C; no hypervisor
+        # FMA, AVX, F16C and the hypervisor bit must be clear.
         for bit in (12, 28, 29, 31):
             assert not ecx >> bit & 1, bit
         vm = _run("0fa2", eax=7, ecx=0)
         ebx = vm.reg_read("ebx")
-        # BMI1, BMI2, ADX, RDSEED; no AVX2, MPX, AVX-512, SHA
+        # BMI1, BMI2, ADX and RDSEED must be set. AVX2, MPX, AVX-512 and SHA must be clear.
         assert all(ebx >> bit & 1 for bit in (3, 8, 18, 19))
         assert not any(ebx >> bit & 1 for bit in (5, 14, 16, 29))
         vm = _run("0fa2", eax=0xD, ecx=0)
@@ -355,13 +360,13 @@ class TestInventory(unittest.TestCase):
 class TestDoubleShifts(unittest.TestCase):
     @needs_sleigh_fixes
     def test_16_bit_counts_above_16(self):
-        # shld / shrd bx, dx, 20 shift the 48-bit bx:dx:bx, as Intel processors and QEMU do
+        # On Intel processors and on QEMU, `shld bx, dx, 20` and `shrd bx, dx, 20` shift the 48-bit value bx:dx:bx.
         for jit in (False, True):
             vm = _run("660fa4d314", jit=jit, ebx=0x1234, edx=0xABCD)
             assert (vm.reg_read("ebx"), vm.reg_read("CF")) == (0xBCD1, 0)
             vm = _run("660facd314", jit=jit, ebx=0x1234, edx=0xABCD)
             assert (vm.reg_read("ebx"), vm.reg_read("CF")) == (0x4ABC, 1)
-            # by one: OF says whether the sign changed
+            # With a count of one, OF reports whether the sign changed.
             vm = _run("660fa4d301", jit=jit, ebx=0x4000, edx=0)
             assert (vm.reg_read("ebx"), vm.reg_read("OF"), vm.reg_read("CF")) == (0x8000, 1, 0)
             vm = _run("660facd301", jit=jit, ebx=0, edx=1)
@@ -378,10 +383,10 @@ class TestBitScans(unittest.TestCase):
                 vm = _run(code, True, jit, rax=0x1122334455667788, rbx=0)
                 assert vm.reg_read("rax") == 0x1122334455667788, code
                 assert vm.reg_read("ZF") == 1
-            # a non-zero source: the index, zero-extended for the 32-bit form
+            # A non-zero source gives the bit index, and the 32-bit form zero-extends the bit index.
             vm = _run("0fbdc3", True, jit, rax=0x1122334455667788, rbx=0x100)
             assert (vm.reg_read("rax"), vm.reg_read("ZF")) == (8, 0)
-            # tzcnt / lzcnt of zero are defined: the operand size, CF set
+            # tzcnt and lzcnt of zero must return the operand size and set CF.
             vm = _run("f30fbcc3", True, jit, rax=0x1122334455667788, rbx=0)
             assert (vm.reg_read("rax"), vm.reg_read("CF")) == (32, 1)
             vm = _run("f3480fbdc3", True, jit, rax=5, rbx=0)
@@ -399,7 +404,8 @@ class TestMemory(unittest.TestCase):
         assert vm.mem_perm(0x601000) == 0
 
     def test_write_after_failed_lift(self):
-        # an undecodable instruction leaves the page marked as code without a block; writes must still go through
+        # An instruction that does not decode leaves the page marked as code without a block. A write to the page must
+        # still succeed.
         vm = WinVm(False, PROCESSORS_DIR, False)
         vm.mem_map(CODE, 0x1000, 7)
         vm.mem_write(CODE, bytes.fromhex("0f0b"))

@@ -1,4 +1,4 @@
-//! x87 leftovers, FXSAVE / XSAVE and small state instructions.
+//! The remaining x87 instructions, FXSAVE, XSAVE and small state instructions.
 
 use icicle_vm::cpu::{Cpu, Exception, ExceptionCode, ValueSource, exec::helpers::PcodeOpHelper, mem::perm};
 use pcode::{Value, VarNode};
@@ -13,16 +13,15 @@ fn set_st(cpu: &mut Cpu, dst: VarNode, value: f64) {
     write_trunc(cpu, dst, value.to_bits() as u128);
 }
 
-/// An 80-bit extended value as the nearest double.
 fn f80_to_f64(raw: u128) -> f64 {
     let (mantissa, exponent) = (raw as u64, (raw >> 64) as i32 & 0x7FFF);
     let sign = ((raw >> 79) as u64 & 1) << 63;
     if exponent != 0 && mantissa >> 63 == 0 {
-        // an unnormal: invalid, the default NaN
+        // an unnormal is invalid, so we return the default NaN
         return f64::from_bits(0xFFF8_0000_0000_0000);
     }
     if exponent == 0x7FFF && mantissa << 1 != 0 {
-        // a NaN keeps its payload and becomes quiet
+        // a NaN keeps the payload and becomes quiet
         return f64::from_bits(sign | 0x7FF8_0000_0000_0000 | ((mantissa << 1) >> 12));
     }
     let magnitude = if exponent == 0x7FFF {
@@ -30,7 +29,8 @@ fn f80_to_f64(raw: u128) -> f64 {
     } else if mantissa == 0 {
         0.0
     } else {
-        // mantissa * 2^(exponent - 16383 - 63); scaled in two steps so that a subnormal result rounds once
+        // The value is mantissa * 2^(exponent - 16383 - 63). We scale in two steps so that a
+        // subnormal result is only rounded once.
         let lead = mantissa.leading_zeros() as i32;
         let m = (mantissa << lead) as f64;
         let e = exponent.max(1) - 16383 - 63 - lead;
@@ -44,7 +44,7 @@ fn f64_to_f80(value: f64) -> u128 {
     let exponent = (bits >> 52) as i32 & 0x7FF;
     let fraction = bits & ((1 << 52) - 1);
     let (e, m) = if exponent == 0x7FF {
-        // infinity, or a NaN with its payload
+        // infinity, or a NaN with the payload
         (0x7FFF, (1 << 63) | (fraction << 11))
     } else if exponent == 0 {
         if fraction == 0 {
@@ -59,19 +59,24 @@ fn f64_to_f80(value: f64) -> u128 {
     ((bits >> 63) as u128) << 79 | ((e as u128 & 0x7FFF) << 64) | m as u128
 }
 
-/// Exact shadows. A value loaded from an 80-bit operand, a 64-bit integer or a BCD operand that a double cannot
-/// hold exactly is also kept in one of SLOTS spare registers (added to the SLEIGH spec, so they are part of each
-/// thread's register file); the two bytes of the x87 register that the double leaves free name the slot. Register
-/// moves copy the ten bytes, arithmetic writes a fresh double without a tag, so a tagged value stored again by
-/// fstp m80, fistp m64 or fbstp is the one that was loaded.
+/// The number of spare registers that keep exact x87 values.
+/// We added the spare registers to the SLEIGH spec.
+///
+/// A double cannot hold every value loaded from an 80-bit operand, a 64-bit integer or a BCD
+/// operand, so we also keep the exact 80-bit value in a spare register. The two bytes of the x87
+/// register that the double does not use hold the tag of the spare register. A register move copies
+/// the tag and arithmetic clears the tag, so fstp m80, fistp m64 and fbstp store a tagged value as
+/// loaded.
 const SLOTS: u16 = 16;
 
-/// (the double a slot was filled for, its exact 80-bit value)
+/// This function returns the two registers of a spare slot. The first register holds the double
+/// and the second register holds the exact 80-bit value.
 fn slot(cpu: &Cpu, index: u16) -> (VarNode, VarNode) {
     (reg(cpu, &format!("X87K{index}")), reg(cpu, &format!("X87V{index}")))
 }
 
-/// The ten bytes of an x87 register for `value`, tagged if `exact` (an 80-bit encoding) says more than the double.
+/// This function returns the ten bytes of an x87 register for `value`. We add a tag if the double
+/// cannot hold the 80-bit value `exact`.
 fn tagged(cpu: &mut Cpu, value: f64, exact: u128) -> u128 {
     let bits = value.to_bits() as u128;
     if f64_to_f80(value) == exact {
@@ -86,7 +91,8 @@ fn tagged(cpu: &mut Cpu, value: f64, exact: u128) -> u128 {
     bits | ((index as u128 + 1) << 64)
 }
 
-/// The exact 80-bit value of an x87 register operand: its shadow if it has one, else the double widened.
+/// This function returns the exact 80-bit value of an x87 register operand. We widen the double if
+/// the operand has no tag.
 fn exact(cpu: &Cpu, value: Value) -> u128 {
     let raw = rd(cpu, value);
     let (bits, tag) = (raw as u64, (raw >> 64) as u16);
@@ -105,13 +111,14 @@ fn int_to_f80(value: i128) -> u128 {
         return 0;
     }
     let lead = magnitude.leading_zeros();
-    // the top bit of the magnitude becomes the explicit integer bit; at most 64 bits are significant here
+    // the top bit of the magnitude becomes the explicit integer bit
     let mantissa = ((magnitude << lead) >> 64) as u64;
     let exponent = 16383 + 127 - lead as u128;
     ((value < 0) as u128) << 79 | exponent << 64 | mantissa as u128
 }
 
-/// An 80-bit value as a 64-bit integer, rounded to nearest even or truncated; None if it does not fit.
+/// This function converts an 80-bit value to a 64-bit integer, either rounded to nearest even or
+/// truncated. This function returns `None` if the value does not fit.
 fn f80_to_int(raw: u128, truncate: bool) -> Option<i64> {
     let (mantissa, exponent, negative) = (raw as u64, (raw >> 64) as i32 & 0x7FFF, raw >> 79 & 1 != 0);
     if exponent == 0x7FFF || (exponent != 0 && mantissa >> 63 == 0) {
@@ -141,14 +148,16 @@ fn from_int(cpu: &mut Cpu, dst: VarNode, args: Args) {
     write_trunc(cpu, dst, out);
 }
 
-/// x87_to_int(st, truncate): fistp / fisttp m64; the integer indefinite for what does not fit.
+/// `x87_to_int(st, truncate)` implements fistp m64 and fisttp m64.
+/// We return the integer indefinite if the value does not fit.
 fn to_int(cpu: &mut Cpu, dst: VarNode, args: Args) {
     let truncate = rd(cpu, args[1]) != 0;
     let value = f80_to_int(exact(cpu, args[0]), truncate).unwrap_or(i64::MIN);
     write_trunc(cpu, dst, value as u64 as u128);
 }
 
-/// fprem / fprem1 (as patched in the SLEIGH spec): the remainder; C0, C3 and C1 get the quotient's low bits.
+/// This function computes the remainder for fprem and fprem1 in our patched SLEIGH spec.
+/// C0, C3 and C1 get the low bits of the quotient.
 fn partial_remainder(cpu: &mut Cpu, dst: VarNode, args: Args, nearest: bool) {
     let (x, y) = (st(cpu, args[0]), st(cpu, args[1]));
     let mut rem = x % y;
@@ -242,14 +251,15 @@ fn xmm_count(cpu: &Cpu) -> usize {
     if is_x64(cpu) { 16 } else { 8 }
 }
 
-/// The FXSAVE image: x87 control state, the registers as 80-bit values, MXCSR and the XMM registers.
+/// This function builds the FXSAVE image, which holds the x87 control state, the x87 registers as
+/// 80-bit values, MXCSR and the XMM registers.
 fn fxsave_image(cpu: &Cpu) -> [u8; 512] {
     let mut image = [0u8; 512];
     let word = |name: &str| cpu.read_var::<u16>(reg(cpu, name));
     image[0..2].copy_from_slice(&word("FPUControlWord").to_le_bytes());
     image[2..4].copy_from_slice(&word("FPUStatusWord").to_le_bytes());
     let tag = word("FPUTagWord");
-    // abridged tag: one bit per register, set unless it is empty
+    // the abridged tag has one bit per register, and the bit is set unless the register is empty
     image[4] = (0..8).fold(0, |acc, i| acc | (((tag >> (2 * i)) & 3 != 3) as u8) << i);
     image[24..28].copy_from_slice(&cpu.read_var::<u32>(reg(cpu, "MXCSR")).to_le_bytes());
     image[28..32].copy_from_slice(&0xFFFFu32.to_le_bytes());
@@ -321,7 +331,7 @@ fn load<const N: usize>(cpu: &mut Cpu, addr: u64) -> Option<[u8; N]> {
 fn fxsave(cpu: &mut Cpu, _: VarNode, args: Args) {
     let addr = rd(cpu, args[0]) as u64;
     let image = fxsave_image(cpu);
-    // the last 96 bytes of the area are left alone
+    // FXSAVE does not write the last 96 bytes of the area
     store(cpu, addr, &image[..416]);
 }
 
@@ -332,7 +342,8 @@ fn fxrstor(cpu: &mut Cpu, _: VarNode, args: Args) {
     }
 }
 
-/// The state components XSAVE handles here: x87 (1) and SSE (2), as far as XCR0 and eax ask for them.
+/// This function returns the state components that XCR0 and eax request. We only handle x87, which
+/// is 1, and SSE, which is 2.
 fn xsave_components(cpu: &mut Cpu) -> u64 {
     let (eax, xcr0) = (reg(cpu, "EAX"), reg(cpu, "XCR0"));
     cpu.read_reg(eax) & cpu.read_reg(xcr0) & 3
@@ -346,7 +357,7 @@ fn xsave(cpu: &mut Cpu, _: VarNode, args: Args) {
         return;
     };
     let x87 = components & 1 == 0 || (store(cpu, addr, &image[..24]) && store(cpu, addr + 32, &image[32..160]));
-    // MXCSR goes with either component
+    // XSAVE saves MXCSR with either component
     let done = x87
         && store(cpu, addr + 24, &image[24..32])
         && (components & 2 == 0 || store(cpu, addr + 160, &image[160..416]));
@@ -363,7 +374,7 @@ fn xrstor(cpu: &mut Cpu, _: VarNode, args: Args) {
         return;
     };
     let present = u64::from_le_bytes(header);
-    // a requested component that is absent from the image returns to its initial state
+    // XRSTOR resets a requested component that is absent from the image to the initial state
     let mut initial = [0u8; 512];
     initial[0..2].copy_from_slice(&0x37Fu16.to_le_bytes());
     initial[24..28].copy_from_slice(&0x1F80u32.to_le_bytes());
@@ -375,7 +386,7 @@ fn xrstor(cpu: &mut Cpu, _: VarNode, args: Args) {
     }
 }
 
-/// rdrand / rdseed: a repeatable sequence (splitmix64 of the instruction count).
+/// rdrand and rdseed return a repeatable sequence, which is splitmix64 of the instruction count.
 fn random(cpu: &mut Cpu, dst: VarNode, _: Args) {
     let mut z = (cpu.icount ^ 0x9E37_79B9_7F4A_7C15).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
@@ -389,7 +400,7 @@ fn one(cpu: &mut Cpu, dst: VarNode, _: Args) {
 fn nop(_: &mut Cpu, _: VarNode, _: Args) {}
 
 pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
-    // added to the SLEIGH spec for fld / fstp of 80-bit operands, fprem and fprem1
+    // we added these user ops to the SLEIGH spec for 80-bit fld and fstp, fprem and fprem1
     ("f80_decode", |c, d, a| {
         let raw = rd(c, a[0]);
         let value = tagged(c, f80_to_f64(raw), raw);
@@ -415,7 +426,7 @@ pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
     ("extract_exponent", extract_exponent),
     ("from_bcd", from_bcd),
     ("to_bcd", to_bcd),
-    // the tag word is not kept per register
+    // we do not keep the tag word per register, so ffree leaves the tag word unchanged
     ("ffree", |c, d, _| {
         let tag = c.read_var::<u16>(reg(c, "FPUTagWord"));
         write_trunc(c, d, tag as u128)

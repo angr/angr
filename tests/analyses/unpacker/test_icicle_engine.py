@@ -37,7 +37,8 @@ def _run(vm: WinVm, code: bytes) -> tuple[int, int, int]:
 
 class TestWinVm(unittest.TestCase):
     def test_store_into_executed_code(self):
-        # call a nop sled, then stosd and push over it: the instructions finish once, with their side effects
+        # We call a nop sled, and then stosd and push write over the nop sled. Each instruction must take effect
+        # exactly once.
         vm = _vm()
         vm.mem_write(CODE + 0x100, b"\x90" * 16 + b"\xc3")
         code = bytes.fromhex("e8fb000000 bf00014000 b844332211 ab bc10014000 6888776655")
@@ -48,7 +49,8 @@ class TestWinVm(unittest.TestCase):
         assert vm.smc_count == 1
 
     def test_redundant_rex_prefix(self):
-        # es: rex.w rex.w mov [rax], rdx; SLEIGH rejects the first REX, which the CPU ignores
+        # es: rex.w rex.w mov [rax], rdx
+        # The CPU ignores the first REX prefix, but SLEIGH rejects the first REX prefix.
         vm = _vm(True)
         vm.reg_write("rax", 0x500100)
         vm.reg_write("rdx", 0x1122334455667788)
@@ -59,11 +61,12 @@ class TestWinVm(unittest.TestCase):
     @needs_sleigh_fixes
     def test_flags(self):
         vm = _vm()
-        # mov eax, 0x80000001; shr eax, 1 (imm8 form): OF is the old sign; pushfd keeps bit 1 set
+        # mov eax, 0x80000001; shr eax, 1; pushfd
+        # The imm8 form of shr must set OF to the old sign, and pushfd must keep bit 1 set.
         _run(vm, bytes.fromhex("b801000080 c1e801 9c"))
         flags = struct.unpack("<I", vm.mem_read(vm.reg_read("esp"), 4))[0]
         assert flags & 0x803 == 0x803
-        # mov al, 0x0f; add al, 1: auxiliary carry
+        # mov al, 0x0f; add al, 1; pushfd. The add must set the auxiliary carry.
         _run(vm, bytes.fromhex("b00f 0401 9c"))
         assert struct.unpack("<I", vm.mem_read(vm.reg_read("esp"), 4))[0] & 0x10
 
@@ -73,17 +76,17 @@ class TestWinVm(unittest.TestCase):
         vm.mem_write(0x500100, struct.pack("<I", 0x11223344))
         vm.reg_write("rax", 0x500100)
         vm.reg_write("r10", 0xF6620AA00)
-        # xchg [rax], r10d clears the upper half of r10
+        # `xchg [rax], r10d` must clear the upper half of r10.
         _run(vm, bytes.fromhex("448710"))
         assert vm.reg_read("r10") == 0x11223344
-        # shr di, cl with cl = 0 keeps AF
+        # `shr di, cl` with cl = 0 must keep AF.
         vm.reg_write("rcx", 0)
         vm.reg_write("eflags", 0x12)
         _run(vm, bytes.fromhex("66d3ef 9c"))
         assert struct.unpack("<Q", vm.mem_read(vm.reg_read("rsp"), 8))[0] & 0x10
 
     def test_precise_faults(self):
-        # a fault leaves the registers as they were before the instruction
+        # A fault must leave the registers as they were before the instruction.
         for code in ("ab", "50", "a5", "f3ab", "60", "8f00", "e800000000"):
             vm = _vm()
             regs = {"eax": 0x600000, "ecx": 2, "edi": 0x600000, "esi": 0x500100, "esp": 0x600010}
@@ -100,14 +103,15 @@ class TestWinVm(unittest.TestCase):
         vm.reg_write("eax", 0x80000000)
         vm.reg_write("edx", 0xFFFFFFFF)
         vm.reg_write("ecx", 0xFFFFFFFF)
-        # idiv ecx: the quotient 2**31 does not fit, so a divide error before any register changes
+        # idiv ecx. The quotient 2**31 does not fit, so the CPU raises a divide error before any register changes.
         assert _run(vm, bytes.fromhex("f7f9"))[:2] == (winemu.EXIT_EXCEPTION, winemu.FAULT_DIVIDE)
         assert vm.pc == CODE
         assert vm.reg_read("eax") == 0x80000000
 
     @needs_sleigh_fixes
     def test_16bit_addressing(self):
-        # 0x67-prefixed operands use a 16-bit offset (from the FS base here); the stack keeps its 32-bit esp
+        # An operand with the 0x67 prefix uses a 16-bit offset, which is relative to the FS base in this test.
+        # The stack still uses the 32-bit esp.
         vm = _vm()
         vm.reg_write("fs_base", 0x500000)
         vm.mem_write(0x500030, struct.pack("<I", 0x11223344))
@@ -120,19 +124,20 @@ class TestWinVm(unittest.TestCase):
     @needs_sleigh_fixes
     def test_descriptor_instructions(self):
         vm = _vm()
-        # lsl / lar on the user data selector, then on the null selector, which leaves the destination alone
+        # We run lsl and lar on the user data selector, and then lsl on the null selector, which must keep the
+        # destination.
         vm.reg_write("edi", 0x23)
         _run(vm, bytes.fromhex("0f03df 0f02c7"))
         assert (vm.reg_read("ebx"), vm.reg_read("eax"), vm.reg_read("ZF")) == (0xFFFFFFFF, 0x00CFF300, 1)
         vm.reg_write("edi", 0)
         _run(vm, bytes.fromhex("0f03df"))
         assert (vm.reg_read("ebx"), vm.reg_read("ZF")) == (0xFFFFFFFF, 0)
-        # verr / verw: code is readable, not writable
+        # verr and verw must report that a code segment is readable and not writable.
         for code, selector, zf in (("0f00e7", 0x1B, 1), ("0f00ef", 0x1B, 0), ("0f00ef", 0x3B, 1), ("0f00e7", 0x8, 0)):
             vm.reg_write("edi", selector)
             _run(vm, bytes.fromhex(code))
             assert vm.reg_read("ZF") == zf, (code, selector)
-        # xgetbv: x87 and SSE state enabled
+        # xgetbv must report that the x87 state and the SSE state are enabled.
         vm.reg_write("ecx", 0)
         _run(vm, bytes.fromhex("0f01d0"))
         assert (vm.reg_read("eax"), vm.reg_read("edx")) == (3, 0)
@@ -141,7 +146,7 @@ class TestWinVm(unittest.TestCase):
         vm = _vm()
         handled = dict(vm.user_ops())
         assert handled["segment"] == "helper" and handled["cpuid"] == "lifter"
-        # an op nobody implements raises "unimplemented" (0x100a) when reached
+        # The VM raises "unimplemented", which is 0x100a, when the program runs a user op that has no implementation.
         assert handled["xsavec"] == ""
         value = bytes(range(16))
         vm.reg_write_bytes("xmm3", value)
@@ -150,7 +155,8 @@ class TestWinVm(unittest.TestCase):
         assert vm.reg_read_bytes("xmm1") == value
 
     def test_privileged_and_absent_instructions(self):
-        # wrmsr, invlpg [eax], mwait: privileged; vmcall, vmxon [eax], vmmcall, xbegin, xtest: undefined opcodes
+        # wrmsr, invlpg [eax] and mwait are privileged.
+        # vmcall, vmxon [eax], vmmcall, xbegin and xtest are undefined opcodes.
         for code in ("0f30", "0f0138", "0f01c9"):
             vm = _vm()
             vm.reg_write("eax", 0x500100)
@@ -161,7 +167,7 @@ class TestWinVm(unittest.TestCase):
             vm.reg_write("eax", 0x500100)
             assert _run(vm, bytes.fromhex(code))[:2] == (winemu.EXIT_EXCEPTION, winemu.FAULT_INVALID), code
             assert vm.pc == CODE
-        # an HLE prefix is a hint: xacquire lock inc dword [eax]
+        # xacquire lock inc dword [eax]. An HLE prefix is only a hint, so the instruction must run.
         vm = _vm()
         vm.reg_write("eax", 0x500100)
         assert _run(vm, bytes.fromhex("f2f0ff00"))[1] == winemu.FAULT_SYSCALL
@@ -177,12 +183,13 @@ class TestWinVm(unittest.TestCase):
             _run(vm, code)
             first = vm.reg_read("ecx") << 32 | vm.reg_read("ebx")
             second = vm.reg_read("edx") << 32 | vm.reg_read("eax")
-            # 250 ms later on the emulated clock (a Sleep), rdtscp
+            # We move the emulated clock forward by 250 ms, as a Sleep does, and run rdtscp.
             vm.clock = 1250
             _run(vm, bytes.fromhex("0f01f9"))
             third = vm.reg_read("edx") << 32 | vm.reg_read("eax")
             runs.append((first, second, third))
-        # the same in every run; some cycles between two reads; the clock's delta at 3.6 GHz across the sleep
+        # Every run must read the same values. Two adjacent reads are a few cycles apart, and the reads around the
+        # sleep are 250 ms apart at 3.6 GHz.
         assert runs[0] == runs[1]
         first, second, third = runs[0]
         assert first // 3_600_000 == 1000 and 0 < second - first < 100
@@ -191,7 +198,7 @@ class TestWinVm(unittest.TestCase):
 
     @needs_sleigh_fixes
     def test_user_mode_interrupt_flag(self):
-        # push 0; popfd; pushfd; pop eax: IF stays set, as for any user-mode thread
+        # push 0; popfd; pushfd; pop eax. IF must stay set, as in any user-mode thread.
         vm = _vm()
         vm.reg_write("if", 1)
         assert _run(vm, bytes.fromhex("6a00 9d 9c 58"))[1] == winemu.FAULT_SYSCALL
@@ -199,7 +206,8 @@ class TestWinVm(unittest.TestCase):
 
     @needs_sleigh_fixes
     def test_io_privileged_instructions(self):
-        # cli, sti, in, out and their string forms need I/O privilege: they fault and change nothing
+        # cli, sti, in, out and the string forms of in and out need I/O privilege. Each instruction must fault and
+        # change nothing.
         for is_64bit in (False, True):
             for code in ("fa", "fb", "ec", "ed", "e410", "e510", "ee", "ef", "e610", "e710", "6c", "6d", "6e", "6f"):
                 for prefix in ("", "f3"):
@@ -222,7 +230,7 @@ class TestWinVm(unittest.TestCase):
 
 class TestUntouchedPages(unittest.TestCase):
     def test_protect_and_query(self):
-        # memory that was allocated but never touched answers like any other, on both engines
+        # Memory that the program allocated but never touched must answer like any other memory on both engines.
         answers = []
         for engine in ("unicorn", "icicle"):
             with mock.patch.object(test_emulation, "ENGINE", engine):
@@ -233,7 +241,7 @@ class TestUntouchedPages(unittest.TestCase):
             query = API_HANDLERS["VirtualQuery"].func
             assert query(emu, [addr + 0x1000, buf, 28]) == 28
             before = struct.unpack("<7I", emu.read(buf, 28))[5]
-            # PAGE_READONLY, with a place for the old protection
+            # We set PAGE_READONLY and pass a buffer for the old protection.
             assert API_HANDLERS["VirtualProtect"].func(emu, [addr + 0x1000, 0x1000, 2, buf + 0x100]) == 1
             old = struct.unpack("<I", emu.read(buf + 0x100, 4))[0]
             assert query(emu, [addr + 0x1000, buf, 28]) == 28
@@ -245,7 +253,7 @@ class TestUntouchedPages(unittest.TestCase):
 @mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleExceptions(test_emulation.TestExceptions):
     """
-    The exception tests of the Unicorn engine, on Icicle.
+    These tests run the exception tests on Icicle.
     """
 
     def test_engine(self):
@@ -253,7 +261,8 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
 
     @needs_sleigh_fixes
     def test_cli_and_port_io_raise(self):
-        # nop; cli / in al, dx / out dx, al: STATUS_PRIVILEGED_INSTRUCTION at the instruction
+        # Each sample runs a nop and then cli, sti, `in al, dx` or `out dx, al`, which must raise
+        # STATUS_PRIVILEGED_INSTRUCTION at the address of the instruction.
         for name in ("cli.exe", "sti.exe", "in.exe", "out.exe"):
             emu = emulator(name)
             emu.start()
@@ -262,8 +271,8 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
             assert stop.detail == f"unhandled exception 0xc0000096 at {IMAGE_BASE + CODE_RVA + 1:#x}", stop
 
     def test_tracing_zeroed_data_is_cheap(self):
-        # pointers into zeroed memory are tried as import wrappers by the thousand: none may leave thousands of
-        # translated instructions behind
+        # The unpacker traces thousands of pointers into zeroed memory as import wrappers. A trace must not leave
+        # many translated instructions behind.
         emu = emulator()
         emu.start()
         region = emu.alloc(0x100000)
@@ -285,42 +294,42 @@ class TestIcicleExceptions(test_emulation.TestExceptions):
 @mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleApiHandlers(test_emulation.TestApiHandlers):
     """
-    The API handler tests, on Icicle.
+    These tests run the API handler tests on Icicle.
     """
 
 
 @mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleThreads(test_emulation.TestThreads):
     """
-    The scheduler tests, on Icicle.
+    These tests run the scheduler tests on Icicle.
     """
 
 
 @mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleComObjects(test_emulation.TestComObjects):
     """
-    The COM object tests, on Icicle.
+    These tests run the COM object tests on Icicle.
     """
 
 
 @mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleWindowMessages(test_emulation.TestWindowMessages):
     """
-    The window message tests, on Icicle.
+    These tests run the window message tests on Icicle.
     """
 
 
 @mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleBrokenImages(test_emulation.TestBrokenImages):
     """
-    The broken image tests, on Icicle.
+    These tests run the broken image tests on Icicle.
     """
 
 
 @mock.patch.object(test_emulation, "ENGINE", "icicle")
 class TestIcicleTimers(test_emulation.TestTimers):
     """
-    The timer tests on Icicle.
+    These tests run the timer tests on Icicle.
     """
 
 

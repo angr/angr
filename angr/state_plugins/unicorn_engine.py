@@ -669,7 +669,7 @@ class Unicorn(SimStatePlugin, SupportsMerge):
         self.error = None
         self.errno = 0
         self.trap_ip = None
-        # x86: whether the last native run ended with the trap flag set. The flag is not part of the VEX state.
+        # The VEX state has no x86 trap flag, so we record whether the last native run ended with the trap flag set.
         self.trap_flag = False
 
         self.cache_key = hash(self) if cache_key is None else cache_key
@@ -985,7 +985,7 @@ class Unicorn(SimStatePlugin, SupportsMerge):
             else:
                 self._hook_syscall_x86_64(uc, user_data)
         elif intno == 1:
-            # debug exception (single step): left to whoever drives the emulation, see trap_flag
+            # Interrupt 1 is the debug exception of a single step. We stop and let the caller handle the exception.
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
         else:
             l.warning("unhandled interrupt %d", intno)
