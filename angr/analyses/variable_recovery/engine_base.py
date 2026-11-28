@@ -1225,6 +1225,17 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             vvar_id = vvar.varid
 
         value: claripy.ast.BV | None = self.vvar_region.get(vvar_id, None)
+        # Register and parameter vvars may intentionally use narrower views of cached XMM backing values.
+        if value is not None and vvar.was_stack and value.size() != vvar.bits:
+            l.warning(
+                "Cached stack vvar %d is %d bits, but the requested width is %d bits in function %#x; "
+                "treating it as unknown.",
+                vvar_id,
+                value.size(),
+                vvar.bits,
+                self.func_addr,
+            )
+            value = None
 
         # fallback for register arguments
         if value is None and vvar.was_reg:
