@@ -1233,6 +1233,14 @@ class SpillingCFG:
     def has_node(self, node: CFGNode) -> bool:
         return self._keys.id_of(get_block_key(node)) is not None
 
+    def has_node_key(self, block_key: K) -> bool:
+        """Whether `get_node_by_key` would return a node for this key rather than raising.
+
+        Deliberately the same test `get_node_by_key` makes, and not `has_node`'s: that one asks
+        `_keys` for an id, and a caller holding a stale key needs to know about `_nodes`.
+        """
+        return block_key in self._nodes
+
     def nodes_by_addr(self, addr: int) -> Iterator[CFGNode]:
         for block_key in self._keys.keys_at(addr):
             yield self.get_node_by_key(block_key)
