@@ -227,6 +227,20 @@ ast_op_arity! {
 }
 
 impl<'c> AstOp<'c> {
+    /// Operands whose order and grouping do not affect the result.
+    pub(crate) fn associative_commutative_operands(&self) -> Option<&[AstRef<'c>]> {
+        match self {
+            AstOp::And(v)
+            | AstOp::Or(v)
+            | AstOp::Xor(v)
+            | AstOp::Add(v)
+            | AstOp::Mul(v)
+            | AstOp::Union(v)
+            | AstOp::Intersection(v) => Some(v),
+            _ => None,
+        }
+    }
+
     pub fn child_iter(&self) -> AstOpChildIter<'_, 'c> {
         AstOpChildIter { op: self, index: 0 }
     }
@@ -619,5 +633,41 @@ impl<'c> Iterator for AstOpChildIter<'_, 'c> {
 impl ExactSizeIterator for AstOpChildIter<'_, '_> {
     fn len(&self) -> usize {
         self.op.num_children().saturating_sub(self.index)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::prelude::*;
+
+    #[test]
+    fn test_associative_commutative_operands() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let x = ctx.bvs("x", 32)?;
+        let y = ctx.bvs("y", 32)?;
+        let operands = vec![x.clone(), y.clone()];
+        for op in [
+            AstOp::And(operands.clone()),
+            AstOp::Or(operands.clone()),
+            AstOp::Xor(operands.clone()),
+            AstOp::Add(operands.clone()),
+            AstOp::Mul(operands.clone()),
+            AstOp::Union(operands.clone()),
+            AstOp::Intersection(operands.clone()),
+        ] {
+            assert_eq!(
+                op.associative_commutative_operands(),
+                Some(operands.as_slice())
+            );
+        }
+        for op in [
+            AstOp::Sub(x.clone(), y.clone()),
+            AstOp::Concat(operands),
+            AstOp::Eq(x.clone(), y),
+            x.op().clone(),
+        ] {
+            assert!(op.associative_commutative_operands().is_none());
+        }
+        Ok(())
     }
 }
