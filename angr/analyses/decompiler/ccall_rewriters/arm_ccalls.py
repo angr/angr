@@ -58,8 +58,6 @@ _SUB_CMP_OPS: dict[int, tuple[str, bool]] = {
 _UNSIGNED_CONDS = {ARMCondHS, ARMCondLO, ARMCondHI, ARMCondLS}
 _SIGNED_CONDS = {ARMCondGE, ARMCondLT, ARMCondGT, ARMCondLE}
 
-_MASK32 = 0xFFFF_FFFF
-
 
 class ARMCCallRewriter(CCallRewriterBase):
     """
@@ -149,27 +147,31 @@ class ARMCCallRewriter(CCallRewriterBase):
         if cond in {ARMCondMI, ARMCondPL}:
             # N is the sign of the (wrapped) difference, not the signed comparison
             res = dep_1 if self._is_const(dep_2, 0) else self._binop(ccall, "Sub", dep_1, dep_2)
-            return self._cmp(ccall, "CmpLT" if cond == ARMCondMI else "CmpGE", res, self._const(ccall, 0), True)
+            return self._cmp(
+                ccall, "CmpLT" if cond == ARMCondMI else "CmpGE", res, self._const(ccall, 0, dep_1.bits), True
+            )
         return None
 
     def _cond_add(
         self, ccall: Expr.VEXCCallExpression, cond: int, dep_1: Expr.Expression, dep_2: Expr.Expression
     ) -> Expr.Expression | None:
+        bits = dep_1.bits
         if isinstance(dep_2, Expr.Const) and cond in _SUB_CMP_OPS:
             # dep_1 + c compares like dep_1 - (-c); unsigned conditions need c != 0 (no carry is possible), signed
             # ones need -c to be representable
-            c = dep_2.value_int & _MASK32
+            mask = (1 << bits) - 1
+            c = dep_2.value_int & mask
             if (
                 cond in {ARMCondEQ, ARMCondNE}
                 or (cond in _UNSIGNED_CONDS and c != 0)
-                or (cond in _SIGNED_CONDS and c != 0x8000_0000)
+                or (cond in _SIGNED_CONDS and c != 1 << (bits - 1))
             ):
                 cmp_op, signed = _SUB_CMP_OPS[cond]
-                return self._cmp(ccall, cmp_op, dep_1, self._const(ccall, (-c) & _MASK32), signed)
+                return self._cmp(ccall, cmp_op, dep_1, self._const(ccall, (-c) & mask, bits), signed)
             return None
 
         res = self._binop(ccall, "Add", dep_1, dep_2)
-        zero = self._const(ccall, 0)
+        zero = self._const(ccall, 0, bits)
         if cond in {ARMCondEQ, ARMCondNE}:
             return self._cmp(ccall, "CmpEQ" if cond == ARMCondEQ else "CmpNE", res, zero, False)
         if cond in {ARMCondMI, ARMCondPL}:
@@ -193,7 +195,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         if cond in {ARMCondHS, ARMCondLO}:
             return self._cmp(ccall, "CmpGT" if cond == ARMCondHS else "CmpLE", dep_1, dep_2, False)
         if cond in {ARMCondEQ, ARMCondNE}:
-            rhs = self._binop(ccall, "Add", dep_2, self._const(ccall, 1))
+            rhs = self._binop(ccall, "Add", dep_2, self._const(ccall, 1, dep_2.bits))
             return self._cmp(ccall, "CmpEQ" if cond == ARMCondEQ else "CmpNE", dep_1, rhs)
         return None
 
@@ -208,7 +210,7 @@ class ARMCCallRewriter(CCallRewriterBase):
     ) -> Expr.Expression | None:
         # Z and N of ADC/SBB only depend on the result, whatever the incoming carry is
         res = self._carry_result(ccall, op, dep_1, dep_2, dep_3)
-        zero = self._const(ccall, 0)
+        zero = self._const(ccall, 0, res.bits)
         if cond in {ARMCondEQ, ARMCondNE}:
             return self._cmp(ccall, "CmpEQ" if cond == ARMCondEQ else "CmpNE", res, zero)
         if cond in {ARMCondMI, ARMCondPL}:
@@ -238,7 +240,9 @@ class ARMCCallRewriter(CCallRewriterBase):
 
     def _cond_copy(self, ccall: Expr.VEXCCallExpression, cond: int, nzcv: Expr.Expression) -> Expr.Expression | None:
         def flag(shift: int, is_set: bool) -> Expr.Expression:
-            return self._is_nonzero(ccall, self._binop(ccall, "And", nzcv, self._const(ccall, 1 << shift)), is_set)
+            return self._is_nonzero(
+                ccall, self._binop(ccall, "And", nzcv, self._const(ccall, 1 << shift, nzcv.bits)), is_set
+            )
 
         if cond in {ARMCondEQ, ARMCondNE}:
             return flag(ARMG_CC_SHIFT_Z, cond == ARMCondEQ)
@@ -257,7 +261,7 @@ class ARMCCallRewriter(CCallRewriterBase):
             ccall,
             "And",
             self._binop(ccall, "Xor", self._shr(ccall, nzcv, ARMG_CC_SHIFT_N - ARMG_CC_SHIFT_V), nzcv),
-            self._const(ccall, 1 << ARMG_CC_SHIFT_V),
+            self._const(ccall, 1 << ARMG_CC_SHIFT_V, nzcv.bits),
         )
         if cond in {ARMCondGE, ARMCondLT}:
             return self._is_nonzero(ccall, n_xor_v, cond == ARMCondLT)
@@ -376,7 +380,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         if op == ARMG_CC_OP_ADC:
             return self._binop(ccall, "Add", self._binop(ccall, "Add", dep_1, dep_2), dep_3)
         # SBB: dep_1 - dep_2 - (dep_3 ^ 1)
-        borrow = self._binop(ccall, "Xor", dep_3, self._const(ccall, 1))
+        borrow = self._binop(ccall, "Xor", dep_3, self._const(ccall, 1, dep_3.bits))
         return self._binop(ccall, "Sub", self._binop(ccall, "Sub", dep_1, dep_2), borrow)
 
     @staticmethod

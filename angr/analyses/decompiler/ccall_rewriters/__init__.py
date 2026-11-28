@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .amd64_ccalls import AMD64CCallRewriter
+from .arm64_ccalls import ARM64CCallRewriter
 from .arm_ccalls import ARMCCallRewriter
 from .x86_ccalls import X86CCallRewriter
 
@@ -10,4 +11,5 @@ CCALL_REWRITERS = {
     "ARMEL": ARMCCallRewriter,
     "ARMHF": ARMCCallRewriter,
     "ARMCortexM": ARMCCallRewriter,
+    "AARCH64": ARM64CCallRewriter,
 }
