@@ -1236,7 +1236,8 @@ class VariableManagerInternal(Serializable):
         the sorted list. These variables are likely completely removed during the dephication process.
 
         :param labels:    Known labels in the binary.
-        :param arg_names: Known argument names.
+        :param arg_names: Known argument names. No default local name repeats one of them, or the name of a variable
+                          this call keeps.
         :param reset:     Reset all variable names or not.
         :param func_blocks: A list of function blocks of the function where these variables are accessed.
         """
@@ -1305,14 +1306,24 @@ class VariableManagerInternal(Serializable):
                     sorted_reg_variables.remove(var)
                     phi_only_vars.append(var)
 
+        taken = set(arg_names or ())
+        local_vars = []
         for var in chain(sorted_stack_variables, sorted_reg_variables, sorted_combo_reg_variables, phi_only_vars):
-            idx = next(var_ctr)
+            keep = False
             if var.auto_renamed and not var.renamed:
                 # a semantic name from an earlier run: drop it so this run can name the variable afresh
                 var.auto_renamed = False
             elif var.name is not None and var.name != var.ident and not reset:
+                keep = True
+                taken.add(var.name)
+            local_vars.append((var, keep))
+        for var, keep in local_vars:
+            idx = next(var_ctr)
+            if keep:
                 continue
             if isinstance(var, (SimStackVariable, SimRegisterVariable, SimComboRegisterVariable)):
+                while f"v{idx}" in taken:
+                    idx = next(var_ctr)
                 var.name = f"v{idx}"
             # clear the hash cache
             var._hash = None
