@@ -1425,7 +1425,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     def bad(msg):
         if msg:
             l.warning("x86g_use_seg_selector: %s", msg)
-        return claripy.BVV(1 << 32, 32).zero_extend(32)
+        return claripy.BVV(1 << 32, 64)
 
     if (seg_selector & ~0xFFFF != 0).is_true():
         return bad("invalid selector (" + str(seg_selector) + ")")

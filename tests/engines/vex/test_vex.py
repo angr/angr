@@ -197,6 +197,15 @@ class TestVex(unittest.TestCase):
         assert s.solver.is_true(cf == 0)
         assert s.solver.is_true(of == 1)
 
+    def test_x86_use_seg_selector_index_out_of_range(self):
+        s = SimState(project=minimal_project("X86"))
+        s.globals["x86_cr0"] = 1  # pyright: ignore[reportIndexIssue]
+        # a GDT with a limit of 1, and a selector for its entry 1
+        gdt, selector = claripy.BVV(1, 64), claripy.BVV(1 << 3, 32)
+        res = s_ccall.x86g_use_seg_selector(s, claripy.BVV(0, 64), gdt, selector, claripy.BVV(0, 32))
+        # the error flag is the high half of the result
+        assert s.solver.eval_one(res) == 1 << 32
+
     def test_aarch64_ccall_symbolic_op(self):
         # GitHub issue #5460
 
