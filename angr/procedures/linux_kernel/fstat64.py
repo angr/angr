@@ -124,26 +124,30 @@ class fstat64(angr.SimProcedure):
         store(0x64, claripy.BVV(0, 32))
 
     def _store_mips32(self, stat_buf, stat):
-        def store(offset, val):
+        # o32 struct stat64; each field is stored at its own width so that big-endian reads see its low bits
+        def store(offset, val, bits):
+            val = claripy.BVV(val, bits) if isinstance(val, int) else val[bits - 1 : 0]
             return self.state.memory.store(stat_buf + offset, val, endness=self.state.arch.memory_endness)
 
-        store(0x00, stat.st_dev)
-        store(0x04, claripy.BVV(0, 32 * 3))
-        store(0x10, stat.st_ino)
-        store(0x18, stat.st_uid)
-        store(0x1C, stat.st_gid)
-        store(0x20, stat.st_rdev)
-        store(0x24, claripy.BVV(0, 32 * 3))
-        store(0x30, stat.st_size)
-        store(0x38, stat.st_atime)
-        store(0x3C, stat.st_atimensec)
-        store(0x40, stat.st_mtime)
-        store(0x44, stat.st_mtimensec)
-        store(0x48, stat.st_ctime)
-        store(0x4C, stat.st_ctimensec)
-        store(0x50, stat.st_blksize)
-        store(0x54, claripy.BVV(0, 32))
-        store(0x58, stat.st_blocks)
+        store(0x00, stat.st_dev, 32)
+        store(0x04, 0, 32 * 3)
+        store(0x10, stat.st_ino, 64)
+        store(0x18, stat.st_mode, 32)
+        store(0x1C, stat.st_nlink, 32)
+        store(0x20, stat.st_uid, 32)
+        store(0x24, stat.st_gid, 32)
+        store(0x28, stat.st_rdev, 32)
+        store(0x2C, 0, 32 * 3)
+        store(0x38, stat.st_size, 64)
+        store(0x40, stat.st_atime, 32)
+        store(0x44, stat.st_atimensec, 32)
+        store(0x48, stat.st_mtime, 32)
+        store(0x4C, stat.st_mtimensec, 32)
+        store(0x50, stat.st_ctime, 32)
+        store(0x54, stat.st_ctimensec, 32)
+        store(0x58, stat.st_blksize, 32)
+        store(0x5C, 0, 32)
+        store(0x60, stat.st_blocks, 64)
 
     def _store_arm_eabi(self, stat_buf, stat):
         def store(offset, val):
