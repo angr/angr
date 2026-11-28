@@ -116,41 +116,59 @@ impl PyEpsilon {
 const EPSILON_HASH: u64 = 0xDEAD_BEEF_CAFE_BABE;
 
 /// Helper struct for tracking Python object to ID mappings.
+///
+/// Objects are identified the way a Python dict identifies its keys: bucket by `hash()`, then
+/// compare the candidates in the bucket with `__eq__`.
 #[derive(Clone)]
 struct ObjectMapper {
-    /// Maps Python object hash + repr to state IDs
-    state_to_id: IndexMap<(isize, String), StateId>,
+    /// Maps a Python object hash to the state IDs sharing that hash
+    state_buckets: IndexMap<isize, Vec<StateId>>,
     /// Maps state IDs back to Python objects
     id_to_state: Vec<Py<PyAny>>,
-    /// Maps Python object hash + repr to symbol IDs
-    symbol_to_id: IndexMap<(isize, String), SymbolId>,
+    /// Maps a Python object hash to the symbol IDs sharing that hash
+    symbol_buckets: IndexMap<isize, Vec<SymbolId>>,
     /// Maps symbol IDs back to Python objects
     id_to_symbol: Vec<Py<PyAny>>,
+}
+
+/// Find the ID in `bucket` whose object in `interned` is equal to `value`, by Python `__eq__`.
+fn find_in_bucket(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    bucket: &[u32],
+    interned: &[Py<PyAny>],
+) -> PyResult<Option<u32>> {
+    for &id in bucket {
+        // Identity first, then the stored key's __eq__, as a dict does, so NaN maps to itself
+        let candidate = interned[id as usize].bind(py);
+        if candidate.is(value) || candidate.eq(value)? {
+            return Ok(Some(id));
+        }
+    }
+    Ok(None)
 }
 
 impl ObjectMapper {
     fn new() -> Self {
         Self {
-            state_to_id: IndexMap::new(),
+            state_buckets: IndexMap::new(),
             id_to_state: Vec::new(),
-            symbol_to_id: IndexMap::new(),
+            symbol_buckets: IndexMap::new(),
             id_to_symbol: Vec::new(),
         }
     }
 
     fn get_or_create_state_id(&mut self, py: Python<'_>, state: &PyState) -> PyResult<StateId> {
-        let hash = state.value.bind(py).hash()?;
-        let repr = state.value.bind(py).repr()?.to_string();
-        let key = (hash, repr);
+        let value = state.value.bind(py);
+        let bucket = self.state_buckets.entry(value.hash()?).or_default();
 
-        if let Some(&id) = self.state_to_id.get(&key) {
-            Ok(id)
-        } else {
-            let id = self.id_to_state.len() as StateId;
-            self.state_to_id.insert(key, id);
-            self.id_to_state.push(state.value.clone());
-            Ok(id)
+        if let Some(id) = find_in_bucket(py, value, bucket, &self.id_to_state)? {
+            return Ok(id);
         }
+        let id = self.id_to_state.len() as StateId;
+        bucket.push(id);
+        self.id_to_state.push(state.value.clone());
+        Ok(id)
     }
 
     #[allow(dead_code)]
@@ -159,22 +177,20 @@ impl ObjectMapper {
     }
 
     fn get_or_create_symbol_id(&mut self, py: Python<'_>, symbol: &PySymbol) -> PyResult<SymbolId> {
-        let hash = symbol.value.bind(py).hash()?;
-        let repr = symbol.value.bind(py).repr()?.to_string();
-        let key = (hash, repr);
+        let value = symbol.value.bind(py);
+        let bucket = self.symbol_buckets.entry(value.hash()?).or_default();
 
-        if let Some(&id) = self.symbol_to_id.get(&key) {
-            Ok(id)
-        } else {
-            let id = self.id_to_symbol.len() as SymbolId;
-            // Reserve EPSILON (u32::MAX) for epsilon transitions
-            if id == EPSILON {
-                return Err(PyValueError::new_err("Too many symbols"));
-            }
-            self.symbol_to_id.insert(key, id);
-            self.id_to_symbol.push(symbol.value.clone());
-            Ok(id)
+        if let Some(id) = find_in_bucket(py, value, bucket, &self.id_to_symbol)? {
+            return Ok(id);
         }
+        let id = self.id_to_symbol.len() as SymbolId;
+        // Reserve EPSILON (u32::MAX) for epsilon transitions
+        if id == EPSILON {
+            return Err(PyValueError::new_err("Too many symbols"));
+        }
+        bucket.push(id);
+        self.id_to_symbol.push(symbol.value.clone());
+        Ok(id)
     }
 
     fn get_symbol_by_id(&self, id: SymbolId) -> Option<&Py<PyAny>> {
