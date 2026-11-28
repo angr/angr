@@ -19,6 +19,8 @@ from angr.sim_variable import (
 if TYPE_CHECKING:
     import archinfo
 
+    from angr.sim_type import SimType
+
 IdentType = tuple[int, int, str]
 
 
@@ -270,6 +272,14 @@ def variable_display_name(v: SimVariable) -> str:
     if isinstance(v, SimMemoryVariable) and isinstance(v.addr, int):
         return f"g_{v.addr:x}"
     return v.ident or "unnamed"
+
+
+def tie_break_type_name(ty: SimType) -> str:
+    """
+    The name that orders equally common candidate types when one of them is chosen to declare a variable. It reads
+    ``unsigned char`` as ``char``, so the way a byte's signedness is spelled never changes which candidate is declared.
+    """
+    return repr(ty).replace("unsigned char", "char")
 
 
 def register_display_name(arch: archinfo.Arch, reg_offset: int, size: int) -> str:
