@@ -62,7 +62,7 @@ from angr.utils.ail import (
     is_phi_assignment,
     same_statements,
 )
-from angr.utils.graph import dominates
+from angr.utils.graph import dominates, immediate_dominators
 from angr.utils.ssa import (
     has_call_in_between_stmts,
     has_load_expr_in_between_stmts,
@@ -1955,7 +1955,7 @@ class AILSimplifier(Analysis):
         entry = addr_and_idx_to_block.get((self.func.addr, 0))
         if entry is None or entry not in self.func_graph:
             return {}
-        idoms = networkx.immediate_dominators(self.func_graph, entry)
+        idoms = immediate_dominators(self.func_graph, entry)
         return {(n.addr, n.idx): (d.addr, d.idx) for n, d in idoms.items()}
 
     @staticmethod

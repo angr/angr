@@ -16,7 +16,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 )
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.utils.graph import GraphUtils
+from angr.utils.graph import GraphUtils, immediate_dominators
 from angr.utils.ssa import get_vvar_uselocs
 
 from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
@@ -906,7 +906,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             entry = next((nn for nn in self._graph if (nn.addr, nn.idx) == self.entry_node_addr), None)
             children: dict[Block, list[Block]] = defaultdict(list)
             if entry is not None:
-                for node, idom in networkx.immediate_dominators(self._graph, entry).items():
+                for node, idom in immediate_dominators(self._graph, entry).items():
                     if node is not idom:
                         children[idom].append(node)
             self._dominator_children_cache = children

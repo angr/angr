@@ -3,14 +3,12 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-import networkx
-
 from angr.ailment import AILBlockRewriter, Block, Expression
 from angr.ailment.expression import BinaryOp, Const, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Statement
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
-from angr.utils.graph import dominates
+from angr.utils.graph import dominates, immediate_dominators
 from angr.utils.timing import timethis
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -140,7 +138,7 @@ class ConditionConstantPropagation(OptimizationPass):
         # calculate a dominance frontier for each block
         entry_node_addr, entry_node_idx = self.entry_node_addr
         entry_node = self._get_block(entry_node_addr, idx=entry_node_idx)
-        idoms = networkx.algorithms.immediate_dominators(self._graph, entry_node)
+        idoms = immediate_dominators(self._graph, entry_node)
         rda: SRDAModel = SReachingDefinitions(self.project, self._func, func_graph=self._graph).model
 
         for src, cconds in cconds_by_src.items():

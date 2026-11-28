@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 import networkx
 import networkx.algorithms
 
+from angr.rustylib import graph_utils as _rust_graph
 from angr.utils.hashing import stable_hash
 
 if TYPE_CHECKING:
@@ -63,7 +64,7 @@ def inverted_idoms[T](
         else:
             endnode = next(iter(end_nodes))  # pick the end node
 
-        idoms = networkx.immediate_dominators(inverted_graph, endnode)
+        idoms = immediate_dominators(inverted_graph, endnode)
         idoms[endnode] = endnode
     else:
         idoms = None
@@ -139,6 +140,33 @@ def dfs_back_edges[T](
     """
     if start_node not in graph:
         return  # Ensures that the start node is in the graph
+    if visited is None and finished is None:
+        try:
+            edges = _rust_graph.dfs_back_edges(graph._succ, start_node, visit_all_nodes)
+        except (TypeError, OverflowError):
+            # we fall back to the Python implementation for nodes without integer sort keys
+            edges = None
+        if edges is not None:
+            yield from edges
+            return
+    yield from _dfs_back_edges_py(
+        graph, start_node, visit_all_nodes=visit_all_nodes, visited=visited, finished=finished
+    )
+
+
+def _dfs_back_edges_py[T](
+    graph: networkx.DiGraph[T],
+    start_node: T,
+    *,
+    visit_all_nodes: bool = False,
+    visited: set[T] | None = None,
+    finished: set[T] | None = None,
+) -> Iterator[tuple[T, T]]:
+    """
+    The Python implementation of `dfs_back_edges`.
+    """
+    if start_node not in graph:
+        return
 
     visited = set() if visited is None else visited  # Tracks visited nodes
     # Tracks nodes whose descendants are fully explored. Shared across restarts: an edge into a node finished by an
@@ -165,7 +193,18 @@ def dfs_back_edges[T](
         while len(visited) < len(graph):
             # If we need to visit all nodes, we can start from unvisited nodes
             node = min(set(graph) - visited, key=GraphUtils.sort_node)
-            yield from dfs_back_edges(graph, node, visited=visited, finished=finished)
+            yield from _dfs_back_edges_py(graph, node, visited=visited, finished=finished)
+
+
+def immediate_dominators[T](graph: networkx.DiGraph[T], start: T) -> dict[T, T]:
+    """
+    The Rust port of `networkx.immediate_dominators`.
+
+    The returned dict has the same keys in the same order as the dict that networkx returns.
+    """
+    if start not in graph:
+        raise networkx.NetworkXError("start is not in G")
+    return _rust_graph.immediate_dominators(graph._succ, start)
 
 
 def subgraph_between_nodes[T](
@@ -795,6 +834,16 @@ class GraphUtils:
 
     @staticmethod
     def dfs_postorder_nodes_deterministic[T](graph: networkx.DiGraph[T], source: T) -> Iterator[T]:
+        if source in graph:
+            try:
+                return iter(_rust_graph.dfs_postorder_nodes_deterministic(graph._succ, [source]))
+            except (TypeError, OverflowError):
+                # we fall back to the Python implementation for nodes without integer sort keys
+                pass
+        return GraphUtils._dfs_postorder_nodes_deterministic_py(graph, source)
+
+    @staticmethod
+    def _dfs_postorder_nodes_deterministic_py[T](graph: networkx.DiGraph[T], source: T) -> Iterator[T]:
         visited = set()
         stack: list[tuple[Any, bool]] = [(source, True)]  # NodeType, is_pre_visit
         while stack:
@@ -816,6 +865,16 @@ class GraphUtils:
         (sources are traversed in ``_sort_node`` order), but without mutating the graph -- so it works directly on a
         zero-copy overlay view. Use it for multi-entry acyclic graphs.
         """
+        sources = list(sources)
+        if all(s in graph for s in sources):
+            try:
+                return iter(_rust_graph.dfs_postorder_nodes_deterministic(graph._succ, sources))
+            except (TypeError, OverflowError):
+                pass
+        return GraphUtils._dfs_postorder_nodes_deterministic_multi_py(graph, sources)
+
+    @staticmethod
+    def _dfs_postorder_nodes_deterministic_multi_py[T](graph: networkx.DiGraph[T], sources: Iterable[T]) -> Iterator[T]:
         visited: set = set()
         # seeding the stack with the sources in ascending _sort_node order makes the LIFO stack pop them largest-first,
         # exactly as a synthetic super-source's sorted successors would have been expanded.
@@ -899,6 +958,7 @@ class GraphUtils:
         nodes: list[T] | None = None,
         loop_heads: list[T] | None = None,
         panic_mode_threshold: int = 3000,
+        scc_membership: dict[T, int] | None = None,
     ) -> list[T]:
         """
         Sort a given set of nodes from a graph based on the following rules:
@@ -913,7 +973,46 @@ class GraphUtils:
         :param nodes:       A list of nodes to sort. None if you want to sort all nodes inside the graph.
         :param loop_heads:  A list of nodes that should be treated loop heads.
         :param panic_mode_threshold: Threshold of nodes in an SCC to begin aggressively removing edges.
+        :param scc_membership: A dict that we fill with the index of the non-trivial strongly connected component
+                            of each node.
         :return:            A list of ordered nodes.
+        """
+
+        # fast path for single node graphs
+        number_of_nodes = graph.number_of_nodes()
+        if number_of_nodes == 0:
+            return []
+        if number_of_nodes == 1:
+            if nodes is None:
+                return list(graph.nodes)
+            return [n for n in graph.nodes() if n in nodes]
+
+        try:
+            ordered_nodes, membership = _rust_graph.quasi_topological_sort_nodes(
+                graph._succ, loop_heads, panic_mode_threshold, scc_membership is not None
+            )
+        except (TypeError, OverflowError):
+            # we fall back to the Python implementation for nodes without integer addresses
+            return GraphUtils._quasi_topological_sort_nodes_py(
+                graph, nodes, loop_heads, panic_mode_threshold, scc_membership
+            )
+        if scc_membership is not None and membership is not None:
+            scc_membership.update(membership)
+        if nodes is None:
+            return ordered_nodes
+        node_set = set(nodes)
+        return [n for n in ordered_nodes if n in node_set]
+
+    @staticmethod
+    def _quasi_topological_sort_nodes_py[T](
+        graph: networkx.DiGraph[T],
+        nodes: list[T] | None = None,
+        loop_heads: list[T] | None = None,
+        panic_mode_threshold: int = 3000,
+        scc_membership: dict[T, int] | None = None,
+    ) -> list[T]:
+        """
+        The Python implementation of `quasi_topological_sort_nodes`.
         """
 
         # fast path for single node graphs
@@ -939,6 +1038,8 @@ class GraphUtils:
             for node in scc:
                 if node not in comp_indices:
                     comp_indices[node] = (i, scc_addr)
+                if scc_membership is not None:
+                    scc_membership[node] = i
 
         # collapse all strongly connected components
         for src, dst in sorted(graph.edges(), key=GraphUtils.sort_edge):
@@ -983,7 +1084,7 @@ class GraphUtils:
         else:
             assert heads
             head = heads[0]
-        tmp_nodes = reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(graph_copy, head)))
+        tmp_nodes = reversed(list(GraphUtils._dfs_postorder_nodes_deterministic_py(graph_copy, head)))
         ordered_nodes = []
         for n in tmp_nodes:
             if isinstance(n, NodeWithAddr):
@@ -1069,12 +1170,12 @@ class GraphUtils:
         # panic mode that will aggressively remove edges
 
         if len(subgraph) > panic_mode_threshold and len(subgraph.edges) > len(subgraph) * 1.4:
-            for n0, n1 in sorted(dfs_back_edges(subgraph, loop_head), key=GraphUtils.sort_edge):
+            for n0, n1 in sorted(_dfs_back_edges_py(subgraph, loop_head), key=GraphUtils.sort_edge):
                 subgraph.remove_edge(n0, n1)
                 if len(subgraph.edges) <= len(subgraph) * 1.4:
                     break
 
-        ordered_nodes.extend(GraphUtils.quasi_topological_sort_nodes(subgraph))
+        ordered_nodes.extend(GraphUtils._quasi_topological_sort_nodes_py(subgraph))
 
     @staticmethod
     def loop_nesting_forest(graph: networkx.DiGraph, start_node) -> OrderedDict[Any, networkx.DiGraph]:

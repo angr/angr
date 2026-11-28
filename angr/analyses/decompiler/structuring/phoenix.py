@@ -54,6 +54,7 @@ from angr.utils.graph import (
     dfs_back_edges,
     dominates,
     dominates_by_intervals,
+    immediate_dominators,
 )
 
 from .structurer_base import StructurerBase
@@ -1306,7 +1307,7 @@ class PhoenixStructurer(StructurerBase):
             # one). restrict the body to the natural loop of loop_head: the nodes that reach a back edge of loop_head
             # (an edge from a node that loop_head dominates) without passing through loop_head. the innermost loop is
             # then refined first, and the loops around it once it has been structured into a single node.
-            idoms = networkx.immediate_dominators(fullgraph, region_head)
+            idoms = immediate_dominators(fullgraph, region_head)
             natural_loop = {loop_head}
             stack = [
                 pred
@@ -1382,7 +1383,7 @@ class PhoenixStructurer(StructurerBase):
                     # marking it as a continue edge will cause the loop body to be un-enterable -- is this even a word?)
                     dominance_intervals = None
                     if loop_head is not self._region.head:
-                        idoms = networkx.immediate_dominators(graph, self._region.head)
+                        idoms = immediate_dominators(graph, self._region.head)
                         dominance_intervals = compute_dominance_intervals(idoms, self._region.head)
                     for node in list(networkx.descendants(graph, loop_head)):
                         succs = list(fullgraph.successors(node))
@@ -3760,7 +3761,7 @@ class PhoenixStructurer(StructurerBase):
             dom_graph.add_edges_from(hidden_edges)
         else:
             dom_graph = full_graph
-        idoms = networkx.immediate_dominators(dom_graph, head)
+        idoms = immediate_dominators(dom_graph, head)
         # answering dominance queries through Euler-tour intervals avoids dominates()'s O(tree depth) chain walk
         # for each of the 2*|E| queries below
         dominance_intervals = compute_dominance_intervals(idoms, head)
