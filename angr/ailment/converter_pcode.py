@@ -180,10 +180,31 @@ class PCodeIRSBConverter(Converter):
                 self._special_op_handlers[self._current_behavior.opcode]()
             except NotImplementedError as ex:
                 log.warning("Unsupported opcode: %s", ex)
+                self._set_unmodeled_output()
         elif self._current_behavior.is_unary:
             self._convert_unary()
         else:
             self._convert_binary()
+
+    def _set_unmodeled_output(self) -> None:
+        """
+        Define the output of an op that could not be converted, so that later reads of it
+        still find a definition.
+        """
+        out = self._current_op.output
+        if out is None:
+            return
+        expr = DirtyExpression(
+            self._manager.next_atom(),
+            self._current_op.opcode.__name__,
+            [],
+            bits=out.size * 8,
+        )
+        try:
+            stmt = self._set_value(out, expr)
+        except NotImplementedError:
+            return
+        self._statements.append(stmt)
 
     def _convert_unary(self) -> None:
         """
