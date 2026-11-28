@@ -1099,6 +1099,30 @@ class TestCfgfast(unittest.TestCase):
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
 
+    def test_function_past_an_unlifted_instruction_is_kept_and_returns(self):
+        # _cmul_rot's loop body holds FCADD, so its first block stops before the loop's branch and the function's ret.
+        # The binary has no symbol for _cmul_rot; only its LC_FUNCTION_STARTS entry says a function begins there.
+        proj = angr.Project(os.path.join(test_location, "aarch64", "fcadd_function_starts.macho"), auto_load_libs=False)
+        start, cmul_rot, after_cmul_rot_call = 0x1000002A0, 0x1000002D0, 0x1000002B8
+        block = proj.factory.block(cmul_rot)
+        assert block.vex.jumpkind == "Ijk_NoDecode", "the lifter now translates FCADD; this fixture tests nothing"
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert cmul_rot in cfg.kb.functions
+        assert cfg.kb.functions[cmul_rot].returning is True
+        assert after_cmul_rot_call in cfg.kb.functions[start].block_addrs_set
+
+    def test_function_stopped_by_udf_does_not_return(self):
+        # Go assembles UNDEF in runtime.systemstack_switch to UDF #0, which is undefined by definition and not an
+        # instruction the lifter is missing
+        proj = angr.Project(os.path.join(test_location, "aarch64", "langdetect_go.macho"), auto_load_libs=False)
+        systemstack_switch = 0x100074410
+
+        cfg = proj.analyses.CFGFast(normalize=True, regions=[(0x100074400, 0x100074480)], start_at_entry=False)
+
+        assert cfg.kb.functions[systemstack_switch].returning is False
+
     def _check_single_instruction_indirect_jump(self, data: bytes, arch: str | archinfo.Arch) -> None:
         # a lifter turns an instruction it cannot translate into a trap that leaves through a non-constant
         # target, so the block is a single instruction long. CFGFast looks for the branch of a delay-slot
