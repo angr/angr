@@ -9,6 +9,7 @@ from .a_shl_const_sub_a import AShlConstSubA
 from .a_sub_a_div import ASubADiv
 from .a_sub_a_shr_const_shr_const import ASubAShrConstShrConst
 from .a_sub_a_sub_n import ASubASubN
+from .add_neg_to_sub import AddNegToSub
 from .arm_cmpf import ARMCmpF
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationMultiStmtBase, PeepholeOptimizationStmtBase
 from .basepointeroffset_add_n import BasePointerOffsetAddN
@@ -105,6 +106,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RemoveRedundantITEBranches,
     SingleBitXor,
     ASubASubN,
+    AddNegToSub,
     ConvASub0ShrAnd,
     EagerEvaluation,
     OneSubBool,
