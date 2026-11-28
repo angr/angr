@@ -517,11 +517,22 @@ class GoSignatures(KnowledgeBasePlugin):
     def type(self, type_str: str) -> SimType:
         return self.parser.parse(type_str)
 
-    @staticmethod
-    def _implicit_signature(name: str) -> GoFuncSignature | None:
-        """Entry points and package initializers never take or return anything."""
+    def _implicit_signature(self, name: str) -> GoFuncSignature | None:
+        """
+        Signatures the compiler fixes by name: entry points and package initializers never take or return anything,
+        and a generated equality function compares two values through pointers to them.
+        """
         if name == "main.main" or re.search(r"\.init(?:\.\d+)?$", name):
             return GoFuncSignature(name)
+        if name.startswith(("type:.eq.", "type..eq.")):
+            # func(p, q *T) bool since go1.5, func(p, q unsafe.Pointer) bool since go1.27 (reflectdata/alg.go); go1.4
+            # and earlier, which also spell the name type..eq., pass the size as well
+            minor = re.match(r"go1\.(\d+)", self.go_version or "")
+            if name.startswith("type..eq.") and (minor is None or int(minor.group(1)) < 5):
+                return None
+            return GoFuncSignature(
+                name, [GoParam("p", "unsafe.Pointer"), GoParam("q", "unsafe.Pointer")], [GoParam("", "bool")]
+            )
         return None
 
     def prototype(self, name: str) -> GoSimTypeFunction | None:
@@ -653,13 +664,17 @@ class GoSignatures(KnowledgeBasePlugin):
         Indices of the parameters of ``func`` that only the calling-convention guess describes: a prototype rebuilt
         around a promoted receiver or inferred results keeps the guessed words (non-Go types, or the ``uintptr`` an
         inferred record spells for words it could not type). Type inference may know better about those, so they
-        are no ground truth. Parameters of a real signature always are.
+        are no ground truth. Parameters of a real signature always are; the ``unsafe.Pointer`` parameters of a
+        signature fixed only by the function's name (an equality function) are not, because what they point to is
+        whatever the code reads through them.
         """
         proto = func.get_prototype(Flavors.GO_FLAVOR)
         if not isinstance(proto, GoSimTypeFunction) or func.get_prototype_source(Flavors.GO_FLAVOR).name == "USER":
             return frozenset()
-        if self.prototype(func.name) is not None or self.prototype_at(func.addr) is not None:
+        if self.prototype_at(func.addr) is not None or self.signature(func.name) is not None:
             return frozenset()
+        if self.prototype(func.name) is not None:
+            return frozenset(i for i, a in enumerate(proto.args) if go_type_repr(a) == "unsafe.Pointer")
         self.note(func.name)
         return frozenset(
             i for i, a in enumerate(proto.args) if not isinstance(a, GoSimType) or go_type_repr(a) == "uintptr"
