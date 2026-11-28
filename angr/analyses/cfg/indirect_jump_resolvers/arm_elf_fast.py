@@ -88,6 +88,9 @@ class ArmElfFastResolver(IndirectJumpResolver):
                 and isinstance(next_stmt.data, pyvex.IRExpr.Binop)
                 and "Add" in next_stmt.data.op
             ):
+                if not next_stmt.constants:
+                    # this add takes two registers, so it is not one of the constant offsets above
+                    return False, []
                 load_addr += next_stmt.constants[0].value
                 count += 1
 
