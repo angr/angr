@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,no-member
-"""Tests for resolving variadic call-site arguments whose register has mixed-size reaching definitions.
+"""Regressions for recovering variadic call-site arguments.
 
 In variadic_mixed_size_args (gcc -O2), report_mode() calls printf("mode=%lu\\n", v) where v lives in rsi and receives
 definitions of different sizes on the three paths into the call block: two full-width defs (mov esi/mov rsi) and a
@@ -14,6 +14,9 @@ This is fixed by two changes:
 - the SSA level-0 traversal records conservative argument-register uses at call sites with an uncertain argument
   count, so the phi exists and the variadic argument resolves to a unique, correctly merged virtual variable. With
   this fix, the ambiguous-register fallback in SRDAView must not trigger at all.
+
+The stripped DecBench nologin fixture separately exercises dispatch to format-string argument recovery for syslog().
+Its call has two fixed arguments followed by five values described by the format string.
 """
 
 from __future__ import annotations
@@ -24,8 +27,13 @@ import logging
 import os
 import re
 import unittest
+from typing import cast
 
 import angr
+from angr.analyses import Decompiler
+from angr.analyses.decompiler.decompilation_options import get_structurer_option
+from angr.analyses.decompiler.structured_codegen.base import PositionMapping
+from angr.analyses.decompiler.structured_codegen.c import CFunctionCall
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -43,6 +51,53 @@ class _RecordingHandler(logging.Handler):
 
 
 class TestVariadicCallsiteArgs(unittest.TestCase):
+    def test_syslog_format_arguments(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "nologin")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = cfg.functions[0x401229]
+
+        for structurer in ("SAILR", "DREAM"):
+            with self.subTest(structurer=structurer):
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+                    func,
+                    cfg=cfg.model,
+                    options=[(get_structurer_option(), structurer)],
+                    preset="full",
+                )
+                codegen = dec.codegen
+                if codegen is None or codegen.text is None:
+                    self.fail("decompilation did not produce C code")
+                position_map = cast(PositionMapping | None, codegen.map_pos_to_node)
+                if position_map is None:
+                    self.fail("decompilation did not produce a C position map")
+                text = codegen.text
+                print_decompilation_result(dec)
+
+                syslog_calls = [
+                    element.obj
+                    for element in position_map.values()
+                    if isinstance(element.obj, CFunctionCall)
+                    and element.obj.callee_func is not None
+                    and element.obj.callee_func.name == "syslog"
+                ]
+                self.assertEqual(len(syslog_calls), 1, f"expected one syslog() call:\n{text}")
+                self.assertEqual(
+                    len(syslog_calls[0].args),
+                    7,
+                    "syslog() did not recover two fixed and five variadic arguments",
+                )
+
+                call_match = re.search(r"syslog\([^;]+\);", text, re.DOTALL)
+                if call_match is None:
+                    self.fail(f"syslog() call not found:\n{text}")
+                call = " ".join(call_match.group(0).split())
+                self.assertRegex(
+                    call,
+                    r'^syslog\(2, "Attempted login by %s \(UID: %d\) on %s%s%s"',
+                    f"syslog() fixed arguments were not recovered in order:\n{call}",
+                )
+
     def test_mixed_size_defs_of_variadic_arg_reg_are_phi_merged(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "variadic_mixed_size_args")
         proj = angr.Project(bin_path, auto_load_libs=False)
