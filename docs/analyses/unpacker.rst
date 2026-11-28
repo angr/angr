@@ -1,67 +1,74 @@
 Unpacking Windows Executables
 =============================
 
-Many Windows programs, and most Windows malware, are *packed*: the program's
-real code is stored compressed or encrypted inside the file, and a small piece
-of start-up code restores it in memory each time the program starts. Looking at
-such a file with a disassembler or decompiler shows only the start-up code and
-a block of unreadable data.
+Many Windows programs and most Windows malware are *packed*. A packed program
+stores the real code compressed or encrypted inside the file. A small piece of
+start-up code restores the real code in memory each time the program starts.
+A disassembler or a decompiler only shows the start-up code and a block of
+unreadable data when we open a packed file.
 
-*Unpacking* means getting the real code back. angr does this by running the
-program inside an emulator, waiting until the start-up code has restored the
-real code and jumps to it, and then saving the program's memory as a new
-executable file that other analyses can load.
+*Unpacking* means getting the real code back. angr unpacks a program in three
+steps. First, angr runs the program inside an emulator. Second, angr waits
+until the start-up code has restored the real code and jumps to the real code.
+Third, angr saves the memory of the program as a new executable file that
+other analyses can load.
 
-The program is never run on your processor or your operating system. It runs
-only inside angr's emulator, against a simulated Windows 7 process that angr
-builds for it, so it cannot touch your files, your network or your machine.
+angr never runs the program on your processor or your operating system. The
+program only runs inside the emulator of angr, in a simulated Windows 7
+process that angr builds for the program. The program cannot touch your files,
+your network or your machine.
 
-The analyses on this page work on 32-bit and 64-bit Windows executables (PE
-files) that were loaded from a file on disk.
+The analyses on this page work on 32-bit and 64-bit Windows executables, which
+are also called PE files. The executable must be loaded from a file on disk.
 
 .. list-table::
    :header-rows: 1
    :widths: 30 70
 
    * - Analysis
-     - What it does
+     - What the analysis does
    * - ``Unpacker``
-     - Finds out how the file is protected and runs the matching unpacker
-       below. Start here.
+     - This analysis finds out how the file is protected and runs the matching
+       unpacker. Start with this analysis.
    * - ``PackerIdentifier``
-     - Only reports which protection tool was used and whether the real code
-       is packed. It does not run the program.
+     - This analysis reports which protection tool was used and whether the
+       real code is packed. This analysis does not run the program.
    * - ``GenericUnpacker``
-     - Unpacks a file without knowing which tool packed it.
+     - This analysis unpacks a file without knowing which tool packed the
+       file.
    * - ``VMProtectUnpacker``
-     - Unpacks files protected with VMProtect.
+     - This analysis unpacks files that are protected with VMProtect.
    * - ``ThemidaUnpacker``
-     - Unpacks files protected with Themida or WinLicense.
+     - This analysis unpacks files that are protected with Themida or
+       WinLicense.
    * - ``VMProtectStaticUnpacker``
-     - Decompresses a VMProtect-packed file without running it.
+     - This analysis decompresses a VMProtect-packed file without running the
+       program.
 
 A Few Terms
 -----------
 
-Original entry point (OEP)
-   The address where the real program starts. The start-up code jumps there
-   once it has restored the real code.
+Original entry point
+   The original entry point is the address where the real program starts. The
+   start-up code jumps to the original entry point after the start-up code
+   has restored the real code. This page and the code also call the original
+   entry point the OEP.
 
 Section
-   A named region of an executable file, such as ``.text`` (code) or ``.data``
-   (data).
+   A section is a named region of an executable file. For example, ``.text``
+   holds code and ``.data`` holds data.
 
 Import table
-   The list of Windows functions a program uses. Windows fills it in with the
-   functions' addresses when the program starts. Packers usually remove this
-   list and look the functions up themselves, so an unpacker has to rebuild
-   it.
+   The import table is the list of Windows functions that a program uses.
+   Windows writes the addresses of these functions into the import table when
+   the program starts. Packers usually remove the import table and look the
+   functions up themselves, so an unpacker has to rebuild the import table.
 
 Unpacking a File
 ----------------
 
-``Unpacker`` is the analysis to use when you do not know, or do not care, how
-a file is protected. The analysis runs as soon as you create it.
+Use ``Unpacker`` when you do not know how a file is protected. The analysis
+runs when you create the analysis.
 
 .. code-block:: python
 
@@ -73,52 +80,54 @@ a file is protected. The analysis runs as soon as you create it.
    >>> hex(unpacker.oep)
    '0x401800'
 
-   # the unpacked program, as the bytes of a new executable file
+   # the bytes of the unpacked executable file
    >>> with open("xor_packed.unpacked.exe", "wb") as f:
    ...     f.write(unpacker.unpacked)
    16384
 
-   # the unpacked file can be loaded like any other program
+   # we can load the unpacked file like any other program
    >>> unpacked = angr.Project("xor_packed.unpacked.exe", auto_load_libs=False)
    >>> hex(unpacked.entry)
    '0x401800'
 
-The saved file is meant for analysis: its code is readable, its entry point is
-the original entry point, and its import table is rebuilt where angr could
-recover it. It is not guaranteed to run on a real Windows machine.
+The saved file is meant for analysis. The code of the saved file is readable.
+The entry point of the saved file is the original entry point. The import
+table is rebuilt where angr could recover the imported functions. The saved
+file is not guaranteed to run on a real Windows machine.
 
 Results
 ^^^^^^^
 
 ``unpacked``
-   The bytes of the unpacked executable file, or ``None`` if nothing was
-   unpacked.
+   The bytes of the unpacked executable file. ``unpacked`` is ``None`` if
+   nothing was unpacked.
 
 ``oep``
-   The original entry point, or ``None`` if the program never jumped into
-   restored code.
+   The original entry point. ``oep`` is ``None`` if the program never jumped
+   into restored code.
 
 ``info``
-   What ``Unpacker`` found out about the file's protection before running it.
-   See `Identifying the Protection`_.
+   What ``Unpacker`` found out about the protection of the file before running
+   the program. See `Identifying the Protection`_.
 
 ``unpacker``
-   The analysis that did the actual work (a ``GenericUnpacker``,
-   ``VMProtectUnpacker`` or ``ThemidaUnpacker``), or ``None`` if the file is
-   not packed. Only ``Unpacker`` has this attribute.
+   The analysis that did the work, which is a ``GenericUnpacker``, a
+   ``VMProtectUnpacker`` or a ``ThemidaUnpacker``. ``unpacker`` is ``None`` if
+   the file is not packed. Only ``Unpacker`` has this attribute.
 
 ``stop``
    Why the emulated program stopped running. ``stop.reason`` is one of the
-   values in the table below, ``stop.addr`` is the address where it stopped,
-   and ``stop.detail`` is a short description.
+   values in the table below. ``stop.addr`` is the address where the program
+   stopped. ``stop.detail`` is a short description.
 
 ``layers``
-   Every snapshot of the program's memory that was taken during the run. See
-   `Programs Packed More Than Once`_.
+   Every copy of the memory of the program that the unpacker saved during the
+   run. See `Programs Packed More Than Once`_.
 
 ``unlisted_exports``
-   Functions the program asked Windows for that angr's lists of Windows
-   functions do not contain. See `Choosing the Lists of Windows Functions`_.
+   The functions that the program asked Windows for and that the lists of
+   Windows functions do not contain. See
+   `Choosing the Lists of Windows Functions`_.
 
 .. list-table::
    :header-rows: 1
@@ -129,20 +138,21 @@ Results
    * - ``StopReason.EXITED``
      - The program ended itself, for example by calling ``ExitProcess``.
    * - ``StopReason.RETURNED``
-     - The program's entry function returned.
+     - The entry function of the program returned.
    * - ``StopReason.BUDGET``
      - The time limit ran out.
    * - ``StopReason.ERROR``
-     - The program crashed, or it did something the emulator cannot handle.
-       ``stop.detail`` says what.
+     - The program crashed, or the program did something that the emulator
+       cannot handle. ``stop.detail`` says what happened.
    * - ``StopReason.EXEC_TRAP``
-     - The program was stopped right after it jumped into restored code.
+     - The unpacker stopped the program right after the program jumped into
+       restored code.
 
 When a File Is Not Packed
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If ``Unpacker`` can tell from the file alone that the real code is already
-readable, it does not run the program at all:
+readable, ``Unpacker`` does not run the program.
 
 .. code-block:: python
 
@@ -161,24 +171,25 @@ Options
 All of the unpackers that run the program accept these options.
 
 ``timeout``
-   The longest time, in seconds, the program may run. The default depends on
-   the unpacker: 300 seconds for ``GenericUnpacker``, 600 for
-   ``VMProtectUnpacker`` and 1800 for ``ThemidaUnpacker``. ``Unpacker`` uses
-   the default of the unpacker it picks unless you give a value.
+   The longest time in seconds that the program may run. The default is 300
+   seconds for ``GenericUnpacker``, 600 seconds for ``VMProtectUnpacker`` and
+   1800 seconds for ``ThemidaUnpacker``. ``Unpacker`` uses the default of the
+   unpacker that ``Unpacker`` picks unless you give a value.
 
 ``engine``
-   Which emulator runs the program: ``"unicorn"`` (the default) or
-   ``"icicle"``. See `Choosing the Emulator`_.
+   The emulator that runs the program. The value is ``"unicorn"``, which is
+   the default, or ``"icicle"``. See `Choosing the Emulator`_.
 
 ``exports_dir``
    A directory with your own lists of Windows functions. See
    `Choosing the Lists of Windows Functions`_.
 
 ``icicle_jit``, ``icicle_jit_threshold``, ``icicle_thread_slice``
-   Settings of the Icicle emulator. See `Choosing the Emulator`_.
+   The settings of the Icicle emulator. See `Choosing the Emulator`_.
 
 ``GenericUnpacker`` also accepts ``settle_timeout``, and ``VMProtectUnpacker``
-also accepts ``static_only``. Both are described with their unpacker below.
+also accepts ``static_only``. The sections about these two unpackers describe
+the two options.
 
 .. code-block:: python
 
@@ -190,41 +201,46 @@ Choosing the Emulator
 angr can run the program on one of two emulators.
 
 ``"unicorn"``
-   The default. It uses `Unicorn <https://www.unicorn-engine.org/>`_, the
-   emulator that the rest of angr uses for fast concrete execution.
+   This emulator is `Unicorn <https://www.unicorn-engine.org/>`_, which the
+   rest of angr uses for fast concrete execution. Unicorn is the default
+   emulator.
 
 ``"icicle"``
-   It uses `Icicle <https://github.com/icicle-emu/icicle-emu>`_. On packed
-   programs it is usually between 10 and 30 times faster than Unicorn, which
-   decides whether a heavily protected program can be unpacked within the time
-   limit at all.
+   This emulator is `Icicle <https://github.com/icicle-emu/icicle-emu>`_. On
+   packed programs, Icicle is usually between 10 and 30 times faster than
+   Unicorn. This speed decides whether angr can unpack a heavily protected
+   program within the time limit.
 
-   Icicle takes its description of x86 instructions from the ``pypcode``
-   package. Until ``pypcode`` includes a number of corrections to that
-   description, Icicle computes a few uncommon instructions incorrectly. This
-   is why it is not the default yet.
+   Icicle takes the description of x86 instructions from the ``pypcode``
+   package. This description needs a number of corrections that ``pypcode``
+   does not include yet. Without these corrections, Icicle computes a few
+   uncommon instructions incorrectly, so Icicle is not the default emulator.
 
-Three options only have an effect with ``engine="icicle"``:
+The following three options only have an effect with ``engine="icicle"``.
 
-``icicle_jit`` (default ``True``)
+``icicle_jit``
    Whether Icicle translates code that runs often into native machine code.
-   Turning it off makes Icicle interpret every instruction, which is slower
-   but can help when you suspect a problem in the translation.
+   The default is ``True``. When ``icicle_jit`` is ``False``, Icicle
+   interprets every instruction. Interpreting is slower, but turning
+   ``icicle_jit`` off can help when you suspect a problem in the translation.
 
-``icicle_jit_threshold`` (default ``32``)
-   How many times a piece of code must run before Icicle translates it. A
-   packed program runs most of its start-up code only a few times, so
-   translating all of it would cost more time than it saves.
+``icicle_jit_threshold``
+   How many times a piece of code must run before Icicle translates the piece
+   of code. The default is ``32``. A packed program runs most of the start-up
+   code only a few times, so translating all of the start-up code would cost
+   more time than the translation saves.
 
-``icicle_thread_slice`` (default ``4000000``)
-   When the program has more than one thread, how many instructions one
-   thread runs before the next thread gets its turn.
+``icicle_thread_slice``
+   How many instructions one thread runs before the next thread gets a turn.
+   The default is ``4000000``. This option only matters when the program has
+   more than one thread.
 
 Identifying the Protection
 --------------------------
 
-``PackerIdentifier`` reads the file and reports how it is protected. It does
-not run the program, so it finishes in a fraction of a second.
+``PackerIdentifier`` reads the file and reports how the file is protected.
+``PackerIdentifier`` does not run the program, so the analysis finishes in a
+fraction of a second.
 
 .. code-block:: python
 
@@ -238,50 +254,61 @@ not run the program, so it finishes in a fraction of a second.
    'original code is readable on disk (35 repeated call targets)'
 
 ``protector``
-   ``"VMProtect"``, ``"Themida"``, ``"Themida+VMProtect"``, or ``None`` if
-   neither was recognized.
+   ``"VMProtect"``, ``"Themida"`` or ``"Themida+VMProtect"``. ``protector`` is
+   ``None`` if ``PackerIdentifier`` recognized neither tool.
 
 ``packed``
-   ``True`` if the real code is packed, ``False`` if it is readable in the
-   file, and ``None`` if the file does not give a clear answer.
+   ``True`` if the real code is packed, and ``False`` if the real code is
+   readable in the file. ``packed`` is ``None`` if the file does not give a
+   clear answer.
 
 ``info``
-   A ``PackerInfo`` object with the details. Besides ``protector`` and
-   ``packed`` it has:
+   A ``PackerInfo`` object with the details. ``PackerInfo`` has ``protector``,
+   ``packed`` and the four attributes below.
 
-   * ``outer_packer``: the name of a common compression tool (UPX, MPRESS,
-     ASPack, PECompact, Petite, NsPack, Enigma or MEW) if the file was
-     compressed with one, possibly on top of VMProtect or Themida.
-   * ``reason``: one sentence that explains the value of ``packed``.
-   * ``evidence``: the signs that led to the value of ``protector``.
-   * ``sections``: measurements of each section of the file, such as its
-     size and how random its bytes look.
+``info.outer_packer``
+   The name of a common compression tool if the file was compressed with one.
+   The file may be compressed on top of VMProtect or Themida. The tools that
+   ``PackerIdentifier`` recognizes are UPX, MPRESS, ASPack, PECompact, Petite,
+   NsPack, Enigma and MEW.
+
+``info.reason``
+   One sentence that explains the value of ``packed``.
+
+``info.evidence``
+   The signs that led to the value of ``protector``.
+
+``info.sections``
+   Measurements of each section of the file, such as the size of the section
+   and how random the bytes of the section look.
 
 The example above shows that a protected file is not always a packed file.
 VMProtect and Themida can also rewrite chosen functions into a private
-instruction set that only their own interpreter understands, and leave the
-rest of the program readable. Unpacking does not undo that rewriting. For such
-a file ``packed`` is ``False`` and ``Unpacker`` returns nothing.
+instruction set that only the interpreter of the protection tool understands.
+The rest of the program stays readable. Unpacking does not undo this
+rewriting. For a file that is protected in this way, ``packed`` is ``False``
+and ``Unpacker`` returns nothing.
 
 The Individual Unpackers
 ------------------------
 
 You can also create an unpacker directly instead of letting ``Unpacker``
-choose. All three have the results described under `Results`_, except
+choose. All three unpackers have the results that `Results`_ describes, except
 ``info`` and ``unpacker``.
 
 GenericUnpacker
 ^^^^^^^^^^^^^^^
 
 ``GenericUnpacker`` makes no assumption about the tool that packed the file.
-It runs the program and watches every section that the start-up code might
-restore. When the program jumps into a section whose contents changed since
-the program started, the unpacker saves the program's memory and reports the
-target of the jump as the original entry point.
+``GenericUnpacker`` runs the program and watches every section that the
+start-up code might restore. When the program jumps into a section whose
+contents changed since the program started, ``GenericUnpacker`` saves the
+memory of the program and reports the target of the jump as the original
+entry point.
 
-Its extra option ``settle_timeout`` (default 20 seconds) is how long the
-program keeps running after that moment, in case it was packed more than
-once.
+The extra option ``settle_timeout`` is how long the program keeps running
+after this jump, in case the program was packed more than once. The default is
+20 seconds.
 
 .. code-block:: python
 
@@ -291,17 +318,18 @@ VMProtectUnpacker
 ^^^^^^^^^^^^^^^^^
 
 ``VMProtectUnpacker`` knows which sections of a VMProtect-protected file
-belong to the real program and watches only those. If running the program
-does not reach the original entry point, it falls back to decompressing the
-file without running it, as ``VMProtectStaticUnpacker`` does.
+belong to the real program and only watches these sections. If running the
+program does not reach the original entry point, ``VMProtectUnpacker``
+decompresses the file without running the program, as
+``VMProtectStaticUnpacker`` does.
 
 ``method``
-   ``"emulation"`` if running the program worked, ``"static"`` if the
-   fallback was used, or ``None`` if both failed.
+   ``"emulation"`` if running the program worked, and ``"static"`` if
+   ``VMProtectUnpacker`` decompressed the file without running the program.
+   ``method`` is ``None`` if both failed.
 
 ``static_only``
-   Pass ``static_only=True`` to skip running the program and use only the
-   fallback.
+   Pass ``static_only=True`` to skip running the program.
 
 .. code-block:: python
 
@@ -315,24 +343,27 @@ file without running it, as ``VMProtectStaticUnpacker`` does.
 ThemidaUnpacker
 ^^^^^^^^^^^^^^^
 
-``ThemidaUnpacker`` handles files protected with Themida or WinLicense. It
-watches only the sections of the real program, so Themida's long start-up
-(checks for debuggers, helper threads, several rounds of decryption) is not
-mistaken for the real program. This start-up can take minutes even on the
-faster emulator, which is why the default time limit is 30 minutes.
+``ThemidaUnpacker`` unpacks files that are protected with Themida or
+WinLicense. The start-up code of Themida is long. The start-up code checks for
+debuggers, starts helper threads and decrypts in several rounds.
+``ThemidaUnpacker`` only watches the sections of the real program, so the
+unpacker does not mistake the start-up code of Themida for the real program.
+The start-up code can take minutes even on the faster emulator, so the default
+time limit is 30 minutes.
 
 VMProtectStaticUnpacker
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 ``VMProtectStaticUnpacker`` does not run the program. VMProtect keeps a table
-in the file that says where each compressed section is stored; this analysis
-finds the table and decompresses the sections.
+in the file that says where each compressed section is stored.
+``VMProtectStaticUnpacker`` finds this table and decompresses the sections.
 
-It is fast and cannot be stopped by the tricks VMProtect uses against
-emulators, but it gives a less complete result: the code is readable, yet the
-file's entry point still points at VMProtect's start-up code and the import
-table is not rebuilt. It raises ``VMProtectStaticError`` if it cannot find the
-table.
+``VMProtectStaticUnpacker`` is fast, and the tricks that VMProtect uses
+against emulators cannot stop ``VMProtectStaticUnpacker``. The result is less
+complete. The code is readable, but the entry point of the file still points
+at the start-up code of VMProtect and the import table is not rebuilt.
+``VMProtectStaticUnpacker`` raises ``VMProtectStaticError`` if the analysis
+cannot find the table.
 
 .. code-block:: python
 
@@ -347,14 +378,15 @@ table.
 Programs Packed More Than Once
 ------------------------------
 
-A program can be packed several times, for example compressed first and then
-protected with another tool. Running it then restores the code in several
-steps. Each time the program jumps into newly restored code, the unpacker
-saves the program's memory. Each of these snapshots is called a *layer*, and
-``layers`` lists them in the order they were taken.
+A program can be packed several times. For example, a program is compressed
+first and then protected with another tool. Running a program that is packed
+several times restores the code in several steps. Each time the program jumps
+into newly restored code, the unpacker saves the memory of the program. Each
+saved copy of the memory is called a *layer*. ``layers`` lists the layers in
+the order in which the unpacker saved the layers.
 
 ``unpacked`` and ``oep`` come from the layer that is most likely the real
-program. You can look at the others yourself:
+program. You can look at the other layers yourself.
 
 .. code-block:: python
 
@@ -364,59 +396,68 @@ program. You can look at the others yourself:
    ...     print(hex(layer.oep), layer.section, layer.seconds < 60)
    0x401800 .text True
 
-   # build an executable file from any layer
+   # we can build an executable file from any layer
    >>> data = unpacker.layers[0].rebuild(p.loader.main_object.mapped_base)
 
-Each layer has these attributes:
+Each layer has these attributes.
 
-* ``oep``: the address the program jumped to. It is ``None`` for a snapshot
-  that was taken at the end of a run in which the program restored its code
-  but never jumped into it.
-* ``section``: the name of the section that contains that address.
-* ``seconds``: how long the program had been running when the snapshot was
-  taken.
-* ``image``: the program's memory at that moment.
-* ``imports``: the Windows functions that were recovered for the import
-  table.
-* ``entropy``: how random the bytes of the section look, from 0 to 8.
-  Readable code is usually below 7; compressed or encrypted data is close
-  to 8.
+``oep``
+   The address that the program jumped to. ``oep`` is ``None`` for a layer
+   that the unpacker saved at the end of a run in which the program restored
+   the code but never jumped into the restored code.
+
+``section``
+   The name of the section that contains the address in ``oep``.
+
+``seconds``
+   How long the program had been running when the unpacker saved the layer.
+
+``image``
+   The memory of the program when the unpacker saved the layer.
+
+``imports``
+   The Windows functions that the unpacker recovered for the import table.
+
+``entropy``
+   How random the bytes of the section look, from 0 to 8. Readable code is
+   usually below 7. Compressed or encrypted data is close to 8.
 
 Choosing the Lists of Windows Functions
 ---------------------------------------
 
-A packed program looks up the Windows functions it needs while it runs, and
-some programs check that a system library offers exactly the functions the
-real Windows library offers. For this reason the emulator needs to know which
-functions each Windows library contains. The ``angr-data`` package ships these
-lists, one JSON file per library.
+A packed program looks up the Windows functions that the program needs while
+the program runs. Some programs check that a system library offers exactly the
+functions that the real Windows library offers. For this reason, the emulator
+needs to know which functions each Windows library contains. The ``angr-data``
+package ships these lists as one JSON file per library.
 
-Pass ``exports_dir`` to use a directory with your own lists instead, for
-example lists taken from a different version of Windows:
+Pass ``exports_dir`` to use a directory with your own lists. For example, you
+can use lists that were taken from a different version of Windows.
 
 .. code-block:: python
 
    >>> unpacker = p.analyses.Unpacker(exports_dir="/path/to/my/lists")
 
-After a run, ``unlisted_exports`` names the functions the program asked for
-that the lists did not contain. An entry there is not always a mistake in the
-lists: some programs ask for functions that do not exist to find out whether
-they are being analyzed.
+After a run, ``unlisted_exports`` names the functions that the program asked
+for and that the lists did not contain. An entry in ``unlisted_exports`` is
+not always a mistake in the lists. Some programs ask for functions that do not
+exist to find out whether the programs are being analyzed.
 
 Limitations
 -----------
 
-* The emulator imitates Windows; it is not Windows. It implements the Windows
-  functions that packed programs commonly call, but a program can call one
-  that is missing or behaves slightly differently. When that happens,
-  ``stop.reason`` is usually ``StopReason.ERROR`` and ``stop.detail`` names
-  the problem.
+* The emulator imitates Windows, but the emulator is not Windows. The emulator
+  implements the Windows functions that packed programs commonly call. A
+  program can call a function that is missing or that behaves slightly
+  differently. When this happens, ``stop.reason`` is usually
+  ``StopReason.ERROR`` and ``stop.detail`` names the problem.
 * Protection tools try to detect emulators and debuggers. angr answers the
-  checks it knows about, but a program may still notice and quit early. In
-  that case ``stop.reason`` is ``StopReason.EXITED`` and ``oep`` is ``None``.
-* Functions that a protection tool rewrote into its private instruction set
-  stay rewritten in the unpacked file.
-* The rebuilt import table can be incomplete, because protection tools hide
-  the calls to Windows functions in several ways and not all of them can be
-  traced back.
-* Only Windows executables for x86 and x86-64 processors are supported.
+  checks that angr knows about, but a program may still notice the emulator
+  and quit early. In this case, ``stop.reason`` is ``StopReason.EXITED`` and
+  ``oep`` is ``None``.
+* Functions that a protection tool rewrote into a private instruction set stay
+  rewritten in the unpacked file.
+* The rebuilt import table can be incomplete. Protection tools hide the calls
+  to Windows functions in several ways, and angr cannot trace every hidden
+  call back to a Windows function.
+* angr only supports Windows executables for x86 and x86-64 processors.
