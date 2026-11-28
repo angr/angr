@@ -894,6 +894,21 @@ impl AilStatement {
 // Statement pyclass -- the only Python-facing class
 // ---------------------------------------------------------------------------
 
+impl AilStatement {
+    /// Whether this is an ``Assignment`` of a ``Phi`` to a ``VirtualVariable``.
+    pub fn is_phi_assignment(&self) -> bool {
+        match &self.inner {
+            StmtInner::Assignment { dst, src } => {
+                matches!(
+                    dst.inner,
+                    crate::ailment::ail_expr::ExprInner::VirtualVariable { .. }
+                ) && matches!(src.inner, crate::ailment::ail_expr::ExprInner::Phi { .. })
+            }
+            _ => false,
+        }
+    }
+}
+
 #[pyclass(name = "Statement", module = "angr.rustylib.ailment")]
 #[derive(Debug)]
 pub struct Statement {
@@ -1451,15 +1466,7 @@ impl Statement {
     /// (each of which deep-clones its whole subtree).
     #[getter]
     fn is_phi_assignment(&self) -> bool {
-        match &self.stmt.inner {
-            StmtInner::Assignment { dst, src } => {
-                matches!(
-                    dst.inner,
-                    crate::ailment::ail_expr::ExprInner::VirtualVariable { .. }
-                ) && matches!(src.inner, crate::ailment::ail_expr::ExprInner::Phi { .. })
-            }
-            _ => false,
-        }
+        self.stmt.is_phi_assignment()
     }
 
     /// Assignment.dst / WeakAssignment.dst (operand subtree)

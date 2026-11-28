@@ -705,7 +705,8 @@ class ExpressionFolder(SequenceWalker):
                 # remove this statement
                 continue
             new_stmts.append(stmt)
-        node.statements = new_stmts
+        if len(new_stmts) != len(node.statements):
+            node.statements = new_stmts
 
         # Walk the block to replace the use of each variable
         replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_map)

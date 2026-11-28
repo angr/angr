@@ -30,6 +30,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, St
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
+from angr.rustylib.ailment import UsesDefs  # pylint:disable=import-error
 from angr.utils.ail import dirty_has_side_effects
 from angr.utils.ssa import (
     CONST_VVAR_LOAD_DIRTY_WHITELIST,
@@ -38,7 +39,6 @@ from angr.utils.ssa import (
     CONST_VVAR_WHITELIST,
     AILWhitelistExprTypeWalker,
     get_dirty_exprs,
-    get_uses_defs,
     has_ite_expr,
     has_ite_stmt,
     has_store_stmt_in_between_stmts,
@@ -245,11 +245,9 @@ class SPropagator:
             case _:
                 raise NotImplementedError
 
-        # Combined pass: vvar deflocs + vvar uselocs + tmp deflocs +
-        # tmp uselocs in a single walker traversal per block (vs the
-        # legacy 4 separate helper calls, two of which spun their own
-        # AILBlockViewer to walk the same blocks).
-        vvar_deflocs, vvar_uselocs, _tmp_deflocs_cached, _tmp_uselocs_cached = get_uses_defs(blocks.values())
+        # the def/use sites of the blocks; uses and tmps are built only for what is asked about below
+        uses_defs = UsesDefs(blocks.values())
+        vvar_deflocs = uses_defs.vvar_defs()
 
         # update vvar_deflocs using function arguments
         if self.func_args:
@@ -327,7 +325,7 @@ class SPropagator:
                 assert v is not None
                 if const_value is not None:
                     const_vvars[vvar_id] = const_value
-                for vvar_at_use, useloc in vvar_uselocs[vvar_id]:
+                for vvar_at_use, useloc in uses_defs.vvar_uses(vvar_id):
                     self.replace(replacements, useloc, vvar_at_use, v)
 
         # function mode only
@@ -364,22 +362,22 @@ class SPropagator:
                             # replace it!
                             const_value = const_vvars[next(iter(all_int_src_varids))]
                             const_vvars[vvar.varid] = const_value
-                            for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
+                            for vvar_at_use, useloc in uses_defs.vvar_uses(vvar.varid):
                                 self.replace(replacements, useloc, vvar_at_use, const_value)
                             changed = True
 
             ret_or_jump_sites = retsites | jumpsites
             for vvar_id, (vvar, defloc) in vvar_deflocs.items():
-                if vvar_id not in vvar_uselocs:
+                if not uses_defs.has_vvar_uses(vvar_id):
                     continue
                 if vvar_id in const_vvars:
                     continue
                 if defloc.is_extern:
                     continue
 
-                vvar_uselocs_set = set(vvar_uselocs[vvar_id])  # deduplicate
+                vvar_uselocs_set = set(uses_defs.vvar_uses(vvar_id))  # deduplicate
                 vvar_useloc_to_count: defaultdict[AILCodeLocation, int] = defaultdict(int)
-                for _, useloc in vvar_uselocs[vvar_id]:
+                for _, useloc in uses_defs.vvar_uses(vvar_id):
                     vvar_useloc_to_count[useloc] += 1
 
                 block = blocks[(defloc.block_addr, defloc.block_idx)]
@@ -481,7 +479,7 @@ class SPropagator:
                         if is_const_and_vvar_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_WHITELIST)):
                             non_exitsite_uselocs = []
                             exitsite_uselocs_to_count = defaultdict(int)
-                            for _, loc in vvar_uselocs[vvar_id]:
+                            for _, loc in uses_defs.vvar_uses(vvar_id):
                                 if (loc.block_addr, loc.block_idx, loc.stmt_idx) in ret_or_jump_sites:
                                     exitsite_uselocs_to_count[loc] += 1
                                 else:
@@ -541,11 +539,19 @@ class SPropagator:
                                 self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             continue
 
-        for vvar_id, uselocs in vvar_uselocs.items():
-            vvar = next(iter(uselocs))[0] if vvar_id not in vvarid_to_vvar else vvarid_to_vvar[vvar_id]
+        sp_bp_use_ids = []
+        if self._sp_tracker is not None:
+            # only uses of sp and bp are rewritten. function arguments are looked at as well: they replace the
+            # definitions in vvarid_to_vvar
+            sp_bp_offsets = [o for o in (self.project.arch.sp_offset, self.project.arch.bp_offset) if o is not None]
+            arg_ids = {func_arg.varid for func_arg in self.func_args} if self.func_args else set()
+            sp_bp_use_ids = uses_defs.register_use_ids(sp_bp_offsets, arg_ids)
+        for vvar_id in sp_bp_use_ids:
+            uselocs = uses_defs.vvar_uses(vvar_id)
+            vvar = uselocs[0][0] if vvar_id not in vvarid_to_vvar else vvarid_to_vvar[vvar_id]
             vvar_uselocs_set = set(uselocs)  # deduplicate
 
-            if self._sp_tracker is not None and vvar.category == VirtualVariableCategory.REGISTER:
+            if vvar.category == VirtualVariableCategory.REGISTER:
                 if vvar.oident == self.project.arch.sp_offset:
                     sp_bits = (
                         (self.project.arch.registers["sp"][1] * self.project.arch.byte_width)
@@ -581,68 +587,57 @@ class SPropagator:
                             self.replace(replacements, useloc, vvar_at_use, v)
                     continue
 
-        # tmp def/use locs were collected by the combined pass above.
-        tmp_deflocs = _tmp_deflocs_cached
-        tmp_uselocs = _tmp_uselocs_cached
+        for block_loc, tmp_def_stmtidx, tmp_uses in uses_defs.tmp_defs_uses():
+            # take a look at the definition and propagate the definition if supported
+            block = blocks[block_loc]
 
-        for block_loc, tmp_and_uses in tmp_uselocs.items():
-            for tmp_atom, tmp_uses in tmp_and_uses.items():
-                # take a look at the definition and propagate the definition if supported
-                block = blocks[block_loc]
-                if tmp_atom not in tmp_deflocs.get(block_loc, {}):
+            stmt = block.statements[tmp_def_stmtidx]
+            if isinstance(stmt, Assignment):
+                r, v = is_const_assignment(stmt, self.only_consts)
+                if r:
+                    # we can propagate it!
+                    for tmp_used, tmp_use_stmtidx in tmp_uses:
+                        loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
+                        self.replace(replacements, loc, tmp_used, stmt.src)
                     continue
-                tmp_def_stmtidx = tmp_deflocs[block_loc][tmp_atom]
 
-                stmt = block.statements[tmp_def_stmtidx]
-                if isinstance(stmt, Assignment):
-                    r, v = is_const_assignment(stmt, self.only_consts)
-                    if r:
-                        # we can propagate it!
-                        for tmp_used, tmp_use_stmtidx in tmp_uses:
+                r = is_const_vvar_tmp_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_TMP_WHITELIST))
+                if r:
+                    if len(tmp_uses) > 1 and stmt.src.depth > 4:
+                        # duplicating a deep expression into every use overfolds (e.g., a rewritten adc carry
+                        # feeding the result, DEP2, and NDEP of the next adc); keep it as a variable instead
+                        continue
+                    # we can propagate it!
+                    v = const_vvars.get(stmt.src.varid, stmt.src) if isinstance(stmt.src, VirtualVariable) else stmt.src
+
+                    for tmp_used, tmp_use_stmtidx in tmp_uses:
+                        loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
+                        self.replace(replacements, loc, tmp_used, v)
+                    continue
+
+                if len(tmp_uses) <= 2 and is_const_vvar_load_dirty_assignment(
+                    stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_DIRTY_WHITELIST)
+                ):
+                    dirty_exprs = get_dirty_exprs(stmt)
+                    if dirty_exprs and (len(tmp_uses) > 1 or any(map(dirty_has_side_effects, dirty_exprs))):
+                        # a dirty helper is never duplicated (rdtsc), and one with side effects (fldenv) stays
+                        # where it is
+                        continue
+                    for tmp_used, tmp_use_stmtidx in tmp_uses:
+                        same_inst = (
+                            block.statements[tmp_def_stmtidx].tags["ins_addr"]
+                            == block.statements[tmp_use_stmtidx].tags["ins_addr"]
+                        )
+                        has_store = any(
+                            isinstance(stmt_, Store)
+                            for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
+                        )
+                        if same_inst or not has_store:
+                            # we can propagate this load because either we do not consider memory aliasing problem
+                            # within the same instruction (blocks must be originally lifted with
+                            # CROSS_INSN_OPT=False), or there is no store between its def and use.
                             loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
                             self.replace(replacements, loc, tmp_used, stmt.src)
-                        continue
-
-                    r = is_const_vvar_tmp_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_TMP_WHITELIST))
-                    if r:
-                        if len(tmp_uses) > 1 and stmt.src.depth > 4:
-                            # duplicating a deep expression into every use overfolds (e.g., a rewritten adc carry
-                            # feeding the result, DEP2, and NDEP of the next adc); keep it as a variable instead
-                            continue
-                        # we can propagate it!
-                        if isinstance(stmt.src, VirtualVariable):
-                            v = const_vvars.get(stmt.src.varid, stmt.src)
-                        else:
-                            v = stmt.src
-
-                        for tmp_used, tmp_use_stmtidx in tmp_uses:
-                            loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
-                            self.replace(replacements, loc, tmp_used, v)
-                        continue
-
-                    if len(tmp_uses) <= 2 and is_const_vvar_load_dirty_assignment(
-                        stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_DIRTY_WHITELIST)
-                    ):
-                        dirty_exprs = get_dirty_exprs(stmt)
-                        if dirty_exprs and (len(tmp_uses) > 1 or any(map(dirty_has_side_effects, dirty_exprs))):
-                            # a dirty helper is never duplicated (rdtsc), and one with side effects (fldenv) stays
-                            # where it is
-                            continue
-                        for tmp_used, tmp_use_stmtidx in tmp_uses:
-                            same_inst = (
-                                block.statements[tmp_def_stmtidx].tags["ins_addr"]
-                                == block.statements[tmp_use_stmtidx].tags["ins_addr"]
-                            )
-                            has_store = any(
-                                isinstance(stmt_, Store)
-                                for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
-                            )
-                            if same_inst or not has_store:
-                                # we can propagate this load because either we do not consider memory aliasing problem
-                                # within the same instruction (blocks must be originally lifted with
-                                # CROSS_INSN_OPT=False), or there is no store between its def and use.
-                                loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
-                                self.replace(replacements, loc, tmp_used, stmt.src)
 
         self.model.replacements = replacements
 

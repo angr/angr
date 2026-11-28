@@ -23,8 +23,9 @@ from angr.ailment.statement import Assignment, DirtyStatement, Jump, SideEffectS
 from angr.analyses.s_propagator import SPropagator
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
+from angr.rustylib.ailment import block_tmp_defs_uses  # pylint:disable=import-error
 from angr.utils.ail import GraphVVarDefs, dirty_has_side_effects
-from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, has_reference_to_vvar
+from angr.utils.ssa import has_reference_to_vvar
 
 from .block_walkers import HasCallExprWalker, HasCallNotification
 from .peephole_optimizations import (
@@ -527,26 +528,24 @@ class BlockSimplifier:
         if not block.statements:
             return block, False
 
-        block_loc = (block.addr, block.idx)
-        # tmps are block-local, so their definition and use sites are all this pass needs
-        tmp_deflocs = get_tmp_deflocs([block]).get(block_loc, {})
-        tmp_uselocs = get_tmp_uselocs([block]).get(block_loc, {}) if tmp_deflocs else {}
+        # tmps are block-local, so their definition and use sites are all this pass needs: tmp_idx -> statement
+        # index of the definition, and -> statement indices of the uses
+        tmp_def_stmts, tmp_use_stmts = block_tmp_defs_uses(block) or ({}, {})
 
         # Find dead assignments
-        dead_defs_stmt_idx = {stmt_idx for tmp, stmt_idx in tmp_deflocs.items() if not tmp_uselocs.get(tmp)}
+        dead_defs_stmt_idx = {stmt_idx for tmp_idx, stmt_idx in tmp_def_stmts.items() if not tmp_use_stmts.get(tmp_idx)}
 
         used_tmps: set[int] = set()
         # micro optimization: if all statements that use a tmp are going to be removed, we remove this tmp as well
-        for tmp, used_locs in tmp_uselocs.items():
-            if tmp not in tmp_deflocs:
+        for tmp_idx, used_at in tmp_use_stmts.items():
+            if tmp_idx not in tmp_def_stmts:
                 continue
-            used_at = {stmt_idx for _, stmt_idx in used_locs}
             if used_at.issubset(dead_defs_stmt_idx):  # noqa:SIM102
                 # cannot remove this tmp if any use sites involve call expressions; this is basically a duplicate of
                 # the logic in the larger loop below
                 if all(not _statement_has_calls(block.statements[i]) for i in used_at):
                     continue
-            used_tmps.add(tmp.tmp_idx)
+            used_tmps.add(tmp_idx)
 
         # Remove dead assignments
         changed = False

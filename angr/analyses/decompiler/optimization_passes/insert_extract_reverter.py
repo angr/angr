@@ -72,17 +72,18 @@ class InsertExtractReverter(OptimizationPass):
         orphan_candidates: set[int] = set()
         for node in blocks:
             new_stmts = list(node.statements)
+            node_changed = False
             i = 0
             while i < len(new_stmts) - 1:
                 s0, s1 = new_stmts[i], new_stmts[i + 1]
                 result = self._try_collapse(s0, s1, vvar_defs, use_counts, orphan_candidates, concat_whole)
                 if result is not None:
                     new_stmts[i : i + 2] = result
-                    changed = True
+                    changed = node_changed = True
                     # Don't advance -- re-check at same position
                 else:
                     i += 1
-            if changed:
+            if node_changed:
                 node.statements = new_stmts
 
         if changed:

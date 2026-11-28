@@ -2,12 +2,15 @@
 
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
 
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyType};
 
-use crate::ailment::ail_stmt::{AilStatement, Statement};
+use crate::ailment::ail_stmt::{AilStatement, Statement, StmtInner};
+use crate::ailment::ssa::BlockDefUse;
+use crate::ailment::stmt_list::StatementList;
 use crate::ailment::{CachedHash, hash_of};
 
 #[pyclass(
@@ -22,11 +25,14 @@ pub struct Block {
     pub addr: i64,
     #[pyo3(get, set)]
     pub original_size: Option<i64>,
-    #[pyo3(get, set)]
+    /// Always a [`StatementList`].
+    #[pyo3(get)]
     pub statements: Py<PyList>,
     #[pyo3(get)]
     pub idx: i64,
     pub cached_hash: CachedHash,
+    /// Memoized def/use lists, valid while the statements list keeps its version (see ``ssa.rs``).
+    pub defuse: Mutex<Option<Arc<BlockDefUse>>>,
 }
 
 /// ``hash((Block, self.addr, self.idx))`` -- the "Block" marker keeps
@@ -49,6 +55,7 @@ impl Clone for Block {
             statements: self.statements.clone_ref(py),
             idx: self.idx,
             cached_hash: self.cached_hash.clone(),
+            defuse: Mutex::new(self.defuse.lock().expect("defuse lock").clone()),
         })
     }
 }
@@ -65,18 +72,8 @@ impl Block {
         idx: i64,
     ) -> PyResult<Self> {
         let stmts_list = match statements {
-            Some(s) if !s.is_none() => {
-                if let Ok(l) = s.cast::<PyList>() {
-                    l.to_owned()
-                } else {
-                    let l = PyList::empty(py);
-                    for x in s.try_iter()? {
-                        l.append(x?)?;
-                    }
-                    l
-                }
-            }
-            _ => PyList::empty(py),
+            Some(s) if !s.is_none() => StatementList::of(&s)?,
+            _ => StatementList::of(PyList::empty(py).as_any())?,
         };
         Ok(Self {
             addr,
@@ -84,36 +81,35 @@ impl Block {
             statements: stmts_list.unbind(),
             idx,
             cached_hash: CachedHash::new(),
+            defuse: Mutex::new(None),
         })
     }
 
     #[setter]
+    fn set_statements(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        let py = value.py();
+        self.statements = StatementList::replacing(value, self.statements.bind(py))?.unbind();
+        Ok(())
+    }
+    #[setter]
     fn set_addr(&mut self, value: i64) {
         self.addr = value;
         self.cached_hash.clear();
+        *self.defuse.lock().expect("defuse lock") = None;
     }
     #[setter]
     fn set_idx(&mut self, value: i64) {
         self.idx = value;
         self.cached_hash.clear();
+        *self.defuse.lock().expect("defuse lock") = None;
     }
 
     #[pyo3(signature = (statements=None))]
     fn copy(&self, py: Python<'_>, statements: Option<Bound<'_, PyAny>>) -> PyResult<Self> {
         let stmts_list = match statements {
-            Some(s) if !s.is_none() => {
-                if let Ok(l) = s.cast::<PyList>() {
-                    l.to_owned()
-                } else {
-                    let l = PyList::empty(py);
-                    for x in s.try_iter()? {
-                        l.append(x?)?;
-                    }
-                    l
-                }
-            }
-            // Shallow copy of self.statements
-            _ => PyList::new(py, self.statements.bind(py))?,
+            Some(s) if !s.is_none() => StatementList::replacing(&s, self.statements.bind(py))?,
+            // Shallow copy of self.statements; same items, so same version
+            _ => StatementList::copy_of(self.statements.bind(py))?,
         };
         Ok(Self {
             addr: self.addr,
@@ -121,6 +117,7 @@ impl Block {
             statements: stmts_list.unbind(),
             idx: self.idx,
             cached_hash: CachedHash::new(),
+            defuse: Mutex::new(self.defuse.lock().expect("defuse lock").clone()),
         })
     }
 
@@ -137,10 +134,36 @@ impl Block {
         Ok(Self {
             addr: self.addr,
             original_size: self.original_size,
-            statements: new_list.unbind(),
+            statements: StatementList::of(new_list.as_any())?.unbind(),
             idx: self.idx,
             cached_hash: CachedHash::new(),
+            defuse: Mutex::new(None),
         })
+    }
+
+    /// The number of phi assignments. They sit together at the start of a block, after any leading labels, so
+    /// the scan stops at the first statement that is neither.
+    #[getter]
+    fn phi_stmt_count(&self, py: Python<'_>) -> usize {
+        let mut count = 0;
+        for stmt in self.statements.bind(py).iter() {
+            let Ok(stmt) = stmt.cast::<Statement>() else {
+                break;
+            };
+            let stmt = &stmt.borrow().stmt;
+            if stmt.is_phi_assignment() {
+                count += 1;
+            } else if count != 0 || !matches!(stmt.inner, StmtInner::Label { .. }) {
+                break;
+            }
+        }
+        count
+    }
+
+    /// The number of statements that are not phi assignments.
+    #[getter]
+    fn non_phi_stmt_count(&self, py: Python<'_>) -> usize {
+        self.statements.bind(py).len() - self.phi_stmt_count(py)
     }
 
     #[getter]
@@ -309,9 +332,10 @@ impl Block {
             Self {
                 addr,
                 original_size,
-                statements: list.unbind(),
+                statements: StatementList::of(list.as_any())?.unbind(),
                 idx,
                 cached_hash: CachedHash::new(),
+                defuse: Mutex::new(None),
             },
         )
     }

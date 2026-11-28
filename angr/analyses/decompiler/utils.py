@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import contextlib
-import copy
 import logging
 import pathlib
 from collections import deque
@@ -906,7 +905,9 @@ def remove_labels(graph: networkx.DiGraph):
     nodes_map = {}
     for node in graph:
         node_copy = node.copy()
-        node_copy.statements = [stmt for stmt in node_copy.statements if not isinstance(stmt, ailment.Stmt.Label)]
+        stmts = [stmt for stmt in node_copy.statements if not isinstance(stmt, ailment.Stmt.Label)]
+        if len(stmts) != len(node_copy.statements):
+            node_copy.statements = stmts
         nodes_map[node] = node_copy
 
     for old_node in graph.nodes:
@@ -1232,9 +1233,7 @@ def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
     block_mapping = {}
     # copy all blocks
     for block in graph.nodes():
-        new_block = copy.copy(block)
-        new_stmts = copy.copy(block.statements)
-        new_block.statements = new_stmts
+        new_block = block.copy()
         block_mapping[block] = new_block
         graph_copy.add_node(new_block)
 

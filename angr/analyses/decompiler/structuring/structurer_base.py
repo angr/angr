@@ -116,7 +116,9 @@ class StructurerBase(Analysis):
 
     @staticmethod
     def _remove_conditional_jumps_from_block(block, parent=None, index=0, label=None):
-        block.statements = [stmt for stmt in block.statements if not isinstance(stmt, ailment.Stmt.ConditionalJump)]
+        stmts = [stmt for stmt in block.statements if not isinstance(stmt, ailment.Stmt.ConditionalJump)]
+        if len(stmts) != len(block.statements):
+            block.statements = stmts
 
     @staticmethod
     def _remove_conditional_jumps(seq, follow_seq=True):

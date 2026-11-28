@@ -390,7 +390,9 @@ class DuplicationReverter(StructuringOptimizationPass):
             new_dst = new_nodes[dst]
             if new_dst is not dst:
                 new_new_src = new_src.copy()
-                new_new_src.statements[-1] = correct_jump_targets(new_new_src.statements[-1], {dst.addr: new_dst.addr})
+                last_stmt = correct_jump_targets(new_new_src.statements[-1], {dst.addr: new_dst.addr})
+                if last_stmt is not new_new_src.statements[-1]:
+                    new_new_src.statements[-1] = last_stmt
                 new_nodes[src] = new_new_src
 
         # add all the nodes in the same order back to the graph

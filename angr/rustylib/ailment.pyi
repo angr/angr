@@ -25,8 +25,10 @@ attribute is dispatched on the variant tag and raises
 ``AttributeError`` when called on the wrong variant.
 """
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import Any, ClassVar, Self
+
+from angr.code_location import AILCodeLocation
 
 # ---------------------------------------------------------------------------
 # Tags
@@ -511,11 +513,23 @@ class Statement:
 # Block
 # ---------------------------------------------------------------------------
 
+class StatementList(list[Statement]):
+    """The list type of ``Block.statements``: a ``list`` that takes a new version whenever it is mutated, so what is
+    derived from a block's statements can tell that they changed. Slices and copies are plain lists."""
+
 class Block:
     addr: int
     original_size: int | None
     idx: int
+    # a StatementList at runtime; assigning any other iterable stores its items in a new one. Declared as a plain
+    # attribute so that type checkers keep narrowing ``block.statements[i]``.
     statements: list[Statement]
+    @property
+    def phi_stmt_count(self) -> int:
+        """The number of phi assignments. They sit together at the start of a block, after any leading labels."""
+    @property
+    def non_phi_stmt_count(self) -> int:
+        """The number of statements that are not phi assignments."""
     def __init__(
         self,
         addr: int,
@@ -1439,3 +1453,86 @@ class IncompleteSwitchCaseHeadStatement(Statement):
         case_addrs: Sequence[SwitchCase] = ...,
         tags: Mapping[str, Any] = ...,
     ) -> Self: ...
+
+# ---------------------------------------------------------------------------
+# Block-level SSA def/use lists (see native/angr/src/ailment/ssa.rs)
+# ---------------------------------------------------------------------------
+
+def collect_uses_defs(
+    blocks: Iterable[Block],
+    vvar_deflocs: dict | None = ...,
+    phi_vvars: dict | None = ...,
+    vvar_uselocs: dict | None = ...,
+    tmp_deflocs: dict | None = ...,
+    tmp_uselocs: dict | None = ...,
+    tmp_mode: int = ...,
+) -> None:
+    """
+    Merge the memoized per-block def/use sites of ``blocks`` into whichever containers are given, reproducing the
+    insertion order and overwrite semantics of the original whole-graph scan in ``angr.utils.ssa``.
+    """
+
+def block_defuse_is_cached(block: Block) -> bool:
+    """Whether the block's memoized def/use lists are present and still valid."""
+
+def block_tmp_defs_uses(block: Block) -> tuple[dict[int, int], dict[int, set[int]]] | None:
+    """
+    ``({tmp_idx: statement index of its definition}, {tmp_idx: statement indices of its uses})`` of a block, from
+    its memoized def/use sites; None when the block defines no tmp.
+    """
+
+class UsesDefs:
+    """
+    The def/use sites of a sequence of blocks (with distinct ``(addr, idx)``), taken from the sites memoized on
+    each block. A later definition of a vvar replaces an earlier one. Python values are built only for what a
+    method returns. It is a snapshot: editing the blocks afterwards does not change it.
+    """
+
+    def __init__(self, blocks: Iterable[Block]) -> None: ...
+    def vvar_defs(
+        self, phi_vvars: dict[int, set[int | None]] | None = ...
+    ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
+        """Every vvar definition. ``phi_vvars`` is filled with the source varids of each phi vvar."""
+
+    def fill_model(
+        self,
+        varid_to_vvar: dict[int, VirtualVariable],
+        definitions: dict[int, AILCodeLocation],
+        uses: dict[int, list[tuple[VirtualVariable | None, AILCodeLocation]]],
+        func_args: Iterable[VirtualVariable] | None = ...,
+    ) -> dict[int, set[int | None]]:
+        """
+        Fill the dicts of a new ``SRDAModel`` with every definition, the function arguments that are not defined
+        in the blocks (at an extern location), and the uses of both. Returns the source varids of each phi vvar.
+        """
+
+    def argless_call_stmts(self) -> list[tuple[tuple[int, int], int]]:
+        """``((addr, idx), stmt_idx)`` of the call statements, call assignments and call returns without ``args``."""
+
+    def block_reg_defs(self, base_of: Callable[[int, int], int]) -> dict[tuple[int, int], dict[tuple[int, int], int]]:
+        """
+        ``{(addr, idx): {(base register offset, size): varid}}``: the last definition of each register in each
+        block. ``base_of(reg_offset, size)`` gives the base register offset.
+        """
+
+    def vvar_use_ids(self) -> list[int]:
+        """The varids that are used, in first-use order."""
+
+    def has_vvar_uses(self, varid: int) -> bool: ...
+    def vvar_uses(self, varid: int) -> list[tuple[VirtualVariable, AILCodeLocation]]:
+        """The uses of one vvar; the same list on every call."""
+
+    def all_vvar_uses(self) -> dict[int, list[tuple[VirtualVariable, AILCodeLocation]]]:
+        """The uses of every used vvar, in first-use order."""
+
+    def register_use_ids(self, reg_offsets: list[int], also: set[int]) -> list[int]:
+        """
+        The used varids, in first-use order, that are in ``also`` or whose definition or first use is a register
+        vvar of one of ``reg_offsets``.
+        """
+
+    def tmp_defs_uses(self) -> list[tuple[tuple[int, int], int, set[tuple[Tmp, int]]]]:
+        """
+        ``((addr, idx), statement index of the definition, {(Tmp, statement index of a use)})`` of every tmp that
+        is defined and used in the same block.
+        """

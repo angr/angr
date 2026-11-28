@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -184,16 +183,34 @@ class ExternalCodeLocation(CodeLocation):
         return self._hash
 
 
-@dataclass(frozen=True)
 class AILCodeLocation:
     """
     A code location that refers precisely to a statement of an AIL block, with an optional instruction address.
+    Locations compare and hash on the block and the statement; the instruction address does not count. Treat one
+    as immutable: it is a dict key.
     """
+
+    __slots__ = ("addr", "block_idx", "insn_addr", "stmt_idx")
+    __match_args__ = ("addr", "block_idx", "stmt_idx", "insn_addr")
 
     addr: int
     block_idx: int
     stmt_idx: int
-    insn_addr: int | None = field(default=None, compare=False)
+    insn_addr: int | None
+
+    def __init__(self, addr: int, block_idx: int, stmt_idx: int, insn_addr: int | None = None):
+        self.addr = addr
+        self.block_idx = block_idx
+        self.stmt_idx = stmt_idx
+        self.insn_addr = insn_addr
+
+    def __eq__(self, other):
+        if other.__class__ is AILCodeLocation:
+            return self.addr == other.addr and self.block_idx == other.block_idx and self.stmt_idx == other.stmt_idx
+        return NotImplemented
+
+    def __hash__(self):
+        return hash((self.addr, self.block_idx, self.stmt_idx))
 
     @staticmethod
     def make_extern(idx: int):

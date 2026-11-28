@@ -15,7 +15,7 @@ from angr.ailment.statement import Assignment, Label, Statement
 from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions.function import Function
-from angr.utils.ail import is_head_controlled_loop_block
+from angr.utils.ail import is_head_controlled_loop_block, same_statements
 from angr.utils.ssa import is_phi_assignment
 
 from .rewriting_engine import SimEngineSSARewriting
@@ -527,7 +527,8 @@ class RewritingAnalysis:
                     else:
                         raise NotImplementedError
 
-                node = node.copy(statements=phi_stmts + phi_extraction_stmts + other_stmts)
+                stmts = phi_stmts + phi_extraction_stmts + other_stmts
+                node = node.copy() if same_statements(stmts, node.statements) else node.copy(statements=stmts)
                 self.out_blocks[node_key] = node
 
     @staticmethod

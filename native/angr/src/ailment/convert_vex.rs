@@ -2075,9 +2075,10 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         Ok(Block {
             addr,
             original_size: self.reader.block_size(),
-            statements: py_stmts.unbind(),
+            statements: crate::ailment::stmt_list::StatementList::of(py_stmts.as_any())?.unbind(),
             idx: 0,
             cached_hash: CachedHash::new(),
+            defuse: std::sync::Mutex::new(None),
         })
     }
 

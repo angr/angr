@@ -1013,6 +1013,7 @@ class GoPrototypeInference(OptimizationPass):
         changed = False
         for block in self._graph.nodes:
             statements: list[Statement] = []
+            block_changed = False
             for stmt in block.statements:
                 if isinstance(stmt, Return) and RET_FLOOR_TAG in stmt.tags:
                     tags = dict(stmt.tags)
@@ -1030,9 +1031,10 @@ class GoPrototypeInference(OptimizationPass):
                         and classify_runtime_call(call_target_name(self.project, e)) != "deferreturn"
                     ]
                     stmt = Return(stmt.idx, kept, **tags)
-                    changed = True
+                    changed = block_changed = True
                 statements.append(stmt)
-            block.statements = statements
+            if block_changed:
+                block.statements = statements
         if not changed:
             return
         # definitions only the dropped words used are dead now

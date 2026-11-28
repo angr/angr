@@ -56,7 +56,8 @@ class GraphRewritingAnalysis(ForwardAnalysis[None, NodeType, object, object, obj
         # remove phi statements
         # modifying blocks inline should be fine here - no one has ever used these blocks
         for block in self.out_blocks.values():
-            block.statements = [stmt for stmt in block.statements if not is_phi_assignment(stmt)]
+            if block.phi_stmt_count:
+                block.statements = [stmt for stmt in block.statements if not is_phi_assignment(stmt)]
 
         self.out_graph = self._make_new_graph(ail_graph)
 
