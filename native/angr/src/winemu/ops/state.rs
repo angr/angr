@@ -1,6 +1,8 @@
 //! The remaining x87 instructions, FXSAVE, XSAVE and small state instructions.
 
-use icicle_vm::cpu::{Cpu, Exception, ExceptionCode, ValueSource, exec::helpers::PcodeOpHelper, mem::perm};
+use icicle_vm::cpu::{
+    Cpu, Exception, ExceptionCode, ValueSource, exec::helpers::PcodeOpHelper, mem::perm,
+};
 use pcode::{Value, VarNode};
 
 use super::{super::is_x64, *};
@@ -34,7 +36,8 @@ fn f80_to_f64(raw: u128) -> f64 {
         let lead = mantissa.leading_zeros() as i32;
         let m = (mantissa << lead) as f64;
         let e = exponent.max(1) - 16383 - 63 - lead;
-        m * 2f64.powi(e.clamp(-2000, 2000) / 2) * 2f64.powi(e.clamp(-2000, 2000) - e.clamp(-2000, 2000) / 2)
+        m * 2f64.powi(e.clamp(-2000, 2000) / 2)
+            * 2f64.powi(e.clamp(-2000, 2000) - e.clamp(-2000, 2000) / 2)
     };
     if sign != 0 { -magnitude } else { magnitude }
 }
@@ -72,7 +75,10 @@ const SLOTS: u16 = 16;
 /// This function returns the two registers of a spare slot. The first register holds the double
 /// and the second register holds the exact 80-bit value.
 fn slot(cpu: &Cpu, index: u16) -> (VarNode, VarNode) {
-    (reg(cpu, &format!("X87K{index}")), reg(cpu, &format!("X87V{index}")))
+    (
+        reg(cpu, &format!("X87K{index}")),
+        reg(cpu, &format!("X87V{index}")),
+    )
 }
 
 /// This function returns the ten bytes of an x87 register for `value`. We add a tag if the double
@@ -120,7 +126,8 @@ fn int_to_f80(value: i128) -> u128 {
 /// This function converts an 80-bit value to a 64-bit integer, either rounded to nearest even or
 /// truncated. This function returns `None` if the value does not fit.
 fn f80_to_int(raw: u128, truncate: bool) -> Option<i64> {
-    let (mantissa, exponent, negative) = (raw as u64, (raw >> 64) as i32 & 0x7FFF, raw >> 79 & 1 != 0);
+    let (mantissa, exponent, negative) =
+        (raw as u64, (raw >> 64) as i32 & 0x7FFF, raw >> 79 & 1 != 0);
     if exponent == 0x7FFF || (exponent != 0 && mantissa >> 63 == 0) {
         return None;
     }
@@ -138,7 +145,11 @@ fn f80_to_int(raw: u128, truncate: bool) -> Option<i64> {
         let up = !truncate && (rest > 1 << 63 || (rest == 1 << 63 && whole & 1 == 1));
         whole + up as u128
     };
-    let value = if negative { -(magnitude as i128) } else { magnitude as i128 };
+    let value = if negative {
+        -(magnitude as i128)
+    } else {
+        magnitude as i128
+    };
     i64::try_from(value).ok()
 }
 
@@ -186,7 +197,11 @@ fn from_bcd(cpu: &mut Cpu, dst: VarNode, args: Args) {
     let magnitude = (0..18)
         .rev()
         .fold(0i128, |acc, i| acc * 10 + ((raw >> (4 * i)) & 0xF) as i128);
-    let value = if raw >> 79 & 1 != 0 { -magnitude } else { magnitude };
+    let value = if raw >> 79 & 1 != 0 {
+        -magnitude
+    } else {
+        magnitude
+    };
     let mut out = tagged(cpu, value as f64, int_to_f80(value));
     if value == 0 && raw >> 79 & 1 != 0 {
         out = (-0.0f64).to_bits() as u128;
@@ -286,7 +301,11 @@ fn load_fxsave_image(cpu: &mut Cpu, image: &[u8; 512], x87: bool, sse: bool) {
         let tag = (0..8).fold(0u128, |acc, i| {
             acc | (if image[4] >> i & 1 != 0 { 0 } else { 3 }) << (2 * i)
         });
-        for (name, value) in [("FPUControlWord", chunk(0, 2)), ("FPUStatusWord", chunk(2, 2)), ("FPUTagWord", tag)] {
+        for (name, value) in [
+            ("FPUControlWord", chunk(0, 2)),
+            ("FPUStatusWord", chunk(2, 2)),
+            ("FPUTagWord", tag),
+        ] {
             let var = reg(cpu, name);
             write_trunc(cpu, var, value);
         }
@@ -356,7 +375,8 @@ fn xsave(cpu: &mut Cpu, _: VarNode, args: Args) {
     let Some(header) = load::<8>(cpu, addr + 512) else {
         return;
     };
-    let x87 = components & 1 == 0 || (store(cpu, addr, &image[..24]) && store(cpu, addr + 32, &image[32..160]));
+    let x87 = components & 1 == 0
+        || (store(cpu, addr, &image[..24]) && store(cpu, addr + 32, &image[32..160]));
     // XSAVE saves MXCSR with either component
     let done = x87
         && store(cpu, addr + 24, &image[24..32])

@@ -61,7 +61,11 @@ fn aes_round(cpu: &mut Cpu, dst: VarNode, args: Args, decrypt: bool, mix: bool) 
     for c in 0..4 {
         for r in 0..4 {
             // ShiftRows moves row r left by r columns, and the inverse moves row r right
-            let from = if decrypt { (c + 4 - r) % 4 } else { (c + r) % 4 };
+            let from = if decrypt {
+                (c + 4 - r) % 4
+            } else {
+                (c + r) % 4
+            };
             out[4 * c + r] = table[state[4 * from + r] as usize];
         }
     }

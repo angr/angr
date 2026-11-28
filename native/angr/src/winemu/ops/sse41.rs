@@ -126,9 +126,13 @@ pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
     ("mpsadbw", mpsadbw),
     ("phminposuw", phminposuw),
     ("pmuldq", |c, d, a| {
-        zip(c, d, a, 8, |x, y| (x as i32 as i64).wrapping_mul(y as i32 as i64) as u64)
+        zip(c, d, a, 8, |x, y| {
+            (x as i32 as i64).wrapping_mul(y as i32 as i64) as u64
+        })
     }),
-    ("pmulld", |c, d, a| zip(c, d, a, 4, |x, y| x.wrapping_mul(y))),
+    ("pmulld", |c, d, a| {
+        zip(c, d, a, 4, |x, y| x.wrapping_mul(y))
+    }),
     ("packusdw", |c, d, a| pack(c, d, a, 4, sat_u16)),
     ("pblendw", |c, d, a| {
         let imm = c.args[0] as u8;

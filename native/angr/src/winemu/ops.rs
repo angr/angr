@@ -62,13 +62,7 @@ pub(super) fn build(count: u8, width: u8, f: impl Fn(u8) -> u64) -> u128 {
 }
 
 /// This function sets each lane of `width` bytes of `dst` to `f(a, b)`.
-pub(super) fn zip(
-    cpu: &mut Cpu,
-    dst: VarNode,
-    args: Args,
-    width: u8,
-    f: impl Fn(u64, u64) -> u64,
-) {
+pub(super) fn zip(cpu: &mut Cpu, dst: VarNode, args: Args, width: u8, f: impl Fn(u64, u64) -> u64) {
     let (a, b) = (rd(cpu, args[0]), rd(cpu, args[1]));
     let out = build(dst.size / width, width, |i| {
         f(lane(a, i, width), lane(b, i, width))

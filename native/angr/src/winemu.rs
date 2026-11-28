@@ -257,7 +257,8 @@ const HELPERS: &[(&str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)] = &[
     ("XRELEASE", no_op),
 ];
 
-fn helpers() -> impl Iterator<Item = &'static (&'static str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)> {
+fn helpers()
+-> impl Iterator<Item = &'static (&'static str, icicle_vm::cpu::exec::helpers::PcodeOpHelper)> {
     HELPERS
         .iter()
         .chain(ops::sse2::HELPERS)
@@ -604,7 +605,14 @@ impl WinPatcher {
             fix.push((select, pcode::Op::IntNegate, wide).into());
             fix.push((keep, pcode::Op::IntNot, select).into());
             fix.push((kept, pcode::Op::IntAnd, (out, keep)).into());
-            fix.push((forced, pcode::Op::IntAnd, (pcode::Value::Var(select), minimum)).into());
+            fix.push(
+                (
+                    forced,
+                    pcode::Op::IntAnd,
+                    (pcode::Value::Var(select), minimum),
+                )
+                    .into(),
+            );
             fix.push((out, pcode::Op::IntOr, (kept, forced)).into());
             let count = fix.len();
             let tail: Vec<pcode::Instruction> = inst.instructions.drain(at..).collect();
@@ -795,7 +803,11 @@ impl WinVm {
     /// This function restores the guest permissions of a page and removes the code cache marks.
     fn reset_page_perms(&mut self, page: u64) {
         if let Some(&perms) = self.page_perms.get(&page) {
-            let _ = self.vm.cpu.mem.update_perm(page, PAGE, perms_to_icicle(perms));
+            let _ = self
+                .vm
+                .cpu
+                .mem
+                .update_perm(page, PAGE, perms_to_icicle(perms));
         }
     }
 
@@ -803,7 +815,9 @@ impl WinVm {
     /// that the guest may write.
     fn is_code_store(&self, addr: u64) -> bool {
         (addr..addr.saturating_add(16)).any(|a| {
-            self.page_perms.get(&(a & !(PAGE - 1))).is_some_and(|p| p & 2 != 0)
+            self.page_perms
+                .get(&(a & !(PAGE - 1)))
+                .is_some_and(|p| p & 2 != 0)
                 && self.vm.cpu.mem.get_perm(a) & perm::IN_CODE_CACHE != 0
         })
     }
@@ -1130,7 +1144,11 @@ impl WinVm {
     }
 
     /// This method returns the raw little-endian bytes of a register of any width.
-    pub fn reg_read_bytes<'py>(&mut self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyBytes>> {
+    pub fn reg_read_bytes<'py>(
+        &mut self,
+        py: Python<'py>,
+        name: &str,
+    ) -> PyResult<Bound<'py, PyBytes>> {
         let var = self.var(name)?;
         let bytes: Vec<u8> = (0..var.size)
             .map(|i| self.vm.cpu.read_var::<u8>(var.slice(i, 1)))

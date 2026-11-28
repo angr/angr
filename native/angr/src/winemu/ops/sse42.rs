@@ -82,7 +82,11 @@ fn string_compare(cpu: &mut Cpu, args: Args, explicit: bool) -> (u32, u8, u128) 
     set_flag(cpu, "OF", res2 & 1 != 0);
     set_flag(cpu, "AF", false);
     set_flag(cpu, "PF", false);
-    let expanded = build(n, width, |i| if res2 & (1 << i) != 0 { u64::MAX } else { 0 });
+    let expanded = build(
+        n,
+        width,
+        |i| if res2 & (1 << i) != 0 { u64::MAX } else { 0 },
+    );
     (res2, n, expanded)
 }
 
@@ -102,7 +106,11 @@ fn string_index(cpu: &mut Cpu, dst: VarNode, args: Args, explicit: bool) {
 fn string_mask(cpu: &mut Cpu, dst: VarNode, args: Args, explicit: bool) {
     let imm = cpu.args[0] as u8;
     let (res2, _, expanded) = string_compare(cpu, args, explicit);
-    let out = if imm & 0x40 != 0 { expanded } else { res2 as u128 };
+    let out = if imm & 0x40 != 0 {
+        expanded
+    } else {
+        res2 as u128
+    };
     write_trunc(cpu, dst, out);
 }
 

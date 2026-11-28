@@ -41,7 +41,11 @@ fn cmp_predicate(a: f64, b: f64, imm: u64) -> u64 {
 fn cmp_f32(cpu: &mut Cpu, dst: VarNode, args: Args) {
     let imm = cpu.args[0] as u64;
     zip(cpu, dst, args, 4, |x, y| {
-        cmp_predicate(f32::from_bits(x as u32) as f64, f32::from_bits(y as u32) as f64, imm)
+        cmp_predicate(
+            f32::from_bits(x as u32) as f64,
+            f32::from_bits(y as u32) as f64,
+            imm,
+        )
     });
 }
 
@@ -57,7 +61,11 @@ fn cmp_f64(cpu: &mut Cpu, dst: VarNode, args: Args) {
 fn masked_move(cpu: &mut Cpu, dst: VarNode, args: Args) {
     let (data, select, old) = (rd(cpu, args[0]), rd(cpu, args[1]), cpu.args[0]);
     let out = build(dst.size, 1, |i| {
-        let source = if lane(select, i, 1) & 0x80 != 0 { data } else { old };
+        let source = if lane(select, i, 1) & 0x80 != 0 {
+            data
+        } else {
+            old
+        };
         lane(source, i, 1)
     });
     write_trunc(cpu, dst, out);
@@ -72,34 +80,48 @@ pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
     ("packsswb", |c, d, a| pack(c, d, a, 2, sat_i8)),
     ("packssdw", |c, d, a| pack(c, d, a, 4, sat_i16)),
     ("paddsb", |c, d, a| {
-        zip(c, d, a, 1, |x, y| (x as i8).saturating_add(y as i8) as u8 as u64)
+        zip(c, d, a, 1, |x, y| {
+            (x as i8).saturating_add(y as i8) as u8 as u64
+        })
     }),
     ("paddsw", |c, d, a| {
-        zip(c, d, a, 2, |x, y| (x as i16).saturating_add(y as i16) as u16 as u64)
+        zip(c, d, a, 2, |x, y| {
+            (x as i16).saturating_add(y as i16) as u16 as u64
+        })
     }),
     ("paddusb", |c, d, a| {
         zip(c, d, a, 1, |x, y| (x as u8).saturating_add(y as u8) as u64)
     }),
     ("paddusw", |c, d, a| {
-        zip(c, d, a, 2, |x, y| (x as u16).saturating_add(y as u16) as u64)
+        zip(c, d, a, 2, |x, y| {
+            (x as u16).saturating_add(y as u16) as u64
+        })
     }),
     ("psubsb", |c, d, a| {
-        zip(c, d, a, 1, |x, y| (x as i8).saturating_sub(y as i8) as u8 as u64)
+        zip(c, d, a, 1, |x, y| {
+            (x as i8).saturating_sub(y as i8) as u8 as u64
+        })
     }),
     ("psubsw", |c, d, a| {
-        zip(c, d, a, 2, |x, y| (x as i16).saturating_sub(y as i16) as u16 as u64)
+        zip(c, d, a, 2, |x, y| {
+            (x as i16).saturating_sub(y as i16) as u16 as u64
+        })
     }),
     ("psubusb", |c, d, a| {
         zip(c, d, a, 1, |x, y| (x as u8).saturating_sub(y as u8) as u64)
     }),
     ("psubusw", |c, d, a| {
-        zip(c, d, a, 2, |x, y| (x as u16).saturating_sub(y as u16) as u64)
+        zip(c, d, a, 2, |x, y| {
+            (x as u16).saturating_sub(y as u16) as u64
+        })
     }),
     ("pavgb", |c, d, a| zip(c, d, a, 1, |x, y| (x + y + 1) >> 1)),
     ("pavgw", |c, d, a| zip(c, d, a, 2, |x, y| (x + y + 1) >> 1)),
     ("pmulhuw", |c, d, a| zip(c, d, a, 2, |x, y| (x * y) >> 16)),
     ("pmulhw", |c, d, a| {
-        zip(c, d, a, 2, |x, y| ((x as i16 as i64 * y as i16 as i64) >> 16) as u64)
+        zip(c, d, a, 2, |x, y| {
+            ((x as i16 as i64 * y as i16 as i64) >> 16) as u64
+        })
     }),
     ("psadbw", |c, d, a| {
         zip(c, d, a, 8, |x, y| {
@@ -129,10 +151,18 @@ pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
     ("divps", |c, d, a| zip_f32(c, d, a, |x, y| x / y)),
     ("divpd", |c, d, a| zip_f64(c, d, a, |x, y| x / y)),
     // the CPU returns the second operand unless the comparison holds, as for NaNs and signed zeros
-    ("maxps", |c, d, a| zip_f32(c, d, a, |x, y| if x > y { x } else { y })),
-    ("maxpd", |c, d, a| zip_f64(c, d, a, |x, y| if x > y { x } else { y })),
-    ("minps", |c, d, a| zip_f32(c, d, a, |x, y| if x < y { x } else { y })),
-    ("minpd", |c, d, a| zip_f64(c, d, a, |x, y| if x < y { x } else { y })),
+    ("maxps", |c, d, a| {
+        zip_f32(c, d, a, |x, y| if x > y { x } else { y })
+    }),
+    ("maxpd", |c, d, a| {
+        zip_f64(c, d, a, |x, y| if x > y { x } else { y })
+    }),
+    ("minps", |c, d, a| {
+        zip_f32(c, d, a, |x, y| if x < y { x } else { y })
+    }),
+    ("minpd", |c, d, a| {
+        zip_f64(c, d, a, |x, y| if x < y { x } else { y })
+    }),
     ("sqrtps", |c, d, a| zip_f32(c, d, a, |_, y| y.sqrt())),
     ("sqrtpd", |c, d, a| zip_f64(c, d, a, |_, y| y.sqrt())),
     // we compute the estimates exactly, as QEMU does

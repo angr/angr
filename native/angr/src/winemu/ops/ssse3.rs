@@ -38,15 +38,33 @@ pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
         });
         write_trunc(c, d, out);
     }),
-    ("pabsb", |c, d, a| zip(c, d, a, 1, |_, y| (y as i8).unsigned_abs() as u64)),
-    ("pabsw", |c, d, a| zip(c, d, a, 2, |_, y| (y as i16).unsigned_abs() as u64)),
-    ("pabsd", |c, d, a| zip(c, d, a, 4, |_, y| (y as i32).unsigned_abs() as u64)),
-    ("phaddw", |c, d, a| horizontal(c, d, a, 2, |x, y| (x + y) as u64)),
-    ("phaddd", |c, d, a| horizontal(c, d, a, 4, |x, y| (x + y) as u64)),
-    ("phaddsw", |c, d, a| horizontal(c, d, a, 2, |x, y| sat_i16(x + y))),
-    ("phsubw", |c, d, a| horizontal(c, d, a, 2, |x, y| (x - y) as u64)),
-    ("phsubd", |c, d, a| horizontal(c, d, a, 4, |x, y| (x - y) as u64)),
-    ("phsubsw", |c, d, a| horizontal(c, d, a, 2, |x, y| sat_i16(x - y))),
+    ("pabsb", |c, d, a| {
+        zip(c, d, a, 1, |_, y| (y as i8).unsigned_abs() as u64)
+    }),
+    ("pabsw", |c, d, a| {
+        zip(c, d, a, 2, |_, y| (y as i16).unsigned_abs() as u64)
+    }),
+    ("pabsd", |c, d, a| {
+        zip(c, d, a, 4, |_, y| (y as i32).unsigned_abs() as u64)
+    }),
+    ("phaddw", |c, d, a| {
+        horizontal(c, d, a, 2, |x, y| (x + y) as u64)
+    }),
+    ("phaddd", |c, d, a| {
+        horizontal(c, d, a, 4, |x, y| (x + y) as u64)
+    }),
+    ("phaddsw", |c, d, a| {
+        horizontal(c, d, a, 2, |x, y| sat_i16(x + y))
+    }),
+    ("phsubw", |c, d, a| {
+        horizontal(c, d, a, 2, |x, y| (x - y) as u64)
+    }),
+    ("phsubd", |c, d, a| {
+        horizontal(c, d, a, 4, |x, y| (x - y) as u64)
+    }),
+    ("phsubsw", |c, d, a| {
+        horizontal(c, d, a, 2, |x, y| sat_i16(x - y))
+    }),
     // pmaddubsw multiplies unsigned bytes of the destination by signed bytes of the source
     ("pmaddubsw", |c, d, a| {
         zip(c, d, a, 2, |x, y| {
@@ -55,15 +73,23 @@ pub const HELPERS: &[(&str, PcodeOpHelper)] = &[
         })
     }),
     ("pmulhrsw", |c, d, a| {
-        zip(c, d, a, 2, |x, y| ((((x as i16 as i64 * y as i16 as i64) >> 14) + 1) >> 1) as u64)
+        zip(c, d, a, 2, |x, y| {
+            ((((x as i16 as i64 * y as i16 as i64) >> 14) + 1) >> 1) as u64
+        })
     }),
     ("psignb", |c, d, a| {
-        zip(c, d, a, 1, |x, y| ((x as i8 as i64) * (y as i8 as i64).signum()) as u64)
+        zip(c, d, a, 1, |x, y| {
+            ((x as i8 as i64) * (y as i8 as i64).signum()) as u64
+        })
     }),
     ("psignw", |c, d, a| {
-        zip(c, d, a, 2, |x, y| ((x as i16 as i64) * (y as i16 as i64).signum()) as u64)
+        zip(c, d, a, 2, |x, y| {
+            ((x as i16 as i64) * (y as i16 as i64).signum()) as u64
+        })
     }),
     ("psignd", |c, d, a| {
-        zip(c, d, a, 4, |x, y| ((x as i32 as i64) * (y as i32 as i64).signum()) as u64)
+        zip(c, d, a, 4, |x, y| {
+            ((x as i32 as i64) * (y as i32 as i64).signum()) as u64
+        })
     }),
 ];
