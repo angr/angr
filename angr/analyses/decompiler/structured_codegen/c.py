@@ -142,7 +142,7 @@ type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapp
 
 INDENT_DELTA = 4
 
-_ORDER_CMP_OPS = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE"})
+_SIGNED_INT_OPS = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE", "Div", "Mod"})
 _INT_TYPES = (SimTypeInt, SimTypeChar, SimTypeNum)
 _FP_TYPES_BY_BITS: dict[int, type[SimTypeFloat]] = {
     32: SimTypeFloat,
@@ -226,7 +226,7 @@ def int_operand_signedness(expr: CExpression) -> bool | None:
     """
     if isinstance(expr, CConstant):
         return None
-    if isinstance(expr, CBinaryOp) and expr.op in {"Add", "Sub", "Mul", "And", "Or", "Xor", "Shl"}:
+    if isinstance(expr, CBinaryOp) and expr.op in {"Add", "Sub", "Mul", "Div", "Mod", "And", "Or", "Xor", "Shl"}:
         lhs = int_operand_signedness(expr.lhs)
         rhs = int_operand_signedness(expr.rhs)
         if lhs is None:
@@ -2522,7 +2522,7 @@ class CBinaryOp(CExpression, BinaryOpNode):
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
-        # signedness of an integer ordering compare; None when unknown
+        # signedness of an integer ordering compare, division, or remainder; None when unknown
         self.signed = signed
         self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
 
@@ -5740,27 +5740,26 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             lhs = self._fp_operand_bits(lhs, expr.operands[0].bits)
             rhs = self._fp_operand_bits(rhs, expr.operands[1].bits)
 
-        cmp_signed = None
-        if expr.op in _ORDER_CMP_OPS and not expr.floating_point:
-            cmp_signed = expr.signed
+        op_signed = None
+        if expr.op in _SIGNED_INT_OPS and not expr.floating_point:
+            op_signed = expr.signed
             bits = expr.operands[0].bits
-            lhs = self._compare_operand(lhs, bits, cmp_signed)
-            rhs = self._compare_operand(rhs, bits, cmp_signed)
+            lhs = self._signed_operand(lhs, bits, op_signed)
+            rhs = self._signed_operand(rhs, bits, op_signed)
 
         return CBinaryOp(
             expr.op,
             lhs,
             rhs,
-            signed=cmp_signed,
+            signed=op_signed,
             tags=expr.tags,
             codegen=self,
             collapsed=expr.depth > self.binop_depth_cutoff,
         )
 
-    def _compare_operand(self, operand: CExpression, bits: int, signed: bool) -> CExpression:
+    def _signed_operand(self, operand: CExpression, bits: int, signed: bool) -> CExpression:
         """
-        Make an operand of an integer ordering compare read with the compare's signedness: retype constants (so
-        0x80000058 prints as -2147483560 under a signed compare) and cast same-width variables of the other signedness.
+        Retype constants and cast same-width variables to preserve an integer operation's signedness.
         """
         ws = int_width_and_signedness(unpack_typeref(operand.type))
         if ws is None or ws[0] != bits:
@@ -5784,7 +5783,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if isinstance(operand, CTypeCast):
             inner_ws = int_width_and_signedness(unpack_typeref(operand.src_type))
             if inner_ws is not None and inner_ws[0] == bits and int_operand_signedness(operand.expr) == signed:
-                # (unsigned int)x with int x under a signed compare: drop the cast
+                # (unsigned int)x with int x under a signed operation: drop the cast
                 return operand.expr
         return CTypeCast(None, self.default_simtype_from_bits(bits, signed=signed), operand, codegen=self)
 
@@ -6325,28 +6324,28 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         return super().handle_CReturn(obj)
 
     @staticmethod
-    def _is_compare_sign_cast(obj: CBinaryOp, operand: CExpression) -> bool:
-        # a cast that makes an ordering-compare operand read with the compare's signedness
+    def _is_operand_sign_cast(obj: CBinaryOp, operand: CExpression) -> bool:
+        # a cast that makes an operand read with the operation's signedness
         if obj.signed is None or not isinstance(operand, CTypeCast) or not is_sign_fixing_cast(operand):
             return False
         d = int_width_and_signedness(operand.dst_type)
         return d is not None and d[1] == obj.signed
 
-    def _handle_compare_operand(self, obj: CBinaryOp, operand: CExpression) -> CExpression:
-        if self._is_compare_sign_cast(obj, operand):
+    def _handle_signed_operand(self, obj: CBinaryOp, operand: CExpression) -> CExpression:
+        if self._is_operand_sign_cast(obj, operand):
             assert isinstance(operand, CTypeCast)
             operand.expr = self.collapse(operand.dst_type, self.handle(operand.expr))
             if operand.expr.type is not None:
                 operand.src_type = operand.expr.type
-            if self._is_compare_sign_cast(obj, operand):
+            if self._is_operand_sign_cast(obj, operand):
                 return operand
             return self._collapse_cast(operand, under_fp_cast=False)
         return self.handle(operand)
 
     def handle_CBinaryOp(self, obj: CBinaryOp):
         if obj.signed is not None:
-            obj.lhs = self._handle_compare_operand(obj, obj.lhs)
-            obj.rhs = self._handle_compare_operand(obj, obj.rhs)
+            obj.lhs = self._handle_signed_operand(obj, obj.lhs)
+            obj.rhs = self._handle_signed_operand(obj, obj.rhs)
         else:
             obj = super().handle_CBinaryOp(obj)
         while True:
@@ -6354,7 +6353,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
             assert obj.rhs.type is not None and new_lhs.type is not None
             if (
                 new_lhs is not obj.lhs
-                and not self._is_compare_sign_cast(obj, obj.lhs)
+                and not self._is_operand_sign_cast(obj, obj.lhs)
                 and CBinaryOp.compute_common_type(obj.op, new_lhs.type, obj.rhs.type) == obj.common_type
             ):
                 obj.lhs = new_lhs
@@ -6363,7 +6362,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
                 assert new_rhs.type is not None and obj.lhs.type is not None
                 if (
                     new_rhs is not obj.rhs
-                    and not self._is_compare_sign_cast(obj, obj.rhs)
+                    and not self._is_operand_sign_cast(obj, obj.rhs)
                     and CBinaryOp.compute_common_type(obj.op, obj.lhs.type, new_rhs.type) == obj.common_type
                 ):
                     obj.rhs = new_rhs

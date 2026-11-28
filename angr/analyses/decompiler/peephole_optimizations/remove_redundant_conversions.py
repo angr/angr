@@ -292,12 +292,16 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     # an int->float operand beside a float->float one: the fold would be an integer operation
                     and op0.from_type == op1.from_type == expr.to_type
                     and op0.to_type == op1.to_type == expr.from_type
+                    and (
+                        operand_expr.op not in {"Div", "DivMod", "Mod"}
+                        or op0.is_signed == op1.is_signed == operand_expr.signed
+                    )
                 ):
                     return BinaryOp(
                         operand_expr.idx,
                         operand_expr.op,
                         [op0.operand, op1.operand],
-                        expr.is_signed,
+                        operand_expr.signed,
                         **operand_expr.tags,
                     )
             elif operand_expr.op == "Or" and expr.from_bits > expr.to_bits:

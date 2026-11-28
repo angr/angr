@@ -30,11 +30,13 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CVariable,
     CVariableField,
     c_return_type,
+    int_operand_signedness,
     qualifies_for_simple_cast,
     type_layout_key,
     type_to_c_repr_chunks,
 )
 from angr.calling_conventions import SimComboArg
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
@@ -315,6 +317,61 @@ class TestRightShiftRendering(unittest.TestCase):
                 assert f"({cast})(signed_status{width}()) >> {width - 1}" in text
                 assert text.count(f"signed_status{width}(") == 1
                 assert source.prototype == prototype
+                assert not result.structuring_failures
+
+
+class TestDivisionRendering(unittest.TestCase):
+    def test_division_by_constant_keeps_the_operand_signedness(self):
+        arch = archinfo.ArchAMD64()
+        codegen = SimpleNamespace(
+            project=SimpleNamespace(arch=arch),
+            cstyle_null_cmp=False,
+            next_ident=lambda name: name,
+            next_node_idx=lambda: 0,
+        )
+        for op, signed in itertools.product(("Div", "Mod"), (False, True)):
+            with self.subTest(op=op, signed=signed):
+                operand = _RenderedExpression("value", SimTypeInt(signed=signed).with_arch(arch), codegen=codegen)
+                constant = CConstant(3, SimTypeInt(signed=False).with_arch(arch), codegen=codegen)
+                expression = CBinaryOp(op, operand, constant, codegen=codegen)
+                assert int_operand_signedness(expression) == signed
+
+    def test_division_signedness_is_local_to_the_operands(self):
+        for type_class, signed, code in (
+            (SimTypeInt, True, "89f899f7fe"),
+            (SimTypeInt, False, "89f831d2f7f6"),
+            (SimTypeLongLong, True, "4889f8489948f7fe"),
+            (SimTypeLongLong, False, "4889f831d248f7f6"),
+        ):
+            for op in ("/", "%"):
+                with self.subTest(type_class=type_class, signed=signed, op=op):
+                    tail = "" if op == "/" else "89d0" if type_class is SimTypeInt else "4889d0"
+                    project = angr.load_shellcode(bytes.fromhex(code + tail + "c3"), arch="amd64")
+                    cfg = project.analyses.CFGFast(normalize=True)
+                    func = cfg.functions[0]
+                    ty = type_class(signed=not signed)
+                    prototype = SimTypeFunction([ty, ty], ty).with_arch(project.arch)
+                    func.prototype = prototype
+                    func.prototype_source = PrototypeSource.USER
+                    func.calling_convention = project.factory.cc()
+                    result = project.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+                    assert result.codegen is not None and result.codegen.text is not None
+                    cast = type_class(signed=signed).c_repr()
+                    assert f"return ({cast})a0 {op} ({cast})a1;" in result.codegen.text
+                    assert func.prototype == prototype
+                    assert not result.structuring_failures
+
+    def test_signed_division_with_computed_divisor(self):
+        # issue 7826: mov ecx, [rsi]; mov eax, edi; cdq; and ecx, 127; sub ecx, 350606; idiv ecx
+        for op, tail in (("/", "c3"), ("%", "89d0c3")):
+            with self.subTest(op=op):
+                code = bytes.fromhex("8b0e89f89983e17f81e98e590500f7f9" + tail)
+                project = angr.load_shellcode(code, arch="amd64")
+                cfg = project.analyses.CFGFast(normalize=True)
+                result = project.analyses.Decompiler(0, cfg=cfg.model, fail_fast=True)
+                assert result.codegen is not None and result.codegen.text is not None
+                assert "_start(int a0, unsigned int *a1)" in result.codegen.text
+                assert f"return a0 {op} (int)((*a1 & 127) - 350606);" in result.codegen.text
                 assert not result.structuring_failures
 
 
