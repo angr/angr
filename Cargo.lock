@@ -879,7 +879,7 @@ dependencies = [
 [[package]]
 name = "icicle-cpu"
 version = "0.2.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 dependencies = [
  "addr2line 0.27.1",
  "ahash",
@@ -899,7 +899,7 @@ dependencies = [
 [[package]]
 name = "icicle-fuzzing"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 dependencies = [
  "ahash",
  "anyhow",
@@ -919,7 +919,7 @@ dependencies = [
 [[package]]
 name = "icicle-jit"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 dependencies = [
  "ahash",
  "bitflags 2.13.2",
@@ -939,7 +939,7 @@ dependencies = [
 [[package]]
 name = "icicle-linux"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 dependencies = [
  "bitflags 2.13.2",
  "bstr",
@@ -955,7 +955,7 @@ dependencies = [
 [[package]]
 name = "icicle-mem"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 dependencies = [
  "ahash",
  "tracing",
@@ -964,7 +964,7 @@ dependencies = [
 [[package]]
 name = "icicle-vm"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 dependencies = [
  "anyhow",
  "icicle-cpu",
@@ -1443,7 +1443,7 @@ dependencies = [
 [[package]]
 name = "pcode"
 version = "0.2.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 
 [[package]]
 name = "petgraph"
@@ -1903,7 +1903,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 [[package]]
 name = "sleigh-compile"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 dependencies = [
  "pcode",
  "serde",
@@ -1916,12 +1916,12 @@ dependencies = [
 [[package]]
 name = "sleigh-parse"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 
 [[package]]
 name = "sleigh-runtime"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=03175e898f2a81be4c13cc2bdc023f487b77a0e0#03175e898f2a81be4c13cc2bdc023f487b77a0e0"
+source = "git+https://github.com/angr/icicle-emu.git?rev=be05dfe5ee5a4f725c504931dcecc84c299d741c#be05dfe5ee5a4f725c504931dcecc84c299d741c"
 dependencies = [
  "ahash",
  "pcode",
