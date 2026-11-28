@@ -746,7 +746,9 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep(fail_fast=True)(0x403D10, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        m = re.search(r"\bv\d+ = (a4->field_8);\s+a4->field_8 = v\d+ \+ 1;", dec.codegen.text)
+        m = re.search(
+            r"\bv\d+ = (?:\([^()]+\))?(a4->field_8);\s+a4->field_8 = (?:\([^()]+\)\()?v\d+ \+ 1\)?;", dec.codegen.text
+        )
         assert m is not None, dec.codegen.text
 
     def _setup_decompiling_true_a_x86_64_0(self):
@@ -1736,8 +1738,9 @@ class TestDecompiler(unittest.TestCase):
             assert "break" not in replaced
 
             # ensure if-else removal does not incorrectly remove else nodes
-            assert "emaillist=strdup(" in code_without_spaces or re.search(
-                r"(\w+)=strdup[^\;]+;emaillist=\1", code_without_spaces
+            # emaillist is recovered as an integer, so the pointer strdup returns is stored with a cast
+            assert re.search(r"emaillist=(\([^()]*\))?strdup\(", code_without_spaces) or re.search(
+                r"(\w+)=(\([^()]*\))?strdup[^\;]+;emaillist=(\([^()]*\))?\1", code_without_spaces
             )
 
     def _setup_decompiling_morton_my_message_callback(self):
@@ -6805,7 +6808,7 @@ class TestDecompiler(unittest.TestCase):
         # rep stosq are transformed into for-loops. check the existence of them
         lines = [line.strip() for line in dec.codegen.text.split("\n")]
         # first loop
-        assert _check_rep_stosq(lines, 48, r"= &\w+\->Anonymous")
+        assert _check_rep_stosq(lines, 48, r"= (?:\((?:struct )?\w+ \*\))?&\w+\->Anonymous")
         # second loop
         assert _check_rep_stosq(lines, 32, r"\+= 8") ^ _check_rep_stosq(lines, 32, r"\+= 1")
 
@@ -6958,7 +6961,8 @@ class TestDecompiler(unittest.TestCase):
         assert f"{wndclass_var}.hIcon = LoadIconA(" in dec.codegen.text
         assert f"{wndclass_var}.hCursor = LoadCursorA(" in dec.codegen.text
         assert f"{wndclass_var}.hbrBackground = GetStockObject(BLACK_BRUSH);" in dec.codegen.text
-        assert f"{wndclass_var}.lpszMenuName = 109;" in dec.codegen.text
+        # lpszMenuName is a pointer, so the resource id is stored with a cast
+        assert re.search(rf"{wndclass_var}\.lpszMenuName = \(\w+ \*\)109;", dec.codegen.text)
         assert f'{wndclass_var}.lpszClassName = "BOLHAS";' in dec.codegen.text
         assert f"{wndclass_var}.hIconSm = 0;" in dec.codegen.text
         assert f"if (!RegisterClassExA(&{wndclass_var}))" in dec.codegen.text
