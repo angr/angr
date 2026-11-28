@@ -127,9 +127,11 @@ class TestLoweredSwitchSimplifier(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "switch (" in dec.codegen.text
 
-    def test_orphaned_chain_is_removed_entirely(self):
-        # the same shape at -O2, where the orphaned chain is long enough that stopping at the immediate
-        # successors leaves nodes unreachable from the function entry and the structurer gives up on them.
+    def test_branch_through_a_comparison_of_another_variable_is_kept(self):
+        # string_modifier_check() of file 5.45, inlined into parse(), switches on m->type. its comparison tree
+        # sends 18 and 19 (FILE_BESTRING16 and FILE_LESTRING16) to a test of m->str_flags rather than to a case
+        # body, and that branch warns "no modifiers allowed for 16-bit strings". a switch with no case for the
+        # branch must not replace the tree, or the warning is deleted along with the comparison nodes.
         proj, cfg = load_project_with_scoped_cfg(
             os.path.join(test_location, "x86_64", "file_gcc13.3.0_O2"), 0x4091D0, window=0x3000
         )
@@ -139,6 +141,7 @@ class TestLoweredSwitchSimplifier(unittest.TestCase):
         assert not dec.errors
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "switch (" in dec.codegen.text
+        assert "no modifiers allowed for 16-bit strings" in dec.codegen.text
 
     def test_floating_point_comparisons_are_not_switch_cases(self):
         # each function tests one float against +inf and then -inf, with a distinct body per test. switch case
