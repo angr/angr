@@ -112,18 +112,28 @@ class TestCfgfast(unittest.TestCase):
 
         self.cfg_fast_functions_check("x86_64", "cfg_0_pe", functions, function_features)
 
-    def test_arm_function_merge(self):
-        # function 0x7bb88 is created due to a data hint in another block. this function should be merged with the
-        # previous function 0x7ba84
+    def test_arm_pic_literal_is_not_a_code_pointer(self):
+        # 0x83824 loads the literal at 0x8392c, which is 0x7bb88, and 0x83828 adds pc to it: the
+        # word is a displacement to .got, not a pointer to 0x7bb88. 0x7bb88 is a bl in the middle
+        # of the function at 0x7ba84, and treating the literal as a pointer used to start a block
+        # there and split that function's basic block in two.
+        #
+        # This replaces test_arm_function_merge, which asserted that the block at 0x7bb88 exists and
+        # belongs to 0x7ba84 -- the merge that CFGBase._process_irrational_function_starts performs
+        # after the split. That was the regression test for #4226. There is nothing left to merge
+        # once the split does not happen: reverting the predicate #4226 widened to
+        # `1 <= len(func_0.block_addrs_set) <= 4` leaves the CFG here byte-identical.
 
         path = os.path.join(test_location, "armel", "tenda-httpd")
         proj = angr.Project(path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast()
 
-        node_7bb88 = cfg.model.get_any_node(0x7BB88)
-        assert node_7bb88 is not None
-        assert node_7bb88.function_address == 0x7BA84
+        assert cfg.model.get_any_node(0x7BB88) is None
+        node = cfg.model.get_any_node(0x7BB88, anyaddr=True)
+        assert node is not None
+        assert node.addr == 0x7BB78
+        assert node.function_address == 0x7BA84
 
     @broken
     def test_busybox(self):
