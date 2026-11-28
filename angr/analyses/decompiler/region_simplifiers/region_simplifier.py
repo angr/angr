@@ -16,9 +16,8 @@ class RegionSimplifier(Analysis):
     """
     Simplifies a given region by running the passes in REGION_SIMPLIFICATION_PASSES in order.
 
-    :ivar structure_only:   Run only the passes that may change the structure of the region (nodes, gotos, labels,
-                            loop kinds) and skip the ones that only rewrite expressions. Structurability probes use
-                            this mode: they consume the goto manager and the shape of the result, not its expressions.
+    :ivar structure_only:   Only run the passes that may change the structure of the region. Structurability probes use
+                            this mode.
     """
 
     def __init__(

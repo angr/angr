@@ -1,9 +1,12 @@
 """
-The steps of RegionSimplifier as RegionSimplificationPass instances.
+Base class of RegionSimplificationPass.
 
-Each pass declares whether it may change the structure of the region (nodes, gotos, labels, loop kinds, control-flow
-shape) or only rewrites expressions and statements inside nodes. REGION_SIMPLIFICATION_PASSES is the ordered schedule
-that RegionSimplifier runs.
+Each region simplification pass declares whether the simplification may change the structure of the region, which includes
+nodes, gotos, labels, loop kinds, control flow shapes, etc.
+A region simplification pass that does not change the structure of a region only rewrites expressions and statements inside
+nodes.
+
+REGION_SIMPLIFICATION_PASSES is an ordered list of simplification passes.
 """
 
 from __future__ import annotations
@@ -43,12 +46,11 @@ if TYPE_CHECKING:
 
 class RegionSimplificationPass:
     """
-    One step of RegionSimplifier.
+    A region simplification pass.
 
-    :ivar name:                 Name of the pass.
-    :ivar changes_structure:    True if the pass may change nodes, gotos, labels, loop kinds, or the control-flow shape
-                                of the region. False if it only rewrites expressions or statements inside nodes (or
-                                assigns names); such passes are skipped in structure-only mode.
+    :ivar name:                 Name of the simplification pass.
+    :ivar changes_structure:    True if the pass may change the structure of the node. False if it only rewrites expressions
+                                or statements inside nodes without changing the structure of the node.
     """
 
     name: str
@@ -243,8 +245,8 @@ class SwitchExpressionSimplification(RegionSimplificationPass):
     """
     Move constant offsets out of switch expressions into the case values.
 
-    Rewrites expressions only, but SwitchClusterSimplification keys switches by the variable of the switch expression,
-    so it is kept in structure-only mode.
+    This pass rewrites expressions only, but SwitchClusterSimplification uses the variable of the switch expression as the key
+    of switches, so we mark this pass as `changes_structure`.
     """
 
     name = "SwitchExpressionSimplification"
@@ -361,7 +363,6 @@ def _loopctr_naming(simplifier: RegionSimplifier) -> bool:
     return simplifier.loopctr_naming and simplifier.variable_manager is not None
 
 
-# The schedule RegionSimplifier runs, in order.
 REGION_SIMPLIFICATION_PASSES: tuple[RegionSimplificationPass, ...] = (
     EmptyNodeRemoval(),
     GotoSimplification(),

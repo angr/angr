@@ -48,7 +48,7 @@ class TestRegionSimplificationPasses(unittest.TestCase):
         names = [p.name for p in REGION_SIMPLIFICATION_PASSES]
         expression_only = [p.name for p in REGION_SIMPLIFICATION_PASSES if not p.changes_structure]
         assert expression_only == ["OneUseExpressionFolding", "LoopCounterNaming"]
-        # the goto manager must be produced before any skipped pass
+        # we must build the goto manager before any skipped pass
         assert names.index("GotoSimplification") < names.index("OneUseExpressionFolding")
         assert StructuringOptimizationPass.PROBE_STRUCTURE_ONLY is True
         assert LoweredSwitchSimplifier.PROBE_STRUCTURE_ONLY is False

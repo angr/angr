@@ -497,8 +497,6 @@ class StructuringOptimizationPass(OptimizationPass):
     PLATFORMS = None
     STRUCTURING = [SAILRStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
-    # The structurability probe simplifies regions in structure-only mode (expression passes skipped). Set to False in
-    # subclasses whose _analyze_simplified_region() reads expressions inside the simplified region.
     PROBE_STRUCTURE_ONLY = True
 
     _initial_gotos: set[Goto]

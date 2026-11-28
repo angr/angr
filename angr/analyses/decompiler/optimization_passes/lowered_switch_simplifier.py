@@ -158,8 +158,6 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
     # TODO: this needs to be updated to support Windows, but detect and disable on MSVC
     PLATFORMS = ["linux"]
-    # _analyze_simplified_region keys switches by the variable of the switch expression, which expression folding
-    # in the probe's RegionSimplifier can change
     PROBE_STRUCTURE_ONLY = False
     NAME = "Convert lowered switch-cases (if-else) to switch-cases"
     DESCRIPTION = (
