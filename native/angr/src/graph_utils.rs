@@ -1,9 +1,12 @@
-//! Index-encoded ports of the deterministic graph utilities in `angr.utils.graph`.
+//! Rust ports of the deterministic graph utilities in `angr.utils.graph`.
 //!
-//! Exposed as `angr.rustylib.graph_utils`. Every entry point takes the graph's successor mapping (`DiGraph._succ`:
-//! a dict of dicts, or a RegionOverlayGraph's lazy atlas), indexes the nodes in iteration order and the successors in
-//! adjacency order, and returns node objects; the algorithms reproduce the Python implementations step by step,
-//! including their `sort_node` / `sort_edge` tie-breaks.
+//! This module is exposed as `angr.rustylib.graph_utils`.
+//! Every function takes the successor mapping of a graph, which is `DiGraph._succ` or the lazy atlas of a
+//! RegionOverlayGraph.
+//! We index the nodes in iteration order and the successors in adjacency order.
+//!
+//! The algorithms follow the Python implementations step by step, including the tie-breaks of `sort_node` and
+//! `sort_edge`.
 
 use std::cmp::Ordering;
 use std::collections::VecDeque;
@@ -14,11 +17,12 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyInt, PyString};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-/// `sys.maxsize`: nodes without an idx sort after every idx-carrying node at the same address.
+/// We use `sys.maxsize` as the idx of a node that does not have an idx, so the node is sorted after the nodes with
+/// an idx at the same address.
 const NO_IDX: i64 = i64::MAX;
 const DEFAULT_PANIC_MODE_THRESHOLD: usize = 3000;
 
-/// Successor lists in adjacency order.
+/// The successor lists of a graph in adjacency order.
 struct Csr {
     offsets: Vec<u32>,
     targets: Vec<u32>,
@@ -45,7 +49,7 @@ impl Csr {
         indeg
     }
 
-    /// Predecessor lists, grouped by source order.
+    /// Build the predecessor lists of the graph.
     fn transpose(&self) -> Csr {
         let n = self.len();
         let mut offsets = vec![0u32; n + 1];
@@ -66,7 +70,8 @@ impl Csr {
         Csr { offsets, targets }
     }
 
-    /// Induced subgraph on `nodes` (local index = position in `nodes`), without the edges in `removed`.
+    /// Build the subgraph of `nodes` without the edges in `removed`.
+    /// The local index of a node is the position of the node in `nodes`.
     fn induced(&self, nodes: &[u32], removed: &FxHashSet<(u32, u32)>) -> Csr {
         let mut local = FxHashMap::default();
         for (i, &n) in nodes.iter().enumerate() {
@@ -89,10 +94,10 @@ impl Csr {
     }
 }
 
-/// (node, index of its non-trivial strongly connected component) pairs.
+/// Pairs of a node and the index of its non-trivial strongly connected component.
 type SccMembership<'py> = Vec<(Bound<'py, PyAny>, i64)>;
 
-/// A graph read through its successor mapping: nodes in iteration order, their indices, successors in adjacency order.
+/// A graph that we read through its successor mapping.
 struct Encoded<'py> {
     nodes: Vec<Bound<'py, PyAny>>,
     index: Bound<'py, PyDict>,
@@ -161,14 +166,14 @@ impl<'py> Encoded<'py> {
     }
 }
 
-/// `GraphUtils.sort_node` keys of the graph's nodes plus the `sort_edge` / SCC-address key.
+/// The `GraphUtils.sort_node` keys of the nodes of a graph, and the keys that `sort_edge` uses.
 struct Keys {
     kinds: Vec<u8>,
     addrs: Vec<i64>,
     idxs: Vec<i64>,
     texts: Vec<u32>,
     table: Vec<String>,
-    /// `node.addr if hasattr(node, "addr") else node`; None when neither is an int.
+    /// The address of each node, or the node itself if the node has no `addr`. None if neither is an integer.
     edge_keys: Vec<Option<i64>>,
 }
 
@@ -185,7 +190,7 @@ impl Keys {
         let mut interned: FxHashMap<String, u32> = FxHashMap::default();
         for node in nodes {
             let py = node.py();
-            // sort_node: `node.addr`, with AttributeError/TypeError meaning "no address"
+            // a node has no address if reading `node.addr` raises AttributeError or TypeError
             let addr = match node.getattr_opt(intern!(py, "addr")) {
                 Ok(a) => a,
                 Err(e) if e.is_instance_of::<PyTypeError>(py) => None,
@@ -238,7 +243,7 @@ impl Keys {
         Ok(keys)
     }
 
-    /// Register an extra key (SCC placeholders), returning its id.
+    /// Register an extra key and return its id. We use extra keys for SCC placeholders.
     fn push(&mut self, kind: u8, addr: i64, idx: i64, text: &str) -> u32 {
         let text_id = match self.table.iter().position(|t| t == text) {
             Some(p) => p as u32,
@@ -272,7 +277,8 @@ impl Keys {
     }
 }
 
-/// Tarjan's algorithm, iterative; every component as a list of local ids in ascending order.
+/// An iterative implementation of Tarjan's algorithm.
+/// Each component is a list of local ids in ascending order.
 fn strongly_connected_components(g: &Csr) -> Vec<Vec<u32>> {
     let n = g.len();
     let mut index = vec![u32::MAX; n];
@@ -330,7 +336,7 @@ fn strongly_connected_components(g: &Csr) -> Vec<Vec<u32>> {
     sccs
 }
 
-/// `GraphUtils.dfs_postorder_nodes_deterministic_multi` over an arbitrary successor function.
+/// `GraphUtils.dfs_postorder_nodes_deterministic_multi` with a custom successor function.
 fn dfs_postorder_sorted(
     n: usize,
     succ: impl Fn(u32) -> Vec<u32>,
@@ -363,7 +369,7 @@ fn dfs_postorder_sorted(
     order
 }
 
-/// `angr.utils.graph.dfs_back_edges` on a CSR.
+/// `angr.utils.graph.dfs_back_edges` on a `Csr`.
 fn back_edges(
     g: &Csr,
     keys: &Keys,
@@ -383,8 +389,8 @@ fn back_edges(
     };
     let mut start = start;
     loop {
-        // like the Python version, restarts share `visited` and `finished`: an edge into a node finished by an
-        // earlier traversal is not a back edge
+        // restarts share `visited` and `finished` like the Python version, so an edge into a node that an earlier
+        // traversal has finished is not a back edge
         let mut stack: Vec<(u32, Vec<u32>, usize)> = vec![(start, sorted_succ(start), 0)];
         while let Some(top) = stack.last_mut() {
             let node = top.0;
@@ -410,7 +416,7 @@ fn back_edges(
         if !visit_all_nodes || n_visited >= n {
             break;
         }
-        // min(unvisited, key=sort_node); the first minimum in node order
+        // we pick the unvisited node with the smallest `sort_node` key, and the first one in node order on a tie
         let mut best: Option<u32> = None;
         for v in 0..n as u32 {
             if !visited[v as usize]
@@ -426,7 +432,7 @@ fn back_edges(
     out
 }
 
-/// BFS distances from `src` (u32::MAX = unreachable).
+/// BFS distances from `src`. `u32::MAX` means that a node is unreachable.
 fn bfs_distances(g: &Csr, src: u32) -> Vec<u32> {
     let mut dist = vec![u32::MAX; g.len()];
     dist[src as usize] = 0;
@@ -442,7 +448,8 @@ fn bfs_distances(g: &Csr, src: u32) -> Vec<u32> {
     dist
 }
 
-/// `GraphUtils.quasi_topological_sort_nodes` on a local CSR; `node_ids` maps local ids to key ids.
+/// `GraphUtils.quasi_topological_sort_nodes` on a local `Csr`.
+/// `node_ids` maps local ids to key ids.
 fn quasi_topological_sort(
     g: &Csr,
     keys: &mut Keys,
@@ -459,7 +466,7 @@ fn quasi_topological_sort(
         return Ok(vec![0]);
     }
 
-    // non-trivial SCCs, sorted by (size, min address)
+    // collect non-trivial SCCs and sort them by size and then by the minimum address
     let mut sccs: Vec<(Vec<u32>, i64)> = Vec::new();
     for comp in strongly_connected_components(g) {
         if comp.len() > 1 {
@@ -481,7 +488,7 @@ fn quasi_topological_sort(
         }
     }
 
-    // placeholder key ids: (0, scc_addr, NO_IDX, "SCCPlaceholder")
+    // the key of an SCC placeholder is (0, scc_addr, NO_IDX, "SCCPlaceholder")
     let placeholder_keys: Vec<u32> = sccs
         .iter()
         .map(|(_, addr)| keys.push(0, *addr, NO_IDX, "SCCPlaceholder"))
@@ -494,7 +501,8 @@ fn quasi_topological_sort(
         }
     };
 
-    // collapse the SCCs: edges in sort_edge order, graph_copy ids = local ids, then placeholders, then the head
+    // collapse the SCCs. We add edges in `sort_edge` order.
+    // The ids of graph_copy are the local ids, followed by the placeholders and then the head.
     let mut edges: Vec<(u32, u32, i128)> = Vec::with_capacity(g.edge_count());
     for u in 0..m {
         let ku = keys.edge_key(node_ids[u])? as i128;
@@ -559,7 +567,7 @@ fn quasi_topological_sort(
             .ok_or_else(|| PyValueError::new_err("condensation has no source node"))?
     };
 
-    // the deterministic post-order DFS compares graph_copy nodes by their sort_node keys
+    // the deterministic post-order DFS compares the nodes of graph_copy by their `sort_node` keys
     let postorder = {
         let mut visited = vec![false; total];
         let mut order = Vec::new();
@@ -639,7 +647,8 @@ fn append_scc(
                 break;
             }
             if scc_succs.len() > 1 {
-                // the node with the smallest total distance to the others; ties go to the last one in sort order
+                // we pick the node with the smallest total distance to the other nodes, and the last one in sort order
+                // on a tie
                 scc_succs.sort_by(|&a, &b| keys.cmp(node_ids[a as usize], node_ids[b as usize]));
                 let mut best: Option<(u64, u32)> = None;
                 for &s in &scc_succs {
@@ -672,7 +681,7 @@ fn append_scc(
             .unwrap()
     });
 
-    // subgraph without the loop head's in-edges
+    // build the subgraph without the incoming edges of the loop head
     let mut removed: FxHashSet<(u32, u32)> = FxHashSet::default();
     for &u in scc {
         if g.succ(u as usize).contains(&loop_head) {
@@ -681,7 +690,7 @@ fn append_scc(
     }
     let mut sub = g.induced(scc, &removed);
 
-    // panic mode: aggressively remove back edges of a dense component
+    // in panic mode, we aggressively remove back edges of a dense component
     let limit = (scc.len() as f64) * 1.4;
     if scc.len() > panic_mode_threshold && (sub.edge_count() as f64) > limit {
         let local_head = scc.iter().position(|&v| v == loop_head).unwrap() as u32;
@@ -717,8 +726,9 @@ fn append_scc(
     Ok(())
 }
 
-/// `GraphUtils.quasi_topological_sort_nodes`: the ordered nodes and, if requested, (node, index of its non-trivial
-/// strongly connected component) for every node of such a component.
+/// The Rust port of `GraphUtils.quasi_topological_sort_nodes`.
+/// It returns the ordered nodes. If requested, it also returns the index of the non-trivial strongly connected
+/// component of each node.
 #[pyfunction]
 #[pyo3(signature = (successors, loop_heads=None, panic_mode_threshold=DEFAULT_PANIC_MODE_THRESHOLD, scc_membership=false))]
 fn quasi_topological_sort_nodes<'py>(
@@ -770,7 +780,7 @@ fn quasi_topological_sort_nodes<'py>(
     Ok((ordered, membership))
 }
 
-/// `GraphUtils.dfs_postorder_nodes_deterministic_multi` (a single source is the single-source variant).
+/// The Rust port of `GraphUtils.dfs_postorder_nodes_deterministic_multi`.
 #[pyfunction]
 fn dfs_postorder_nodes_deterministic<'py>(
     successors: &Bound<'py, PyAny>,
@@ -794,7 +804,7 @@ fn dfs_postorder_nodes_deterministic<'py>(
         .collect())
 }
 
-/// `angr.utils.graph.dfs_back_edges`.
+/// The Rust port of `angr.utils.graph.dfs_back_edges`.
 #[pyfunction]
 #[pyo3(signature = (successors, start, visit_all_nodes=false))]
 fn dfs_back_edges<'py>(
@@ -813,9 +823,8 @@ fn dfs_back_edges<'py>(
         .collect())
 }
 
-/// `networkx.immediate_dominators` (Cooper-Harvey-Kennedy over networkx's DFS post-order): node -> immediate
-/// dominator for every node reachable from `start` except `start`, in networkx's dict insertion order (reverse
-/// post-order).
+/// The Rust port of `networkx.immediate_dominators`.
+/// It returns the immediate dominator of every node that is reachable from `start`, in the key order of networkx.
 #[pyfunction]
 fn immediate_dominators<'py>(
     successors: &Bound<'py, PyAny>,
@@ -825,7 +834,8 @@ fn immediate_dominators<'py>(
     let g = &enc.csr;
     let n = g.len();
     let start = enc.require(start)?;
-    // networkx dfs_postorder_nodes: children in adjacency order, marked visited when first reached
+    // we follow `dfs_postorder_nodes` of networkx, which visits children in adjacency order and marks a node as
+    // visited when the node is first reached
     let mut visited = vec![false; n];
     let mut postorder: Vec<u32> = Vec::new();
     let mut stack: Vec<(u32, usize)> = vec![(start, 0)];

@@ -144,7 +144,7 @@ def dfs_back_edges[T](
         try:
             edges = _rust_graph.dfs_back_edges(graph._succ, start_node, visit_all_nodes)
         except (TypeError, OverflowError):
-            # nodes without integer sort keys: keep the Python semantics
+            # we fall back to the Python implementation for nodes without integer sort keys
             edges = None
         if edges is not None:
             yield from edges
@@ -163,7 +163,7 @@ def _dfs_back_edges_py[T](
     finished: set[T] | None = None,
 ) -> Iterator[tuple[T, T]]:
     """
-    The pure-Python dfs_back_edges; the reference the Rust port is tested against.
+    The Python implementation of `dfs_back_edges`.
     """
     if start_node not in graph:
         return
@@ -198,7 +198,9 @@ def _dfs_back_edges_py[T](
 
 def immediate_dominators[T](graph: networkx.DiGraph[T], start: T) -> dict[T, T]:
     """
-    networkx.immediate_dominators (Cooper-Harvey-Kennedy over a DFS post-order) in Rust; same dict, same key order.
+    The Rust port of `networkx.immediate_dominators`.
+
+    The returned dict has the same keys in the same order as the dict that networkx returns.
     """
     if start not in graph:
         raise networkx.NetworkXError("start is not in G")
@@ -836,7 +838,7 @@ class GraphUtils:
             try:
                 return iter(_rust_graph.dfs_postorder_nodes_deterministic(graph._succ, [source]))
             except (TypeError, OverflowError):
-                # nodes without integer sort keys: keep the Python semantics
+                # we fall back to the Python implementation for nodes without integer sort keys
                 pass
         return GraphUtils._dfs_postorder_nodes_deterministic_py(graph, source)
 
@@ -971,8 +973,8 @@ class GraphUtils:
         :param nodes:       A list of nodes to sort. None if you want to sort all nodes inside the graph.
         :param loop_heads:  A list of nodes that should be treated loop heads.
         :param panic_mode_threshold: Threshold of nodes in an SCC to begin aggressively removing edges.
-        :param scc_membership: If given, filled with the index of the non-trivial strongly connected component each
-                            node of such a component belongs to.
+        :param scc_membership: A dict that we fill with the index of the non-trivial strongly connected component
+                            of each node.
         :return:            A list of ordered nodes.
         """
 
@@ -990,7 +992,7 @@ class GraphUtils:
                 graph._succ, loop_heads, panic_mode_threshold, scc_membership is not None
             )
         except (TypeError, OverflowError):
-            # nodes without integer address keys (e.g. strings): keep the Python semantics
+            # we fall back to the Python implementation for nodes without integer addresses
             return GraphUtils._quasi_topological_sort_nodes_py(
                 graph, nodes, loop_heads, panic_mode_threshold, scc_membership
             )
@@ -1010,7 +1012,7 @@ class GraphUtils:
         scc_membership: dict[T, int] | None = None,
     ) -> list[T]:
         """
-        The pure-Python quasi_topological_sort_nodes; the reference the Rust port is tested against.
+        The Python implementation of `quasi_topological_sort_nodes`.
         """
 
         # fast path for single node graphs

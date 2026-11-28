@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,disable=no-self-use
-"""The Rust ports in angr.rustylib.graph_utils against their Python originals on random graphs."""
+"""Test the Rust ports in angr.rustylib.graph_utils against the Python implementations on random graphs."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from angr.utils.graph import GraphUtils, _dfs_back_edges_py, dfs_back_edges, imm
 
 
 class N:
-    """An addressed node; distinct (addr, idx) pairs give distinct sort keys."""
+    """A node with an address. Two nodes with different (addr, idx) pairs have different sort keys."""
 
     __slots__ = ("addr", "idx")
 
@@ -32,7 +32,7 @@ class N:
 
 
 class M(N):
-    """Same address space, different type name: ties on (addr, idx) are broken by the type name."""
+    """A node with a different type name. The type name breaks ties on (addr, idx)."""
 
 
 def random_graph(rng: random.Random, n: int) -> nx.DiGraph:
@@ -67,7 +67,8 @@ class TestGraphUtilsRust(unittest.TestCase):
         for g in self.graphs:
             nodes = list(g)
             assert GraphUtils.quasi_topological_sort_nodes(g) == GraphUtils._quasi_topological_sort_nodes_py(g)
-            # one candidate: with several candidates in one SCC the Python version picks by set-iteration order
+            # we only pass one loop head because the Python implementation picks from several loop heads in one SCC by
+            # set iteration order
             heads = [self.rng.choice(nodes)]
             subset = self.rng.sample(nodes, len(nodes) // 2)
             m_rust: dict = {}
@@ -115,7 +116,8 @@ class TestGraphUtilsRust(unittest.TestCase):
                 assert r == p
 
     def test_dfs_back_edges_restart_keeps_finished_nodes(self):
-        # the restart from n2 reaches n1, which the first traversal finished: a cross edge, not a back edge
+        # the restart from n2 reaches n1, which the first traversal has finished, so n2 -> n1 is a cross edge and not
+        # a back edge
         n0, n1, n2 = N(0x10), N(0x20), N(0x30)
         g = nx.DiGraph([(n0, n1), (n2, n1)])
         assert not list(dfs_back_edges(g, n0, visit_all_nodes=True))
