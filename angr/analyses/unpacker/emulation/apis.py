@@ -80,7 +80,7 @@ def page_perms(protect: int) -> int:
 class FileObject:
     """
     An open file.
-    The emulated copy of the sample's own file and a stand-in for a system file are read-only. A file that the program
+    The emulated copy of the sample's own file and a fake system file are read-only. A file that the program
     created is writable.
     """
 
@@ -1613,8 +1613,9 @@ _const(("TlsFree", "FlsFree"), 1, 1)
 
 #
 # Files
-# The files are the image of the sample, stand-ins for a few files that every Windows 7 installation has, and the
-# files that the program creates, which we keep in memory.
+# The files are the image of the sample, fake system files, and the files that the program creates, which we keep in
+# memory.
+# A fake system file has the name of a file that every Windows 7 installation has and the headers of an empty PE image.
 #
 
 CREATE_NEW, CREATE_ALWAYS, OPEN_EXISTING, OPEN_ALWAYS, TRUNCATE_EXISTING = 1, 2, 3, 4, 5
@@ -1647,7 +1648,7 @@ def _stub_image(is_64bit: bool) -> bytes:
 
 def _system_files(emu: WindowsEmulator, directory: str) -> list[str]:
     """
-    The names of the stand-in system files in a directory. `directory` is an absolute path in lower case.
+    The names of the fake system files in a directory. `directory` is an absolute path in lower case.
     """
     windows = WINDOWS_DIRECTORY.lower()
     if directory == windows:
@@ -1659,7 +1660,7 @@ def _system_files(emu: WindowsEmulator, directory: str) -> list[str]:
 
 def _system_file(emu: WindowsEmulator, path: str) -> bytes | None:
     """
-    The stand-in for a system file. `path` is an absolute path in lower case.
+    The fake system file at `path`. `path` is an absolute path in lower case.
     """
     directory, name = ntpath.split(path)
     windows = WINDOWS_DIRECTORY.lower()
